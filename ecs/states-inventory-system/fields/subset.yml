@@ -36,6 +36,7 @@ fields:
           name: {}
           patch: {}
           platform: {}
+          type: {}
           version: {}
   wazuh:
     fields: "*"

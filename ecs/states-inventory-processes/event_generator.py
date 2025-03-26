@@ -64,6 +64,7 @@ def generate_random_host():
 def generate_random_process():
     return {
         "args": f"arg{random.randint(0, 9999)}",
+        "args_count": random.randint(0, 9999),
         "command_line": f"command{random.randint(0, 9999)}",
         "name": f"process{random.randint(0, 9999)}",
         "parent": {"pid": random.randint(1, 9999)},
@@ -77,6 +78,7 @@ def generate_random_process():
                 "Zombie",
             ]
         ),
+        "start": generate_random_date(),
         "stime": generate_random_unix_timestamp(),
         "utime": generate_random_unix_timestamp(),
     }

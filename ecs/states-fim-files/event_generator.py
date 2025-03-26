@@ -31,8 +31,6 @@ def generate_random_data(number):
         event_data = {
             "@timestamp": generate_random_date(),
             "agent": generate_random_agent(),
-            "data_stream": generate_random_data_stream(),
-            "event": generate_random_event(),
             "file": generate_random_file(),
             "wazuh": generate_random_wazuh(),
         }
@@ -60,18 +58,6 @@ def generate_random_host():
     return {
         "architecture": random.choice(["x86_64", "arm64"]),
         "ip": f"{random.randint(1, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}",
-    }
-
-
-def generate_random_data_stream():
-    data_stream = {"type": random.choice(["Scheduled", "Realtime"])}
-    return data_stream
-
-
-def generate_random_event():
-    return {
-        "category": random.choice(["registy_value", "registry_key", "file"]),
-        "type": random.choice(["added", "modified", "deleted"])
     }
 
 

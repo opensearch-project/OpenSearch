@@ -17,12 +17,14 @@ fields:
   process:
     fields:
       args: {}
+      args_count: {}
       command_line: {}
       name: {}
       parent:
         fields:
           pid: {}
       pid: {}
+      start: {}
       state: {}
       stime: {}
       utime: {}

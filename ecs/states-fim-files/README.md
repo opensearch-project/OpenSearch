@@ -13,13 +13,10 @@
 | hash_sha1      | string | SHA-1 hash of the file or registry value content.                         | file.hash.sha1          |        |
 | hash_sha256    | string | SHA-256 hash of the file or registry value content.                       | file.hash.sha256        |        |
 | inode          | long   | Inode number (only applicable for file events).                           | file.inode              |        |
-| mode           | string | Monitoring mode, either "Scheduled" or "Realtime".                        | data_stream.type        |        |
 | mtime          | long   | Last modified timestamp of the entity.                                    | file.mtime              |        |
 | path           | string | Absolute file path or full registry key path.                             | file.path               |        |
 | schema_version | string | Wazuh schema version                                                      | wazuh.schema.version    | TRUE   |
 | size           | long   | Size of the file or registry value (in bytes).                            | file.size               |        |
 | timestamp      | long   | Timestamp when the event was generated.                                   | timestamp               |        |
-| type           | string | Type of change detected, e.g., "added", "modified", "deleted".            | event.type              |        |
-| type           | string | Type of monitored entity, e.g., "registry_value", "registry_key", "file". | event.category          |        |
 | uid            | string | User ID associated with the entity.                                       | file.uid                |        |
 | user_name      | string | Name of the owner of the entity (user).                                   | file.owner              |        |

@@ -14,16 +14,13 @@ fields:
       id: {}
       name: {}
       version: {}
-  data_stream:
-    fields:
-      type: {}
   event:
     fields:
       action: {}
       category: {}
-      type: {}
   registry:
     fields:
+      architecture: {}
       data:
         fields:
           type: {}

@@ -20,8 +20,13 @@ fields:
       description: {}
       category: {}
       installed: {}
+      multiarch: {}
       name: {}
       path: {}
+      priority: {}
+      size: {}
+      source: {}
+      type: {}
       vendor: {}
       version: {}
   wazuh:

@@ -8,10 +8,24 @@
         "number_of_replicas": "0",
         "refresh_interval": "5s",
         "query.default_field": [
+          "agent.host.architecture",
+          "agent.host.ip",
           "agent.id",
+          "agent.name",
+          "agent.version",
+          "process.args",
+          "process.args_count",
+          "process.command_line",
           "process.name",
+          "process.parent.pid",
           "process.pid",
-          "process.command_line"
+          "process.start",
+          "process.state",
+          "process.stime",
+          "process.utime",
+          "wazuh.cluster.name",
+          "wazuh.cluster.node",
+          "wazuh.schema.version"
         ]
       }
     }

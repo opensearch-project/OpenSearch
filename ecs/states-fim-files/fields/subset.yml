@@ -14,13 +14,6 @@ fields:
       id: {}
       name: {}
       version: {}
-  data_stream:
-    fields:
-      type: {}
-  event:
-    fields:
-      category: {}
-      type: {}
   file:
     fields:
       gid: {}

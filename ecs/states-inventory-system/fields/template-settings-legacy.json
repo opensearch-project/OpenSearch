@@ -7,7 +7,30 @@
       "number_of_replicas": "0",
       "refresh_interval": "5s",
       "query.default_field": [
-        "observer.board_serial"
+        "agent.host.architecture",
+        "agent.host.ip",
+        "agent.id",
+        "agent.name",
+        "agent.version",
+        "host.architecture",
+        "host.hostname",
+        "host.os.build",
+        "host.os.codename",
+        "host.os.distribution.release",
+        "host.os.full",
+        "host.os.kernel.name",
+        "host.os.kernel.release",
+        "host.os.kernel.version",
+        "host.os.major",
+        "host.os.minor",
+        "host.os.name",
+        "host.os.patch",
+        "host.os.platform",
+        "host.os.type",
+        "host.os.version",
+        "wazuh.cluster.name",
+        "wazuh.cluster.node",
+        "wazuh.schema.version"
       ]
     }
   }

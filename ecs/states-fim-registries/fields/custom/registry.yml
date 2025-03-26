@@ -4,6 +4,11 @@
   description: >
     Fields related to Windows Registry operations.
   fields:
+    - name: architecture
+      type: keyword
+      level: custom
+      description: >
+        Architecture associated with the entity
     - name: gid
       type: keyword
       level: custom

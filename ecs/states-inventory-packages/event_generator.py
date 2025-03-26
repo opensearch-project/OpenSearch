@@ -67,8 +67,13 @@ def generate_random_package():
         "description": f"description{random.randint(0, 9999)}",
         "category": random.choice(["x11","libs","ssh"]),
         "installed": generate_random_date(),
+        "multiarch": random.choice(["same","foreign"]),
         "name": f"package{random.randint(0, 9999)}",
         "path": f"/path/to/package{random.randint(0, 9999)}",
+        "priority": random.choice(["Required","Important","Standard","Optional","Extra"]),
+        "size": random.randint(100,1000000),
+        "source": random.choice(["x11","libs","ssh"]),
+        "type": random.choice(["deb","rpm","tar"]),
         "vendor": random.choice(["Microsoft", "Canonical", "Apple", "RedHat"]),
         "version": f"{random.randint(0, 9)}.{random.randint(0, 9)}.{random.randint(0, 9)}",
     }

@@ -31,7 +31,6 @@ def generate_random_data(number):
         event_data = {
             "@timestamp": generate_random_date(),
             "agent": generate_random_agent(),
-            "data_stream": generate_random_data_stream(),
             "event": generate_random_event(),
             "registry": generate_random_registry(),
             "wazuh": generate_random_wazuh(),
@@ -80,12 +79,12 @@ def generate_random_data_stream():
 def generate_random_event():
     return {
         "category": random.choice(["registy_value", "registry_key", "file"]),
-        "type": random.choice(["added","modified","deleted"])
     }
 
 
 def generate_random_registry():
     return {
+        "architecture": random.choice(["x86","amd64"]),
         "data": {
             "hash": {
                 "md5": f"{random.randint(0, 9999)}",

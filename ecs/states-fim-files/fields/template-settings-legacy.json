@@ -12,9 +12,6 @@
         "agent.id",
         "agent.name",
         "agent.version",
-        "data_stream.type",
-        "event.action",
-        "event.type",
         "file.gid",
         "file.group",
         "file.hash.md5",
@@ -24,8 +21,12 @@
         "file.mtime",
         "file.owner",
         "file.path",
+        "file.path.fields.text",
         "file.size",
-        "file.uid"
+        "file.uid",
+        "wazuh.cluster.name",
+        "wazuh.cluster.node",
+        "wazuh.schema.version"
       ]
     }
   }

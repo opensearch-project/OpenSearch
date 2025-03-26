@@ -76,6 +76,7 @@ def generate_random_host(is_root_level=False):
                 "name": random.choice(["Linux", "Windows", "macOS"]),
                 "patch": f"{random.randint(1, 100)}",
                 "platform": random.choice(["platform1", "platform2"]),
+                "type": random.choice(["windows","macos","linux"]),
                 "version": f"{random.randint(0, 9)}.{random.randint(0, 9)}.{random.randint(0, 9)}",
             },
         }
