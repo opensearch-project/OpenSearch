@@ -7,6 +7,6 @@
  */
 
 /**
- * This package contains range collector interface and implementations for bkd tree traversal
+ * This package contains range collector interface and implementations for PointTreeTraversal
  */
 package org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector;

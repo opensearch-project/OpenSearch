@@ -136,8 +136,14 @@ public final class FilterRewriteOptimizationContext {
         if (ranges == null) return false;
 
         Supplier<DocIdSetBuilder> disBuilderSupplier = getDocIdSetBuilderSupplier(leafCtx, values);
-        OptimizeResult optimizeResult = aggregatorBridge.tryOptimize(values, incrementDocCount, ranges, disBuilderSupplier);
-        consumeDebugInfo(optimizeResult);
+        OptimizeResult optimizeResult;
+        try {
+            optimizeResult = aggregatorBridge.tryOptimize(values, incrementDocCount, ranges, disBuilderSupplier);
+            consumeDebugInfo(optimizeResult);
+        } catch (AbortFilterRewriteOptimizationException e) {
+            logger.error("Abort filter rewrite optimization, fall back to default path");
+            return false;
+        }
 
         optimizedSegments.incrementAndGet();
         logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
@@ -177,14 +183,20 @@ public final class FilterRewriteOptimizationContext {
                 try {
                     return new DocIdSetBuilder(leafCtx.reader().maxDoc(), values, aggregatorBridge.fieldType.name());
                 } catch (IOException e) {
-                    throw new RuntimeException(
-                        "Failed to do filter rewrite optimization due to IOException when building DocIdSetBuilder",
+                    throw new AbortFilterRewriteOptimizationException(
+                        "Abort filter rewrite optimization due to IOException when building DocIdSetBuilder",
                         e
                     );
                 }
             };
         }
         return disBuilderSupplier;
+    }
+
+    static class AbortFilterRewriteOptimizationException extends RuntimeException {
+        AbortFilterRewriteOptimizationException(String message, Exception e) {
+            super(message, e);
+        }
     }
 
     Ranges getRanges(LeafReaderContext leafCtx, boolean segmentMatchAll) {
