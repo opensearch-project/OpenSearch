@@ -8,13 +8,11 @@
 
 package org.opensearch.transport.grpc;
 
-import io.grpc.StatusRuntimeException;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
@@ -28,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import io.grpc.StatusRuntimeException;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
@@ -37,6 +36,7 @@ import static org.opensearch.transport.grpc.SecureSettingsHelpers.ConnectExcepti
 public class SecureSettingsHelpers {
     private static final String PROVIDER = "JDK"; // only guaranteed provider
     private static final String TEST_PASS = "password"; // used for all keystores
+
     static final String SERVER_KEYSTORE = "/netty4-server-secure.jks";
     static final String SERVER_CERT = "/server.crt";
     static final String CLIENT_KEYSTORE = "/netty4-client-secure.jks";
@@ -56,6 +56,7 @@ public class SecureSettingsHelpers {
         BAD_CERT("bad_certificate");
 
         String exceptionMsg = null;
+
         ConnectExceptions(String exceptionMsg) {
             this.exceptionMsg = exceptionMsg;
         }
