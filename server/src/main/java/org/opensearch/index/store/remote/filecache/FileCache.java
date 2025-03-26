@@ -14,7 +14,6 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
-import org.opensearch.index.store.remote.utils.cache.CacheUsage;
 import org.opensearch.index.store.remote.utils.cache.RefCountedCache;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
 import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
@@ -133,8 +132,13 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     }
 
     @Override
-    public CacheUsage usage() {
+    public long usage() {
         return theCache.usage();
+    }
+
+    @Override
+    public long activeUsage() {
+        return theCache.activeUsage();
     }
 
     @Override
@@ -145,8 +149,8 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     // To be used only for debugging purposes
     public void logCurrentState() {
         logger.trace("CURRENT STATE OF FILE CACHE \n");
-        CacheUsage cacheUsage = theCache.usage();
-        logger.trace("Total Usage: " + cacheUsage.usage() + " , Active Usage: " + cacheUsage.activeUsage());
+        long cacheUsage = theCache.usage();
+        logger.trace("Total Usage: " + cacheUsage);
         theCache.logCurrentState();
     }
 
@@ -206,16 +210,23 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
      * Returns the current {@link FileCacheStats}
      */
     public FileCacheStats fileCacheStats() {
-        CacheStats stats = stats();
-        CacheUsage usage = usage();
+        final CacheStats stats = stats();
+        final CacheStats.FullFileStats fullFileStats = stats.fullFileStats();
+
         return new FileCacheStats(
             System.currentTimeMillis(),
-            usage.activeUsage(),
+            stats.activeUsage(),
             capacity(),
-            usage.usage(),
+            stats.usage(),
             stats.evictionWeight(),
             stats.hitCount(),
-            stats.missCount()
+            stats.missCount(),
+            new FullFileCacheStats(
+                fullFileStats.getActiveUsage(),
+                fullFileStats.getUsage(),
+                fullFileStats.getEvictionWeight(),
+                fullFileStats.getHitCount()
+            )
         );
     }
 

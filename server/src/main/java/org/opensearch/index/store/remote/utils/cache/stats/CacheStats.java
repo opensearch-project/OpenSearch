@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store.remote.utils.cache.stats;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.store.remote.utils.cache.RefCountedCache;
 
@@ -27,6 +28,144 @@ public final class CacheStats {
     private final long replaceCount;
     private final long evictionCount;
     private final long evictionWeight;
+    private final long usage;
+    private final long activeUsage;
+    private final FullFileStats fullFileStats;
+
+    /**
+     * Represents Stats about FullFiles in a {@link RefCountedCache}.
+     */
+    @ExperimentalApi
+    public class FullFileStats {
+        private final long hitCount;
+        private final long removeCount;
+        private final long removeWeight;
+        private final long replaceCount;
+        private final long evictionCount;
+        private final long evictionWeight;
+        private final long usage;
+        private final long activeUsage;
+
+        FullFileStats(
+            long hitCount,
+            long removeCount,
+            long removeWeight,
+            long replaceCount,
+            long evictionCount,
+            long evictionWeight,
+            long usage,
+            long activeUsage
+        ) {
+
+            if ((hitCount < 0)
+                || (removeCount < 0)
+                || (removeWeight < 0)
+                || (replaceCount < 0)
+                || (evictionCount < 0)
+                || (evictionWeight < 0)) {
+                throw new IllegalArgumentException();
+            }
+            this.hitCount = hitCount;
+            this.removeCount = removeCount;
+            this.removeWeight = removeWeight;
+            this.replaceCount = replaceCount;
+            this.evictionCount = evictionCount;
+            this.evictionWeight = evictionWeight;
+            this.usage = usage;
+            this.activeUsage = activeUsage;
+
+        }
+
+        public long getActiveUsage() {
+            return activeUsage;
+        }
+
+        public long getUsage() {
+            return usage;
+        }
+
+        public long getEvictionWeight() {
+            return evictionWeight;
+        }
+
+        public long getEvictionCount() {
+            return evictionCount;
+        }
+
+        public long getReplaceCount() {
+            return replaceCount;
+        }
+
+        public long getRemoveWeight() {
+            return removeWeight;
+        }
+
+        public long getRemoveCount() {
+            return removeCount;
+        }
+
+        public long getHitCount() {
+            return hitCount;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (!(o instanceof FullFileStats)) {
+                return false;
+            }
+            FullFileStats other = (FullFileStats) o;
+            return hitCount == other.hitCount
+                && removeCount == other.removeCount
+                && removeWeight == other.removeWeight
+                && replaceCount == other.replaceCount
+                && evictionCount == other.evictionCount
+                && evictionWeight == other.evictionWeight
+                && usage == other.usage
+                && activeUsage == other.activeUsage;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(hitCount, removeCount, removeWeight, replaceCount, evictionCount, evictionWeight, usage, activeUsage);
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName()
+                + '{'
+                + "hitCount="
+                + hitCount
+                + ", "
+                + "missCount="
+                + missCount
+                + ", "
+                + "removeCount="
+                + removeCount
+                + ", "
+                + "removeWeight="
+                + removeWeight
+                + ", "
+                + "replaceCount="
+                + replaceCount
+                + ", "
+                + "evictionCount="
+                + evictionCount
+                + ", "
+                + "evictionWeight="
+                + evictionWeight
+                + ", "
+                + "usage="
+                + usage
+                + ", "
+                + "activeUsage="
+                + activeUsage
+                + '}';
+        }
+
+        //
+    }
 
     /**
      * Constructs a new {@code CacheStats} instance.
@@ -49,7 +188,17 @@ public final class CacheStats {
         long removeWeight,
         long replaceCount,
         long evictionCount,
-        long evictionWeight
+        long evictionWeight,
+        long usage,
+        long activeUsage,
+        long fullFileHitCount,
+        long fullFileRemoveCount,
+        long fullFileRemoveWeight,
+        long fullFileReplaceCount,
+        long fullFileEvictionCount,
+        long fullFileEvictionWeight,
+        long fullFileUsage,
+        long fullFileActiveUsage
     ) {
         if ((hitCount < 0)
             || (missCount < 0)
@@ -67,6 +216,18 @@ public final class CacheStats {
         this.replaceCount = replaceCount;
         this.evictionCount = evictionCount;
         this.evictionWeight = evictionWeight;
+        this.usage = usage;
+        this.activeUsage = activeUsage;
+        this.fullFileStats = new FullFileStats(
+            fullFileHitCount,
+            fullFileRemoveCount,
+            fullFileRemoveWeight,
+            fullFileReplaceCount,
+            fullFileEvictionCount,
+            fullFileEvictionWeight,
+            fullFileUsage,
+            fullFileActiveUsage
+        );
     }
 
     /**
@@ -176,9 +337,46 @@ public final class CacheStats {
         return evictionWeight;
     }
 
+    /**
+     * Returns the total weight of the cache.
+     *
+     * @return the total weight of the cache
+     */
+    public long usage() {
+        return usage;
+    }
+
+    /**
+     * Returns the total active weight of the cache.
+     *
+     * @return the total active weight of the cache
+     */
+    public long activeUsage() {
+        return activeUsage;
+    }
+
+    /**
+     * Returns full file stats for the cache.
+     * @return
+     */
+    public FullFileStats fullFileStats() {
+        return fullFileStats;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(hitCount, missCount, removeCount, removeWeight, replaceCount, evictionCount, evictionWeight);
+        return Objects.hash(
+            hitCount,
+            missCount,
+            removeCount,
+            removeWeight,
+            replaceCount,
+            evictionCount,
+            evictionWeight,
+            usage,
+            activeUsage,
+            fullFileStats
+        );
     }
 
     @Override
@@ -195,7 +393,10 @@ public final class CacheStats {
             && removeWeight == other.removeWeight
             && replaceCount == other.replaceCount
             && evictionCount == other.evictionCount
-            && evictionWeight == other.evictionWeight;
+            && evictionWeight == other.evictionWeight
+            && usage == other.usage
+            && activeUsage == other.activeUsage
+            && fullFileStats.equals(other.fullFileStats);
     }
 
     @Override
@@ -222,6 +423,15 @@ public final class CacheStats {
             + ", "
             + "evictionWeight="
             + evictionWeight
+            + ", "
+            + "usage="
+            + usage
+            + ", "
+            + "activeUsage="
+            + activeUsage
+            + ", "
+            + "fullFileStats="
+            + fullFileStats.toString()
             + '}';
     }
 }
