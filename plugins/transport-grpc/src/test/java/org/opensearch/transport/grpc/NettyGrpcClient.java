@@ -9,8 +9,8 @@
 package org.opensearch.transport.grpc;
 
 import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
-import org.opensearch.transport.grpc.ssl.SecureAuxTransportSslContext;
+
+import javax.net.ssl.SSLException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,17 +18,22 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import io.grpc.ManagedChannel;
-import io.grpc.ProxyDetector;
 import io.grpc.health.v1.HealthCheckRequest;
 import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.health.v1.HealthGrpc;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
+import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.reflection.v1alpha.ServerReflectionGrpc;
 import io.grpc.reflection.v1alpha.ServerReflectionRequest;
 import io.grpc.reflection.v1alpha.ServerReflectionResponse;
 import io.grpc.reflection.v1alpha.ServiceResponse;
 import io.grpc.stub.StreamObserver;
 
+import static org.opensearch.transport.grpc.SecureSettingsHelpers.CLIENT_KEYSTORE;
+import static org.opensearch.transport.grpc.SecureSettingsHelpers.getTestKeyManagerFactory;
 import static io.grpc.internal.GrpcUtil.NOOP_PROXY_DETECTOR;
 
 public class NettyGrpcClient implements AutoCloseable {
@@ -107,33 +112,59 @@ public class NettyGrpcClient implements AutoCloseable {
     }
 
     public static class Builder {
-        private SecureAuxTransportSettingsProvider settingsProvider = null;
+        private Boolean mTLS = false;
+        private Boolean insecure = false;
         private TransportAddress addr;
-        private final ProxyDetector proxyDetector = NOOP_PROXY_DETECTOR; // No proxy detection for test client
+
+        private static final ApplicationProtocolConfig CLIENT_ALPN = new ApplicationProtocolConfig(
+            ApplicationProtocolConfig.Protocol.ALPN,
+            ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+            ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+            ApplicationProtocolNames.HTTP_2
+        );
 
         Builder() {}
 
-        public NettyGrpcClient build() {
+        public NettyGrpcClient build() throws SSLException {
             NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(addr.getAddress(), addr.getPort())
-                .proxyDetector(proxyDetector);
+                .proxyDetector(NOOP_PROXY_DETECTOR);
 
-            if (settingsProvider == null) {
-                channelBuilder.usePlaintext();
+            if (mTLS) {
+                SslContextBuilder builder = SslContextBuilder.forClient();
+                builder.applicationProtocolConfig(CLIENT_ALPN);
+                builder.keyManager(getTestKeyManagerFactory(CLIENT_KEYSTORE));
+                builder.trustManager(InsecureTrustManagerFactory.INSTANCE);
+                channelBuilder.sslContext(builder.build());
+            } else if (insecure) {
+                SslContextBuilder builder = SslContextBuilder.forClient();
+                builder.applicationProtocolConfig(CLIENT_ALPN);
+                builder.trustManager(InsecureTrustManagerFactory.INSTANCE);
+                channelBuilder.sslContext(builder.build());
             } else {
-                SecureAuxTransportSslContext ctxt = new SecureAuxTransportSslContext(settingsProvider, true);
-                channelBuilder.sslContext(ctxt);
+                channelBuilder.usePlaintext();
             }
 
             return new NettyGrpcClient(channelBuilder);
         }
 
-        public Builder setSecureSettingsProvider(SecureAuxTransportSettingsProvider settingsProvider) {
-            this.settingsProvider = settingsProvider;
+        public Builder setAddress(TransportAddress addr) {
+            this.addr = addr;
             return this;
         }
 
-        public Builder setAddress(TransportAddress addr) {
-            this.addr = addr;
+        /**
+         * Enable mTLS - load client keystore.
+         */
+        public Builder mTLS(boolean enable) {
+            this.mTLS = enable;
+            return this;
+        }
+
+        /**
+         * Enable insecure TLS client.
+         */
+        public Builder insecure(boolean enable) {
+            this.insecure = enable;
             return this;
         }
     }
