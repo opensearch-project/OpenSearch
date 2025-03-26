@@ -65,16 +65,17 @@ class ScaleIndexOperationValidator {
                 if (indexMetadata.getNumberOfSearchOnlyReplicas() == 0) {
                     throw new IllegalArgumentException("Cannot scale to zero without search replicas for index: " + index);
                 }
-                if (!indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)) {
+                if (indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false) == false) {
                     throw new IllegalArgumentException(
                         "To scale to zero, " + IndexMetadata.SETTING_REMOTE_STORE_ENABLED + " must be enabled for index: " + index
                     );
                 }
-                if (!ReplicationType.SEGMENT.toString().equals(indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE))) {
+                if (ReplicationType.SEGMENT.toString()
+                    .equals(indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE)) == false) {
                     throw new IllegalArgumentException("To scale to zero, segment replication must be enabled for index: " + index);
                 }
             } else {
-                if (!indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)) {
+                if (indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false) == false) {
                     throw new IllegalStateException("Index [" + index + "] is not in search-only mode");
                 }
             }
