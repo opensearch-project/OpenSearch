@@ -34,7 +34,7 @@ import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Base test class for Kafka ingestion tests
+ * Base test class for Kafka ingestion tests.
  */
 @ThreadLeakFilters(filters = TestContainerThreadLeakFilter.class)
 public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
@@ -135,6 +135,9 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("index.replication.type", "SEGMENT")
+                // set custom kafka consumer properties
+                .put("ingestion_source.param.fetch.min.bytes", 30000)
+                .put("ingestion_source.param.enable.auto.commit", false)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
         );

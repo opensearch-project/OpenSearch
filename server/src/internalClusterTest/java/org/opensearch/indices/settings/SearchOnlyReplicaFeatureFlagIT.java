@@ -17,7 +17,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
@@ -53,16 +52,5 @@ public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
                 .get();
         });
         assertTrue(settingsException.getMessage().contains("unknown setting"));
-    }
-
-    public void testFilterAllocationSettingNotRegistered() {
-        expectThrows(SettingsException.class, () -> {
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", "node"))
-                .execute()
-                .actionGet();
-        });
     }
 }

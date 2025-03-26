@@ -355,7 +355,7 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
             .routingTable(routingTable)
             .build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newSearchNode("node2")))
             .build();
         return service.reroute(clusterState, "reroute");
     }

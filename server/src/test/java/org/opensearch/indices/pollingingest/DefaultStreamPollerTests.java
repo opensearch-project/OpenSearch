@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -246,16 +247,22 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
                 FakeIngestionSource.FakeIngestionShardPointer,
                 FakeIngestionSource.FakeIngestionMessage>> readResultsBatch1 = fakeConsumer.readNext(
                     fakeConsumer.earliestPointer(),
+                    true,
                     2,
                     100
                 );
         List<
             IngestionShardConsumer.ReadResult<
                 FakeIngestionSource.FakeIngestionShardPointer,
-                FakeIngestionSource.FakeIngestionMessage>> readResultsBatch2 = fakeConsumer.readNext(fakeConsumer.nextPointer(), 2, 100);
+                FakeIngestionSource.FakeIngestionMessage>> readResultsBatch2 = fakeConsumer.readNext(
+                    new FakeIngestionSource.FakeIngestionShardPointer(1),
+                    true,
+                    2,
+                    100
+                );
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
         when(mockConsumer.getShardId()).thenReturn(0);
-        when(mockConsumer.readNext(any(), anyLong(), anyInt())).thenThrow(new RuntimeException("message1 poll failed"))
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenThrow(new RuntimeException("message1 poll failed"))
             .thenReturn(readResultsBatch1)
             .thenThrow(new RuntimeException("message3 poll failed"))
             .thenReturn(readResultsBatch2)
@@ -274,8 +281,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         poller.start();
         Thread.sleep(sleepTime);
 
-        verify(errorStrategy, times(2)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.POLLING));
-        verify(processor, times(4)).process(any(), any());
+        verify(errorStrategy, times(1)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.POLLING));
+        verify(processor, times(2)).process(any(), any());
     }
 
     public void testBlockErrorIngestionStrategy() throws TimeoutException, InterruptedException {
@@ -286,16 +293,22 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
                 FakeIngestionSource.FakeIngestionShardPointer,
                 FakeIngestionSource.FakeIngestionMessage>> readResultsBatch1 = fakeConsumer.readNext(
                     fakeConsumer.earliestPointer(),
+                    true,
                     2,
                     100
                 );
         List<
             IngestionShardConsumer.ReadResult<
                 FakeIngestionSource.FakeIngestionShardPointer,
-                FakeIngestionSource.FakeIngestionMessage>> readResultsBatch2 = fakeConsumer.readNext(fakeConsumer.nextPointer(), 2, 100);
+                FakeIngestionSource.FakeIngestionMessage>> readResultsBatch2 = fakeConsumer.readNext(
+                    new FakeIngestionSource.FakeIngestionShardPointer(1),
+                    true,
+                    2,
+                    100
+                );
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
         when(mockConsumer.getShardId()).thenReturn(0);
-        when(mockConsumer.readNext(any(), anyLong(), anyInt())).thenThrow(new RuntimeException("message1 poll failed"))
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenThrow(new RuntimeException("message1 poll failed"))
             .thenReturn(readResultsBatch1)
             .thenReturn(readResultsBatch2)
             .thenReturn(Collections.emptyList());
