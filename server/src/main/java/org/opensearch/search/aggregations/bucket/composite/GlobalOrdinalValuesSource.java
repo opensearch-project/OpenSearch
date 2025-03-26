@@ -32,9 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -81,6 +79,8 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         super(bigArrays, format, type, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+        this.isSingleValued = false;
+        this.singletonValues = null;
     }
 
     @Override
@@ -167,21 +167,72 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
+        // Get the DocValues for this segment/leaf of the index
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
+
+        // Initialize lookup table for ordinals if not already done
         if (lookup == null) {
             initLookup(dvs);
         }
+
+        // Try to optimize by converting multi-valued field to single-valued
+        SortedDocValues sorted = DocValues.unwrapSingleton(dvs);
+
+        // Field is single-valued if:
+        // 1. Successfully unwrapped to SortedDocValues, or
+        // 2. All docs have exactly one value
+        isSingleValued = sorted != null || dvs.docValueCount() == 1;
+
+        // Store the optimized values:
+        // - If unwrap succeeded, use unwrapped version
+        // - If single-valued but unwrap failed, use original
+        // - If multi-valued, use null
+        singletonValues = sorted != null ? sorted : (isSingleValued ? dvs : null);
+
+        if (isSingleValued) {
+            // Optimized collector for single-valued fields
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (singletonValues instanceof SortedDocValues) {
+                        // Handle native single-value format
+                        SortedDocValues values = (SortedDocValues) singletonValues;
+                        if (values.advanceExact(doc)) {  // If document has a value
+                            currentValue = values.ordValue();  // Get ordinal directly
+                            next.collect(doc, bucket);         // Collect into bucket
+                        } else if (missingBucket) {           // Handle missing value case
+                            currentValue = -1;                 // Use -1 for missing
+                            next.collect(doc, bucket);
+                        }
+                    } else {
+                        // Handle SortedSetDocValues that we know contains single values
+                        SortedSetDocValues values = (SortedSetDocValues) singletonValues;
+                        if (values.advanceExact(doc) &&       // If doc has values and
+                            (values.nextOrd() != SortedSetDocValues.NO_MORE_DOCS)) {  // has valid ordinal
+                            currentValue = values.nextOrd();   // Get the ordinal
+                            next.collect(doc, bucket);
+                        } else if (missingBucket) {           // Handle missing/empty cases
+                            currentValue = -1;
+                            next.collect(doc, bucket);
+                        }
+                    }
+                }
+            };
+        }
+
+        // Non-optimized collector for multi-valued fields
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (dvs.advanceExact(doc)) {
+                if (dvs.advanceExact(doc)) {           // If document has values
                     long ord;
-                    int count = dvs.docValueCount();
+                    int count = dvs.docValueCount();    // Get number of values
+                    // Loop through all values in the document
                     while ((count-- > 0) && (ord = dvs.nextOrd()) != NO_MORE_DOCS) {
-                        currentValue = ord;
-                        next.collect(doc, bucket);
+                        currentValue = ord;             // Store current ordinal
+                        next.collect(doc, bucket);      // Collect each value
                     }
-                } else if (missingBucket) {
+                } else if (missingBucket) {            // Handle missing values
                     currentValue = -1;
                     next.collect(doc, bucket);
                 }

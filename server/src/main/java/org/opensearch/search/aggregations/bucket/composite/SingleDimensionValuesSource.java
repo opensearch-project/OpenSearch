@@ -32,8 +32,10 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
@@ -66,6 +68,9 @@ public abstract class SingleDimensionValuesSource<T extends Comparable<T>> imple
 
     protected T afterValue;
 
+    protected boolean isSingleValued;
+    protected Object singletonValues; // Generic type to support different DocValues types
+
     /**
      * Creates a new {@link SingleDimensionValuesSource}.
      *
@@ -94,6 +99,25 @@ public abstract class SingleDimensionValuesSource<T extends Comparable<T>> imple
         this.size = size;
         this.reverseMul = reverseMul;
         this.afterValue = null;
+
+        // Initialize singleton optimization fields
+        this.isSingleValued = false;
+        this.singletonValues = null;
+    }
+
+    /**
+     * Returns the singleton values if available
+     */
+    protected Object getSingletonValues() {
+        return singletonValues;
+    }
+
+    /**
+     * Sets the singleton optimization state
+     */
+    protected void setSingletonOptimization(boolean isSingleValued, Object values) {
+        this.isSingleValued = isSingleValued;
+        this.singletonValues = values;
     }
 
     /**
