@@ -28,7 +28,7 @@ dependencies {
 
   implementation 'org.passay:passay:1.6.3'
 
-  implementation "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
+  api "com.password4j:password4j:${versions.password4j}"
 
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation "org.mockito:mockito-core:${versions.mockito}"

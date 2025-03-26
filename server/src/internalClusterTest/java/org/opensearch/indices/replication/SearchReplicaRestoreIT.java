@@ -25,9 +25,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -78,7 +76,9 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1).build()
         );
         ensureYellowAndNoInitializingShards(RESTORED_INDEX_NAME);
-        internalCluster().startDataOnlyNode();
+
+        internalCluster().startSearchOnlyNode();
+
         ensureGreen(RESTORED_INDEX_NAME);
         assertEquals(1, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
 
@@ -86,7 +86,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         assertHitCount(resp, DOC_COUNT);
     }
 
-    public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnDocRep() throws Exception {
+    public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnDocRep() {
         bootstrapIndexWithSearchReplicas();
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
@@ -101,23 +101,6 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             )
         );
         assertTrue(exception.getMessage().contains(getSnapshotExceptionMessage(ReplicationType.SEGMENT, ReplicationType.DOCUMENT)));
-    }
-
-    private void bootstrapIndexWithOutSearchReplicas(ReplicationType replicationType) throws InterruptedException {
-        startCluster(2);
-
-        Settings settings = Settings.builder()
-            .put(super.indexSettings())
-            .put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, replicationType)
-            .build();
-
-        createIndex(INDEX_NAME, settings);
-        indexRandomDocs(INDEX_NAME, DOC_COUNT);
-        refresh(INDEX_NAME);
-        ensureGreen(INDEX_NAME);
     }
 
     public void testRemoteStoreRestoreFailsForSearchOnlyIndex() throws Exception {
@@ -138,28 +121,42 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         );
     }
 
-    private void bootstrapIndexWithSearchReplicas() throws InterruptedException {
-        startCluster(3);
+    private void bootstrapIndexWithOutSearchReplicas(ReplicationType replicationType) throws InterruptedException {
+        internalCluster().startNodes(2);
 
         Settings settings = Settings.builder()
             .put(super.indexSettings())
-            .put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, replicationType)
+            .build();
+
+        createIndex(INDEX_NAME, settings);
+        indexRandomDocs(INDEX_NAME, DOC_COUNT);
+        refresh(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+    }
+
+    private void bootstrapIndexWithSearchReplicas() {
+        internalCluster().startNodes(2);
+        internalCluster().startSearchOnlyNode();
+
+        Settings settings = Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
 
         createIndex(INDEX_NAME, settings);
+
         ensureGreen(INDEX_NAME);
         for (int i = 0; i < DOC_COUNT; i++) {
             client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
         }
         flushAndRefresh(INDEX_NAME);
-    }
-
-    private void startCluster(int numOfNodes) {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(numOfNodes);
     }
 
     private void createRepoAndSnapshot(String repositoryName, String repositoryType, String snapshotName, String indexName) {

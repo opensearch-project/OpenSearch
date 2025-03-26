@@ -126,7 +126,7 @@ public class FsProbeTests extends OpenSearchTestCase {
     }
 
     public void testFsCacheInfo() throws IOException {
-        Settings settings = Settings.builder().put("node.roles", "search").build();
+        Settings settings = Settings.builder().put("node.roles", "warm").build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ByteSizeValue gbByteSizeValue = new ByteSizeValue(1, ByteSizeUnit.GB);
             env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
@@ -164,7 +164,7 @@ public class FsProbeTests extends OpenSearchTestCase {
     }
 
     public void testFsInfoWhenFileCacheOccupied() throws IOException {
-        Settings settings = Settings.builder().putList("node.roles", "search", "data").build();
+        Settings settings = Settings.builder().putList("node.roles", "warm", "data").build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             // Use the total space as reserved space to simulate the situation where the cache space is occupied
             final long totalSpace = adjustForHugeFilesystems(env.fileCacheNodePath().fileStore.getTotalSpace());
