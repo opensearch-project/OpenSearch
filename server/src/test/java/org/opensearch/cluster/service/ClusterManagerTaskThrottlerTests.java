@@ -34,6 +34,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.cluster.service.ClusterManagerTaskThrottler.THRESHOLD_SETTINGS;
 import static org.opensearch.test.ClusterServiceUtils.setState;
 
 /**
@@ -75,8 +76,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
         throttler.registerClusterManagerTask("create-index", true);
+
         for (String key : throttler.THROTTLING_TASK_KEYS.keySet()) {
-            assertNull(throttler.getThrottlingLimit(key));
+            assertEquals(50, throttler.getThrottlingLimit(key).intValue());
         }
     }
 
@@ -94,11 +96,11 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
 
-        // set some limit for update snapshot tasks
+        // set some limit for put-mapping tasks
         int newLimit = randomIntBetween(1, 10);
 
         Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.value", newLimit).build();
-        assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(newSettings));
+        assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(THRESHOLD_SETTINGS.get(newSettings)));
 
         // validate for empty setting, it shouldn't throw exception
         Settings emptySettings = Settings.builder().build();
@@ -124,11 +126,11 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", false);
 
-        // set some limit for update snapshot tasks
+        // set some limit for put-mapping tasks
         int newLimit = randomIntBetween(1, 10);
 
         Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.value", newLimit).build();
-        assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(newSettings));
+        assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(THRESHOLD_SETTINGS.get(newSettings)));
     }
 
     public void testUpdateSettingsForNullValue() {
@@ -154,7 +156,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         // set limit to null
         Settings nullSettings = Settings.builder().build();
         clusterSettings.applySettings(nullSettings);
-        assertNull(throttler.getThrottlingLimit("put-mapping"));
+        assertEquals(50, throttler.getThrottlingLimit("put-mapping").intValue());
     }
 
     public void testSettingsOnBootstrap() {
@@ -222,10 +224,10 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
             return clusterService.getClusterManagerService().getMinNodeVersion();
         }, new ClusterManagerThrottlingStats());
 
-        // set some limit for update snapshot tasks
+        // set some limit for random tasks
         int newLimit = randomIntBetween(1, 10);
         Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.random-task.value", newLimit).build();
-        assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(newSettings));
+        assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(THRESHOLD_SETTINGS.get(newSettings)));
     }
 
     public void testUpdateThrottlingLimitForBasicSanity() {
@@ -242,17 +244,17 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
 
-        // set some limit for update snapshot tasks
+        // set some limit for put-mapping tasks
         long newLimit = randomLongBetween(1, 10);
 
         Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.value", newLimit).build();
         clusterSettings.applySettings(newSettings);
         assertEquals(newLimit, throttler.getThrottlingLimit("put-mapping").intValue());
 
-        // set update snapshot task limit to default
-        newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.value", -1).build();
+        // set put-mapping task limit to 20
+        newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.value", 20).build();
         clusterSettings.applySettings(newSettings);
-        assertNull(throttler.getThrottlingLimit("put-mapping"));
+        assertEquals(20, throttler.getThrottlingLimit("put-mapping").intValue());
     }
 
     public void testValidateSettingForLimit() {
@@ -269,8 +271,8 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
 
-        Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.values", -5).build();
-        assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(newSettings));
+        Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.value", -5).build();
+        assertThrows(IllegalArgumentException.class, () -> throttler.validateSetting(THRESHOLD_SETTINGS.get(newSettings)));
     }
 
     public void testUpdateLimit() {
@@ -348,7 +350,7 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         }, throttlingStats);
         ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = throttler.registerClusterManagerTask("put-mapping", true);
 
-        // verifying adding more tasks then threshold passes
+        // verifying adding more tasks than threshold passes
         throttler.onBeginSubmit(getMockUpdateTaskList("put-mapping", throttlingKey, put_mapping_threshold_value + 5));
         assertEquals(0L, throttlingStats.getThrottlingCount("put-mapping"));
 
