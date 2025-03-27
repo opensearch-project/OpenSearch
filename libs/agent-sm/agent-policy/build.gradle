@@ -32,4 +32,3 @@ tasks.named('jarHell').configure {
 dependencies {
   testImplementation(project(":test:framework"))
 }
-
