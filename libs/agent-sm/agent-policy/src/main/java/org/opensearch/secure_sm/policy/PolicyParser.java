@@ -1,39 +1,5 @@
-/*
- * Copyright (c) 1997, 2023, Oracle and/or its affiliates. All rights reserved.
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
- *
- * This code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.  Oracle designates this
- * particular file as subject to the "Classpath" exception as provided
- * by Oracle in the LICENSE file that accompanied this code.
- *
- * This code is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- * version 2 for more details (a copy is included in the LICENSE file that
- * accompanied this code).
- *
- * You should have received a copy of the GNU General Public License version
- * 2 along with this work; if not, write to the Free Software Foundation,
- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
- *
- * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
- * or visit www.oracle.com if you need additional information or have any
- * questions.
- */
-
-/*
- * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
- */
 
 package org.opensearch.secure_sm.policy;
-
-import javax.security.auth.x500.X500Principal;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -45,15 +11,12 @@ import java.io.StreamTokenizer;
 import java.io.Writer;
 import java.security.GeneralSecurityException;
 import java.security.Principal;
-import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Map;
-import java.util.StringTokenizer;
-import java.util.TreeMap;
 import java.util.Vector;
 
 /**
@@ -62,15 +25,10 @@ import java.util.Vector;
 public class PolicyParser {
 
     private final Vector<GrantEntry> grantEntries;
-    private Map<String, DomainEntry> domainEntries;
 
     private StreamTokenizer st;
     private int lookahead;
     private boolean expandProp = false;
-    private String keyStoreUrlString = null; // unexpanded
-    private String keyStoreType = null;
-    private String keyStoreProvider = null;
-    private String storePassURL = null;
 
     private String expand(String value) throws PropertyExpander.ExpandException {
         return expand(value, false);
@@ -157,33 +115,11 @@ public class PolicyParser {
                 ge = parseGrantEntry();
                 // could be null if we couldn't expand a property
                 if (ge != null) add(ge);
-            } else if (peek("keystore") && keyStoreUrlString == null) {
-                // only one keystore entry per policy file, others will be
-                // ignored
-                parseKeyStoreEntry();
-            } else if (peek("keystorePasswordURL") && storePassURL == null) {
-                // only one keystore passwordURL per policy file, others will be
-                // ignored
-                parseStorePassURL();
-            } else if (ge == null && keyStoreUrlString == null && storePassURL == null && peek("domain")) {
-                if (domainEntries == null) {
-                    domainEntries = new TreeMap<>();
-                }
-                DomainEntry de = parseDomainEntry();
-                String domainName = de.getName();
-                if (domainEntries.putIfAbsent(domainName, de) != null) {
-                    Object[] source = { domainName };
-                    String msg = "duplicate keystore domain name: " + domainName;
-                    throw new ParsingException(msg, source);
-                }
             } else {
                 // error?
+                // FIX-ME: ERROR-out
             }
             match(";");
-        }
-
-        if (keyStoreUrlString == null && storePassURL != null) {
-            throw new ParsingException("Keystore Password URL cannot be specified without also specifying keystore");
         }
     }
 
@@ -200,56 +136,6 @@ public class PolicyParser {
     }
 
     /**
-     * Returns the (possibly expanded) keystore location, or null if the
-     * expansion fails.
-     */
-    public String getKeyStoreUrl() {
-        try {
-            if (keyStoreUrlString != null && keyStoreUrlString.length() != 0) {
-                return expand(keyStoreUrlString, true).replace(File.separatorChar, '/');
-            }
-        } catch (PropertyExpander.ExpandException peee) {
-            return null;
-        }
-        return null;
-    }
-
-    public void setKeyStoreUrl(String url) {
-        keyStoreUrlString = url;
-    }
-
-    public String getKeyStoreType() {
-        return keyStoreType;
-    }
-
-    public void setKeyStoreType(String type) {
-        keyStoreType = type;
-    }
-
-    public String getKeyStoreProvider() {
-        return keyStoreProvider;
-    }
-
-    public void setKeyStoreProvider(String provider) {
-        keyStoreProvider = provider;
-    }
-
-    public String getStorePassURL() {
-        try {
-            if (storePassURL != null && storePassURL.length() != 0) {
-                return expand(storePassURL, true).replace(File.separatorChar, '/');
-            }
-        } catch (PropertyExpander.ExpandException peee) {
-            return null;
-        }
-        return null;
-    }
-
-    public void setStorePassURL(String storePassURL) {
-        this.storePassURL = storePassURL;
-    }
-
-    /**
      * Enumerate all the entries in the global policy object.
      * This method is used by policy admin tools.   The tools
      * should use the Enumeration methods on the returned object
@@ -257,10 +143,6 @@ public class PolicyParser {
      */
     public Enumeration<GrantEntry> grantElements() {
         return grantEntries.elements();
-    }
-
-    public Collection<DomainEntry> getDomainEntries() {
-        return domainEntries.values();
     }
 
     /**
@@ -274,79 +156,12 @@ public class PolicyParser {
         out.println("/* DO NOT EDIT */");
         out.println();
 
-        // write the (unexpanded) keystore entry as the first entry of the
-        // policy file
-        if (keyStoreUrlString != null) {
-            writeKeyStoreEntry(out);
-        }
-        if (storePassURL != null) {
-            writeStorePassURL(out);
-        }
-
         // write "grant" entries
         for (GrantEntry ge : grantEntries) {
             ge.write(out);
             out.println();
         }
         out.flush();
-    }
-
-    /**
-     * parses a keystore entry
-     */
-    private void parseKeyStoreEntry() throws ParsingException, IOException {
-        match("keystore");
-        keyStoreUrlString = match("quoted string");
-
-        // parse keystore type
-        if (!peek(",")) {
-            return; // default type
-        }
-        match(",");
-
-        if (peek("\"")) {
-            keyStoreType = match("quoted string");
-        } else {
-            throw new ParsingException(st.lineno(), "Expected keystore type");
-        }
-
-        // parse keystore provider
-        if (!peek(",")) {
-            return; // provider optional
-        }
-        match(",");
-
-        if (peek("\"")) {
-            keyStoreProvider = match("quoted string");
-        } else {
-            throw new ParsingException(st.lineno(), "Keystore provider expected");
-        }
-    }
-
-    private void parseStorePassURL() throws ParsingException, IOException {
-        match("keyStorePasswordURL");
-        storePassURL = match("quoted string");
-    }
-
-    /**
-     * writes the (unexpanded) keystore entry
-     */
-    private void writeKeyStoreEntry(PrintWriter out) {
-        out.print("keystore \"");
-        out.print(keyStoreUrlString);
-        out.print('"');
-        if (keyStoreType != null && !keyStoreType.isEmpty()) out.print(", \"" + keyStoreType + "\"");
-        if (keyStoreProvider != null && !keyStoreProvider.isEmpty()) out.print(", \"" + keyStoreProvider + "\"");
-        out.println(";");
-        out.println();
-    }
-
-    private void writeStorePassURL(PrintWriter out) {
-        out.print("keystorePasswordURL \"");
-        out.print(storePassURL);
-        out.print('"');
-        out.println(";");
-        out.println();
     }
 
     /**
@@ -365,80 +180,8 @@ public class PolicyParser {
                 if (e.codeBase != null) throw new ParsingException(st.lineno(), "Multiple Codebase expressions");
                 e.codeBase = match("quoted string");
                 peekAndMatch(",");
-            } else if (peekAndMatch("SignedBy")) {
-                if (e.signedBy != null) throw new ParsingException(st.lineno(), "Multiple SignedBy expressions");
-                e.signedBy = match("quoted string");
-
-                // verify syntax of the aliases
-                StringTokenizer aliases = new StringTokenizer(e.signedBy, ",", true);
-                int actr = 0;
-                int cctr = 0;
-                while (aliases.hasMoreTokens()) {
-                    String alias = aliases.nextToken().trim();
-                    if (alias.equals(",")) cctr++;
-                    else if (!alias.isEmpty()) actr++;
-                }
-                if (actr <= cctr) throw new ParsingException(st.lineno(), "SignedBy has an empty alias");
-
-                peekAndMatch(",");
-            } else if (peekAndMatch("Principal")) {
-                if (principals == null) {
-                    principals = new LinkedList<>();
-                }
-
-                String principalClass;
-                String principalName;
-
-                if (peek("\"")) {
-                    // both the principalClass and principalName
-                    // will be replaced later
-                    principalClass = PrincipalEntry.REPLACE_NAME;
-                    principalName = match("principal type");
-                } else {
-                    // check for principalClass wildcard
-                    if (peek("*")) {
-                        match("*");
-                        principalClass = PrincipalEntry.WILDCARD_CLASS;
-                    } else {
-                        principalClass = match("principal type");
-                    }
-
-                    // check for principalName wildcard
-                    if (peek("*")) {
-                        match("*");
-                        principalName = PrincipalEntry.WILDCARD_NAME;
-                    } else {
-                        principalName = match("quoted string");
-                    }
-
-                    // disallow WILDCARD_CLASS && actual name
-                    if (principalClass.equals(PrincipalEntry.WILDCARD_CLASS) && !principalName.equals(PrincipalEntry.WILDCARD_NAME)) {
-                        throw new ParsingException(st.lineno(), "Cannot specify Principal with a wildcard class without a wildcard name");
-                    }
-                }
-
-                try {
-                    principalName = expand(principalName);
-
-                    if (principalClass.equals("javax.security.auth.x500.X500Principal")
-                        && !principalName.equals(PrincipalEntry.WILDCARD_NAME)) {
-
-                        // 4702543: X500 names with an EmailAddress
-                        // were encoded incorrectly. construct a new
-                        // X500Principal with correct encoding.
-
-                        X500Principal p = new X500Principal((new X500Principal(principalName)).toString());
-                        principalName = p.getName();
-                    }
-
-                    principals.add(new PrincipalEntry(principalClass, principalName));
-                } catch (PropertyExpander.ExpandException peee) {
-                    ignoreEntry = true;
-                }
-                peekAndMatch(",");
-
             } else {
-                throw new ParsingException(st.lineno(), "Expected codeBase or SignedBy or Principal");
+                throw new ParsingException(st.lineno(), "Expected codeBase");
             }
         }
 
@@ -461,7 +204,6 @@ public class PolicyParser {
         match("}");
 
         try {
-            if (e.signedBy != null) e.signedBy = expand(e.signedBy);
             if (e.codeBase != null) {
                 e.codeBase = expand(e.codeBase, true).replace(File.separatorChar, '/');
             }
@@ -500,44 +242,7 @@ public class PolicyParser {
             match(",");
         }
 
-        if (peekAndMatch("SignedBy")) {
-            e.signedBy = expand(match("quoted string"));
-        }
         return e;
-    }
-
-    /**
-     * parse a domain entry
-     */
-    private DomainEntry parseDomainEntry() throws ParsingException, IOException {
-        DomainEntry domainEntry;
-        String name;
-        Map<String, String> properties = new HashMap<>();
-
-        match("domain");
-        name = match("domain name");
-
-        while (!peek("{")) {
-            // get the domain properties
-            properties = parseProperties("{");
-        }
-        match("{");
-        domainEntry = new DomainEntry(name, properties);
-
-        while (!peek("}")) {
-
-            match("keystore");
-            name = match("keystore name");
-            // get the keystore properties
-            if (!peek("}")) {
-                properties = parseProperties(";");
-            }
-            match(";");
-            domainEntry.add(new KeyStoreEntry(name, properties));
-        }
-        match("}");
-
-        return domainEntry;
     }
 
     /*
@@ -623,14 +328,12 @@ public class PolicyParser {
                 } else if (expect.equalsIgnoreCase("principal type")) {
                     value = st.sval;
                     lookahead = st.nextToken();
-                } else if (expect.equalsIgnoreCase("domain name")
-                    || expect.equalsIgnoreCase("keystore name")
-                    || expect.equalsIgnoreCase("property name")) {
-                        value = st.sval;
-                        lookahead = st.nextToken();
-                    } else {
-                        throw new ParsingException(st.lineno(), expect, st.sval);
-                    }
+                } else if (expect.equalsIgnoreCase("property name")) {
+                    value = st.sval;
+                    lookahead = st.nextToken();
+                } else {
+                    throw new ParsingException(st.lineno(), expect, st.sval);
+                }
                 break;
             case '"':
                 if (expect.equalsIgnoreCase("quoted string")) {
@@ -724,7 +427,6 @@ public class PolicyParser {
 
     public static class GrantEntry {
 
-        public String signedBy;
         public String codeBase;
         public LinkedList<PrincipalEntry> principals;
         public Vector<PermissionEntry> permissionEntries;
@@ -734,9 +436,8 @@ public class PolicyParser {
             permissionEntries = new Vector<>();
         }
 
-        public GrantEntry(String signedBy, String codeBase) {
+        public GrantEntry(String codeBase) {
             this.codeBase = codeBase;
-            this.signedBy = signedBy;
             principals = new LinkedList<>();
             permissionEntries = new Vector<>();
         }
@@ -770,12 +471,6 @@ public class PolicyParser {
 
         public void write(PrintWriter out) {
             out.print("grant");
-            if (signedBy != null) {
-                out.print(" signedBy \"");
-                out.print(signedBy);
-                out.print('"');
-                if (codeBase != null) out.print(", ");
-            }
             if (codeBase != null) {
                 out.print(" codeBase \"");
                 out.print(codeBase);
@@ -802,7 +497,6 @@ public class PolicyParser {
         public Object clone() {
             GrantEntry ge = new GrantEntry();
             ge.codeBase = this.codeBase;
-            ge.signedBy = this.signedBy;
             ge.principals = new LinkedList<>(this.principals);
             ge.permissionEntries = new Vector<>(this.permissionEntries);
             return ge;
@@ -949,7 +643,6 @@ public class PolicyParser {
         public String permission;
         public String name;
         public String action;
-        public String signedBy;
 
         public PermissionEntry() {}
 
@@ -990,16 +683,11 @@ public class PolicyParser {
             }
 
             if (this.action == null) {
-                if (that.action != null) return false;
+                return that.action == null;
             } else {
-                if (!this.action.equals(that.action)) return false;
+                return this.action.equals(that.action);
             }
 
-            if (this.signedBy == null) {
-                return that.signedBy == null;
-            } else {
-                return this.signedBy.equals(that.signedBy);
-            }
         }
 
         public void write(PrintWriter out) {
@@ -1022,106 +710,8 @@ public class PolicyParser {
                 out.print(action);
                 out.print('"');
             }
-            if (signedBy != null) {
-                out.print(", signedBy \"");
-                out.print(signedBy);
-                out.print('"');
-            }
+
             out.println(";");
-        }
-    }
-
-    /**
-     * Each domain entry in the keystore domain configuration file is
-     * represented by a DomainEntry object.
-     */
-    static class DomainEntry {
-        private final String name;
-        private final Map<String, String> properties;
-        private final Map<String, KeyStoreEntry> entries;
-
-        DomainEntry(String name, Map<String, String> properties) {
-            this.name = name;
-            this.properties = properties;
-            entries = new HashMap<>();
-        }
-
-        String getName() {
-            return name;
-        }
-
-        Map<String, String> getProperties() {
-            return properties;
-        }
-
-        Collection<KeyStoreEntry> getEntries() {
-            return entries.values();
-        }
-
-        void add(KeyStoreEntry entry) throws ParsingException {
-            String keystoreName = entry.getName();
-            if (!entries.containsKey(keystoreName)) {
-                entries.put(keystoreName, entry);
-            } else {
-                Object[] source = { keystoreName };
-                String msg = "duplicate keystore name: " + keystoreName;
-                throw new ParsingException(msg, source);
-            }
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder s = new StringBuilder("\ndomain ").append(name);
-
-            if (properties != null) {
-                for (Map.Entry<String, String> property : properties.entrySet()) {
-                    s.append("\n        ").append(property.getKey()).append('=').append(property.getValue());
-                }
-            }
-            s.append(" {\n");
-
-            for (KeyStoreEntry entry : entries.values()) {
-                s.append(entry).append("\n");
-            }
-            s.append("}");
-
-            return s.toString();
-        }
-    }
-
-    /**
-     * Each keystore entry in the keystore domain configuration file is
-     * represented by a KeyStoreEntry object.
-     */
-
-    static class KeyStoreEntry {
-        private final String name;
-        private final Map<String, String> properties;
-
-        KeyStoreEntry(String name, Map<String, String> properties) {
-            this.name = name;
-            this.properties = properties;
-        }
-
-        String getName() {
-            return name;
-        }
-
-        Map<String, String> getProperties() {
-            return properties;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder s = new StringBuilder("\n    keystore ").append(name);
-            if (properties != null) {
-                for (Map.Entry<String, String> property : properties.entrySet()) {
-                    s.append("\n        ").append(property.getKey()).append('=').append(property.getValue());
-                }
-            }
-            s.append(";");
-
-            return s.toString();
         }
     }
 
