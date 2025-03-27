@@ -1826,7 +1826,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         public Optional<TestClusterNode> randomDataNode(String... excludedNames) {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
-            final List<TestClusterNode> dataNodes = testClusterNodes.nodes.values().stream().filter(n -> n.node.isDataNode()).filter(n -> {
+            final List<TestClusterNode> dataNodes = testClusterNodes.nodes.values().stream().filter(n -> n.node.canContainData()).filter(n -> {
                 for (final String nodeName : excludedNames) {
                     if (n.node.getName().equals(nodeName)) {
                         return false;

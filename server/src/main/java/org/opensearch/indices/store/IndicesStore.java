@@ -133,7 +133,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         );
         this.deleteShardTimeout = INDICES_STORE_DELETE_SHARD_TIMEOUT.get(settings);
         // Doesn't make sense to delete shards on non-data nodes
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             // we double check nothing has changed when responses come back from other nodes.
             // it's easier to do that check when the current cluster state is visible.
             // also it's good in general to let things settle down
@@ -143,7 +143,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
     @Override
     public void close() {
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             clusterService.removeListener(this);
         }
     }

@@ -79,7 +79,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
-        if (localStorageEnable == false && (isDataNode(settings) || isClusterManagerNode(settings))) {
+        if (localStorageEnable == false && (canContainData(settings) || isClusterManagerNode(settings))) {
             // TODO: make this a proper setting validation logic, requiring multi-settings validation
             throw new IllegalArgumentException("storage can not be disabled for cluster-manager and data nodes");
         }
@@ -110,7 +110,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      * not all roles may be available from a static/initializing context such as a {@link Setting}
      * default value function. In that case, be warned that this may not include all plugin roles.
      */
-    public static boolean isDataNode(final Settings settings) {
+    public static boolean canContainData(final Settings settings) {
         return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
@@ -452,7 +452,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     /**
      * Should this node hold data (shards) or not.
      */
-    public boolean isDataNode() {
+    public boolean canContainData() {
         return roles.stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 

@@ -580,7 +580,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                 .get();
             List<NodeStats> dataNodeStats = statsResponse1.getNodes()
                 .stream()
-                .filter(nodeStats -> nodeStats.getNode().isDataNode())
+                .filter(nodeStats -> nodeStats.getNode().canContainData())
                 .collect(Collectors.toList());
             assertThat(dataNodeStats, hasSize(2));
             for (NodeStats nodeStats : dataNodeStats) {

@@ -138,7 +138,7 @@ public class GatewayMetaState implements Closeable {
         assert this.persistedStateRegistry == null : "Persisted state registry should only be set once";
         this.persistedStateRegistry = persistedStateRegistry;
 
-        if (DiscoveryNode.isClusterManagerNode(settings) || DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.isClusterManagerNode(settings) || DiscoveryNode.canContainData(settings)) {
             try {
                 final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
 
@@ -205,7 +205,7 @@ public class GatewayMetaState implements Closeable {
                             new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState)
                         );
                     }
-                    if (DiscoveryNode.isDataNode(settings)) {
+                    if (DiscoveryNode.canContainData(settings)) {
                         metaStateService.unreferenceAll(); // unreference legacy files (only keep them for dangling indices functionality)
                     } else {
                         metaStateService.deleteAll(); // delete legacy files

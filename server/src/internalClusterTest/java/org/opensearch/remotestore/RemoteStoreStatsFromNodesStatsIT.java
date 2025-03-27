@@ -112,7 +112,7 @@ public class RemoteStoreStatsFromNodesStatsIT extends RemoteStoreBaseIntegTestCa
 
         assertTrue(
             nodesStatsResponseForClusterManager.getNodes().get(0).getNode().isClusterManagerNode()
-                && !nodesStatsResponseForClusterManager.getNodes().get(0).getNode().isDataNode()
+                && !nodesStatsResponseForClusterManager.getNodes().get(0).getNode().canContainData()
         );
         assertZeroRemoteSegmentStats(
             nodesStatsResponseForClusterManager.getNodes().get(0).getIndices().getSegments().getRemoteSegmentStats()
@@ -127,7 +127,7 @@ public class RemoteStoreStatsFromNodesStatsIT extends RemoteStoreBaseIntegTestCa
             .setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.Segments, true).set(CommonStatsFlags.Flag.Translog, true))
             .get();
 
-        assertTrue(nodesStatsResponseForDataNode.getNodes().get(0).getNode().isDataNode());
+        assertTrue(nodesStatsResponseForDataNode.getNodes().get(0).getNode().canContainData());
         RemoteSegmentStats remoteSegmentStats = nodesStatsResponseForDataNode.getNodes()
             .get(0)
             .getIndices()

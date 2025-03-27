@@ -110,7 +110,7 @@ public final class ConnectionProfile {
             TransportRequestOptions.Type.STATE
         );
         // if we are not a data-node we don't need any dedicated channels for recovery
-        builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
+        builder.addConnections(DiscoveryNode.canContainData(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
         builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
         return builder.build();
     }

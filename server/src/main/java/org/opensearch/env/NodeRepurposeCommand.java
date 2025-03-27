@@ -86,7 +86,7 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
     @Override
     protected boolean validateBeforeLock(Terminal terminal, Environment env) {
         Settings settings = env.settings();
-        if (DiscoveryNode.isDataNode(settings) && DiscoveryNode.isWarmNode(settings)) {
+        if (DiscoveryNode.canContainData(settings) && DiscoveryNode.isWarmNode(settings)) {
             terminal.println(Terminal.Verbosity.NORMAL, NO_CLEANUP);
             return false;
         }
@@ -97,9 +97,9 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
         throws IOException {
-        assert DiscoveryNode.isDataNode(env.settings()) == false || DiscoveryNode.isWarmNode(env.settings()) == false;
+        assert DiscoveryNode.canContainData(env.settings()) == false || DiscoveryNode.isWarmNode(env.settings()) == false;
 
-        boolean repurposeData = DiscoveryNode.isDataNode(env.settings()) == false;
+        boolean repurposeData = DiscoveryNode.canContainData(env.settings()) == false;
         boolean repurposeWarm = DiscoveryNode.isWarmNode(env.settings()) == false;
 
         if (DiscoveryNode.isClusterManagerNode(env.settings()) == false) {

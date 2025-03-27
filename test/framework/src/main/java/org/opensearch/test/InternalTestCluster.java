@@ -198,7 +198,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
-    private static final Predicate<NodeAndClient> DATA_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.isDataNode(
+    private static final Predicate<NodeAndClient> DATA_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.canContainData(
         nodeAndClient.node.settings()
     );
 
@@ -210,11 +210,11 @@ public final class InternalTestCluster extends TestCluster {
     private static final Predicate<NodeAndClient> WARM_AND_DATA_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.hasRole(
         nodeAndClient.node.settings(),
         DiscoveryNodeRole.WARM_ROLE
-    ) && DiscoveryNode.isDataNode(nodeAndClient.node.settings());
+    ) && DiscoveryNode.canContainData(nodeAndClient.node.settings());
 
     private static final Predicate<NodeAndClient> NO_DATA_NO_CLUSTER_MANAGER_PREDICATE = nodeAndClient -> DiscoveryNode
         .isClusterManagerNode(nodeAndClient.node.settings()) == false
-        && DiscoveryNode.isDataNode(nodeAndClient.node.settings()) == false;
+        && DiscoveryNode.canContainData(nodeAndClient.node.settings()) == false;
 
     private static final Predicate<NodeAndClient> CLUSTER_MANAGER_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.isClusterManagerNode(
         nodeAndClient.node.settings()
@@ -846,10 +846,10 @@ public final class InternalTestCluster extends TestCluster {
             if (DiscoveryNode.isClusterManagerNode(settings)) {
                 suffix = suffix + DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleNameAbbreviation();
             }
-            if (DiscoveryNode.isDataNode(settings)) {
+            if (DiscoveryNode.canContainData(settings)) {
                 suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
             }
-            if (!DiscoveryNode.isClusterManagerNode(settings) && !DiscoveryNode.isDataNode(settings)) {
+            if (!DiscoveryNode.isClusterManagerNode(settings) && !DiscoveryNode.canContainData(settings)) {
                 suffix = suffix + "c";
             }
         }

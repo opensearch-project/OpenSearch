@@ -893,7 +893,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     private static RequestCacheStats getNodeCacheStats(Client client) {
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().execute().actionGet();
         for (NodeStats stat : stats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 return stat.getIndices().getRequestCache();
             }
         }

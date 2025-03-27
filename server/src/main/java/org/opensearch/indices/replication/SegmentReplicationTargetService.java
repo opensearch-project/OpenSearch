@@ -157,14 +157,14 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
     @Override
     protected void doStart() {
-        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+        if (DiscoveryNode.canContainData(clusterService.getSettings())) {
             clusterService.addListener(this);
         }
     }
 
     @Override
     protected void doStop() {
-        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+        if (DiscoveryNode.canContainData(clusterService.getSettings())) {
             assert replicator.size() == 0 : "Replication collection should be empty on shutdown";
             clusterService.removeListener(this);
         }

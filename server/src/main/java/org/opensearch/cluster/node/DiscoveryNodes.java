@@ -809,14 +809,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             Version minNonClientNodeVersion = null;
             Version maxNonClientNodeVersion = null;
             for (final Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
-                if (nodeEntry.getValue().isDataNode()) {
+                if (nodeEntry.getValue().canContainData()) {
                     dataNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
                 }
                 if (nodeEntry.getValue().isClusterManagerNode()) {
                     clusterManagerNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
                 }
                 final Version version = nodeEntry.getValue().getVersion();
-                if (nodeEntry.getValue().isDataNode() || nodeEntry.getValue().isClusterManagerNode()) {
+                if (nodeEntry.getValue().canContainData() || nodeEntry.getValue().isClusterManagerNode()) {
                     if (minNonClientNodeVersion == null) {
                         minNonClientNodeVersion = version;
                         maxNonClientNodeVersion = version;
