@@ -28,3 +28,8 @@ testingConventions.enabled = false
 tasks.named('jarHell').configure {
     enabled = false
 }
+
+dependencies {
+  testImplementation(project(":test:framework"))
+}
+
