@@ -8,25 +8,15 @@
 
 package org.opensearch.javaagent;
 
-import org.opensearch.javaagent.SocketChannelInterceptor; 
-
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.After;
-import org.junit.Before;
 
-import java.net.InetSocketAddress;
+import java.lang.reflect.Method;
 import java.net.InetAddress;
-import java.nio.channels.SocketChannel;
+import java.net.InetSocketAddress;
 import java.net.UnixDomainSocketAddress;
 import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.nio.file.Path;
-import java.lang.reflect.Method;
-import java.security.SecurityPermission;
-import java.security.ProtectionDomain;
-import java.security.Policy;
-import java.security.Permission;
 
 import static org.junit.Assert.fail;
 
@@ -45,7 +35,7 @@ public class SocketChannelInterceptorAllowTests extends OpenSearchTestCase {
 
     public void testAllowedLocalhost() throws Exception {
         InetSocketAddress address = new InetSocketAddress("localhost", 9200);
-        Object[] args = new Object[]{address};
+        Object[] args = new Object[] { address };
 
         try {
             SocketChannelInterceptor.intercept(args, testMethod);
@@ -56,7 +46,7 @@ public class SocketChannelInterceptorAllowTests extends OpenSearchTestCase {
 
     public void testAllowedLocalhostIPv6() throws Exception {
         InetSocketAddress address = new InetSocketAddress("::1", 9200);
-        Object[] args = new Object[]{address};
+        Object[] args = new Object[] { address };
 
         try {
             SocketChannelInterceptor.intercept(args, testMethod);
@@ -67,7 +57,7 @@ public class SocketChannelInterceptorAllowTests extends OpenSearchTestCase {
 
     public void testAllowedExternalHost() throws Exception {
         InetSocketAddress address = new InetSocketAddress("google.com", 443);
-        Object[] args = new Object[]{address};
+        Object[] args = new Object[] { address };
 
         try {
             SocketChannelInterceptor.intercept(args, testMethod);
@@ -79,7 +69,7 @@ public class SocketChannelInterceptorAllowTests extends OpenSearchTestCase {
     public void testAllowedUnixDomainSocket() throws Exception {
         Path socketPath = Path.of("/tmp/test.sock");
         UnixDomainSocketAddress address = UnixDomainSocketAddress.of(socketPath);
-        Object[] args = new Object[]{address};
+        Object[] args = new Object[] { address };
 
         try {
             SocketChannelInterceptor.intercept(args, testMethod);
@@ -90,7 +80,7 @@ public class SocketChannelInterceptorAllowTests extends OpenSearchTestCase {
 
     public void testAllowedResolveLocalHost() throws Exception {
         InetSocketAddress address = new InetSocketAddress("localhost", 9200);
-        Object[] args = new Object[]{address};
+        Object[] args = new Object[] { address };
 
         try {
             InetAddress inetAddress = address.getAddress();
@@ -108,7 +98,7 @@ public class SocketChannelInterceptorAllowTests extends OpenSearchTestCase {
 
         try {
             InetSocketAddress address = new InetSocketAddress(host, port);
-            Object[] args = new Object[]{address};
+            Object[] args = new Object[] { address };
 
             SocketChannelInterceptor.intercept(args, testMethod);
 
@@ -122,7 +112,7 @@ public class SocketChannelInterceptorAllowTests extends OpenSearchTestCase {
 
     public void testAllowedListenPermission() throws Exception {
         InetSocketAddress address = new InetSocketAddress("localhost", 0);
-        Object[] args = new Object[]{address};
+        Object[] args = new Object[] { address };
 
         try {
             try (ServerSocketChannel serverChannel = ServerSocketChannel.open()) {
@@ -140,12 +130,12 @@ public class SocketChannelInterceptorAllowTests extends OpenSearchTestCase {
         try (ServerSocketChannel serverChannel = ServerSocketChannel.open()) {
             InetSocketAddress bindAddress = new InetSocketAddress("localhost", 0);
             serverChannel.bind(bindAddress);
-            
+
             int port = ((InetSocketAddress) serverChannel.getLocalAddress()).getPort();
 
             // 2. Resolve hostname
             InetSocketAddress clientAddress = new InetSocketAddress("localhost", port);
-            Object[] args = new Object[]{clientAddress};
+            Object[] args = new Object[] { clientAddress };
 
             // Test the interceptor
             SocketChannelInterceptor.intercept(args, testMethod);
