@@ -37,6 +37,7 @@ import org.opensearch.common.Rounding;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -65,8 +66,8 @@ import java.util.Objects;
  */
 public final class InternalDateHistogram extends InternalMultiBucketAggregation<InternalDateHistogram, InternalDateHistogram.Bucket>
     implements
-        Histogram,
-        HistogramFactory {
+    Histogram,
+    HistogramFactory {
 
     /**
      * Bucket for an internal date histogram agg
@@ -322,7 +323,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
-    private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    protected List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<IteratorAndCurrent<Bucket>>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
@@ -394,9 +395,44 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         return createBucket(buckets.get(0).key, docCount, aggs);
     }
 
-    private void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
+    private int getTotalBucketCount() {
+        LongBounds bounds = emptyBucketInfo.bounds;
+        int bucketCount = 0;
+        if (bounds != null && bounds.getMin() != null && bounds.getMax() != null) {
+            long min = bounds.getMin() + offset;
+            long max = bounds.getMax() + offset;
+            long intervalWidth = 0;
+            int i = 0;
+            long key = min;
+            while (key < max && i++ < 10) {
+                bucketCount++;
+                long nextKey = nextKey(key).longValue();
+                intervalWidth = Math.max(intervalWidth, nextKey - key);
+                key = nextKey;
+            }
+            if (bucketCount < 10) {
+                return bucketCount;
+            }
+            return Math.toIntExact((max - min) / intervalWidth);
+        }
+        return 0;
+    }
+
+    protected void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
         Bucket lastBucket = null;
         LongBounds bounds = emptyBucketInfo.bounds;
+        System.out.println(bounds);
+
+        int emptyBucketCount = getTotalBucketCount() - list.size();
+        System.out.println(emptyBucketCount);
+        if (emptyBucketCount > 0) {
+            CircuitBreaker breaker = reduceContext.getBreaker();
+            if (breaker != null) {
+                breaker.addEstimateBytesAndMaybeBreak(50L * emptyBucketCount, "empty date histogram buckets");
+            }
+            reduceContext.consumeBucketsAndMaybeBreak(emptyBucketCount);
+        }
+
         ListIterator<Bucket> iter = list.listIterator();
 
         // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
@@ -457,6 +493,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
+        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
         if (reduceContext.isFinalReduce()) {
             if (minDocCount == 0) {
                 addEmptyBuckets(reducedBuckets, reduceContext);
@@ -473,7 +510,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                 CollectionUtil.introSort(reducedBuckets, order.comparator());
             }
         }
-        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
         return new InternalDateHistogram(
             getName(),
             reducedBuckets,
