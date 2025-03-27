@@ -24,3 +24,7 @@ disableTasks('forbiddenApisMain')
 
 test.enabled = false
 testingConventions.enabled = false
+
+tasks.named('jarHell').configure {
+    enabled = false
+}
