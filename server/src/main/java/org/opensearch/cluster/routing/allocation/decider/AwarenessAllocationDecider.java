@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -99,8 +97,6 @@ import static java.util.Collections.emptyList;
 public class AwarenessAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "awareness";
-
-    public static Logger logger = LogManager.getLogger(AwarenessAllocationDecider.class);
 
     public static final Setting<List<String>> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING = Setting.listSetting(
         "cluster.routing.allocation.awareness.attributes",
@@ -231,62 +227,20 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     ) {
         // Get the attribute value for the current node
         String shardAttributeForNode = getAttributeValueForNode(node, awarenessAttribute);
-
+        // Get all assigned shards of the same type
         List<ShardRouting> assignedShards = getAssignedShards(allocation, shardRouting);
-
         // Count assigned shards with matching attribute values
-        int currentNodeCount = countMatchingShards(assignedShards, allocation, awarenessAttribute, shardAttributeForNode);
-
-        // Adjust count for node movement scenarios
-        currentNodeCount = adjustNodeCount(
-            shardRouting,
-            node,
-            allocation,
-            moveToNode,
-            awarenessAttribute,
-            shardAttributeForNode,
-            currentNodeCount
-        );
-
-        return currentNodeCount;
-    }
-
-    private List<ShardRouting> getAssignedShards(RoutingAllocation allocation, ShardRouting shardRouting) {
-        // only consider assigned shards of the same type (search vs write)
-        List<ShardRouting> shardRoutingList = allocation.routingNodes().assignedShards(shardRouting.shardId());
-
-        return shardRouting.isSearchOnly()
-            ? shardRoutingList.stream().filter(ShardRouting::isSearchOnly).collect(Collectors.toList())
-            : shardRoutingList.stream().filter(s -> !s.isSearchOnly()).collect(Collectors.toList());
-    }
-
-    private int countMatchingShards(
-        List<ShardRouting> assignedShards,
-        RoutingAllocation allocation,
-        String awarenessAttribute,
-        String shardAttributeForNode
-    ) {
-        int count = 0;
+        int currentNodeCount = 0;
         for (ShardRouting assignedShard : assignedShards) {
             if (assignedShard.started() || assignedShard.initializing()) {
                 RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
                 if (getAttributeValueForNode(routingNode, awarenessAttribute).equals(shardAttributeForNode)) {
-                    count++;
+                    currentNodeCount++;
                 }
             }
         }
-        return count;
-    }
 
-    private int adjustNodeCount(
-        ShardRouting shardRouting,
-        RoutingNode node,
-        RoutingAllocation allocation,
-        boolean moveToNode,
-        String awarenessAttribute,
-        String shardAttributeForNode,
-        int currentNodeCount
-    ) {
+        // Adjust count for node movement scenarios
         if (moveToNode) {
             if (shardRouting.assignedToNode()) {
                 String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
@@ -304,6 +258,14 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
         }
         return currentNodeCount;
+    }
+
+    private List<ShardRouting> getAssignedShards(RoutingAllocation allocation, ShardRouting shardRouting) {
+        return allocation.routingNodes()
+            .assignedShards(shardRouting.shardId())
+            .stream()
+            .filter(s -> s.isSearchOnly() == shardRouting.isSearchOnly())
+            .collect(Collectors.toList());
     }
 
     private boolean isAwarenessAttributeAssociatedWithNode(RoutingNode node, String awarenessAttribute) {

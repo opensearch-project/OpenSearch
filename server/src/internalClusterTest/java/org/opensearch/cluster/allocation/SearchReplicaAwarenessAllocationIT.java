@@ -6,30 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.cluster.allocation;
 
 import org.apache.logging.log4j.LogManager;
@@ -40,6 +16,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -78,9 +55,6 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
         List<String> nodes = internalCluster().startNodes(
             Settings.builder().put(commonSettings).put("node.attr.zone", "a").build(),
             Settings.builder().put(commonSettings).put("node.attr.zone", "b").build(),
-            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build(),
-            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build(),
-
             Settings.builder().put(commonSettings).put("node.attr.zone", "a").put(searchOnlyNode()).build(),
             Settings.builder().put(commonSettings).put("node.attr.zone", "b").put(searchOnlyNode()).build(),
             Settings.builder().put(commonSettings).put("node.attr.zone", "b").put(searchOnlyNode()).build(),
@@ -88,14 +62,14 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
         );
 
         logger.info("--> waiting for nodes to form a cluster");
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("8").execute().actionGet();
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("6").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> create index");
         createIndex(
             "test",
             Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 2)
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
@@ -116,20 +90,29 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
             }
         }
 
-        assertThat(counts.get(nodes.get(3)), anyOf(equalTo(2), equalTo(3)));
-        assertThat(counts.get(nodes.get(2)), anyOf(equalTo(2), equalTo(3)));
-        assertThat(counts.get(nodes.get(0)), anyOf(equalTo(2), equalTo(3)));
-        assertThat(counts.get(nodes.get(1)), anyOf(equalTo(2), equalTo(3)));
-        assertThat(counts.get(nodes.get(4)), anyOf(equalTo(2), equalTo(3)));
-        assertThat(counts.get(nodes.get(5)), anyOf(equalTo(2), equalTo(3)));
-        assertThat(counts.get(nodes.get(6)), anyOf(equalTo(2), equalTo(3)));
-        assertThat(counts.get(nodes.get(7)), anyOf(equalTo(2), equalTo(3)));
+        /*
+         * Ensures that shards are distributed across different zones in the cluster.
+         * Given two zones (a and b) with one data node in each, the shards are evenly distributed,
+         * resulting in each data node being assigned three shards.
+         */
+        for (int i = 0; i < 2; i++) {
+            assertThat(counts.get(nodes.get(i)), equalTo(3));
+        }
+
+        /*
+         * There are two search nodes in each zone, totaling four search nodes.
+         * With six search shards to allocate, they are assigned using a best-effort spread,
+         * ensuring each search node receives either one or two shards.
+         */
+        for (int i = 2; i < 6; i++) {
+            assertThat(counts.get(nodes.get(i)), anyOf(equalTo(1), equalTo(2)));
+        }
     }
 
     public void testAwarenessZonesIncrementalNodes() {
         Settings commonSettings = Settings.builder()
-            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
-            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a,b")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
             .build();
 
         logger.info("--> starting 2 nodes on zones 'a' & 'b'");
@@ -143,7 +126,7 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
         createIndex(
             "test",
             Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 2)
                 .build()
@@ -161,10 +144,14 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
                 }
             }
         }
-        assertThat(counts.get(nodes.get(0)), equalTo(5));
-        assertThat(counts.get(nodes.get(1)), equalTo(5));
-        assertThat(counts.get(nodes.get(2)), equalTo(5));
-        assertThat(counts.get(nodes.get(3)), equalTo(5));
+
+        /*
+         * The cluster consists of two zones, each containing one data node and one search node.
+         * Replicas and search replicas are evenly distributed across these zones.
+         */
+        for (int i = 0; i < 4; i++) {
+            assertThat(counts.get(nodes.get(i)), equalTo(3));
+        }
 
         logger.info("--> starting another data and search node in zone 'b'");
 
@@ -191,12 +178,19 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
             }
         }
 
-        assertThat(counts.get(nodes.get(0)), equalTo(5));
-        assertThat(counts.get(nodes.get(1)), equalTo(3));
-        assertThat(counts.get(nodes.get(2)), equalTo(5));
-        assertThat(counts.get(nodes.get(3)), equalTo(3));
-        assertThat(counts.get(B_2), equalTo(2));
-        assertThat(counts.get(B_3), equalTo(2));
+        /*
+         * Adding a new data node and a new search node in zone B results in:
+         * - Zone A: 1 data node, 1 search node
+         * - Zone B: 2 data nodes, 2 search nodes
+         *
+         * As a result, shards are rerouted to maintain a best-effort balanced allocation.
+         */
+        assertThat(counts.get(nodes.get(0)), equalTo(3));
+        assertThat(counts.get(nodes.get(1)), equalTo(2));
+        assertThat(counts.get(nodes.get(2)), equalTo(3));
+        assertThat(counts.get(nodes.get(3)), equalTo(2));
+        assertThat(counts.get(B_2), equalTo(1));
+        assertThat(counts.get(B_3), equalTo(1));
 
         logger.info("--> starting another data node without any zone");
 
@@ -218,12 +212,16 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
 
         logger.info("--> Ensure there was not rerouting");
 
-        assertThat(counts.get(nodes.get(0)), equalTo(5));
-        assertThat(counts.get(nodes.get(1)), equalTo(3));
-        assertThat(counts.get(nodes.get(2)), equalTo(5));
-        assertThat(counts.get(nodes.get(3)), equalTo(3));
-        assertThat(counts.get(B_2), equalTo(2));
-        assertThat(counts.get(B_3), equalTo(2));
+        /*
+         * Adding another node to the cluster without a zone attribute
+         * does not trigger shard reallocation; existing shard assignments remain unchanged.
+         */
+        assertThat(counts.get(nodes.get(0)), equalTo(3));
+        assertThat(counts.get(nodes.get(1)), equalTo(2));
+        assertThat(counts.get(nodes.get(2)), equalTo(3));
+        assertThat(counts.get(nodes.get(3)), equalTo(2));
+        assertThat(counts.get(B_2), equalTo(1));
+        assertThat(counts.get(B_3), equalTo(1));
         assertThat(counts.containsKey(noZoneNode), equalTo(false));
 
         logger.info("--> Remove the awareness attribute setting");
@@ -231,7 +229,11 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("cluster.routing.allocation.awareness.attributes", "").build())
+            .setTransientSettings(
+                Settings.builder()
+                    .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "")
+                    .build()
+            )
             .get();
 
         ensureGreen("test");
@@ -247,20 +249,24 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
             }
         }
 
-        assertThat(counts.get(nodes.get(0)), equalTo(3));
-        assertThat(counts.get(nodes.get(1)), equalTo(3));
-        assertThat(counts.get(nodes.get(2)), equalTo(4));
-        assertThat(counts.get(nodes.get(3)), equalTo(3));
-        assertThat(counts.get(B_2), equalTo(2));
-        assertThat(counts.get(B_3), equalTo(3));
-        assertThat(counts.get(noZoneNode), equalTo(2));
+        /*
+         * Removing allocation awareness attributes from the cluster disables zone-based distribution.
+         * Shards are then assigned based solely the other deciders in the cluster manager.
+         */
+        assertThat(counts.get(nodes.get(0)), equalTo(2));
+        assertThat(counts.get(nodes.get(1)), equalTo(2));
+        assertThat(counts.get(nodes.get(2)), equalTo(2));
+        assertThat(counts.get(nodes.get(3)), equalTo(2));
+        assertThat(counts.get(B_2), equalTo(1));
+        assertThat(counts.get(B_3), equalTo(2));
+        assertThat(counts.get(noZoneNode), equalTo(1));
     }
 
     public void testAwarenessBalanceWithForcedAwarenessCreateIndex() {
         Settings settings = Settings.builder()
-            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
-            .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .put("cluster.routing.allocation.awareness.balance", "true")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a,b,c")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), "true")
             .build();
 
         logger.info("--> starting 3 nodes on zones a,b,c");
@@ -285,9 +291,9 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
 
     public void testAwarenessBalanceWithForcedAwarenessUpdateIndex() {
         Settings settings = Settings.builder()
-            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
-            .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .put("cluster.routing.allocation.awareness.balance", "true")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a,b,c")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), "true")
             .build();
 
         logger.info("--> starting 3 nodes on zones a,b,c");
