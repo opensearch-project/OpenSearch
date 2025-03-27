@@ -8,12 +8,16 @@
 
 package org.opensearch.plugin.wlm.rule;
 
+import org.opensearch.autotagging.Attribute;
+import org.opensearch.autotagging.FeatureType;
 import org.opensearch.plugin.wlm.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.plugin.wlm.rule.storage.AttributeValueStore;
+import org.opensearch.autotagging.Rule;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * This class is responsible for managing in-memory view of Rules and Find matching Rule for the request
@@ -80,15 +84,15 @@ public class InMemoryRuleProcessingService {
         }
 
         void perform() {
-            final Rule.Feature feature = rule.getFeature();
-            final String label = rule.getLabel();
+            final FeatureType feature = rule.getFeatureType();
+            final String label = rule.getFeatureValue();
 
-            for (Map.Entry<Rule.Attribute, List<String>> attributeEntry : rule.getAttributeMap().entrySet()) {
+            for (Map.Entry<Attribute, Set<String>> attributeEntry : rule.getAttributeMap().entrySet()) {
                 processAttributeEntry(attributeEntry);
             }
         }
 
-        protected abstract void processAttributeEntry(Map.Entry<Rule.Attribute, List<String>> attributeEntry);
+        protected abstract void processAttributeEntry(Map.Entry<Attribute, Set<String>> attributeEntry);
     }
 
     private static class DeleteRuleOperation extends RuleProcessingOperation {
@@ -97,8 +101,8 @@ public class InMemoryRuleProcessingService {
         }
 
         @Override
-        protected void processAttributeEntry(Map.Entry<Rule.Attribute, List<String>> attributeEntry) {
-            Rule.Attribute attribute = attributeEntry.getKey();
+        protected void processAttributeEntry(Map.Entry<Attribute, Set<String>> attributeEntry) {
+            Attribute attribute = attributeEntry.getKey();
             assert attribute.getValueStore() != null;
 
             for (String value : attributeEntry.getValue()) {
@@ -113,8 +117,8 @@ public class InMemoryRuleProcessingService {
         }
 
         @Override
-        protected void processAttributeEntry(Map.Entry<Rule.Attribute, List<String>> attributeEntry) {
-            Rule.Attribute attribute = attributeEntry.getKey();
+        protected void processAttributeEntry(Map.Entry<Attribute, Set<String>> attributeEntry) {
+            Attribute attribute = attributeEntry.getKey();
             assert attribute.getValueStore() != null;
 
             for (String value : attributeEntry.getValue()) {
