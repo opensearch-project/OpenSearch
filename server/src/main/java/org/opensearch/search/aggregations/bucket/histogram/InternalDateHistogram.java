@@ -34,10 +34,10 @@ package org.opensearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.Rounding;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -66,8 +66,8 @@ import java.util.Objects;
  */
 public final class InternalDateHistogram extends InternalMultiBucketAggregation<InternalDateHistogram, InternalDateHistogram.Bucket>
     implements
-    Histogram,
-    HistogramFactory {
+        Histogram,
+        HistogramFactory {
 
     /**
      * Bucket for an internal date histogram agg
@@ -413,7 +413,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             if (bucketCount < 10) {
                 return bucketCount;
             }
-            return Math.toIntExact((max - min) / intervalWidth);
+            long estimatedBuckets = Math.round(Math.ceil((double) (max - min) / intervalWidth));
+            if (estimatedBuckets > Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            }
+            return (int) estimatedBuckets;
         }
         return 0;
     }
@@ -421,10 +425,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     protected void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
         Bucket lastBucket = null;
         LongBounds bounds = emptyBucketInfo.bounds;
-        System.out.println(bounds);
 
         int emptyBucketCount = getTotalBucketCount() - list.size();
-        System.out.println(emptyBucketCount);
         if (emptyBucketCount > 0) {
             CircuitBreaker breaker = reduceContext.getBreaker();
             if (breaker != null) {

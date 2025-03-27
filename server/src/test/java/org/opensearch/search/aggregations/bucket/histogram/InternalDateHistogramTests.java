@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.mockito.Mockito;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -52,6 +51,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
@@ -137,7 +138,8 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         InternalDateHistogram histogram2 = new InternalDateHistogram(name, bucket2, order, 0, 0L, emptyBucketInfo, format, false, null);
 
         CircuitBreaker breaker = Mockito.mock(CircuitBreaker.class);
-        Mockito.when(breaker.addEstimateBytesAndMaybeBreak(50L * 2, "empty date histogram buckets")).thenThrow(CircuitBreakingException.class);
+        Mockito.when(breaker.addEstimateBytesAndMaybeBreak(50L * 2, "empty date histogram buckets"))
+            .thenThrow(CircuitBreakingException.class);
 
         MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(0, breaker);
         InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
@@ -148,7 +150,10 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             breaker
         );
         List<InternalDateHistogram.Bucket> reducedBuckets = histogram1.reduceBuckets(List.of(histogram1, histogram2), reduceContext);
-        expectThrows(MultiBucketConsumerService.TooManyBucketsException.class, () -> histogram1.addEmptyBuckets(reducedBuckets, reduceContext));
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> histogram1.addEmptyBuckets(reducedBuckets, reduceContext)
+        );
     }
 
     @Override
