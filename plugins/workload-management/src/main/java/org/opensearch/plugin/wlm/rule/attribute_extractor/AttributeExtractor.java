@@ -8,8 +8,6 @@
 
 package org.opensearch.plugin.wlm.rule.attribute_extractor;
 
-import org.opensearch.plugin.wlm.rule.Rule;
-
 /**
  * This interface defines the contract for extracting the attributes for Rule based auto-tagging feature
  * @param <V>

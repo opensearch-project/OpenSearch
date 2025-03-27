@@ -9,7 +9,6 @@
 package org.opensearch.plugin.wlm.rule.attribute_extractor;
 
 import org.opensearch.action.IndicesRequest;
-import org.opensearch.plugin.wlm.rule.Rule;
 
 import java.util.List;
 
