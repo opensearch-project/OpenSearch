@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.ALLOCATOR_TIMEOUT_SETTING;
+import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING;
 
 public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationTestCase {
 
@@ -108,7 +109,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
                 listener.onResponse(clusterService.state());
             }
             assertEquals("reroute after balanced shards allocator timed out", reason);
-            assertEquals(Priority.HIGH, priority);
+            assertEquals(Priority.NORMAL, priority);
             rerouteScheduled.compareAndSet(false, true);
         };
         allocator.setRerouteService(rerouteService);
@@ -129,6 +130,49 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         int numberOfReplicas = 1;
         int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
         Settings.Builder settings = Settings.builder();
+        // passing 0 for timed out latch such that all shard times out
+        BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings.build(), new CountDownLatch(0));
+        Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
+        RoutingTable routingTable = buildRoutingTable(metadata);
+        setupStateAndService(metadata, routingTable);
+        RoutingAllocation allocation = new RoutingAllocation(
+            yesAllocationDeciders(),
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            null,
+            System.nanoTime()
+        );
+        AtomicBoolean rerouteScheduled = new AtomicBoolean(false);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            if (randomBoolean()) {
+                listener.onFailure(new OpenSearchException("simulated"));
+            } else {
+                listener.onResponse(clusterService.state());
+            }
+            assertEquals("reroute after balanced shards allocator timed out", reason);
+            assertEquals(Priority.NORMAL, priority);
+            rerouteScheduled.compareAndSet(false, true);
+        };
+        allocator.setRerouteService(rerouteService);
+        allocator.allocate(allocation);
+        List<ShardRouting> initializingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
+        int node1Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node1.getId());
+        int node2Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node2.getId());
+        int node3Recoveries = allocation.routingNodes().getInitialPrimariesIncomingRecoveries(node3.getId());
+        assertEquals(0, initializingShards.size());
+        assertEquals(totalShardCount, allocation.routingNodes().unassigned().ignored().size());
+        assertEquals(0, node1Recoveries + node2Recoveries + node3Recoveries);
+        assertTrue(rerouteScheduled.get());
+    }
+
+    public void testAllUnassignedShardsIgnoredWhenTimedOutAndRerouteScheduledWithHighPriority() {
+        int numberOfIndices = 2;
+        int numberOfShards = 5;
+        int numberOfReplicas = 1;
+        int totalShardCount = numberOfIndices * (numberOfShards * (numberOfReplicas + 1));
+        Settings.Builder settings = Settings.builder()
+            .put("cluster.routing.allocation.balanced_shards_allocator.schedule_reroute.priority", "high");
         // passing 0 for timed out latch such that all shard times out
         BalancedShardsAllocator allocator = new TestBalancedShardsAllocator(settings.build(), new CountDownLatch(0));
         Metadata metadata = buildMetadata(Metadata.builder(), numberOfIndices, numberOfShards, numberOfReplicas);
@@ -193,7 +237,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
                 listener.onResponse(clusterService.state());
             }
             assertEquals("reroute after balanced shards allocator timed out", reason);
-            assertEquals(Priority.HIGH, priority);
+            assertEquals(Priority.NORMAL, priority);
             rerouteScheduled.compareAndSet(false, true);
         };
         allocator.setRerouteService(rerouteService);
@@ -237,7 +281,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
                 listener.onResponse(clusterService.state());
             }
             assertEquals("reroute after balanced shards allocator timed out", reason);
-            assertEquals(Priority.HIGH, priority);
+            assertEquals(Priority.NORMAL, priority);
             rerouteScheduled.compareAndSet(false, true);
         };
         allocator.setRerouteService(rerouteService);
@@ -284,7 +328,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
                 listener.onResponse(clusterService.state());
             }
             assertEquals("reroute after balanced shards allocator timed out", reason);
-            assertEquals(Priority.HIGH, priority);
+            assertEquals(Priority.NORMAL, priority);
             rerouteScheduled.compareAndSet(false, true);
         };
         allocator.setRerouteService(rerouteService);
@@ -326,7 +370,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
                 listener.onResponse(clusterService.state());
             }
             assertEquals("reroute after balanced shards allocator timed out", reason);
-            assertEquals(Priority.HIGH, priority);
+            assertEquals(Priority.NORMAL, priority);
             rerouteScheduled.compareAndSet(false, true);
         };
         allocator.setRerouteService(rerouteService);
@@ -371,7 +415,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
                 listener.onResponse(clusterService.state());
             }
             assertEquals("reroute after balanced shards allocator timed out", reason);
-            assertEquals(Priority.HIGH, priority);
+            assertEquals(Priority.NORMAL, priority);
             rerouteScheduled.compareAndSet(false, true);
         };
         allocator.setRerouteService(rerouteService);
@@ -416,7 +460,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
                 listener.onResponse(clusterService.state());
             }
             assertEquals("reroute after balanced shards allocator timed out", reason);
-            assertEquals(Priority.HIGH, priority);
+            assertEquals(Priority.NORMAL, priority);
             rerouteScheduled.compareAndSet(false, true);
         };
         allocator.setRerouteService(rerouteService);
@@ -462,7 +506,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
                 listener.onResponse(clusterService.state());
             }
             assertEquals("reroute after balanced shards allocator timed out", reason);
-            assertEquals(Priority.HIGH, priority);
+            assertEquals(Priority.NORMAL, priority);
             rerouteScheduled.compareAndSet(false, true);
         };
         allocator.setRerouteService(rerouteService);
@@ -522,7 +566,7 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
                 listener.onResponse(clusterService.state());
             }
             assertEquals("reroute after balanced shards allocator timed out", reason);
-            assertEquals(Priority.HIGH, priority);
+            assertEquals(Priority.NORMAL, priority);
             rerouteScheduled.compareAndSet(false, true);
         };
         allocator.setRerouteService(rerouteService);
@@ -559,6 +603,32 @@ public class TimeBoundBalancedShardsAllocatorTests extends OpenSearchAllocationT
         // Valid setting with timeout = -1
         build = Settings.builder().put(settingKey, "-1").build();
         assertEquals(-1, ALLOCATOR_TIMEOUT_SETTING.get(build).getMillis());
+    }
+
+    public void testFollowupPriorityValues() {
+        String settingKey = "cluster.routing.allocation.balanced_shards_allocator.schedule_reroute.priority";
+        Settings build = Settings.builder().put(settingKey, "normal").build();
+        assertEquals(Priority.NORMAL, FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        build = Settings.builder().put(settingKey, "high").build();
+        assertEquals(Priority.HIGH, FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        build = Settings.builder().put(settingKey, "urgent").build();
+        assertEquals(Priority.URGENT, FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(build));
+
+        Settings wrongPriority = Settings.builder().put(settingKey, "immediate").build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(wrongPriority)
+        );
+        assertEquals("priority [IMMEDIATE] not supported for [" + FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey() + "]", iae.getMessage());
+
+        Settings wrongPriority2 = Settings.builder().put(settingKey, "random").build();
+        IllegalArgumentException iae2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(wrongPriority2)
+        );
+        assertEquals("No enum constant org.opensearch.common.Priority.RANDOM", iae2.getMessage());
     }
 
     private RoutingTable buildRoutingTable(Metadata metadata) {

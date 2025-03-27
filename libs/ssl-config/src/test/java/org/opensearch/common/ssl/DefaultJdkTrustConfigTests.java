@@ -52,7 +52,7 @@ public class DefaultJdkTrustConfigTests extends OpenSearchTestCase {
     private static final BiFunction<String, String, String> EMPTY_SYSTEM_PROPERTIES = (key, defaultValue) -> defaultValue;
 
     public void testGetSystemTrustStoreWithNoSystemProperties() throws Exception {
-        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig((key, defaultValue) -> defaultValue);
+        final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(EMPTY_SYSTEM_PROPERTIES);
         assertThat(trustConfig.getDependentFiles(), emptyIterable());
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         assertStandardIssuers(trustManager);

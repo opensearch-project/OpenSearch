@@ -242,6 +242,14 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         runTestDiscoveryNodeIsWarm(nonWarmNode(), false);
     }
 
+    public void testDiscoveryNodeIsSearchSet() {
+        runTestDiscoveryNodeIsSearch(NodeRoles.searchOnlyNode(), true);
+    }
+
+    public void testDiscoveryNodeIsSearchUnset() {
+        runTestDiscoveryNodeIsSearch(NodeRoles.nonSearchNode(), false);
+    }
+
     // Added in 2.0 temporarily, validate the MASTER_ROLE is in the list of known roles.
     // MASTER_ROLE was removed from BUILT_IN_ROLES and is imported by setDeprecatedMasterRole(),
     // as a workaround for making the new CLUSTER_MANAGER_ROLE has got the same abbreviation 'm'.
@@ -268,6 +276,16 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
             assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.WARM_ROLE));
         } else {
             assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.WARM_ROLE)));
+        }
+    }
+
+    private void runTestDiscoveryNodeIsSearch(final Settings settings, final boolean expected) {
+        final DiscoveryNode node = DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node");
+        assertThat(node.isSearchNode(), equalTo(expected));
+        if (expected) {
+            assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.SEARCH_ROLE));
+        } else {
+            assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.SEARCH_ROLE)));
         }
     }
 

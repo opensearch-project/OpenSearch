@@ -222,6 +222,8 @@ public class IngestionEngine extends InternalEngine {
                  */
                 if (streamPoller.getBatchStartPointer() != null) {
                     commitData.put(StreamPoller.BATCH_START, streamPoller.getBatchStartPointer().asString());
+                } else {
+                    logger.warn("ignore null batch start pointer");
                 }
                 final String currentForceMergeUUID = forceMergeUUID;
                 if (currentForceMergeUUID != null) {
