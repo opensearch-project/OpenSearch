@@ -100,7 +100,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
         IndexShardRoutingTable shardTable = getClusterState().routingTable().index(TEST_INDEX).shard(0);
         assertEquals(1, shardTable.searchOnlyReplicas().stream().filter(ShardRouting::active).count());
 
-        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX).setSearchOnly(true).get());
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
 
         ensureGreen(TEST_INDEX);
 
@@ -159,7 +159,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             assertHitCount(response, 5);
         });
 
-        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX).setSearchOnly(true).get());
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
         ensureGreen(TEST_INDEX);
 
         assertBusy(() -> {
@@ -167,7 +167,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             assertHitCount(response, 5);
         });
 
-        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX).setSearchOnly(false).get());
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, false).get());
 
         ensureGreen(TEST_INDEX);
 
@@ -212,7 +212,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().prepareScaleSearchOnly(TEST_INDEX).setSearchOnly(true).get()
+            () -> client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get()
         );
 
         assertTrue(
@@ -240,7 +240,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
         createIndex(TEST_INDEX, specificSettings);
         ensureGreen(TEST_INDEX);
 
-        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX).setSearchOnly(true).get());
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
 
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -305,7 +305,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
         createIndex(TEST_INDEX, specificSettings);
         ensureGreen(TEST_INDEX);
 
-        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX).setSearchOnly(true).get());
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
 
         internalCluster().stopAllNodes();
 
@@ -349,7 +349,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
         internalCluster().fullRestart();
 
         ensureGreen(TEST_INDEX);
-        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX).setSearchOnly(true).get());
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
 
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -394,7 +394,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
 
-        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX).setSearchOnly(true).get());
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
         ensureGreen(TEST_INDEX);
 
         assertBusy(() -> {
@@ -465,7 +465,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
         createIndex(TEST_INDEX, specificSettings);
         ensureGreen(TEST_INDEX);
 
-        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX).setSearchOnly(true).get());
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
         ensureGreen(TEST_INDEX);
 
         assertBusy(() -> {
@@ -505,7 +505,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
 
         createIndex(TEST_INDEX, specificSettings);
         ensureGreen(TEST_INDEX);
-        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX).setSearchOnly(true).get());
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
         ensureGreen(TEST_INDEX);
 
         String nodeToStop = findNodeWithSearchOnlyReplica();

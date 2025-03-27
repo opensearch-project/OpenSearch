@@ -170,7 +170,6 @@ public class ScaleIndexResponseTests extends OpenSearchTestCase {
         String json = builder.toString();
 
         // Verify XContent output contains only the fields defined in toXContent()
-        assertTrue("XContent should contain has_failures field", json.contains("\"has_failures\":true"));
         assertTrue("XContent should contain failure_reason field", json.contains("\"failure_reason\""));
         // The failure reason will contain details about the failure
         assertTrue("XContent should contain failure details", json.contains("Shard") && json.contains("needs sync"));

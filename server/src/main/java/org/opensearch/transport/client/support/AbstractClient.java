@@ -2147,8 +2147,8 @@ public abstract class AbstractClient implements Client {
             return execute(UpdateViewAction.INSTANCE, request);
         }
 
-        public ScaleIndexRequestBuilder prepareScaleSearchOnly(String index) {
-            return new ScaleIndexRequestBuilder(this, index);
+        public ScaleIndexRequestBuilder prepareScaleSearchOnly(String index, boolean searchOnly) {
+            return new ScaleIndexRequestBuilder(this, searchOnly, index);
         }
 
     }

@@ -105,7 +105,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
 
     public void testRemoteStoreRestoreFailsForSearchOnlyIndex() throws Exception {
         bootstrapIndexWithSearchReplicas();
-        assertAcked(client().admin().indices().prepareScaleSearchOnly(INDEX_NAME).setSearchOnly(true).get());
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(INDEX_NAME, true).get());
 
         GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(INDEX_NAME).get();
         assertEquals("true", settingsResponse.getSetting(INDEX_NAME, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey()));

@@ -51,11 +51,7 @@ public class RestScaleIndexAction extends BaseRestHandler {
         final boolean searchOnly = parseSearchOnlyValue(request);
 
         // Then use the final value in the lambda
-        return channel -> client.admin()
-            .indices()
-            .prepareScaleSearchOnly(index)
-            .setSearchOnly(searchOnly)
-            .execute(new RestToXContentListener<>(channel));
+        return channel -> client.admin().indices().prepareScaleSearchOnly(index, searchOnly).execute(new RestToXContentListener<>(channel));
     }
 
     /**
@@ -70,15 +66,15 @@ public class RestScaleIndexAction extends BaseRestHandler {
                 throw new IllegalArgumentException("Request body must be valid JSON", e);
             }
             for (String key : source.keySet()) {
-                if (!SEARCH_ONLY_FIELD.equals(key)) {
+                if (SEARCH_ONLY_FIELD.equals(key) == false) {
                     throw new IllegalArgumentException("Unknown parameter [" + key + "]. Only [" + SEARCH_ONLY_FIELD + "] is allowed.");
                 }
             }
-            if (!source.containsKey(SEARCH_ONLY_FIELD)) {
+            if (source.containsKey(SEARCH_ONLY_FIELD) == false) {
                 throw new IllegalArgumentException("Parameter [" + SEARCH_ONLY_FIELD + "] is required");
             }
             Object value = source.get(SEARCH_ONLY_FIELD);
-            if (!(value instanceof Boolean)) {
+            if ((value instanceof Boolean) == false) {
                 throw new IllegalArgumentException("Parameter [" + SEARCH_ONLY_FIELD + "] must be a boolean (true or false)");
             }
             return (Boolean) value;

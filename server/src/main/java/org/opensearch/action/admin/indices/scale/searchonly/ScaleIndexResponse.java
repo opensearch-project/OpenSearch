@@ -127,7 +127,6 @@ class ScaleIndexResponse extends ActionResponse implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field("has_failures", hasFailures);
         if (failureReason != null) {
             builder.field("failure_reason", failureReason);
         }

@@ -868,10 +868,11 @@ public interface IndicesAdminClient extends OpenSearchClient {
     ActionFuture<GetViewAction.Response> updateView(CreateViewAction.Request request);
 
     /**
-     * Make one or more indices search only.
+     * Prepares a request to scale an index between normal and search-only modes.
      *
-     * @param index The index to make search only
-     * @return The request builder
+     * @param index      The name of the index to scale
+     * @param searchOnly Whether to scale to search-only mode (true) or back to normal mode (false)
+     * @return The request builder configured with the specified scaling direction
      */
-    ScaleIndexRequestBuilder prepareScaleSearchOnly(String index);
+    ScaleIndexRequestBuilder prepareScaleSearchOnly(String index, boolean searchOnly);
 }
