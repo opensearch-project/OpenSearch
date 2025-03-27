@@ -245,7 +245,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             if (shardRouting.assignedToNode()) {
                 String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
 
-                if (!node.nodeId().equals(nodeId)) {
+                if (node.nodeId().equals(nodeId) == false) {
                     // Adjust count when moving between nodes
                     RoutingNode sourceNode = allocation.routingNodes().node(nodeId);
                     if (getAttributeValueForNode(sourceNode, awarenessAttribute).equals(shardAttributeForNode) && currentNodeCount > 0) {
