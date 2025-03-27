@@ -24,7 +24,7 @@ jobs:
     - uses: actions/checkout@v4
     - name: Get changed files
       id: changed-files-specific
-      uses: tj-actions/changed-files@v46.0.1
+      uses: tj-actions/changed-files@v46.0.3
       with:
         files_ignore: |
           release-notes/*.md
@@ -103,7 +103,7 @@ jobs:
         run: |
           set -e
           set -o pipefail
-          bash opensearch-build/scripts/gradle/gradle-check.sh ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} | tee -a gradle-check.log
+          bash opensearch-build/scripts/gradle/gradle-check.sh -t ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} -u ${{ secrets.JENKINS_GITHUB_USER}} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN}} | tee -a gradle-check.log
 
       - name: Setup Result Status
         if: always()
