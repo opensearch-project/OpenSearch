@@ -195,7 +195,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
 
         final Map<String, FileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
         assertNotNull(nodeFileCacheStats);
-        assertThat("file cache is empty on non search nodes", nodeFileCacheStats.size(), Matchers.equalTo(0));
+        assertThat("file cache is empty on non warm nodes", nodeFileCacheStats.size(), Matchers.equalTo(0));
 
         ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getClusterManagerName());
         ClusterState state = clusterService.state();
@@ -216,7 +216,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
 
     public void testClusterInfoServiceCollectsFileCacheInformation() {
         internalCluster().startNodes(1);
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(2);
+        internalCluster().ensureAtLeastNumWarmAndDataNodes(2);
 
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the cluster-manager node
@@ -229,7 +229,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         assertNotNull("info should not be null", info);
         final Map<String, FileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
         assertNotNull(nodeFileCacheStats);
-        assertThat("file cache is enabled on both search nodes", nodeFileCacheStats.size(), Matchers.equalTo(2));
+        assertThat("file cache is enabled on both warm nodes", nodeFileCacheStats.size(), Matchers.equalTo(2));
 
         for (FileCacheStats fileCacheStats : nodeFileCacheStats.values()) {
             assertThat("file cache is non empty", fileCacheStats.getTotal().getBytes(), greaterThan(0L));

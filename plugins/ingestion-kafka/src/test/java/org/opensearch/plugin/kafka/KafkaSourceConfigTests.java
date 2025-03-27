@@ -16,10 +16,12 @@ import java.util.Map;
 
 public class KafkaSourceConfigTests extends OpenSearchTestCase {
 
-    public void testConstructorAndGetters() {
+    public void testKafkaSourceConfig() {
         Map<String, Object> params = new HashMap<>();
         params.put("topic", "topic");
         params.put("bootstrap_servers", "bootstrap");
+        params.put("fetch.min.bytes", 30000);
+        params.put("enable.auto.commit", false);
 
         KafkaSourceConfig config = new KafkaSourceConfig(params);
 
@@ -29,5 +31,7 @@ public class KafkaSourceConfigTests extends OpenSearchTestCase {
             "bootstrap",
             config.getBootstrapServers()
         );
+        Assert.assertEquals("Incorrect fetch.min.bytes", 30000, config.getConsumerConfigurations().get("fetch.min.bytes"));
+        Assert.assertEquals("Incorrect enable.auto.commit", false, config.getConsumerConfigurations().get("enable.auto.commit"));
     }
 }

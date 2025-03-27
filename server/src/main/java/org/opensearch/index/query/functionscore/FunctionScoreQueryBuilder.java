@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query.functionscore;
 
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.Nullable;
@@ -52,6 +53,7 @@ import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilderVisitor;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 
@@ -703,5 +705,13 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(filter, scoreFunction));
         }
         return currentFieldName;
+    }
+
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        if (query != null) {
+            visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(query);
+        }
     }
 }

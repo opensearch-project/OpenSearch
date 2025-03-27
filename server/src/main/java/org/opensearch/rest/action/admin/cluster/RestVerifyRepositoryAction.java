@@ -33,18 +33,18 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.opensearch.client.Requests.verifyRepositoryRequest;
 import static org.opensearch.rest.RestRequest.Method.POST;
+import static org.opensearch.transport.client.Requests.verifyRepositoryRequest;
 
 /**
  * Transport action to verify a repository

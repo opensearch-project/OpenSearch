@@ -122,12 +122,12 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
     }
 
-    public static boolean isSearchNode(Settings settings) {
-        return hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+    public static boolean isWarmNode(Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.WARM_ROLE);
     }
 
-    public static boolean isDedicatedSearchNode(Settings settings) {
-        return getRolesFromSettings(settings).stream().allMatch(DiscoveryNodeRole.SEARCH_ROLE::equals);
+    public static boolean isDedicatedWarmNode(Settings settings) {
+        return getRolesFromSettings(settings).stream().allMatch(DiscoveryNodeRole.WARM_ROLE::equals);
     }
 
     private final String nodeName;
@@ -480,9 +480,18 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     }
 
     /**
-     * Returns whether the node is dedicated to provide search capability.
+     * Returns whether the node is dedicated to hold warm indices.
      *
-     * @return true if the node contains search role, false otherwise
+     * @return true if the node contains warm role, false otherwise
+     */
+    public boolean isWarmNode() {
+        return roles.contains(DiscoveryNodeRole.WARM_ROLE);
+    }
+
+    /**
+     * Returns whether the node is dedicated to host search replicas.
+     *
+     * @return true if the node contains a search role, false otherwise
      */
     public boolean isSearchNode() {
         return roles.contains(DiscoveryNodeRole.SEARCH_ROLE);

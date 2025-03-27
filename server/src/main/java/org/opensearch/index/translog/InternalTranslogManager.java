@@ -21,7 +21,6 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -31,12 +30,12 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
- * The {@link TranslogManager} implementation capable of orchestrating all read/write {@link Translog} operations while
- * interfacing with the {@link org.opensearch.index.engine.InternalEngine}
+ * The {@link TranslogManager} implementation capable of orchestrating all read/write {@link Translog} operations for
+ * the {@link org.opensearch.index.engine.InternalEngine}
  *
  * @opensearch.internal
  */
-public class InternalTranslogManager implements TranslogManager, Closeable {
+public class InternalTranslogManager implements TranslogManager {
 
     private final ReleasableLock readLock;
     private final LifecycleAware engineLifeCycleAware;

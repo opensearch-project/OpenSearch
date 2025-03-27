@@ -143,4 +143,21 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
 
         assertEquals(2, visitorQueries.size());
     }
+
+    public void testFilter() {
+        // Test for non null filter
+        BoolQueryBuilder filterBuilder = new BoolQueryBuilder();
+        ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(filterBuilder);
+        QueryBuilder filter = QueryBuilders.matchAllQuery();
+        constantScoreQueryBuilder.filter(filter);
+        assertEquals(1, filterBuilder.filter().size());
+        assertEquals(filter, filterBuilder.filter().get(0));
+
+        // Test for null filter
+        filterBuilder = new BoolQueryBuilder();
+        constantScoreQueryBuilder = new ConstantScoreQueryBuilder(filterBuilder);
+        constantScoreQueryBuilder.filter(null);
+        assertEquals(0, filterBuilder.filter().size());
+
+    }
 }

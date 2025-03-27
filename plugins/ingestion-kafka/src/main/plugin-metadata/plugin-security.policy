@@ -17,5 +17,8 @@ grant {
   // Allow host/ip name service lookups
   permission java.net.SocketPermission "*", "connect";
   permission java.net.SocketPermission "*", "resolve";
-};
 
+  // Needed for Kafka consumer to load native snappy library
+  permission java.lang.RuntimePermission "loadLibrary.*";
+  permission java.io.FilePermission "${java.io.tmpdir}${/}snappy-*", "read,write";
+};

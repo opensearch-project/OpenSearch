@@ -34,10 +34,10 @@ package org.opensearch.action.admin.cluster.snapshots.restore;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.util.List;
 import java.util.Map;

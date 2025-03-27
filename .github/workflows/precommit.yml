@@ -9,6 +9,10 @@ jobs:
       matrix:
         java: [ 21, 23 ]
         os: [ubuntu-latest, windows-latest, macos-latest, macos-13, ubuntu-24.04-arm]
+        include:
+          - java: 21
+            os: 'windows-2025'
+            experimental: true
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK ${{ matrix.java }}
@@ -18,6 +22,7 @@ jobs:
           distribution: temurin
           cache: gradle
       - name: Run Gradle (precommit)
+        continue-on-error: ${{ matrix.experimental }}
         shell: bash
         run: |
           ./gradlew javadoc precommit --parallel

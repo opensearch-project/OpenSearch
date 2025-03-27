@@ -32,7 +32,6 @@
 package org.opensearch.cluster;
 
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
@@ -42,6 +41,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.List;
 import java.util.function.BiFunction;

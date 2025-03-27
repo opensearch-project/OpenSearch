@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.Metadata;
@@ -21,6 +20,7 @@ import org.opensearch.cluster.metadata.View;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
 import java.util.List;

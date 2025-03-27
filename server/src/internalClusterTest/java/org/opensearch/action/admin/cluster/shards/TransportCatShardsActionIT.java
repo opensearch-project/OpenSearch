@@ -13,7 +13,6 @@ import org.opensearch.action.admin.indices.datastream.DataStreamTestCase;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.pagination.PageParams;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.action.ActionFuture;
@@ -24,6 +23,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.ArrayList;

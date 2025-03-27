@@ -31,7 +31,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
@@ -39,7 +38,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_RE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.routing.RecoverySource.Type.EMPTY_STORE;
 import static org.opensearch.cluster.routing.RecoverySource.Type.EXISTING_STORE;
-import static org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBaseIT {
@@ -84,7 +82,8 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replica = internalCluster().startDataOnlyNode();
+        final String searchNode = internalCluster().startSearchOnlyNode();
+
         ensureGreen(INDEX_NAME);
 
         final int docCount = 10;
@@ -92,12 +91,13 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }
         refresh(INDEX_NAME);
-        waitForSearchableDocs(docCount, primary, replica);
+        waitForSearchableDocs(docCount, primary, searchNode);
     }
 
     public void testSegmentReplicationStatsResponseWithSearchReplica() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        final List<String> nodes = internalCluster().startDataOnlyNodes(2);
+        final String searchNode = internalCluster().startSearchOnlyNode();
+        final String primary = internalCluster().startDataOnlyNode();
         createIndex(
             INDEX_NAME,
             Settings.builder()
@@ -107,6 +107,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build()
         );
+
         ensureGreen(INDEX_NAME);
 
         final int docCount = 5;
@@ -114,7 +115,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }
         refresh(INDEX_NAME);
-        waitForSearchableDocs(docCount, nodes);
+        waitForSearchableDocs(docCount, primary, searchNode);
 
         SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
             .indices()
@@ -142,19 +143,11 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
     public void testSearchReplicaRecovery() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final String primary = internalCluster().startDataOnlyNode();
-        final String replica = internalCluster().startDataOnlyNode();
-
-        // ensure search replicas are only allocated to "replica" node.
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", replica))
-            .execute()
-            .actionGet();
+        final String searchNode = internalCluster().startSearchOnlyNode();
 
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
-        assertRecoverySourceType(replica, EMPTY_STORE);
+        assertRecoverySourceType(searchNode, EMPTY_STORE);
 
         final int docCount = 10;
         for (int i = 0; i < docCount; i++) {
@@ -162,26 +155,23 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         }
         refresh(INDEX_NAME);
         flush(INDEX_NAME);
-        waitForSearchableDocs(10, primary, replica);
+        waitForSearchableDocs(10, primary, searchNode);
 
         // Node stats should show remote download stats as nonzero, use this as a precondition to compare
         // post restart.
-        assertDownloadStats(replica, true);
-        NodesStatsResponse nodesStatsResponse;
-        NodeStats nodeStats;
+        assertDownloadStats(searchNode, true);
 
-        internalCluster().restartNode(replica);
+        internalCluster().restartNode(searchNode);
         ensureGreen(INDEX_NAME);
-        assertDocCounts(10, replica);
+        assertDocCounts(10, searchNode);
 
-        // assert existing store recovery
-        assertRecoverySourceType(replica, EXISTING_STORE);
-        assertDownloadStats(replica, false);
+        assertRecoverySourceType(searchNode, EXISTING_STORE);
+        assertDownloadStats(searchNode, false);
     }
 
     public void testRecoveryAfterDocsIndexed() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
-        final String primary = internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         final int docCount = 10;
@@ -190,13 +180,14 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         }
         refresh(INDEX_NAME);
 
-        final String replica = internalCluster().startDataOnlyNode();
-        ensureGreen(INDEX_NAME);
-        assertDocCounts(10, replica);
+        final String searchNode = internalCluster().startSearchOnlyNode();
 
-        assertRecoverySourceType(replica, EMPTY_STORE);
+        ensureGreen(INDEX_NAME);
+        assertDocCounts(10, searchNode);
+
+        assertRecoverySourceType(searchNode, EMPTY_STORE);
         // replica should have downloaded from remote
-        assertDownloadStats(replica, true);
+        assertDownloadStats(searchNode, true);
 
         client().admin()
             .indices()
@@ -212,14 +203,14 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1))
             .get();
         ensureGreen(INDEX_NAME);
-        assertDocCounts(10, replica);
+        assertDocCounts(10, searchNode);
 
-        internalCluster().restartNode(replica);
+        internalCluster().restartNode(searchNode);
 
         ensureGreen(INDEX_NAME);
-        assertDocCounts(10, replica);
-        assertRecoverySourceType(replica, EXISTING_STORE);
-        assertDownloadStats(replica, false);
+        assertDocCounts(10, searchNode);
+        assertRecoverySourceType(searchNode, EXISTING_STORE);
+        assertDownloadStats(searchNode, false);
     }
 
     private static void assertRecoverySourceType(String replica, RecoverySource.Type recoveryType) throws InterruptedException,
@@ -257,9 +248,10 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         refresh(INDEX_NAME);
         assertDocCounts(docCount, primary);
 
-        final String replica = internalCluster().startDataOnlyNode();
+        final String searchNode = internalCluster().startSearchOnlyNode();
+
         ensureGreen(INDEX_NAME);
-        assertDocCounts(docCount, replica);
+        assertDocCounts(docCount, searchNode);
         // stop the primary
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
 
@@ -267,19 +259,19 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
             ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(INDEX_NAME).get();
             assertEquals(ClusterHealthStatus.RED, clusterHealthResponse.getStatus());
         });
-        assertDocCounts(docCount, replica);
+        assertDocCounts(docCount, searchNode);
 
         String restoredPrimary = internalCluster().startDataOnlyNode();
 
         client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
         ensureGreen(INDEX_NAME);
-        assertDocCounts(docCount, replica, restoredPrimary);
+        assertDocCounts(docCount, searchNode, restoredPrimary);
 
         for (int i = docCount; i < docCount * 2; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }
         refresh(INDEX_NAME);
-        assertBusy(() -> assertDocCounts(20, replica, restoredPrimary));
+        assertBusy(() -> assertDocCounts(20, searchNode, restoredPrimary));
     }
 
     public void testFailoverToNewPrimaryWithPollingReplication() throws Exception {
@@ -293,9 +285,10 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         }
         refresh(INDEX_NAME);
 
-        final String replica = internalCluster().startDataOnlyNode();
+        final String searchNode = internalCluster().startSearchOnlyNode();
+
         ensureGreen(INDEX_NAME);
-        assertDocCounts(10, replica);
+        assertDocCounts(10, searchNode);
 
         client().admin()
             .indices()
@@ -314,12 +307,12 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         });
         ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(INDEX_NAME).get();
         assertEquals(ClusterHealthStatus.YELLOW, clusterHealthResponse.getStatus());
-        assertDocCounts(10, replica);
+        assertDocCounts(10, searchNode);
 
         for (int i = docCount; i < docCount * 2; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }
         refresh(INDEX_NAME);
-        assertBusy(() -> assertDocCounts(20, replica, writer_replica));
+        assertBusy(() -> assertDocCounts(20, searchNode, writer_replica));
     }
 }

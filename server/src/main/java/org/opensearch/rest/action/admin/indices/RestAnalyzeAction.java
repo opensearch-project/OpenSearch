@@ -32,12 +32,12 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;

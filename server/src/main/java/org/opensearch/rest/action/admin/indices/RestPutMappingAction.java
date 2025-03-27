@@ -34,7 +34,6 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
@@ -42,6 +41,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,9 +49,9 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.opensearch.client.Requests.putMappingRequest;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
+import static org.opensearch.transport.client.Requests.putMappingRequest;
 
 /**
  * Transport action to put mapping

@@ -67,8 +67,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.opensearch.client.Requests.indexRequest;
-import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
@@ -82,6 +80,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
+import static org.opensearch.transport.client.Requests.indexRequest;
+import static org.opensearch.transport.client.Requests.searchRequest;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.closeTo;

@@ -49,7 +49,7 @@ public class IndicesExistsIT extends OpenSearchIntegTestCase {
 
     public void testIndexExistsWithBlocksInPlace() throws IOException {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
-        Settings settings = Settings.builder().put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), 99).build();
+        Settings settings = Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 99).build();
         String node = internalCluster().startNode(settings);
 
         assertRequestBuilderThrows(

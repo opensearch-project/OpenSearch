@@ -61,11 +61,10 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
 
         when(mockConsumer.poll(any(Duration.class))).thenReturn(records);
 
-        List<IngestionShardConsumer.ReadResult<KafkaOffset, KafkaMessage>> result = consumer.readNext(new KafkaOffset(0), 10, 1000);
+        List<IngestionShardConsumer.ReadResult<KafkaOffset, KafkaMessage>> result = consumer.readNext(new KafkaOffset(0), true, 10, 1000);
 
         assertEquals(1, result.size());
         assertEquals("message", new String(result.get(0).getMessage().getPayload(), StandardCharsets.UTF_8));
-        assertEquals(1, consumer.nextPointer().getOffset());
         assertEquals(0, consumer.getShardId());
         assertEquals("client1", consumer.getClientId());
     }
@@ -88,6 +87,22 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         KafkaOffset offset = (KafkaOffset) consumer.latestPointer();
 
         assertEquals(10L, offset.getOffset());
+    }
+
+    public void testPointerFromTimestampMillis() {
+        TopicPartition topicPartition = new TopicPartition("test-topic", 0);
+        when(mockConsumer.offsetsForTimes(Collections.singletonMap(topicPartition, 1000L))).thenReturn(
+            Collections.singletonMap(topicPartition, new org.apache.kafka.clients.consumer.OffsetAndTimestamp(5L, 1000L))
+        );
+
+        KafkaOffset offset = (KafkaOffset) consumer.pointerFromTimestampMillis(1000);
+
+        assertEquals(5L, offset.getOffset());
+    }
+
+    public void testPointerFromOffset() {
+        KafkaOffset offset = new KafkaOffset(5L);
+        assertEquals(5L, offset.getOffset());
     }
 
     public void testTopicDoesNotExist() {

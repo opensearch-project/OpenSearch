@@ -75,7 +75,8 @@ public class TranslogTransferManager {
     private final Logger logger;
 
     private static final VersionedCodecStreamWrapper<TranslogTransferMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
-        new TranslogTransferMetadataHandler(),
+        new TranslogTransferMetadataHandlerFactory(),
+        TranslogTransferMetadata.CURRENT_VERSION,
         TranslogTransferMetadata.CURRENT_VERSION,
         TranslogTransferMetadata.METADATA_CODEC
     );

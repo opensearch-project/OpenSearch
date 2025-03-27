@@ -758,15 +758,15 @@ final class BootstrapChecks {
     }
 
     /**
-     * Bootstrap check that if a search node contains multiple data paths
+     * Bootstrap check that if a warm node contains multiple data paths
      */
     static class MultipleDataPathCheck implements BootstrapCheck {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (NodeRoleSettings.NODE_ROLES_SETTING.get(context.settings()).contains(DiscoveryNodeRole.SEARCH_ROLE)
+            if (NodeRoleSettings.NODE_ROLES_SETTING.get(context.settings()).contains(DiscoveryNodeRole.WARM_ROLE)
                 && Environment.PATH_DATA_SETTING.get(context.settings()).size() > 1) {
-                return BootstrapCheckResult.failure("Multiple data paths are not allowed for search nodes");
+                return BootstrapCheckResult.failure("Multiple data paths are not allowed for warm nodes");
             }
             return BootstrapCheckResult.success();
         }

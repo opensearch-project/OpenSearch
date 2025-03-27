@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.shards;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -48,6 +47,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.store.MockFSIndexStore;
+import org.opensearch.transport.client.Requests;
 
 import java.util.Arrays;
 import java.util.Collection;
