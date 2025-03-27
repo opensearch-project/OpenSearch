@@ -15,6 +15,7 @@ import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
@@ -39,6 +40,7 @@ import java.util.function.Supplier;
  * Subclasses can extend this class to wrap an existing {@link MappedFieldType} to reuse most functionality, while
  * customizing/modifying some specific behavior by overriding the relevant methods.
  */
+@PublicApi(since = "3.0.0")
 public abstract class FilterFieldType extends MappedFieldType {
     protected final MappedFieldType delegate;
 
