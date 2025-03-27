@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -156,6 +157,90 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 )
                 .get(),
             zoneOffset
+        );
+    }
+
+    public void testMustNotRangeRewriteWithMissingValues() throws Exception {
+        // This test passes because the rewrite is skipped when not all docs have exactly 1 value
+        String intField = "int_field";
+        String termField = "term_field";
+        createIndex("test");
+        int numDocs = 100;
+        int numDocsMissingIntValues = 20;
+
+        for (int i = 0; i < numDocs; i++) {
+            String termValue = "odd";
+            if (i % 2 == 0) {
+                termValue = "even";
+            }
+
+            if (i >= numDocsMissingIntValues) {
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
+                    .setSource(intField, i, termField, termValue)
+                    .get();
+            } else {
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
+                    .setSource(termField, termValue)
+                    .get();
+            }
+        }
+        ensureGreen();
+        waitForRelocation();
+        forceMerge();
+        refresh();
+
+        // Search excluding range 30 to 50
+
+        int lt = 50;
+        int gte = 30;
+        int expectedHitCount = numDocs - (lt - gte); // Expected hit count includes documents missing this value
+
+        assertHitCount(
+            client().prepareSearch().setQuery(boolQuery().mustNot(rangeQuery(intField).lt(lt).gte(gte))).get(),
+            expectedHitCount
+        );
+    }
+
+    public void testMustNotRangeRewriteWithMoreThanOneValue() throws Exception {
+        // This test passes because the rewrite is skipped when not all docs have exactly 1 value
+        String intField = "int_field";
+        createIndex("test");
+        int numDocs = 100;
+        int numDocsWithExtraValue = 20;
+        int extraValue = -1;
+
+        for (int i = 0; i < numDocs; i++) {
+            if (i >= numDocsWithExtraValue) {
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
+                    .setSource(intField, new int[]{extraValue, i})
+                    .get();
+            } else {
+                client().prepareIndex("test")
+                    .setId(Integer.toString(i))
+                    .setSource(intField, i)
+                    .get();
+            }
+        }
+        ensureGreen();
+        waitForRelocation();
+        forceMerge();
+        refresh();
+
+        // Range queries will match if ANY of the doc's values are within the range.
+        // So if we exclude the range 0 to 20, we shouldn't see any of those documents returned,
+        // even though they also have a value -1 which is not excluded.
+
+        int expectedHitCount = numDocs - numDocsWithExtraValue;
+        assertHitCount(
+            client().prepareSearch().setQuery(boolQuery().mustNot(rangeQuery(intField).lt(numDocsWithExtraValue).gte(0))).get(),
+            expectedHitCount
+        );
+        assertHitCount(
+            client().prepareSearch().setQuery(matchAllQuery()).get(),
+            numDocs
         );
     }
 
