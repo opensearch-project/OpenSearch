@@ -1826,14 +1826,19 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         public Optional<TestClusterNode> randomDataNode(String... excludedNames) {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
-            final List<TestClusterNode> dataNodes = testClusterNodes.nodes.values().stream().filter(n -> n.node.canContainData()).filter(n -> {
-                for (final String nodeName : excludedNames) {
-                    if (n.node.getName().equals(nodeName)) {
-                        return false;
+            final List<TestClusterNode> dataNodes = testClusterNodes.nodes.values()
+                .stream()
+                .filter(n -> n.node.canContainData())
+                .filter(n -> {
+                    for (final String nodeName : excludedNames) {
+                        if (n.node.getName().equals(nodeName)) {
+                            return false;
+                        }
                     }
-                }
-                return true;
-            }).sorted(Comparator.comparing(n -> n.node.getName())).collect(Collectors.toList());
+                    return true;
+                })
+                .sorted(Comparator.comparing(n -> n.node.getName()))
+                .collect(Collectors.toList());
             return dataNodes.isEmpty() ? Optional.empty() : Optional.ofNullable(randomFrom(dataNodes));
         }
 
