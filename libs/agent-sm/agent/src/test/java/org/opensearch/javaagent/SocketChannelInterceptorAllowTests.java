@@ -20,6 +20,7 @@ import java.nio.file.Path;
 
 import static org.junit.Assert.fail;
 
+@SuppressForbidden(reason = "Test class needs to use socket connections and DNS resolution for testing network permissions")
 public class SocketChannelInterceptorAllowTests extends OpenSearchTestCase {
 
     private SocketChannelInterceptor interceptor;
