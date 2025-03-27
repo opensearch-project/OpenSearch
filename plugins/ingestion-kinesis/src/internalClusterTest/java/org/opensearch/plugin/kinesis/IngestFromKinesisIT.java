@@ -8,6 +8,15 @@
 
 package org.opensearch.plugin.kinesis;
 
+import software.amazon.awssdk.services.kinesis.model.DescribeStreamRequest;
+import software.amazon.awssdk.services.kinesis.model.DescribeStreamResponse;
+import software.amazon.awssdk.services.kinesis.model.GetRecordsRequest;
+import software.amazon.awssdk.services.kinesis.model.GetRecordsResponse;
+import software.amazon.awssdk.services.kinesis.model.GetShardIteratorRequest;
+import software.amazon.awssdk.services.kinesis.model.GetShardIteratorResponse;
+import software.amazon.awssdk.services.kinesis.model.Record;
+import software.amazon.awssdk.services.kinesis.model.ShardIteratorType;
+
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -28,14 +37,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.testcontainers.containers.localstack.LocalStackContainer;
-import software.amazon.awssdk.services.kinesis.model.DescribeStreamRequest;
-import software.amazon.awssdk.services.kinesis.model.DescribeStreamResponse;
-import software.amazon.awssdk.services.kinesis.model.GetRecordsRequest;
-import software.amazon.awssdk.services.kinesis.model.GetRecordsResponse;
-import software.amazon.awssdk.services.kinesis.model.GetShardIteratorRequest;
-import software.amazon.awssdk.services.kinesis.model.GetShardIteratorResponse;
-import software.amazon.awssdk.services.kinesis.model.Record;
-import software.amazon.awssdk.services.kinesis.model.ShardIteratorType;
 
 import static org.hamcrest.Matchers.is;
 import static org.awaitility.Awaitility.await;
@@ -107,10 +108,7 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
         logger.info("Produced message with sequence number: {}", sequenceNumber);
         produceData("4", "name4", "21");
 
-        await()
-            .atMost(5, TimeUnit.SECONDS)
-            .until(() -> isRewinded(sequenceNumber));
-
+        await().atMost(5, TimeUnit.SECONDS).until(() -> isRewinded(sequenceNumber));
 
         // create an index with ingestion source from kinesis
         createIndex(
@@ -142,8 +140,9 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
     }
 
     private boolean isRewinded(String sequenceNumber) {
-        DescribeStreamResponse describeStreamResponse =
-            kinesisClient.describeStream(DescribeStreamRequest.builder().streamName(streamName).build());
+        DescribeStreamResponse describeStreamResponse = kinesisClient.describeStream(
+            DescribeStreamRequest.builder().streamName(streamName).build()
+        );
 
         String shardId = describeStreamResponse.streamDescription().shards().get(0).shardId();
 
@@ -158,7 +157,9 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
         String shardIterator = iteratorResponse.shardIterator();
 
         // Use the iterator to read the record
-        GetRecordsRequest recordsRequest = GetRecordsRequest.builder().shardIterator(shardIterator).limit(1)  // Adjust as needed
+        GetRecordsRequest recordsRequest = GetRecordsRequest.builder()
+            .shardIterator(shardIterator)
+            .limit(1)  // Adjust as needed
             .build();
 
         GetRecordsResponse recordsResponse = kinesisClient.getRecords(recordsRequest);
