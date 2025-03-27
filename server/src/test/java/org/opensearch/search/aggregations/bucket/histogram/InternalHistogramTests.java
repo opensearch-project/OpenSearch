@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.tests.util.TestUtil;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.search.DocValueFormat;
@@ -165,7 +164,10 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             breaker
         );
         List<InternalHistogram.Bucket> reducedBuckets = histogram1.reduceBuckets(List.of(histogram1, histogram2), reduceContext);
-        expectThrows(MultiBucketConsumerService.TooManyBucketsException.class, () -> histogram1.addEmptyBuckets(reducedBuckets, reduceContext));
+        expectThrows(
+            MultiBucketConsumerService.TooManyBucketsException.class,
+            () -> histogram1.addEmptyBuckets(reducedBuckets, reduceContext)
+        );
     }
 
     @Override
