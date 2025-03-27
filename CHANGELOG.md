@@ -75,6 +75,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 - Fix bytes parameter on `_cat/recovery` ([#17598](https://github.com/opensearch-project/OpenSearch/pull/17598))
 - Fix slow performance of FeatureFlag checks ([#17611](https://github.com/opensearch-project/OpenSearch/pull/17611))
+- Fix `addEmptyBuckets` while reducing histograms from consuming too much memory and tripping CircuitBreaker ([#17718](https://github.com/opensearch-project/OpenSearch/pull/17718))
 
 ### Security
 

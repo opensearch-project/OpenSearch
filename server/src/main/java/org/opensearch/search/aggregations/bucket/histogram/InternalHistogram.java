@@ -388,20 +388,26 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         if (emptyBucketInfo != null) {
             double min = emptyBucketInfo.minBound;
             double max = emptyBucketInfo.maxBound;
-            double intervalWidth = emptyBucketInfo.interval;
+            double intervalWidth = 0;
 
             int i = 0;
             double key = min;
             while (key < max && i++ < 10) {
                 bucketCount++;
-                key = nextKey(key);
+                double nextKey = nextKey(key);
+                intervalWidth = Math.max(intervalWidth, nextKey - key);
+                key = nextKey;
             }
 
             if (bucketCount < 10) {
                 return bucketCount;
             }
 
-            return Math.toIntExact((long)((max - min) / intervalWidth));
+            long estimatedBuckets = Math.round(Math.ceil((max - min) / intervalWidth));
+            if (estimatedBuckets > Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            }
+            return (int) estimatedBuckets;
         }
         return 0;
     }
