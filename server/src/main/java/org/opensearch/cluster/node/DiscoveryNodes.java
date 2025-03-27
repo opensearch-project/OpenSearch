@@ -809,7 +809,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             Version minNonClientNodeVersion = null;
             Version maxNonClientNodeVersion = null;
             for (final Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
-                if (nodeEntry.getValue().canContainData()) {
+                if (nodeEntry.getValue().isDataNode()) {
                     dataNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
                 }
                 if (nodeEntry.getValue().isClusterManagerNode()) {

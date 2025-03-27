@@ -114,6 +114,10 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
+    public static boolean isDataNode(final Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+    }
+
     public static boolean isIngestNode(Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.INGEST_ROLE);
     }
@@ -454,6 +458,10 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      */
     public boolean canContainData() {
         return roles.stream().anyMatch(DiscoveryNodeRole::canContainData);
+    }
+
+    public boolean isDataNode() {
+        return roles.contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     /**
