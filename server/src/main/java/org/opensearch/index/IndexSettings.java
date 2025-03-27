@@ -792,7 +792,7 @@ public final class IndexSettings {
 
     public static final Setting<TimeValue> INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING = Setting.timeSetting(
         "index.lag_time_before_resend_checkpoint",
-        TimeValue.timeValueSeconds(0),
+        TimeValue.timeValueMinutes(10),
         TimeValue.timeValueSeconds(0),
         Property.Dynamic,
         Property.IndexScope

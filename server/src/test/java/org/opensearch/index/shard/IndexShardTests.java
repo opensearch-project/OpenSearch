@@ -5013,4 +5013,29 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(remoteSegmentStats.getTotalRejections() > 0);
         assertEquals(remoteSegmentTransferTracker.getRejectionCount(), remoteSegmentStats.getTotalRejections());
     }
+
+    public void testScheduledPublishCheckpoint() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexSettings.INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        final IndexShard replica = newShard(primary.shardId, false);
+        recoverReplica(replica, primary, true);
+        assertFalse(primary.scheduledPublishCheckpoint());
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        assertTrue(primary.getEngine().refreshNeeded());
+        assertTrue(primary.scheduledRefresh());
+        assertBusy(() -> { assertTrue(primary.scheduledPublishCheckpoint()); });
+        closeShards(primary, replica);
+    }
 }
