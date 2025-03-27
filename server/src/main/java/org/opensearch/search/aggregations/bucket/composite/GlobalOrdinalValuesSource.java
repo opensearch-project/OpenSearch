@@ -78,7 +78,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     ) {
         super(bigArrays, format, type, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
-        this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+        this.values = bigArrays.newLongArray(size, false);
         this.isSingleValued = false;
         this.singletonValues = null;
     }
@@ -178,7 +178,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         // Try to optimize by converting multi-valued field to single-valued
         SortedDocValues sorted = DocValues.unwrapSingleton(dvs);
 
-        // Field is single-valued if:
+        //; Field is single-valued if:
         // 1. Successfully unwrapped to SortedDocValues, or
         // 2. All docs have exactly one value
         isSingleValued = sorted != null || dvs.docValueCount() == 1;
