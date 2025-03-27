@@ -1,3 +1,11 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
 package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.SocketChannelInterceptor; 
@@ -97,8 +105,8 @@ public class SocketChannelInterceptorAllowTests extends OpenSearchTestCase {
     public void testAllowedResolveExternalHost() throws Exception {
         String host = "opensearch.org";
         int port = 443;
-        try {
 
+        try {
             InetSocketAddress address = new InetSocketAddress(host, port);
             Object[] args = new Object[]{address};
 
