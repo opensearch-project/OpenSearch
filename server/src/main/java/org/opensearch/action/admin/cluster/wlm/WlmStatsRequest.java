@@ -37,13 +37,13 @@ public class WlmStatsRequest extends BaseNodesRequest<WlmStatsRequest> {
      * for all nodes will be returned.
      */
     public WlmStatsRequest(String[] nodesIds, Set<String> queryGroupIds, Boolean breach) {
-        super(false, nodesIds);
+        super(nodesIds);
         this.queryGroupIds = queryGroupIds;
         this.breach = breach;
     }
 
     public WlmStatsRequest() {
-        super(false, (String[]) null);
+        super((String[]) null);
         queryGroupIds = new HashSet<>();
         this.breach = false;
     }
