@@ -26,7 +26,9 @@ import java.util.Set;
 public class InMemoryRuleProcessingService {
 
     /**
-     * Default constructor
+     *  Main constructor which should be initialised with auto-tagging features
+     *  the feature specific implementations of some constructs will remain with plugins
+     * @param enabledFeatures
      */
     public InMemoryRuleProcessingService(List<FeatureType> enabledFeatures) {
         AttributeValueStoreFactory.init(enabledFeatures);
