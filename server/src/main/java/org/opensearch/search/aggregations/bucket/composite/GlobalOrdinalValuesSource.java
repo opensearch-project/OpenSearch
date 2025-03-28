@@ -79,8 +79,6 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         super(bigArrays, format, type, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newLongArray(size, false);
-        this.isSingleValued = false;
-        this.singletonValues = null;
     }
 
     @Override
