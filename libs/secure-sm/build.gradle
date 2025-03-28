@@ -49,6 +49,10 @@ tasks.named('forbiddenApisMain').configure {
 // JAR hell is part of core which we do not want to add as a dependency
 jarHell.enabled = false
 
+
+test.enabled = true
+testingConventions.enabled = false
+
 testingConventions {
   naming.clear()
   naming {
