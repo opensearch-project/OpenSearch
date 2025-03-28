@@ -1557,6 +1557,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return type;
         }
 
+        public Number nullValue() {
+            return nullValue;
+        }
+
+        public boolean coerce() {
+            return coerce;
+        }
+
         public NumericType numericType() {
             return type.numericType();
         }
