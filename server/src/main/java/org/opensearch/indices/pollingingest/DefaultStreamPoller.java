@@ -76,7 +76,8 @@ public class DefaultStreamPoller implements StreamPoller {
         IngestionEngine ingestionEngine,
         ResetState resetState,
         String resetValue,
-        IngestionErrorStrategy errorStrategy
+        IngestionErrorStrategy errorStrategy,
+        State initialState
     ) {
         this(
             startPointer,
@@ -85,7 +86,8 @@ public class DefaultStreamPoller implements StreamPoller {
             new MessageProcessorRunnable(new ArrayBlockingQueue<>(100), ingestionEngine, errorStrategy),
             resetState,
             resetValue,
-            errorStrategy
+            errorStrategy,
+            initialState
         );
     }
 
@@ -96,12 +98,14 @@ public class DefaultStreamPoller implements StreamPoller {
         MessageProcessorRunnable processorRunnable,
         ResetState resetState,
         String resetValue,
-        IngestionErrorStrategy errorStrategy
+        IngestionErrorStrategy errorStrategy,
+        State initialState
     ) {
         this.consumer = Objects.requireNonNull(consumer);
         this.resetState = resetState;
         this.resetValue = resetValue;
-        batchStartPointer = startPointer;
+        this.batchStartPointer = startPointer;
+        this.state = initialState;
         this.persistedPointers = persistedPointers;
         if (!this.persistedPointers.isEmpty()) {
             maxPersistedPointer = this.persistedPointers.stream().max(IngestionShardPointer::compareTo).get();
@@ -130,6 +134,11 @@ public class DefaultStreamPoller implements StreamPoller {
         if (closed) {
             throw new RuntimeException("poller is closed!");
         }
+
+        if (started) {
+            throw new RuntimeException("poller is already running");
+        }
+
         started = true;
         // when we start, we need to include the batch start pointer in the read for the first read
         includeBatchStartPointer = true;
@@ -333,7 +342,7 @@ public class DefaultStreamPoller implements StreamPoller {
     }
 
     public State getState() {
-        return state;
+        return this.state;
     }
 
     @Override

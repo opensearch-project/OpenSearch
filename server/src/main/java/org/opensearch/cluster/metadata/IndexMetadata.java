@@ -874,6 +874,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final boolean isAppendOnlyIndex;
 
     private final Context context;
+    private final IngestionStatus ingestionStatus;
 
     private IndexMetadata(
         final Index index,
@@ -905,7 +906,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int indexTotalShardsPerNodeLimit,
         final int indexTotalPrimaryShardsPerNodeLimit,
         boolean isAppendOnlyIndex,
-        final Context context
+        final Context context,
+        final IngestionStatus ingestionStatus
     ) {
 
         this.index = index;
@@ -945,6 +947,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.indexTotalPrimaryShardsPerNodeLimit = indexTotalPrimaryShardsPerNodeLimit;
         this.isAppendOnlyIndex = isAppendOnlyIndex;
         this.context = context;
+        this.ingestionStatus = ingestionStatus;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -1029,6 +1032,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public boolean useIngestionSource() {
         final String ingestionSourceType = INGESTION_SOURCE_TYPE_SETTING.get(settings);
         return ingestionSourceType != null && !(NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType));
+    }
+
+    public IngestionStatus getIngestionStatus() {
+        return ingestionStatus;
     }
 
     /**
@@ -1216,6 +1223,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (!Objects.equals(context, that.context)) {
             return false;
         }
+        if (Objects.equals(ingestionStatus, that.ingestionStatus) == false) {
+            return false;
+        }
         return true;
     }
 
@@ -1235,6 +1245,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         result = 31 * result + rolloverInfos.hashCode();
         result = 31 * result + Boolean.hashCode(isSystem);
         result = 31 * result + Objects.hashCode(context);
+        result = 31 * result + Objects.hashCode(ingestionStatus);
         return result;
     }
 
@@ -1280,6 +1291,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<Map<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
         private final Context context;
+        private final IngestionStatus ingestionStatus;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -1303,6 +1315,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
             isSystem = after.isSystem;
             context = after.context;
+            ingestionStatus = after.ingestionStatus;
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -1339,6 +1352,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 context = null;
             }
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                ingestionStatus = in.readOptionalWriteable(IngestionStatus::new);
+            } else {
+                ingestionStatus = null;
+            }
         }
 
         @Override
@@ -1361,6 +1379,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
                 out.writeOptionalWriteable(context);
             }
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                out.writeOptionalWriteable(ingestionStatus);
+            }
         }
 
         @Override
@@ -1381,6 +1402,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.context(context);
+            builder.ingestionStatus(ingestionStatus);
             // TODO: support ingestion source
             return builder.build();
         }
@@ -1427,6 +1449,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             builder.context(in.readOptionalWriteable(Context::new));
         }
+
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            builder.ingestionStatus(in.readOptionalWriteable(IngestionStatus::new));
+        }
         return builder.build();
     }
 
@@ -1467,6 +1493,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalWriteable(context);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalWriteable(ingestionStatus);
         }
     }
 
@@ -1530,6 +1560,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             .append(isSystem)
             .append(", context=")
             .append(context)
+            .append(", ingestionStatus=")
+            .append(ingestionStatus)
             .append("}")
             .toString();
     }
@@ -1578,6 +1610,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Integer routingNumShards;
         private boolean isSystem;
         private Context context;
+        private IngestionStatus ingestionStatus;
 
         public Builder(String index) {
             this.index = index;
@@ -1606,6 +1639,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos = new HashMap<>(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.context = indexMetadata.context;
+            this.ingestionStatus = indexMetadata.ingestionStatus;
         }
 
         public Builder index(String index) {
@@ -1836,6 +1870,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return context;
         }
 
+        public Builder ingestionStatus(IngestionStatus ingestionStatus) {
+            this.ingestionStatus = ingestionStatus;
+            return this;
+        }
+
+        public IngestionStatus getIngestionStatus() {
+            return ingestionStatus;
+        }
+
         public IndexMetadata build() {
             final Map<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
@@ -1943,6 +1986,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
+            if (ingestionStatus == null) {
+                ingestionStatus = IngestionStatus.getDefaultValue();
+            }
+
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -1973,7 +2020,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexTotalShardsPerNodeLimit,
                 indexTotalPrimaryShardsPerNodeLimit,
                 isAppendOnlyIndex,
-                context
+                context,
+                ingestionStatus
             );
         }
 
