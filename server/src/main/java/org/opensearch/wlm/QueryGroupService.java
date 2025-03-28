@@ -232,6 +232,9 @@ public class QueryGroupService extends AbstractLifecycleComponent
      * @return if the QueryGroup breaches any resource limit based on the LastRecordedUsage
      */
     public boolean resourceLimitBreached(String id, QueryGroupState currentState) {
+        if (id.equals("DEFAULT_QUERY_GROUP")) {
+            return false;
+        }
         QueryGroup queryGroup = clusterService.state().metadata().queryGroups().get(id);
         if (queryGroup == null) {
             throw new ResourceNotFoundException("QueryGroup with id " + id + " does not exist");
@@ -326,7 +329,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
     /**
      * This method determines whether the task should be accounted by SBP if both features co-exist
      * @param t QueryGroupTask
-     * @return whether or not SBP handle it
+     * @return whether SBP handles it
      */
     public boolean shouldSBPHandle(Task t) {
         QueryGroupTask task = (QueryGroupTask) t;
