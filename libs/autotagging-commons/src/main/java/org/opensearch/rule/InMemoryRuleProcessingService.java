@@ -6,13 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.rule;
+package org.opensearch.rule;
 
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.FeatureType;
-import org.opensearch.plugin.wlm.rule.attribute_extractor.AttributeExtractor;
-import org.opensearch.plugin.wlm.rule.storage.AttributeValueStore;
 import org.opensearch.autotagging.Rule;
+import org.opensearch.rule.attribute_extractor.AttributeExtractor;
+import org.opensearch.rule.storage.AttributeValueStore;
+import org.opensearch.rule.storage.AttributeValueStoreFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -27,13 +28,15 @@ public class InMemoryRuleProcessingService {
     /**
      * Default constructor
      */
-    public InMemoryRuleProcessingService() {}
+    public InMemoryRuleProcessingService(List<FeatureType> enabledFeatures) {
+        AttributeValueStoreFactory.init(enabledFeatures);
+    }
 
     /**
      * Adds the rule to in-memory view
      * @param rule to be added
      */
-    public void add(final Rule rule) {
+    public synchronized void add(final Rule rule) {
         new AddRuleOperation(rule).perform();
     }
 
@@ -41,7 +44,7 @@ public class InMemoryRuleProcessingService {
      * Removes the rule from in-memory view
      * @param rule to be removed
      */
-    public void remove(final Rule rule) {
+    public synchronized void remove(final Rule rule) {
         new DeleteRuleOperation(rule).perform();
     }
 
@@ -55,7 +58,9 @@ public class InMemoryRuleProcessingService {
     public Optional<String> evaluateLabel(List<AttributeExtractor<String>> attributeExtractors) {
         Optional<String> result = Optional.empty();
         for (AttributeExtractor<String> attributeExtractor : attributeExtractors) {
-            AttributeValueStore<String, String> valueStore = attributeExtractor.getAttribute().getValueStore();
+            AttributeValueStore<String, String> valueStore = AttributeValueStoreFactory.getAttributeValueStore(
+                attributeExtractor.getAttribute()
+            );
             for (String value : attributeExtractor.extract()) {
                 Optional<String> possibleMatch = valueStore.get(value);
 
@@ -92,6 +97,10 @@ public class InMemoryRuleProcessingService {
             }
         }
 
+        protected static AttributeValueStore<String, String> getAttributeValueStore(final Attribute attribute) {
+            return AttributeValueStoreFactory.getAttributeValueStore(attribute);
+        }
+
         protected abstract void processAttributeEntry(Map.Entry<Attribute, Set<String>> attributeEntry);
     }
 
@@ -102,11 +111,9 @@ public class InMemoryRuleProcessingService {
 
         @Override
         protected void processAttributeEntry(Map.Entry<Attribute, Set<String>> attributeEntry) {
-            Attribute attribute = attributeEntry.getKey();
-            assert attribute.getValueStore() != null;
-
+            AttributeValueStore<String, String> valueStore = getAttributeValueStore(attributeEntry.getKey());
             for (String value : attributeEntry.getValue()) {
-                attribute.getValueStore().remove(value);
+                valueStore.remove(value);
             }
         }
     }
@@ -118,11 +125,9 @@ public class InMemoryRuleProcessingService {
 
         @Override
         protected void processAttributeEntry(Map.Entry<Attribute, Set<String>> attributeEntry) {
-            Attribute attribute = attributeEntry.getKey();
-            assert attribute.getValueStore() != null;
-
+            AttributeValueStore<String, String> valueStore = getAttributeValueStore(attributeEntry.getKey());
             for (String value : attributeEntry.getValue()) {
-                attribute.getValueStore().put(value, this.rule.getLabel());
+                valueStore.put(value, this.rule.getFeatureValue());
             }
         }
     }

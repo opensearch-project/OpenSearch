@@ -7,6 +7,6 @@
  */
 
 /**
- * This package contains interfaces and implementations for in memory rule storage mechanisms
+ * This package contains feature attribute extractor interface and its implementations
  */
-package org.opensearch.plugin.wlm.rule.storage;
+package org.opensearch.rule.attribute_extractor;

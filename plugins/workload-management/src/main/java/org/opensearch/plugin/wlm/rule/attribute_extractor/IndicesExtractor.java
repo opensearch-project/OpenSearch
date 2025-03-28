@@ -9,6 +9,8 @@
 package org.opensearch.plugin.wlm.rule.attribute_extractor;
 
 import org.opensearch.action.IndicesRequest;
+import org.opensearch.autotagging.Attribute;
+import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 
 import java.util.List;
 
@@ -27,8 +29,9 @@ public class IndicesExtractor implements AttributeExtractor<String> {
     }
 
     @Override
-    public Rule.Attribute getAttribute() {
-        return Rule.Attribute.STUB_ATTRIBUTE;
+    public Attribute getAttribute() {
+        // TODO: this will be replaced by WLM defined index_pattern attribute
+        return null;
     }
 
     @Override
