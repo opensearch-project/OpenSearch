@@ -22,6 +22,11 @@ public class AttributeValueStoreFactory {
     private static Map<String, AttributeValueStore<String, String>> attributeValueStores;
 
     /**
+     * Making the class to be uninitializable
+     */
+    private AttributeValueStoreFactory() {}
+
+    /**
      * This should be the first method to be invoked else the factory method will throw an exception
      * @param featureTypes  are the features which are using rule based auto tagging
      */
