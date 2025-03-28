@@ -6,25 +6,31 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.rule;
+package org.opensearch.rule;
 
-import org.opensearch.plugin.wlm.rule.attribute_extractor.AttributeExtractor;
+import org.opensearch.autotagging.Attribute;
+import org.opensearch.autotagging.FeatureType;
+import org.opensearch.autotagging.Rule;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     InMemoryRuleProcessingService sut;
 
     public void setUp() throws Exception {
         super.setUp();
-        sut = new InMemoryRuleProcessingService();
+        sut = new InMemoryRuleProcessingService(List.of(WLMFeatureType.WLM));
     }
 
     public void testAdd() {
-        sut.add(getRule(List.of("test", "change"), "test_id"));
+        sut.add(getRule(Set.of("test", "change"), "test_id"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("test"));
         Optional<String> label = sut.evaluateLabel(extractors);
@@ -33,7 +39,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     }
 
     public void testRemove() {
-        Rule rule = getRule(List.of("test", "change"), "test_id");
+        Rule rule = getRule(Set.of("test", "change"), "test_id");
         sut.add(rule);
         sut.remove(rule);
 
@@ -43,8 +49,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     }
 
     public void testEvaluateLabelForExactMatch() {
-        sut.add(getRule(List.of("test1", "change"), "test_id"));
-        sut.add(getRule(List.of("test", "double"), "test_id1"));
+        sut.add(getRule(Set.of("test1", "change"), "test_id"));
+        sut.add(getRule(Set.of("test", "double"), "test_id1"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("test"));
         Optional<String> label = sut.evaluateLabel(extractors);
@@ -53,8 +59,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     }
 
     public void testEvaluateLabelForMultiMatch() {
-        sut.add(getRule(List.of("key1", "change"), "test_id"));
-        sut.add(getRule(List.of("key2", "double"), "new_id"));
+        sut.add(getRule(Set.of("key1", "change"), "test_id"));
+        sut.add(getRule(Set.of("key2", "double"), "new_id"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("key1", "key2"));
         Optional<String> label = sut.evaluateLabel(extractors);
@@ -62,8 +68,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     }
 
     public void testEvaluateLabelForNoMatch() {
-        sut.add(getRule(List.of("test1", "change"), "test_id"));
-        sut.add(getRule(List.of("test", "double"), "test_id"));
+        sut.add(getRule(Set.of("test1", "change"), "test_id"));
+        sut.add(getRule(Set.of("test", "double"), "test_id"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("dummy_test"));
         Optional<String> label = sut.evaluateLabel(extractors);
@@ -71,8 +77,8 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     }
 
     public void testEvaluateLabelForExactMatchWithLongestMatchingPrefixCase() {
-        sut.add(getRule(List.of("test1", "change"), "test_id"));
-        sut.add(getRule(List.of("test", "double"), "test_id1"));
+        sut.add(getRule(Set.of("test1", "change"), "test_id"));
+        sut.add(getRule(Set.of("test", "double"), "test_id1"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("testing"));
         Optional<String> label = sut.evaluateLabel(extractors);
@@ -81,23 +87,29 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     }
 
     public void testEvaluateLabelForNoMatchWithLongestMatchingPrefixCase() {
-        sut.add(getRule(List.of("key1", "change"), "test_id"));
-        sut.add(getRule(List.of("key12", "double"), "test_id1"));
+        sut.add(getRule(Set.of("key1", "change"), "test_id"));
+        sut.add(getRule(Set.of("key12", "double"), "test_id1"));
 
         List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("key"));
         Optional<String> label = sut.evaluateLabel(extractors);
         assertFalse(label.isPresent());
     }
 
-    private static Rule getRule(List<String> attributeValues, String label) {
-        return new Rule(Map.of(Rule.Attribute.STUB_ATTRIBUTE, attributeValues), Rule.Feature.WLM, label, 123L);
+    private static Rule getRule(Set<String> attributeValues, String label) {
+        return new Rule(
+            "test description",
+            Map.of(TestAttribute.TEST_ATTRIBUTE, attributeValues),
+            WLMFeatureType.WLM,
+            label,
+            "2025-02-24T07:42:10.123456Z"
+        );
     }
 
     private static List<AttributeExtractor<String>> getAttributeExtractors(List<String> extractedAttributes) {
         List<AttributeExtractor<String>> extractors = List.of(new AttributeExtractor<String>() {
             @Override
-            public Rule.Attribute getAttribute() {
-                return Rule.Attribute.STUB_ATTRIBUTE;
+            public Attribute getAttribute() {
+                return TestAttribute.TEST_ATTRIBUTE;
             }
 
             @Override
@@ -106,5 +118,37 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
             }
         });
         return extractors;
+    }
+
+    private enum WLMFeatureType implements FeatureType {
+        WLM;
+
+        @Override
+        public String getName() {
+            return "";
+        }
+
+        @Override
+        public Map<String, Attribute> getAllowedAttributesRegistry() {
+            return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
+        }
+
+        @Override
+        public void registerFeatureType() {}
+    }
+
+    private enum TestAttribute implements Attribute {
+        TEST_ATTRIBUTE;
+
+        @Override
+        public String getName() {
+            return "test_attribute";
+        }
+
+        @Override
+        public void validateAttribute() {}
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }
