@@ -7,6 +7,6 @@
  */
 
 /**
- * Java Agent Policy
+ * Java Agent
  */
-package org.opensearch.secure_sm.policy;
+package org.opensearch;
