@@ -136,64 +136,52 @@ public class PolicyFile extends java.security.Policy {
     }
 
     private boolean initPolicyFile(final String propname, final String urlname, final PolicyInfo newInfo) {
-        boolean loaded_policy = false;
+        boolean loadedPolicy = false;
 
         if (allowSystemProperties) {
-            String extra_policy = System.getProperty(propname);
-            if (extra_policy != null) {
-                boolean overrideAll = false;
-                if (extra_policy.startsWith("=")) {
-                    overrideAll = true;
-                    extra_policy = extra_policy.substring(1);
-                }
-                try {
-                    extra_policy = PropertyExpander.expand(extra_policy);
-                    URL policyURL;
-
-                    File policyFile = new File(extra_policy);
-                    if (policyFile.exists()) {
-                        policyURL = ParseUtil.fileToEncodedURL(new File(policyFile.getCanonicalPath()));
-                    } else {
-                        policyURL = newURL(extra_policy);
-                    }
-                    if (init(policyURL, newInfo)) {
-                        loaded_policy = true;
-                    }
-                } catch (Exception e) {}
+            String extraPolicy = System.getProperty(propname);
+            if (extraPolicy != null) {
+                boolean overrideAll = extraPolicy.startsWith("=");
                 if (overrideAll) {
-                    return Boolean.valueOf(loaded_policy);
+                    extraPolicy = extraPolicy.substring(1);
+                }
+
+                try {
+                    File policyFile = new File(extraPolicy);
+                    URL policyURL = policyFile.exists() ? policyFile.getCanonicalFile().toURI().toURL() : new URL(extraPolicy);
+
+                    if (init(policyURL, newInfo)) {
+                        loadedPolicy = true;
+                    }
+                } catch (Exception e) {
+                    // ignore invalid policy path
+                }
+
+                if (overrideAll) {
+                    return loadedPolicy;
                 }
             }
         }
 
-        int n = 1;
-        String policy_uri;
-
-        while ((policy_uri = Security.getProperty(urlname + n)) != null) {
+        int index = 1;
+        String policyUri;
+        while ((policyUri = Security.getProperty(urlname + index)) != null) {
             try {
-                URL policy_url = null;
-                String expanded_uri = PropertyExpander.expand(policy_uri).replace(File.separatorChar, '/');
+                URL policyUrl = policyUri.startsWith("file:")
+                    ? new File(policyUri.substring(5)).toURI().toURL()
+                    : new URI(policyUri).toURL();
 
-                if (policy_uri.startsWith("file:${java.home}/") || policy_uri.startsWith("file:${user.home}/")) {
-
-                    // this special case accommodates
-                    // the situation java.home/user.home
-                    // expand to a single slash, resulting in
-                    // a file://foo URI
-                    policy_url = new File(expanded_uri.substring(5)).toURI().toURL();
-                } else {
-                    policy_url = new URI(expanded_uri).toURL();
-                }
-
-                if (init(policy_url, newInfo)) {
-                    loaded_policy = true;
+                if (init(policyUrl, newInfo)) {
+                    loadedPolicy = true;
                 }
             } catch (Exception e) {
-                // ignore that policy
+                // ignore bad entry
             }
-            n++;
+
+            index++;
         }
-        return Boolean.valueOf(loaded_policy);
+
+        return loadedPolicy;
     }
 
     /**
