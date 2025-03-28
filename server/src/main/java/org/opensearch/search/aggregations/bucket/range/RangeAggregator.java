@@ -283,7 +283,7 @@ public class RangeAggregator extends BucketsAggregator {
 
         RangeAggregatorBridge bridge = new RangeAggregatorBridge() {
             @Override
-            protected boolean canOptimize() {
+            protected boolean canOptimize(int subAggLength) {
                 return canOptimize(config, ranges);
             }
 
@@ -311,14 +311,18 @@ public class RangeAggregator extends BucketsAggregator {
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (segmentMatchAll(context, ctx)) {
-            return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false);
+            return filterRewriteOptimizationContext.tryOptimize(
+                ctx,
+                this::incrementBucketDocCount,
+                segmentMatchAll(context, ctx),
+                collectableSubAggregators
+            );
         }
         return false;
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override

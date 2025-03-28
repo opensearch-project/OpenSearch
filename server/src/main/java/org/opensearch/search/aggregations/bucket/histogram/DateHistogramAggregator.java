@@ -138,7 +138,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         DateHistogramAggregatorBridge bridge = new DateHistogramAggregatorBridge() {
             @Override
-            protected boolean canOptimize() {
+            protected boolean canOptimize(int subAggLength) {
                 return canOptimize(valuesSourceConfig, rounding);
             }
 
@@ -192,7 +192,13 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
             return true;
         }
-        return filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
+
+        return filterRewriteOptimizationContext.tryOptimize(
+            ctx,
+            this::incrementBucketDocCount,
+            segmentMatchAll(context, ctx),
+            collectableSubAggregators
+        );
     }
 
     @Override
