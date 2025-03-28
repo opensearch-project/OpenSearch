@@ -6,7 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.rule.attribute_extractor;
+package org.opensearch.rule.attribute_extractor;
+
+import org.opensearch.autotagging.Attribute;
 
 /**
  * This interface defines the contract for extracting the attributes for Rule based auto-tagging feature
@@ -17,7 +19,7 @@ public interface AttributeExtractor<V> {
      * This method returns the Attribute which it is responsible for extracting
      * @return attribute
      */
-    Rule.Attribute getAttribute();
+    Attribute getAttribute();
 
     /**
      * This method returns the attribute values in context of the current request
