@@ -505,15 +505,11 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(5L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
         assertFalse(values.advanceExact(1));
         assertTrue(values.advanceExact(2));
         ord = values.nextOrd();
         assertThat(ord, equalTo(4L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("03"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
 
         // Second segment
         leaf = topLevelReader.leaves().get(1);
@@ -529,8 +525,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(7L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
         assertTrue(values.advanceExact(1));
         ord = values.nextOrd();
         assertThat(ord, equalTo(7L));
@@ -541,8 +535,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(9L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
         assertFalse(values.advanceExact(2));
         assertTrue(values.advanceExact(3));
         ord = values.nextOrd();
@@ -554,8 +546,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(11L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("10"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
 
         // Third segment
         leaf = topLevelReader.leaves().get(2);
@@ -571,8 +561,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         ord = values.nextOrd();
         assertThat(ord, equalTo(2L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!10"));
-        ord = values.nextOrd();
-        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
     }
 
     public void testTermsEnum() throws Exception {
