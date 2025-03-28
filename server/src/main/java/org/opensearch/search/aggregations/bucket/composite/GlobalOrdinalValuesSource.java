@@ -175,46 +175,18 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             initLookup(dvs);
         }
 
-        // Try to optimize by converting multi-valued field to single-valued
-        SortedDocValues sorted = DocValues.unwrapSingleton(dvs);
+        final SortedDocValues singleton = DocValues.unwrapSingleton(dvs);
 
-        //; Field is single-valued if:
-        // 1. Successfully unwrapped to SortedDocValues, or
-        // 2. All docs have exactly one value
-        isSingleValued = sorted != null || dvs.docValueCount() == 1;
-
-        // Store the optimized values:
-        // - If unwrap succeeded, use unwrapped version
-        // - If single-valued but unwrap failed, use original
-        // - If multi-valued, use null
-        singletonValues = sorted != null ? sorted : (isSingleValued ? dvs : null);
-
-        if (isSingleValued) {
-            // Optimized collector for single-valued fields
+        if (singleton != null) {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    if (singletonValues instanceof SortedDocValues) {
-                        // Handle native single-value format
-                        SortedDocValues values = (SortedDocValues) singletonValues;
-                        if (values.advanceExact(doc)) {  // If document has a value
-                            currentValue = values.ordValue();  // Get ordinal directly
-                            next.collect(doc, bucket);         // Collect into bucket
-                        } else if (missingBucket) {           // Handle missing value case
-                            currentValue = -1;                 // Use -1 for missing
-                            next.collect(doc, bucket);
-                        }
-                    } else {
-                        // Handle SortedSetDocValues that we know contains single values
-                        SortedSetDocValues values = (SortedSetDocValues) singletonValues;
-                        if (values.advanceExact(doc) &&       // If doc has values and
-                            (values.nextOrd() != SortedSetDocValues.NO_MORE_DOCS)) {  // has valid ordinal
-                            currentValue = values.nextOrd();   // Get the ordinal
-                            next.collect(doc, bucket);
-                        } else if (missingBucket) {           // Handle missing/empty cases
-                            currentValue = -1;
-                            next.collect(doc, bucket);
-                        }
+                    if (singleton.advanceExact(doc)) {  // If document has a value
+                        currentValue = singleton.ordValue();  // Get ordinal directly
+                        next.collect(doc, bucket);         // Collect into bucket
+                    } else if (missingBucket) {           // Handle missing value case
+                        currentValue = -1;                 // Use -1 for missing
+                        next.collect(doc, bucket);
                     }
                 }
             };
