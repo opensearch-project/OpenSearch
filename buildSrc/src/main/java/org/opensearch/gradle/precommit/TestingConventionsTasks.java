@@ -40,6 +40,7 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.jvm.JvmTestSuite;
@@ -87,6 +88,7 @@ public class TestingConventionsTasks extends DefaultTask {
 
     private final NamedDomainObjectContainer<TestingConventionRule> naming;
     private final Project project;
+    private final ConfigurableFileCollection extraClassPath = getProject().files();
 
     @Inject
     public TestingConventionsTasks(Project project) {
@@ -398,7 +400,16 @@ public class TestingConventionsTasks extends DefaultTask {
 
     @Classpath
     public FileCollection getTestsClassPath() {
-        return Util.getJavaTestSourceSet(project).get().getRuntimeClasspath();
+        return Util.getJavaTestSourceSet(project).get().getRuntimeClasspath().plus(extraClassPath);
+    }
+
+    @Classpath
+    public ConfigurableFileCollection getExtraClassPath() {
+        return extraClassPath;
+    }
+
+    public void addExtraClassPath(Object... paths) {
+        extraClassPath.from(paths);
     }
 
     private Map<String, File> walkPathAndLoadClasses(File testRoot) {
