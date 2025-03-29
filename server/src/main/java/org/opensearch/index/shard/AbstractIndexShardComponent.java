@@ -33,6 +33,7 @@
 package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -62,5 +63,9 @@ public abstract class AbstractIndexShardComponent implements IndexShardComponent
     @Override
     public IndexSettings indexSettings() {
         return indexSettings;
+    }
+
+    public ShardIngestionState getIngestionState() {
+        return new ShardIngestionState();
     }
 }
