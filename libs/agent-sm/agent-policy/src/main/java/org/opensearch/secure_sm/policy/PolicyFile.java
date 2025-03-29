@@ -54,7 +54,6 @@ public class PolicyFile extends java.security.Policy {
     // can be updated if refresh() is called
     private volatile PolicyInfo policyInfo;
 
-    private boolean expandProperties = true;
     private boolean allowSystemProperties = true;
     private boolean notUtf8 = false;
     private URL url;
@@ -198,7 +197,7 @@ public class PolicyFile extends java.security.Policy {
 
         try (InputStreamReader isr = getInputStreamReader(getInputStream(policy))) {
 
-            PolicyParser pp = new PolicyParser(expandProperties);
+            PolicyParser pp = new PolicyParser();
             pp.read(isr);
 
             Enumeration<PolicyParser.GrantEntry> enum_ = pp.grantElements();
@@ -275,9 +274,6 @@ public class PolicyFile extends java.security.Policy {
                 PolicyParser.PermissionEntry pe = enum_.nextElement();
 
                 try {
-                    // perform ${{ ... }} expansions within permission name
-                    expandPermissionName(pe);
-
                     Permission perm = getInstance(pe.permission, pe.name, pe.action);
 
                     entry.add(perm);
@@ -615,40 +611,6 @@ public class PolicyFile extends java.security.Policy {
         } else {
             return new File(path).getCanonicalPath();
         }
-    }
-
-    private void expandPermissionName(PolicyParser.PermissionEntry pe) throws Exception {
-        // short cut the common case
-        if (pe.name == null || pe.name.indexOf("${{", 0) == -1) {
-            return;
-        }
-
-        int startIndex = 0;
-        int b, e;
-        StringBuilder sb = new StringBuilder();
-        while ((b = pe.name.indexOf("${{", startIndex)) != -1) {
-            e = pe.name.indexOf("}}", b);
-            if (e < 1) {
-                break;
-            }
-            sb.append(pe.name.substring(startIndex, b));
-
-            // get the value in ${{...}}
-            String value = pe.name.substring(b + 3, e);
-
-            // parse up to the first ':'
-            int colonIndex;
-            String prefix = value;
-            String suffix;
-            if ((colonIndex = value.indexOf(':')) != -1) {
-                prefix = value.substring(0, colonIndex);
-            }
-        }
-
-        // copy the rest of the value
-        sb.append(pe.name.substring(startIndex));
-
-        pe.name = sb.toString();
     }
 
     /**

@@ -27,19 +27,6 @@ public class PolicyParser {
 
     private StreamTokenizer streamTokenizer;
     private int nextToken;
-    private boolean expandProp = false;
-
-    private String expand(String value) throws PropertyExpander.ExpandException {
-        return expand(value, false);
-    }
-
-    private String expand(String value, boolean encodeURL) throws PropertyExpander.ExpandException {
-        if (!expandProp) {
-            return value;
-        } else {
-            return PropertyExpander.expand(value, encodeURL);
-        }
-    }
 
     /**
      * Creates a PolicyParser object.
@@ -49,11 +36,6 @@ public class PolicyParser {
         grantEntries = new Vector<>();
     }
 
-    public PolicyParser(boolean expandProp) {
-        this();
-        this.expandProp = expandProp;
-    }
-
     /**
      * Reads a policy configuration into the Policy object using a
      * Reader object.
@@ -61,10 +43,10 @@ public class PolicyParser {
      * @param policy the policy Reader object.
      *
      * @exception ParsingException if the policy configuration contains
-     *          a syntax error.
+     *                             a syntax error.
      *
-     * @exception IOException if an error occurs while reading the policy
-     *          configuration.
+     * @exception IOException      if an error occurs while reading the policy
+     *                             configuration.
      */
 
     public void read(Reader policy) throws ParsingException, IOException {
@@ -74,17 +56,17 @@ public class PolicyParser {
 
         /*
          * Configure the stream tokenizer:
-         *      Recognize strings between "..."
-         *      Don't convert words to lowercase
-         *      Recognize both C-style and C++-style comments
-         *      Treat end-of-line as white space, not as a token
+         * Recognize strings between "..."
+         * Don't convert words to lowercase
+         * Recognize both C-style and C++-style comments
+         * Treat end-of-line as white space, not as a token
          */
         streamTokenizer = Tokenizer.configureTokenizer(policy);
 
         /*
-         * The main parsing loop.  The loop is executed once
-         * for each entry in the config file.      The entries
-         * are delimited by semicolons.   Once we've read in
+         * The main parsing loop. The loop is executed once
+         * for each entry in the config file. The entries
+         * are delimited by semicolons. Once we've read in
          * the information for an entry, go ahead and try to
          * add it to the policy vector.
          *
@@ -223,12 +205,10 @@ public class PolicyParser {
 
         while (!peekTokenOnMatch("}")) {
             if (peekTokenOnMatch("Permission")) {
-                try {
-                    PermissionEntry pe = parsePermissionEntry();
-                    e.add(pe);
-                } catch (PropertyExpander.ExpandException peee) {
-                    skipEntry(); // BugId 4219343
-                }
+
+                PermissionEntry pe = parsePermissionEntry();
+                e.add(pe);
+
                 consumeTokenOnMatch(";");
             } else {
                 throw new ParsingException(streamTokenizer.lineno(), "Expected permission entry");
@@ -236,21 +216,14 @@ public class PolicyParser {
         }
         consumeTokenOnMatch("}");
 
-        try {
-            if (e.codeBase != null) {
-                e.codeBase = expand(e.codeBase, true).replace(File.separatorChar, '/');
-            }
-        } catch (PropertyExpander.ExpandException peee) {
-            return null;
+        if (e.codeBase != null) {
+            e.codeBase = e.codeBase.replace(File.separatorChar, '/');
         }
 
         return (ignoreEntry) ? null : e;
     }
 
-    /**
-     * parse a Permission entry
-     */
-    private PermissionEntry parsePermissionEntry() throws ParsingException, IOException, PropertyExpander.ExpandException {
+    private PermissionEntry parsePermissionEntry() throws ParsingException, IOException {
         PermissionEntry e = new PermissionEntry();
 
         // Permission
@@ -259,7 +232,7 @@ public class PolicyParser {
 
         if (peekTokenOnMatch("\"")) {
             // Permission name
-            e.name = expand(consumeTokenOnMatch("quoted string"));
+            e.name = consumeTokenOnMatch("quoted string");
         }
 
         if (!peekTokenOnMatch(",")) {
@@ -268,7 +241,7 @@ public class PolicyParser {
         consumeTokenOnMatch(",");
 
         if (peekTokenOnMatch("\"")) {
-            e.action = expand(consumeTokenOnMatch("quoted string"));
+            e.action = consumeTokenOnMatch("quoted string");
             if (!peekTokenOnMatch(",")) {
                 return e;
             }
@@ -455,12 +428,14 @@ public class PolicyParser {
             }
 
             if (this.name == null) {
+
                 if (that.name != null) return false;
             } else {
                 if (!this.name.equals(that.name)) return false;
             }
 
             if (this.action == null) {
+
                 return that.action == null;
             } else {
                 return this.action.equals(that.action);

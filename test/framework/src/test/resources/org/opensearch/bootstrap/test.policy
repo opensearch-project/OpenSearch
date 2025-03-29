@@ -6,9 +6,7 @@
  * compatible open source license.
  */
 
-grant codeBase "${codebase.opensearch-nio}" {
-  permission java.net.NetPermission "accessUnixDomainSocket";
-};
+
 
 grant {
   permission java.net.NetPermission "accessUnixDomainSocket";

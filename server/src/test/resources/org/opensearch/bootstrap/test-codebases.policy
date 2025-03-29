@@ -15,11 +15,4 @@
 //// These are mock objects and test management that we allow test framework libs
 //// to provide on our behalf. But tests themselves cannot do this stuff!
 
-grant codeBase "${codebase.zstd-jni}" {
-};
 
-grant codeBase "${codebase.kafka-server-common}" {
-};
-
-grant codeBase "${codebase.kafka-server-common@test}" {
-};
