@@ -45,6 +45,7 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -1813,7 +1814,10 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     }
 
     public void testSegmentReplicationCheckpointTracking() {
-        Settings settings = Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        Settings settings = Settings.builder()
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexSettings.INDEX_LAG_TIME_BEFORE_RESEND_CHECKPOINT_SETTING.getKey(), TimeValue.timeValueSeconds(0))
+            .build();
         final long initialClusterStateVersion = randomNonNegativeLong();
         final int numberOfActiveAllocationsIds = randomIntBetween(2, 16);
         final int numberOfInitializingIds = randomIntBetween(2, 16);
@@ -1884,6 +1888,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             assertEquals(151L, shardStat.getBytesBehindCount());
             assertTrue(shardStat.getCurrentReplicationLagMillis() >= shardStat.getCurrentReplicationTimeMillis());
         }
+
+        assertTrue(tracker.hasLaggingReplicas());
 
         // simulate replicas moved up to date.
         final Map<String, ReplicationTracker.CheckpointState> checkpoints = tracker.checkpoints;
