@@ -846,7 +846,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
         for (NodeStats stat : nodeStats.getNodes()) {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 if (stat.getNode().getId().equals(dataNodeId)) {
                     assertEquals(0, searchStats.getQueryCount());
                     assertEquals(0, searchStats.getFetchCount());
@@ -870,7 +870,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
         for (NodeStats stat : nodeStats.getNodes()) {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 if (stat.getNode().getId().equals(dataNodeId)) {
                     Assert.assertTrue(searchStats.getFetchCount() > 0L || searchStats.getQueryCount() > 0L);
                 }

@@ -126,12 +126,12 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
 
         final String[] coordinatorOnlyNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-            .filter(n -> n.isDataNode() == false && n.isIngestNode() == false && n.isClusterManagerNode() == false)
+            .filter(n -> n.canContainData() == false && n.isIngestNode() == false && n.isClusterManagerNode() == false)
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
 
         final String[] nonCoordinatorOnlyNodes = StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-            .filter(n -> n.isClusterManagerNode() || n.isDataNode() || n.isIngestNode())
+            .filter(n -> n.isClusterManagerNode() || n.canContainData() || n.isIngestNode())
             .map(DiscoveryNode::getId)
             .toArray(String[]::new);
 
