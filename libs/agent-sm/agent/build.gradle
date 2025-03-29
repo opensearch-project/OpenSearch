@@ -62,3 +62,7 @@ thirdPartyAudit {
 tasks.named('validateNebulaPom') {
   dependsOn prepareAgent
 }
+
+tasks.named('assemble') {
+  dependsOn prepareAgent
+}
