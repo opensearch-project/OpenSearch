@@ -76,15 +76,17 @@ teardown:
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
 # default pipeline via scripted upsert
+# note - scripted upserts execute the pipeline before the script, so any data referenced by the pipeline
+# needs to be in the upsert, not the script
   - do:
       update:
         index: test
         id: 4
         body:
           script:
-            source: "ctx._source.bytes_source_field = '1kb'"
+            source: "ctx._source.ran_script = true"
             lang: "painless"
-          upsert : {}
+          upsert : {"bytes_source_field": "1kb"}
           scripted_upsert: true
   - do:
       get:
@@ -107,7 +109,7 @@ teardown:
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
 # default pipeline via bulk upsert
-# note - bulk scripted upsert's execute the pipeline before the script, so any data referenced by the pipeline
+# note - bulk scripted upserts execute the pipeline before the script, so any data referenced by the pipeline
 # needs to be in the upsert, not the script
   - do:
       bulk:
