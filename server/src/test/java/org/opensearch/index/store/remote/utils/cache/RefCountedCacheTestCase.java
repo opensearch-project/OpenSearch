@@ -29,16 +29,20 @@ abstract class RefCountedCacheTestCase extends OpenSearchTestCase {
 
     public void testUsageWithIncrementAndDecrement() {
         refCountedCache.put("1", 10L);
-        assertEquals(10L, refCountedCache.usage().usage());
-        assertEquals(10L, refCountedCache.usage().activeUsage());
+        refCountedCache.pin("1");
+        assertEquals(10L, refCountedCache.usage());
+        assertEquals(10L, refCountedCache.activeUsage());
+        assertEquals(10L, refCountedCache.pinnedUsage());
 
         refCountedCache.decRef("1");
-        assertEquals(10L, refCountedCache.usage().usage());
-        assertEquals(0L, refCountedCache.usage().activeUsage());
+        assertEquals(10L, refCountedCache.usage());
+        assertEquals(0L, refCountedCache.activeUsage());
+        assertEquals(10L, refCountedCache.pinnedUsage());
 
         refCountedCache.incRef("1");
-        assertEquals(10L, refCountedCache.usage().usage());
-        assertEquals(10L, refCountedCache.usage().activeUsage());
+        assertEquals(10L, refCountedCache.usage());
+        assertEquals(10L, refCountedCache.activeUsage());
+        assertEquals(10L, refCountedCache.pinnedUsage());
     }
 
     public void testEviction() {
@@ -53,20 +57,74 @@ abstract class RefCountedCacheTestCase extends OpenSearchTestCase {
         assertNotNull(refCountedCache.get("4"));
         assertNotNull(refCountedCache.get("5"));
 
-        assertEquals(75L, refCountedCache.usage().usage());
-        assertEquals(75L, refCountedCache.usage().activeUsage());
+        assertEquals(75L, refCountedCache.usage());
+        assertEquals(75L, refCountedCache.activeUsage());
+    }
+
+    public void testEviction_WithPinning() {
+        for (int i = 1; i <= 3; i++) {
+            final String key = Integer.toString(i);
+            refCountedCache.put(key, 25L);
+            refCountedCache.decRef(key);
+        }
+        refCountedCache.pin(Integer.toString(1));
+
+        for (int i = 4; i <= 5; i++) {
+            final String key = Integer.toString(i);
+            refCountedCache.put(key, 25L);
+            refCountedCache.decRef(key);
+        }
+        assertNotNull(refCountedCache.get("1"));
+        assertNull(refCountedCache.get("2"));
+        assertNull(refCountedCache.get("3"));
+        assertNotNull(refCountedCache.get("4"));
+        assertNotNull(refCountedCache.get("5"));
+
+        assertEquals(75L, refCountedCache.usage());
+        assertEquals(75L, refCountedCache.activeUsage());
+        assertEquals(25L, refCountedCache.pinnedUsage());
+
+        refCountedCache.unpin(Integer.toString(1));
+
+        for (int i = 6; i <= 9; i++) {
+            final String key = Integer.toString(i);
+            refCountedCache.put(key, 25L);
+            refCountedCache.decRef(key);
+        }
+        assertNotNull(refCountedCache.get("1"));
+        assertNotNull(refCountedCache.get("4"));
+        assertNotNull(refCountedCache.get("5"));
+        assertNotNull(refCountedCache.get("9"));
+        assertNull(refCountedCache.get("6"));
+        assertNull(refCountedCache.get("7"));
+        assertNull(refCountedCache.get("8"));
+
+        assertEquals(100L, refCountedCache.usage());
+        assertEquals(100L, refCountedCache.activeUsage());
+        assertEquals(0, refCountedCache.pinnedUsage());
+
+    }
+
+    public void testRemove_WithPinning() {
+        assertEquals(0, refCountedCache.stats().hitCount());
+        refCountedCache.put("1", 1L);
+        assertNotNull(refCountedCache.get("1"));
+        refCountedCache.pin("1");
+        assertNotNull(refCountedCache.get("1"));
+        refCountedCache.remove("1");
+        assertNull(refCountedCache.get("1"));
     }
 
     public void testComputeRemoveWhenExists() {
         refCountedCache.put("1", 25L);
         refCountedCache.decRef("1");
-        assertEquals(0, refCountedCache.usage().activeUsage());
-        assertEquals(25L, refCountedCache.usage().usage());
+        assertEquals(0, refCountedCache.activeUsage());
+        assertEquals(25L, refCountedCache.usage());
 
         assertNull(refCountedCache.compute("1", (k, v) -> null));
         assertNull(refCountedCache.get("1"));
-        assertEquals(0, refCountedCache.usage().activeUsage());
-        assertEquals(0L, refCountedCache.usage().usage());
+        assertEquals(0, refCountedCache.activeUsage());
+        assertEquals(0L, refCountedCache.usage());
     }
 
     public void testComputeRemoveWhenNotExists() {
@@ -109,8 +167,8 @@ abstract class RefCountedCacheTestCase extends OpenSearchTestCase {
             final String key = Integer.toString(i);
             refCountedCache.put(key, 25L);
         }
-        assertEquals(125L, refCountedCache.usage().usage());
-        assertEquals(125L, refCountedCache.usage().activeUsage());
+        assertEquals(125L, refCountedCache.usage());
+        assertEquals(125L, refCountedCache.activeUsage());
     }
 
     public void testReferenceCountingItemsThatDoNotExist() {
@@ -121,8 +179,8 @@ abstract class RefCountedCacheTestCase extends OpenSearchTestCase {
         assertUsage(0, 0);
         refCountedCache.decRef("1");
         assertNull(refCountedCache.get("1"));
-        assertEquals(0L, refCountedCache.usage().usage());
-        assertEquals(0L, refCountedCache.usage().activeUsage());
+        assertEquals(0L, refCountedCache.usage());
+        assertEquals(0L, refCountedCache.activeUsage());
     }
 
     public void testPrune() {
@@ -215,13 +273,13 @@ abstract class RefCountedCacheTestCase extends OpenSearchTestCase {
         refCountedCache.put("1", 10L);
         refCountedCache.put("2", 10L);
         refCountedCache.put("3", 10L);
-        assertEquals(30L, refCountedCache.usage().usage());
+        assertEquals(30L, refCountedCache.usage());
         refCountedCache.clear();
-        assertEquals(0L, refCountedCache.usage().usage());
+        assertEquals(0L, refCountedCache.usage());
     }
 
     private void assertUsage(long usage, long activeUsage) {
-        assertEquals(usage, refCountedCache.usage().usage());
-        assertEquals(activeUsage, refCountedCache.usage().activeUsage());
+        assertEquals(usage, refCountedCache.usage());
+        assertEquals(activeUsage, refCountedCache.activeUsage());
     }
 }

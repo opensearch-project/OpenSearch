@@ -134,6 +134,18 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
+    public void pin(K key) {
+        if (key == null) throw new NullPointerException();
+        segmentFor(key).pin(key);
+    }
+
+    @Override
+    public void unpin(K key) {
+        if (key == null) throw new NullPointerException();
+        segmentFor(key).unpin(key);
+    }
+
+    @Override
     public long prune() {
         long sum = 0L;
         for (RefCountedCache<K, V> cache : table) {
@@ -152,38 +164,110 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
-    public CacheUsage usage() {
-        long usage = 0L;
-        long activeUsage = 0L;
+    public long usage() {
+        long totalUsage = 0L;
         for (RefCountedCache<K, V> cache : table) {
-            CacheUsage c = cache.usage();
-            usage += c.usage();
-            activeUsage += c.activeUsage();
+            CacheStats c = cache.stats();
+            totalUsage += c.usage();
+
         }
-        return new CacheUsage(usage, activeUsage);
+        return totalUsage;
+    }
+
+    @Override
+    public long activeUsage() {
+        long totalActiveUsage = 0L;
+        for (RefCountedCache<K, V> cache : table) {
+            CacheStats c = cache.stats();
+            totalActiveUsage += c.activeUsage();
+        }
+        return totalActiveUsage;
+    }
+
+    /**
+     * Returns the pinned usage of this cache.
+     *
+     * @return the combined pinned weight of the values in this cache.
+     */
+    @Override
+    public long pinnedUsage() {
+        long totalPinnedUsage = 0L;
+        for (RefCountedCache<K, V> cache : table) {
+            CacheStats c = cache.stats();
+            totalPinnedUsage += c.pinnedUsage();
+        }
+        return totalPinnedUsage;
     }
 
     @Override
     public CacheStats stats() {
-        long hitCount = 0L;
-        long missCount = 0L;
-        long removeCount = 0L;
-        long removeWeight = 0L;
-        long replaceCount = 0L;
-        long evictionCount = 0L;
-        long evictionWeight = 0L;
+
+        long totalHitCount = 0L;
+        long totalMissCount = 0L;
+        long totalRemoveCount = 0L;
+        long totalRemoveWeight = 0L;
+        long totalReplaceCount = 0L;
+        long totalEvictionCount = 0L;
+        long totalEvictionWeight = 0L;
+        long totalUsage = 0L;
+        long totalActiveUsage = 0L;
+        long totalPinnedUsage = 0L;
+
+        // full file counts
+        long totalFullFileHitCount = 0L;
+        long totalFullFileRemoveCount = 0L;
+        long totalFullFileRemoveWeight = 0L;
+        long totalFullFileReplaceCount = 0L;
+        long totalFullFileEvictionCount = 0L;
+        long totalFullFileEvictionWeight = 0L;
+        long totalFullFileUsage = 0L;
+        long totalFullFileActiveUsage = 0L;
 
         for (RefCountedCache<K, V> cache : table) {
             CacheStats c = cache.stats();
-            hitCount += c.hitCount();
-            missCount += c.missCount();
-            removeCount += c.removeCount();
-            removeWeight += c.removeWeight();
-            replaceCount += c.replaceCount();
-            evictionCount += c.evictionCount();
-            evictionWeight += c.evictionWeight();
+            totalHitCount += c.hitCount();
+            totalMissCount += c.missCount();
+            totalRemoveCount += c.removeCount();
+            totalRemoveWeight += c.removeWeight();
+            totalReplaceCount += c.replaceCount();
+            totalEvictionCount += c.evictionCount();
+            totalEvictionWeight += c.evictionWeight();
+            totalUsage += c.usage();
+            totalActiveUsage += c.activeUsage();
+            totalPinnedUsage += c.pinnedUsage();
+
+            CacheStats.FullFileStats fullFileStats = c.fullFileStats();
+
+            totalFullFileHitCount += fullFileStats.getHitCount();
+            totalFullFileRemoveCount += fullFileStats.getRemoveCount();
+            totalFullFileRemoveWeight += fullFileStats.getRemoveWeight();
+            totalFullFileReplaceCount += fullFileStats.getReplaceCount();
+            totalFullFileEvictionCount += fullFileStats.getEvictionCount();
+            totalFullFileEvictionWeight += fullFileStats.getEvictionWeight();
+            totalFullFileUsage += fullFileStats.getUsage();
+            totalFullFileActiveUsage += fullFileStats.getActiveUsage();
         }
-        return new CacheStats(hitCount, missCount, removeCount, removeWeight, replaceCount, evictionCount, evictionWeight);
+
+        return new CacheStats(
+            totalHitCount,
+            totalMissCount,
+            totalRemoveCount,
+            totalRemoveWeight,
+            totalReplaceCount,
+            totalEvictionCount,
+            totalEvictionWeight,
+            totalUsage,
+            totalActiveUsage,
+            totalPinnedUsage,
+            totalFullFileHitCount,
+            totalFullFileRemoveCount,
+            totalFullFileRemoveWeight,
+            totalFullFileReplaceCount,
+            totalFullFileEvictionCount,
+            totalFullFileEvictionWeight,
+            totalFullFileUsage,
+            totalFullFileActiveUsage
+        );
     }
 
     // To be used only for debugging purposes
