@@ -7,7 +7,6 @@
  */
 
 /**
- * This package holds constructs for the Rule's in-memory storage, processing and syncing the in-memory view
- * with the index view
+ * Package for the action classes related to rules in WorkloadManagementPlugin
  */
-package org.opensearch.plugin.wlm.rule;
+package org.opensearch.plugin.wlm.rule.action;

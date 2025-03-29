@@ -10,7 +10,7 @@ package org.opensearch.plugin.wlm;
 
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.Singleton;
-import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
+import org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService;
 
 /**
  * Guice Module to manage WorkloadManagement related objects
