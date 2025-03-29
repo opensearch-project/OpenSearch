@@ -72,6 +72,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DAT
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -1058,9 +1059,9 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         }
     }
 
+    @LockFeatureFlag(WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
     @SuppressForbidden(reason = "feature flag overrides")
     public void testPartialIndexPrimaryDefault() throws Exception {
-        System.setProperty(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, "true");
         final int numIndices = 1;
         final int numShards = 2;
         final int numReplicas = 2;
@@ -1116,7 +1117,6 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         } finally {
             IOUtils.close(clusterService);
             terminate(threadPool);
-            System.setProperty(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, "false");
         }
     }
 
