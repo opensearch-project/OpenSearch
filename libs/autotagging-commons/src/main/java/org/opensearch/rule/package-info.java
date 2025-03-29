@@ -7,6 +7,6 @@
  */
 
 /**
- * This package contains interfaces and implementations for in memory rule storage mechanisms
+ * Rule based auto-tagging generic constructs
  */
-package org.opensearch.plugin.wlm.rule.storage;
+package org.opensearch.rule;

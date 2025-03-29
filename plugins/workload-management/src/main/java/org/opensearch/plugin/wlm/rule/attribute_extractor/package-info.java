@@ -7,7 +7,6 @@
  */
 
 /**
- * This package holds constructs for the Rule's in-memory storage, processing and syncing the in-memory view
- * with the index view
+ * This package contains feature attribute extractor interface and its implementations
  */
-package org.opensearch.plugin.wlm.rule;
+package org.opensearch.plugin.wlm.rule.attribute_extractor;
