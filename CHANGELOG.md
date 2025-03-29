@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `ch.qos.logback:logback-core` from 1.5.16 to 1.5.17 ([#17609](https://github.com/opensearch-project/OpenSearch/pull/17609))
 - Bump `org.jruby.joni:joni` from 2.2.3 to 2.2.5 ([#17608](https://github.com/opensearch-project/OpenSearch/pull/17608))
 - Bump `dangoslen/dependabot-changelog-helper` from 3 to 4 ([#17498](https://github.com/opensearch-project/OpenSearch/pull/17498))
+- Bump `reactor_netty` from 1.1.26 to 1.2.3 ([#17322](https://github.com/opensearch-project/OpenSearch/pull/17322), [#17377](https://github.com/opensearch-project/OpenSearch/pull/17377))
 - Bump `com.google.api:gax` from 2.35.0 to 2.63.1 ([#17465](https://github.com/opensearch-project/OpenSearch/pull/17465))
 - Bump `com.azure:azure-storage-blob` from 12.29.1 to 12.30.0 ([#17667](https://github.com/opensearch-project/OpenSearch/pull/17667))
 - Bump `tj-actions/changed-files` from 46.0.1 to 46.0.3 ([#17666](https://github.com/opensearch-project/OpenSearch/pull/17666))
