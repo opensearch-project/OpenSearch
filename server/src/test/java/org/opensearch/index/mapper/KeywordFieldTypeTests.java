@@ -73,7 +73,6 @@ import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -227,7 +226,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expectedDocValues, onlyDocValues.termsQuery(sortedStrings, null));
     }
 
-    @Ignore("requires mockito-inline")
+    @AwaitsFix(bugUrl = "never.ever")
     public void testMockTermsSortedQuery() {
         String[] seedStrings = generateRandomStringArray(10, 10, false, false);
         if (seedStrings.length == 1) {
