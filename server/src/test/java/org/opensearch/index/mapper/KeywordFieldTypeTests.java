@@ -73,13 +73,22 @@ import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
+import java.util.stream.Stream;
+
+import org.mockito.MockedConstruction;
+import org.mockito.stubbing.Answer;
+
+import static org.mockito.Mockito.mockConstructionWithAnswer;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
@@ -195,6 +204,57 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
             e.getMessage()
         );
+    }
+
+    public void testTermsSortedQuery() {
+        String[] seedStrings = generateRandomStringArray(10, 10, false, true);
+        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).toList();
+        List<String> sortedStrings = bytesRefList.stream().sorted().map(BytesRef::utf8ToString).toList();
+
+        MappedFieldType ft = new KeywordFieldType("field");
+        Query expected = new IndexOrDocValuesQuery(
+            new TermInSetQuery("field", bytesRefList),
+            new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", bytesRefList)
+        );
+        assertEquals(expected, ft.termsQuery(sortedStrings, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
+        MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        Query expectedIndex = new TermInSetQuery("field", bytesRefList);
+        assertEquals(expectedIndex, onlyIndexed.termsQuery(sortedStrings, null));
+
+        MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        Query expectedDocValues = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", bytesRefList);
+        assertEquals(expectedDocValues, onlyDocValues.termsQuery(sortedStrings, null));
+    }
+
+    @Ignore("requires mockito-inline")
+    public void testMockTermsSortedQuery() {
+        String[] seedStrings = generateRandomStringArray(10, 10, false, false);
+        if (seedStrings.length == 1) {
+            seedStrings = Stream.concat(Arrays.stream(seedStrings), Arrays.stream(generateRandomStringArray(10, 10, false, false)))
+                .toArray(String[]::new);
+        }
+        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).toList();
+        List<String> sortedStrings = bytesRefList.stream().sorted().map(BytesRef::utf8ToString).toList();
+        Answer asseretSortedSetArg = invocationOnMock -> {
+            Object[] args = invocationOnMock.getArguments();
+            for (int i = 0; i < args.length; i++) {
+                if (args[i] instanceof Collection<?>) {
+                    assertTrue(args[i] instanceof SortedSet<?>);
+                    return invocationOnMock.callRealMethod();
+                }
+            }
+            fail();
+            return null;
+        };
+        try (MockedConstruction<TermInSetQuery> ignored = mockConstructionWithAnswer(TermInSetQuery.class, asseretSortedSetArg)) {
+            MappedFieldType ft = new KeywordFieldType("field");
+            assertNotNull(ft.termsQuery(sortedStrings, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+            MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
+            assertNotNull(onlyIndexed.termsQuery(sortedStrings, null));
+            MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
+            assertNotNull(onlyDocValues.termsQuery(sortedStrings, null));
+        }
     }
 
     public void testExistsQuery() {
