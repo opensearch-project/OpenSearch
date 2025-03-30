@@ -70,7 +70,6 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -448,47 +447,26 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 if (!context.keywordFieldIndexOrDocValuesEnabled()) {
                     return super.termsQuery(values, context);
                 }
-                List<BytesRef> iBytesRefs = new ArrayList<>(values.size());
-                List<BytesRef> dVByteRefs = new ArrayList<>(values.size());
-                boolean sortedInd = true;
-                boolean sortedDv = true;
+                BytesRefsCollectionBuilder iBytesRefs = new BytesRefsCollectionBuilder();
+                BytesRefsCollectionBuilder dVByteRefs = new BytesRefsCollectionBuilder();
                 for (int i = 0; i < values.size(); i++) {
                     BytesRef idxBytes = indexedValueForSearch(values.get(i));
-                    if (!iBytesRefs.isEmpty()) {
-                        sortedInd &= idxBytes.compareTo(iBytesRefs.getLast()) >= 0;
-                    }
-                    iBytesRefs.add(idxBytes);
-
+                    iBytesRefs.accept(idxBytes);
                     BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(values.get(i)));
-                    if (!dVByteRefs.isEmpty()) {
-                        sortedDv &= dvBytes.compareTo(dVByteRefs.getLast()) >= 0;
-                    }
-                    dVByteRefs.add(dvBytes);
+                    dVByteRefs.accept(dvBytes);
                 }
-                Query indexQuery = new TermInSetQuery(
-                    MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
-                    name(),
-                    !sortedInd ? iBytesRefs : new SortedBytesSet(iBytesRefs)
-                );
-                Query dvQuery = new TermInSetQuery(
-                    MultiTermQuery.DOC_VALUES_REWRITE,
-                    name(),
-                    !sortedDv ? dVByteRefs : new SortedBytesSet(dVByteRefs)
-                );
+                Query indexQuery = new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), iBytesRefs.get());
+                Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), dVByteRefs.get());
                 return new IndexOrDocValuesQuery(indexQuery, dvQuery);
             }
             // if we only have doc_values enabled, we construct a new query with doc_values re-written
             if (hasDocValues()) {
-                List<BytesRef> bytesRefs = new ArrayList<>(values.size());
-                boolean sortedDv = true;
+                BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder();
                 for (int i = 0; i < values.size(); i++) {
                     BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(values.get(i)));
-                    if (!bytesRefs.isEmpty()) {
-                        sortedDv &= dvBytes.compareTo(bytesRefs.getLast()) >= 0;
-                    }
-                    bytesRefs.add(dvBytes);
+                    bytesCollector.accept(dvBytes);
                 }
-                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), !sortedDv ? bytesRefs : new SortedBytesSet(bytesRefs));
+                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesCollector.get());
             }
             // has index enabled, we're going to return the query as is
             return super.termsQuery(values, context);

@@ -43,15 +43,8 @@ import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.index.query.QueryShardContext;
 
-import java.util.AbstractSet;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedSet;
 
 /** Base {@link MappedFieldType} implementation for a field that is indexed
  *  with the inverted index.
@@ -101,81 +94,12 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termsQuery(List<?> values, QueryShardContext context) {
         failIfNotIndexed();
-        List<BytesRef> bytesRefs = new ArrayList<>(values.size());
-        boolean sorted = true;
+        BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder();
         for (int i = 0; i < values.size(); i++) {
             BytesRef elem = indexedValueForSearch(values.get(i));
-            if (!bytesRefs.isEmpty()) {
-                sorted &= elem.compareTo(bytesRefs.getLast()) >= 0;
-            }
-            bytesRefs.add(elem);
+            bytesCollector.accept(elem);
         }
-        return new TermInSetQuery(
-            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
-            name(),
-            !sorted ? bytesRefs : new SortedBytesSet(bytesRefs)
-        );
+        return new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), bytesCollector.get());
     }
 
-    static class SortedBytesSet extends AbstractSet<BytesRef> implements SortedSet<BytesRef> {
-
-        private final List<BytesRef> bytesRefs;
-
-        public SortedBytesSet(List<BytesRef> bytesRefs) {
-            this.bytesRefs = bytesRefs;
-        }
-
-        @Override
-        public Iterator<BytesRef> iterator() {
-            return bytesRefs.iterator();
-        }
-
-        @Override
-        public int size() {
-            return bytesRefs.size();
-        }
-
-        @Override
-        public Comparator<? super BytesRef> comparator() {
-            return null;
-        }
-
-        /** NSFW */
-        @Override
-        public SortedSet<BytesRef> subSet(BytesRef fromElement, BytesRef toElement) {
-            int fromIdx = Collections.binarySearch(bytesRefs, fromElement);
-            int toIdx = Collections.binarySearch(bytesRefs, toElement);
-            return new SortedBytesSet(bytesRefs.subList(fromIdx >= 0 ? fromIdx : -fromIdx + 1, toIdx >= 0 ? toIdx : -toIdx + 1));
-        }
-
-        /** NSFW */
-        @Override
-        public SortedSet<BytesRef> headSet(BytesRef toElement) {
-            int toIdx = Collections.binarySearch(bytesRefs, toElement);
-            return new SortedBytesSet(bytesRefs.subList(0, toIdx >= 0 ? toIdx : -toIdx + 1));
-        }
-
-        /** NSFW */
-        @Override
-        public SortedSet<BytesRef> tailSet(BytesRef fromElement) {
-            int fromIdx = Collections.binarySearch(bytesRefs, fromElement);
-            return new SortedBytesSet(bytesRefs.subList(fromIdx >= 0 ? fromIdx : -fromIdx + 1, bytesRefs.size()));
-        }
-
-        @Override
-        public BytesRef first() {
-            return bytesRefs.getFirst();
-        }
-
-        @Override
-        public BytesRef last() {
-            return bytesRefs.getLast();
-        }
-
-        /** Dedicated for {@link TermInSetQuery#TermInSetQuery(String, Collection)}. */
-        @Override
-        public <T> T[] toArray(T[] a) {
-            return bytesRefs.toArray(a);
-        }
-    }
 }
