@@ -19,6 +19,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -137,31 +138,27 @@ public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<
         }
 
         /**
-         * NSFW
+         * Really slow.
          */
         @Override
         public SortedSet<BytesRef> subSet(BytesRef fromElement, BytesRef toElement) {
-            int fromIdx = Collections.binarySearch(bytesRefs, fromElement);
-            int toIdx = Collections.binarySearch(bytesRefs, toElement);
-            return new SortedBytesSet(bytesRefs.subList(fromIdx >= 0 ? fromIdx : -fromIdx + 1, toIdx >= 0 ? toIdx : -toIdx + 1));
+            return new TreeSet<>(bytesRefs).subSet(fromElement, toElement);
         }
 
         /**
-         * NSFW
+         * Really slow.
          */
         @Override
         public SortedSet<BytesRef> headSet(BytesRef toElement) {
-            int toIdx = Collections.binarySearch(bytesRefs, toElement);
-            return new SortedBytesSet(bytesRefs.subList(0, toIdx >= 0 ? toIdx : -toIdx + 1));
+            return new TreeSet<>(bytesRefs).headSet(toElement);
         }
 
         /**
-         * NSFW
+         * Really slow.
          */
         @Override
         public SortedSet<BytesRef> tailSet(BytesRef fromElement) {
-            int fromIdx = Collections.binarySearch(bytesRefs, fromElement);
-            return new SortedBytesSet(bytesRefs.subList(fromIdx >= 0 ? fromIdx : -fromIdx + 1, bytesRefs.size()));
+            return new TreeSet<>(bytesRefs).tailSet(fromElement);
         }
 
         @Override
