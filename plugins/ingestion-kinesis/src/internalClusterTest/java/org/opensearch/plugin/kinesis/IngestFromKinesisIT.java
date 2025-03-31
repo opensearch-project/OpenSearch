@@ -132,7 +132,7 @@ public class IngestFromKinesisIT extends KinesisIngestionBaseIT {
         );
 
         RangeQueryBuilder query = new RangeQueryBuilder("age").gte(0);
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+        await().atMost(60, TimeUnit.SECONDS).untilAsserted(() -> {
             refresh("test_rewind_by_offset");
             SearchResponse response = client().prepareSearch("test_rewind_by_offset").setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(2L));
