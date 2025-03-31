@@ -17,23 +17,23 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.plugin.wlm.RuleTestUtils.PATTERN_ONE;
-import static org.opensearch.plugin.wlm.RuleTestUtils.SEARCH_AFTER;
-import static org.opensearch.plugin.wlm.RuleTestUtils._ID_ONE;
 import static org.opensearch.plugin.wlm.rule.QueryGroupAttribute.INDEX_PATTERN;
+import static org.opensearch.plugin.wlm.rule.WlmRuleTestUtils.PATTERN_ONE;
+import static org.opensearch.plugin.wlm.rule.WlmRuleTestUtils.SEARCH_AFTER;
+import static org.opensearch.plugin.wlm.rule.WlmRuleTestUtils._ID_ONE;
 
-public class GetRuleRequestTests extends OpenSearchTestCase {
+public class GetWlmRuleRequestTests extends OpenSearchTestCase {
 
     /**
      * Test case to verify the serialization and deserialization of GetRuleRequest
      */
     public void testSerialization() throws IOException {
-        GetRuleRequest request = new GetRuleRequest(_ID_ONE, Map.of(INDEX_PATTERN, Set.of(PATTERN_ONE)), null);
+        GetWlmRuleRequest request = new GetWlmRuleRequest(_ID_ONE, Map.of(INDEX_PATTERN, Set.of(PATTERN_ONE)), null);
         assertEquals(_ID_ONE, request.getId());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        GetRuleRequest otherRequest = new GetRuleRequest(streamInput);
+        GetWlmRuleRequest otherRequest = new GetWlmRuleRequest(streamInput);
         assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeFilters(), otherRequest.getAttributeFilters());
     }
@@ -42,12 +42,12 @@ public class GetRuleRequestTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleRequest when name is null
      */
     public void testSerializationWithNull() throws IOException {
-        GetRuleRequest request = new GetRuleRequest((String) null, new HashMap<>(), SEARCH_AFTER);
+        GetWlmRuleRequest request = new GetWlmRuleRequest((String) null, new HashMap<>(), SEARCH_AFTER);
         assertNull(request.getId());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        GetRuleRequest otherRequest = new GetRuleRequest(streamInput);
+        GetWlmRuleRequest otherRequest = new GetWlmRuleRequest(streamInput);
         assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeFilters(), otherRequest.getAttributeFilters());
     }

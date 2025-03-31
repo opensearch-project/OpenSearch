@@ -21,14 +21,14 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.opensearch.plugin.wlm.RuleTestUtils.SEARCH_AFTER;
-import static org.opensearch.plugin.wlm.RuleTestUtils._ID_ONE;
-import static org.opensearch.plugin.wlm.RuleTestUtils.assertEqualRules;
-import static org.opensearch.plugin.wlm.RuleTestUtils.ruleMap;
-import static org.opensearch.plugin.wlm.RuleTestUtils.ruleOne;
+import static org.opensearch.plugin.wlm.rule.WlmRuleTestUtils.SEARCH_AFTER;
+import static org.opensearch.plugin.wlm.rule.WlmRuleTestUtils._ID_ONE;
+import static org.opensearch.plugin.wlm.rule.WlmRuleTestUtils.assertEqualRules;
+import static org.opensearch.plugin.wlm.rule.WlmRuleTestUtils.ruleMap;
+import static org.opensearch.plugin.wlm.rule.WlmRuleTestUtils.ruleOne;
 import static org.mockito.Mockito.mock;
 
-public class GetRuleResponseTests extends OpenSearchTestCase {
+public class GetWlmRuleResponseTests extends OpenSearchTestCase {
 
     /**
      * Test case to verify the serialization and deserialization of GetRuleResponse
@@ -36,14 +36,14 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
     public void testSerializationSingleRule() throws IOException {
         Map<String, Rule> map = new HashMap<>();
         map.put(_ID_ONE, ruleOne);
-        GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), null, RestStatus.OK);
+        GetWlmRuleResponse response = new GetWlmRuleResponse(Map.of(_ID_ONE, ruleOne), null, RestStatus.OK);
         assertEquals(response.getRules(), map);
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
 
-        GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
+        GetWlmRuleResponse otherResponse = new GetWlmRuleResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEqualRules(response.getRules(), otherResponse.getRules(), false);
     }
@@ -52,14 +52,14 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleResponse when the result contains multiple rules
      */
     public void testSerializationMultipleRule() throws IOException {
-        GetRuleResponse response = new GetRuleResponse(ruleMap(), SEARCH_AFTER, RestStatus.OK);
+        GetWlmRuleResponse response = new GetWlmRuleResponse(ruleMap(), SEARCH_AFTER, RestStatus.OK);
         assertEquals(response.getRules(), ruleMap());
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
 
-        GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
+        GetWlmRuleResponse otherResponse = new GetWlmRuleResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEquals(2, otherResponse.getRules().size());
         assertEqualRules(response.getRules(), otherResponse.getRules(), false);
@@ -70,14 +70,14 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      */
     public void testSerializationNull() throws IOException {
         Map<String, Rule> map = new HashMap<>();
-        GetRuleResponse response = new GetRuleResponse(map, SEARCH_AFTER, RestStatus.OK);
+        GetWlmRuleResponse response = new GetWlmRuleResponse(map, SEARCH_AFTER, RestStatus.OK);
         assertEquals(response.getRules(), map);
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
 
-        GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
+        GetWlmRuleResponse otherResponse = new GetWlmRuleResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEquals(0, otherResponse.getRules().size());
     }
@@ -88,7 +88,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
     public void testToXContentGetSingleRule() throws IOException {
         Map<String, Rule> map = new HashMap<>();
         map.put(_ID_ONE, ruleOne);
-        GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), SEARCH_AFTER, RestStatus.OK);
+        GetWlmRuleResponse response = new GetWlmRuleResponse(Map.of(_ID_ONE, ruleOne), SEARCH_AFTER, RestStatus.OK);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
@@ -115,7 +115,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      */
     public void testToXContentGetZeroRule() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        GetRuleResponse otherResponse = new GetRuleResponse(new HashMap<>(), null, RestStatus.OK);
+        GetWlmRuleResponse otherResponse = new GetWlmRuleResponse(new HashMap<>(), null, RestStatus.OK);
         String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n" + "  \"rules\" : [ ]\n" + "}";
         assertEquals(expected, actual);
