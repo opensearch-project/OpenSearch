@@ -297,7 +297,6 @@ import org.opensearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.opensearch.action.termvectors.TransportTermVectorsAction;
 import org.opensearch.action.update.TransportUpdateAction;
 import org.opensearch.action.update.UpdateAction;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.NamedRegistry;
@@ -483,6 +482,7 @@ import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.opensearch.wlm.QueryGroupTask;
 
@@ -654,7 +654,7 @@ public class ActionModule extends AbstractModule {
         actions.register(CreateSnapshotAction.INSTANCE, TransportCreateSnapshotAction.class);
         actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
-        if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)) {
+        if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
             actions.register(HotToWarmTieringAction.INSTANCE, TransportHotToWarmTieringAction.class);
         }
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
@@ -996,7 +996,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodeAttrsAction());
         registerHandler.accept(new RestRepositoriesAction());
         registerHandler.accept(new RestSnapshotAction());
-        if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)) {
+        if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
             registerHandler.accept(new RestWarmTieringAction());
         }
         registerHandler.accept(new RestTemplatesAction());

@@ -45,7 +45,6 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.ingest.DeletePipelineRequest;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
@@ -78,6 +77,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.util.ArrayList;
 import java.util.Arrays;

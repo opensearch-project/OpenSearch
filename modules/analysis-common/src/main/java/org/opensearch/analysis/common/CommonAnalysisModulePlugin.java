@@ -125,7 +125,6 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.opensearch.Version;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
@@ -156,6 +155,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;

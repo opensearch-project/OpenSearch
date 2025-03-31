@@ -36,8 +36,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.client.Client;
-import org.opensearch.client.IndicesAdminClient;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
@@ -51,6 +49,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.Mapping;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.IndicesAdminClient;
 
 import java.util.concurrent.Semaphore;
 

@@ -56,9 +56,9 @@ jobs:
           commit_options: '--signoff'
 
       - name: Update the changelog
-        uses: dangoslen/dependabot-changelog-helper@v3
+        uses: dangoslen/dependabot-changelog-helper@v4
         with:
-          version: 'Unreleased 2.x'
+          version: 'Unreleased 3.x'
 
       - name: Commit the changes
         uses: stefanzweifel/git-auto-commit-action@v5

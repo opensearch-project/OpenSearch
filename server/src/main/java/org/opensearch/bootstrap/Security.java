@@ -256,7 +256,7 @@ final class Security {
                         // - netty-tcnative-boringssl-static-2.0.61.Final-linux-x86_64.jar
                         // - kafka-server-common-3.6.1-test.jar
                         // - lucene-core-9.11.0-snapshot-8a555eb.jar
-                        // - zstd-jni-1.5.5-5.jar
+                        // - zstd-jni-1.5.6-1.jar
                         jarsWithPossibleClassifiers.put(codebase, matcher.group(2));
                     } else {
                         String property = "codebase." + name;

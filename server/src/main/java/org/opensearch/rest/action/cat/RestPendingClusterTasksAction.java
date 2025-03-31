@@ -34,13 +34,13 @@ package org.opensearch.rest.action.cat;
 
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.PendingClusterTask;
 import org.opensearch.common.Table;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.List;
 

@@ -12,7 +12,6 @@ import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterStateApplier;
@@ -28,6 +27,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
 
 import java.util.Collection;
 import java.util.List;

@@ -72,7 +72,9 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1).build()
         );
         ensureYellowAndNoInitializingShards(RESTORED_INDEX_NAME);
-        internalCluster().startDataOnlyNode();
+
+        internalCluster().startSearchOnlyNode();
+
         ensureGreen(RESTORED_INDEX_NAME);
         assertEquals(1, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
 
@@ -80,7 +82,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         assertHitCount(resp, DOC_COUNT);
     }
 
-    public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnDocRep() throws Exception {
+    public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnDocRep() {
         bootstrapIndexWithSearchReplicas();
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
@@ -98,7 +100,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
     }
 
     private void bootstrapIndexWithOutSearchReplicas(ReplicationType replicationType) throws InterruptedException {
-        startCluster(2);
+        internalCluster().startNodes(2);
 
         Settings settings = Settings.builder()
             .put(super.indexSettings())
@@ -114,8 +116,9 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         ensureGreen(INDEX_NAME);
     }
 
-    private void bootstrapIndexWithSearchReplicas() throws InterruptedException {
-        startCluster(3);
+    private void bootstrapIndexWithSearchReplicas() {
+        internalCluster().startNodes(2);
+        internalCluster().startSearchOnlyNode();
 
         Settings settings = Settings.builder()
             .put(super.indexSettings())
@@ -126,16 +129,12 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             .build();
 
         createIndex(INDEX_NAME, settings);
+
         ensureGreen(INDEX_NAME);
         for (int i = 0; i < DOC_COUNT; i++) {
             client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
         }
         flushAndRefresh(INDEX_NAME);
-    }
-
-    private void startCluster(int numOfNodes) {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(numOfNodes);
     }
 
     private void createRepoAndSnapshot(String repositoryName, String repositoryType, String snapshotName, String indexName) {

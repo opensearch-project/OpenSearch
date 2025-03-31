@@ -34,11 +34,11 @@ package org.opensearch.action.admin.indices.rollover;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport request to rollover an index.

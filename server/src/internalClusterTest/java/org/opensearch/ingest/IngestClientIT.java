@@ -52,7 +52,6 @@ import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.update.UpdateRequest;
-import org.opensearch.client.Requests;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -60,6 +59,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.transport.client.Requests;
 import org.hamcrest.MatcherAssert;
 
 import java.util.Arrays;

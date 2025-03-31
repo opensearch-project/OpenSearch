@@ -449,7 +449,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     private void decryptLegacyEntries() throws GeneralSecurityException, IOException {
         // v1 and v2 keystores never had passwords actually used, so we always use an empty password
-        KeyStore keystore = KeyStore.getInstance("PKCS12");
+        KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
         Map<String, EntryType> settingTypes = new HashMap<>();
         ByteArrayInputStream inputBytes = new ByteArrayInputStream(dataBytes);
         try (DataInputStream input = new DataInputStream(inputBytes)) {
@@ -488,7 +488,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
         // fill in the entries now that we know all the types to expect
         this.entries.set(new HashMap<>());
-        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBE");
+        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBE", "SunJCE");
         KeyStore.PasswordProtection password = new KeyStore.PasswordProtection("".toCharArray());
 
         for (Map.Entry<String, EntryType> settingEntry : settingTypes.entrySet()) {

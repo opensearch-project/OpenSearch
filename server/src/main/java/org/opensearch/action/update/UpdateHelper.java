@@ -38,7 +38,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -61,6 +60,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.UpdateScript;
 import org.opensearch.search.lookup.SourceLookup;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Collections;

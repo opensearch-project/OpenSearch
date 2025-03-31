@@ -49,7 +49,6 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.lucene.util.automaton.MinimizationOperations;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
 import java.util.List;
@@ -114,7 +113,7 @@ class ReindexValidator {
             return new CharacterRunAutomaton(Automata.makeEmpty());
         }
         Automaton automaton = Regex.simpleMatchToAutomaton(allowlist.toArray(Strings.EMPTY_ARRAY));
-        automaton = MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        automaton = Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         if (Operations.isTotal(automaton)) {
             throw new IllegalArgumentException(
                 "Refusing to start because allowlist "

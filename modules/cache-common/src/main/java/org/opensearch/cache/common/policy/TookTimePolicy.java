@@ -13,15 +13,13 @@
 
 package org.opensearch.cache.common.policy;
 
-import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.function.Function;
 import java.util.function.Predicate;
-
-import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 
 /**
  * A cache tier policy which accepts queries whose took time is greater than some threshold.
@@ -46,20 +44,20 @@ public class TookTimePolicy<V> implements Predicate<V> {
      * @param threshold the threshold
      * @param cachedResultParser the function providing policy values
      * @param clusterSettings cluster settings
-     * @param cacheType cache type
+     * @param targetSetting the cluster setting to register a consumer with
      */
     public TookTimePolicy(
         TimeValue threshold,
         Function<V, CachedQueryResult.PolicyValues> cachedResultParser,
         ClusterSettings clusterSettings,
-        CacheType cacheType
+        Setting<TimeValue> targetSetting
     ) {
         if (threshold.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("Threshold for TookTimePolicy must be >= 0ms but was " + threshold.getStringRep());
         }
         this.threshold = threshold;
         this.cachedResultParser = cachedResultParser;
-        clusterSettings.addSettingsUpdateConsumer(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(cacheType), this::setThreshold);
+        clusterSettings.addSettingsUpdateConsumer(targetSetting, this::setThreshold);
     }
 
     private void setThreshold(TimeValue threshold) {
@@ -72,6 +70,10 @@ public class TookTimePolicy<V> implements Predicate<V> {
      * @return whether to admit the data
      */
     public boolean test(V data) {
+        if (threshold.equals(TimeValue.ZERO)) {
+            // Skip parsing the took time if this threshold is zero.
+            return true;
+        }
         long tookTimeNanos;
         try {
             tookTimeNanos = cachedResultParser.apply(data).getTookTimeNanos();

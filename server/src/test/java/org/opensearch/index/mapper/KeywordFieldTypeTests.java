@@ -114,7 +114,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         expected = AutomatonQueries.createAutomatonQuery(
             term,
-            AutomatonQueries.toCaseInsensitiveString("foo", Integer.MAX_VALUE),
+            AutomatonQueries.toCaseInsensitiveString("foo"),
             MultiTermQuery.DOC_VALUES_REWRITE
         );
         assertEquals(expected, ft.termQueryCaseInsensitive("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));

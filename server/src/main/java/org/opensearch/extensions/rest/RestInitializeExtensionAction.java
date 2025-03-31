@@ -9,7 +9,6 @@
 package org.opensearch.extensions.rest;
 
 import org.opensearch.Version;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -26,6 +25,7 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.transport.ConnectTransportException;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.ArrayList;

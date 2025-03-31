@@ -81,29 +81,29 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
 
     private static final Index INDEX = new Index("testIndex", "testUUID");
     private Settings dataClusterManagerSettings;
-    private Settings dataSearchClusterManagerSettings;
+    private Settings dataWarmClusterManagerSettings;
     private Environment environment;
     private Path[] nodePaths;
-    private Settings dataSearchNoClusterManagerSettings;
+    private Settings dataWarmNoClusterManagerSettings;
     private Settings noDataNoClusterManagerSettings;
     private Settings noDataClusterManagerSettings;
-    private Settings searchNoDataNoClusterManagerSettings;
-    private Settings noSearchNoClusterManagerSettings;
+    private Settings warmNoDataNoClusterManagerSettings;
+    private Settings noWarmNoClusterManagerSettings;
 
     @Before
     public void createNodePaths() throws IOException {
         dataClusterManagerSettings = buildEnvSettings(Settings.EMPTY);
-        Settings defaultSearchSettings = Settings.builder()
+        Settings defaultWarmSettings = Settings.builder()
             .put(dataClusterManagerSettings)
             .put(NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(16, ByteSizeUnit.GB).toString())
             .build();
 
-        searchNoDataNoClusterManagerSettings = onlyRole(dataClusterManagerSettings, DiscoveryNodeRole.SEARCH_ROLE);
-        dataSearchClusterManagerSettings = addRoles(defaultSearchSettings, Set.of(DiscoveryNodeRole.SEARCH_ROLE));
+        warmNoDataNoClusterManagerSettings = onlyRole(dataClusterManagerSettings, DiscoveryNodeRole.WARM_ROLE);
+        dataWarmClusterManagerSettings = addRoles(defaultWarmSettings, Set.of(DiscoveryNodeRole.WARM_ROLE));
         noDataClusterManagerSettings = clusterManagerNode(nonDataNode(dataClusterManagerSettings));
 
-        dataSearchNoClusterManagerSettings = nonClusterManagerNode(dataSearchClusterManagerSettings);
-        noSearchNoClusterManagerSettings = nonClusterManagerNode(defaultSearchSettings);
+        dataWarmNoClusterManagerSettings = nonClusterManagerNode(dataWarmClusterManagerSettings);
+        noWarmNoClusterManagerSettings = nonClusterManagerNode(defaultWarmSettings);
 
         noDataNoClusterManagerSettings = removeRoles(
             dataClusterManagerSettings,
@@ -132,8 +132,8 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
     public void testEarlyExitNoCleanup() throws Exception {
         createIndexDataFiles(dataClusterManagerSettings, randomInt(10), randomBoolean());
 
-        verifyNoQuestions(dataSearchClusterManagerSettings, containsString(NO_CLEANUP));
-        verifyNoQuestions(dataSearchNoClusterManagerSettings, containsString(NO_CLEANUP));
+        verifyNoQuestions(dataWarmClusterManagerSettings, containsString(NO_CLEANUP));
+        verifyNoQuestions(dataWarmNoClusterManagerSettings, containsString(NO_CLEANUP));
     }
 
     public void testNothingToCleanup() throws Exception {
@@ -156,7 +156,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
 
         verifyNoQuestions(noDataNoClusterManagerSettings, containsString(NO_DATA_TO_CLEAN_UP_FOUND));
         verifyNoQuestions(noDataClusterManagerSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
-        verifyNoQuestions(noSearchNoClusterManagerSettings, containsString(NO_FILE_CACHE_DATA_TO_CLEAN_UP_FOUND));
+        verifyNoQuestions(noWarmNoClusterManagerSettings, containsString(NO_FILE_CACHE_DATA_TO_CLEAN_UP_FOUND));
 
         createIndexDataFiles(dataClusterManagerSettings, 0, randomBoolean());
 
@@ -227,11 +227,11 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         new NodeEnvironment(noDataClusterManagerSettings, environment).close();
     }
 
-    public void testCleanupSearchNode() throws Exception {
+    public void testCleanupWarmNode() throws Exception {
         int shardCount = randomIntBetween(1, 10);
         boolean verbose = randomBoolean();
         boolean hasClusterState = randomBoolean();
-        createIndexDataFiles(searchNoDataNoClusterManagerSettings, shardCount, hasClusterState, true);
+        createIndexDataFiles(warmNoDataNoClusterManagerSettings, shardCount, hasClusterState, true);
 
         Matcher<String> matcher = allOf(
             containsString(NodeRepurposeCommand.shardMessage(shardCount, 1)),
@@ -251,11 +251,11 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         new NodeEnvironment(dataClusterManagerSettings, environment).close();
     }
 
-    public void testCleanupSearchClusterManager() throws Exception {
+    public void testCleanupWarmClusterManager() throws Exception {
         int shardCount = randomIntBetween(1, 10);
         boolean verbose = randomBoolean();
         boolean hasClusterState = randomBoolean();
-        createIndexDataFiles(dataSearchClusterManagerSettings, shardCount, hasClusterState, true);
+        createIndexDataFiles(dataWarmClusterManagerSettings, shardCount, hasClusterState, true);
 
         String messageText = NodeRepurposeCommand.noClusterManagerMessage(1, shardCount, 0);
 
@@ -266,23 +266,23 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
             conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
         );
 
-        verifyUnchangedOnAbort(noSearchNoClusterManagerSettings, matcher, verbose);
+        verifyUnchangedOnAbort(noWarmNoClusterManagerSettings, matcher, verbose);
 
         // verify test setup
-        expectThrows(IllegalStateException.class, () -> new NodeEnvironment(noSearchNoClusterManagerSettings, environment).close());
+        expectThrows(IllegalStateException.class, () -> new NodeEnvironment(noWarmNoClusterManagerSettings, environment).close());
 
-        verifySuccess(noSearchNoClusterManagerSettings, matcher, verbose);
+        verifySuccess(noWarmNoClusterManagerSettings, matcher, verbose);
 
         // verify clean.
-        new NodeEnvironment(noSearchNoClusterManagerSettings, environment).close();
+        new NodeEnvironment(noWarmNoClusterManagerSettings, environment).close();
     }
 
     public void testCleanupAll() throws Exception {
         int shardCount = randomIntBetween(1, 10);
         boolean verbose = randomBoolean();
         boolean hasClusterState = randomBoolean();
-        createIndexDataFiles(dataSearchClusterManagerSettings, shardCount, hasClusterState, false);
-        createIndexDataFiles(dataSearchClusterManagerSettings, shardCount, hasClusterState, true);
+        createIndexDataFiles(dataWarmClusterManagerSettings, shardCount, hasClusterState, false);
+        createIndexDataFiles(dataWarmClusterManagerSettings, shardCount, hasClusterState, true);
 
         // environment.dataFiles().length * shardCount will account for the local shard files
         // + shardCount will account for the additional file cache shard files.

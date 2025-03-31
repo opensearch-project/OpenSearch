@@ -37,7 +37,7 @@ import org.opensearch.action.index.IndexAction;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Builder for reindex requests

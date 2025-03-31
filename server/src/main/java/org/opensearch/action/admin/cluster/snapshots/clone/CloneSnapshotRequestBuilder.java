@@ -36,9 +36,9 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport request builder for cloning a snapshot

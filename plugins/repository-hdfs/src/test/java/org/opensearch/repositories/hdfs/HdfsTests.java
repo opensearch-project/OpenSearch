@@ -35,7 +35,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -47,6 +46,7 @@ import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.util.Collection;
 

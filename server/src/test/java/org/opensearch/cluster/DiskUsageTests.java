@@ -135,8 +135,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
         CommonStats commonStats1 = new CommonStats();
         commonStats1.store = new StoreStats(1000, 0L);
         ShardStats[] stats = new ShardStats[] {
-            new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0, null, null, null),
-            new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1, null, null, null) };
+            new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0, null, null, null, null),
+            new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1, null, null, null, null) };
         final Map<String, Long> shardSizes = new HashMap<>();
         final Map<ShardRouting, String> routingToPath = new HashMap<>();
         InternalClusterInfoService.buildShardLevelInfo(logger, stats, shardSizes, routingToPath, new HashMap<>());

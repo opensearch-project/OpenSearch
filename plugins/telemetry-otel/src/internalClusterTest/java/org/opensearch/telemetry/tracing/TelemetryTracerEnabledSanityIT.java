@@ -8,7 +8,6 @@
 
 package org.opensearch.telemetry.tracing;
 
-import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
@@ -22,6 +21,7 @@ import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly
 import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
 import org.opensearch.test.telemetry.tracing.validators.NumberOfTraceIDsEqualToRequests;
 import org.opensearch.test.telemetry.tracing.validators.TotalRootSpansEqualToRequests;
+import org.opensearch.transport.client.Client;
 
 import java.util.Arrays;
 import java.util.Collection;

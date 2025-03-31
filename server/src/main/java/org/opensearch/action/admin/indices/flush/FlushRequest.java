@@ -37,6 +37,8 @@ import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.transport.client.IndicesAdminClient;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 
@@ -47,10 +49,10 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * by flushing data to the index storage and clearing the internal transaction log. By default, OpenSearch uses
  * memory heuristics in order to automatically trigger flush operations as required in order to clear memory.
  * <p>
- * Best created with {@link org.opensearch.client.Requests#flushRequest(String...)}.
+ * Best created with {@link Requests#flushRequest(String...)}.
  *
- * @see org.opensearch.client.Requests#flushRequest(String...)
- * @see org.opensearch.client.IndicesAdminClient#flush(FlushRequest)
+ * @see Requests#flushRequest(String...)
+ * @see IndicesAdminClient#flush(FlushRequest)
  * @see FlushResponse
  *
  * @opensearch.api

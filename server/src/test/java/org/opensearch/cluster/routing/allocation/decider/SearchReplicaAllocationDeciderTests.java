@@ -42,7 +42,6 @@ import java.util.Set;
 
 import static org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -50,15 +49,9 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTestCase {
 
     public void testSearchReplicaRoutingDedicatedIncludes() {
-        // we aren't using a settingsModule here so we need to set feature flag gated setting
         Set<Setting<?>> settings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settings.add(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), settings);
-        Settings initialSettings = Settings.builder()
-            .put("cluster.routing.allocation.search.replica.dedicated.include._id", "node1,node2")
-            .build();
-
-        SearchReplicaAllocationDecider filterAllocationDecider = new SearchReplicaAllocationDecider(initialSettings, clusterSettings);
+        SearchReplicaAllocationDecider filterAllocationDecider = new SearchReplicaAllocationDecider();
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             Arrays.asList(
                 filterAllocationDecider,
@@ -102,59 +95,59 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
         );
 
+        // Tests for canAllocate
+        // Can allocate searchReplica on search node
         Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
             searchReplica,
             state.getRoutingNodes().node("node2"),
             allocation
         );
         assertEquals(decision.toString(), Decision.Type.YES, decision.type());
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(searchReplica, state.getRoutingNodes().node("node1"), allocation);
-        assertEquals(decision.toString(), Decision.Type.YES, decision.type());
 
+        // Cannot allocate searchReplica on data node
+        decision = (Decision.Single) filterAllocationDecider.canAllocate(searchReplica, state.getRoutingNodes().node("node1"), allocation);
+        assertEquals(decision.toString(), Decision.Type.NO, decision.type());
+
+        // Cannot allocate regularReplica on search node
         decision = (Decision.Single) filterAllocationDecider.canAllocate(regularReplica, state.getRoutingNodes().node("node2"), allocation);
         assertEquals(decision.toString(), Decision.Type.NO, decision.type());
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(regularReplica, state.getRoutingNodes().node("node1"), allocation);
-        assertEquals(decision.toString(), Decision.Type.NO, decision.type());
 
+        // Can allocate regularReplica on data node
+        decision = (Decision.Single) filterAllocationDecider.canAllocate(regularReplica, state.getRoutingNodes().node("node1"), allocation);
+        assertEquals(decision.toString(), Decision.Type.YES, decision.type());
+
+        // Can allocate primary on data node
         decision = (Decision.Single) filterAllocationDecider.canAllocate(primary, state.getRoutingNodes().node("node1"), allocation);
-        assertEquals(decision.toString(), Decision.Type.NO, decision.type());
+        assertEquals(decision.toString(), Decision.Type.YES, decision.type());
+
+        // Cannot allocate primary on search node
         decision = (Decision.Single) filterAllocationDecider.canAllocate(primary, state.getRoutingNodes().node("node2"), allocation);
         assertEquals(decision.toString(), Decision.Type.NO, decision.type());
 
-        Settings updatedSettings = Settings.builder()
-            .put("cluster.routing.allocation.search.replica.dedicated.include._id", "node2")
-            .build();
-        clusterSettings.applySettings(updatedSettings);
-
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(searchReplica, state.getRoutingNodes().node("node2"), allocation);
+        // Tests for canRemain
+        decision = (Decision.Single) filterAllocationDecider.canRemain(searchReplica, state.getRoutingNodes().node("node2"), allocation);
         assertEquals(decision.toString(), Decision.Type.YES, decision.type());
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(searchReplica, state.getRoutingNodes().node("node1"), allocation);
-        assertEquals(decision.toString(), Decision.Type.NO, decision.type());
+
         decision = (Decision.Single) filterAllocationDecider.canRemain(searchReplica, state.getRoutingNodes().node("node1"), allocation);
         assertEquals(decision.toString(), Decision.Type.NO, decision.type());
 
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(regularReplica, state.getRoutingNodes().node("node2"), allocation);
+        decision = (Decision.Single) filterAllocationDecider.canRemain(regularReplica, state.getRoutingNodes().node("node2"), allocation);
         assertEquals(decision.toString(), Decision.Type.NO, decision.type());
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(regularReplica, state.getRoutingNodes().node("node1"), allocation);
-        assertEquals(decision.toString(), Decision.Type.YES, decision.type());
+
         decision = (Decision.Single) filterAllocationDecider.canRemain(regularReplica, state.getRoutingNodes().node("node1"), allocation);
         assertEquals(decision.toString(), Decision.Type.YES, decision.type());
 
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(primary, state.getRoutingNodes().node("node1"), allocation);
-        assertEquals(decision.toString(), Decision.Type.YES, decision.type());
-        decision = (Decision.Single) filterAllocationDecider.canAllocate(primary, state.getRoutingNodes().node("node2"), allocation);
-        assertEquals(decision.toString(), Decision.Type.NO, decision.type());
         decision = (Decision.Single) filterAllocationDecider.canRemain(primary, state.getRoutingNodes().node("node1"), allocation);
         assertEquals(decision.toString(), Decision.Type.YES, decision.type());
+
+        decision = (Decision.Single) filterAllocationDecider.canRemain(primary, state.getRoutingNodes().node("node2"), allocation);
+        assertEquals(decision.toString(), Decision.Type.NO, decision.type());
     }
 
     public void testSearchReplicaWithThrottlingDecider_PrimaryBasedReplication() {
         TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         // throttle outgoing on primary
         AllocationService strategy = createAllocationService(Settings.EMPTY, gatewayAllocator);
-
-        Set<Setting<?>> settings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settings.add(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING);
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
@@ -208,8 +201,6 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
     public void testSearchReplicaWithThrottlingDeciderWithoutPrimary_RemoteStoreEnabled() {
         TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         AllocationService strategy = createAllocationService(Settings.EMPTY, gatewayAllocator);
-        Set<Setting<?>> settings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settings.add(SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING);
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
