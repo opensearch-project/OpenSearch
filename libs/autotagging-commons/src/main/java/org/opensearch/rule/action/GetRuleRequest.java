@@ -34,12 +34,22 @@ public abstract class GetRuleRequest extends ActionRequest {
     private final Map<Attribute, Set<String>> attributeFilters;
     private final String searchAfter;
 
+    /**
+     * Constructor for GetRuleRequest
+     * @param id - Rule id to get
+     * @param attributeFilters - Rules will be filtered based on the attribute-value mappings.
+     * @param searchAfter - The sort value used for pagination.
+     */
     public GetRuleRequest(String id, Map<Attribute, Set<String>> attributeFilters, String searchAfter) {
         this.id = id;
         this.attributeFilters = attributeFilters;
         this.searchAfter = searchAfter;
     }
 
+    /**
+     * Constructs a GetRuleRequest from a StreamInput for deserialization
+     * @param in - The {@link StreamInput} instance to read from.
+     */
     public GetRuleRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readOptionalString();
@@ -65,14 +75,23 @@ public abstract class GetRuleRequest extends ActionRequest {
      */
     protected abstract FeatureType retrieveFeatureTypeInstance();
 
+    /**
+     * id getter
+     */
     public String getId() {
         return id;
     }
 
+    /**
+     * attributeFilters getter
+     */
     public Map<Attribute, Set<String>> getAttributeFilters() {
         return attributeFilters;
     }
 
+    /**
+     * searchAfter getter
+     */
     public String getSearchAfter() {
         return searchAfter;
     }

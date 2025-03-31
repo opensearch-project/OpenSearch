@@ -10,27 +10,22 @@ package org.opensearch.rule.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.action.admin.indices.create.CreateIndexRequest;
-import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.FeatureType;
 import org.opensearch.autotagging.Rule;
 import org.opensearch.autotagging.Rule.Builder;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.*;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rule.action.GetRuleResponse;
@@ -39,13 +34,11 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.HashMap;
 import java.util.stream.Collectors;
 
 import static org.opensearch.autotagging.Rule._ID_STRING;
@@ -68,6 +61,11 @@ public abstract class RulePersistenceService {
      */
     public static final int MAX_RETURN_SIZE_ALLOWED_PER_GET_REQUEST = 50;
 
+    /**
+     * Constructor for RulePersistenceService
+     * @param clusterService - The {@link ClusterService} to be used by RulePersistenceService
+     * @param client - The {@link Client} to be used by RulePersistenceService
+     */
     @Inject
     public RulePersistenceService(final ClusterService clusterService, final Client client) {
         this.clusterService = clusterService;
@@ -109,8 +107,8 @@ public abstract class RulePersistenceService {
     /**
      * Builds a bool query to retrieve rules from the rules index, applying attribute-based filters
      * when needed and ensuring that the rules are associated with the query group feature type.
-     * @param id              The ID of the rule to fetch. If not null, the search will return only this specific rule.
-     * @param attributeFilters A map of attributes to their associated set of values used to filter the rules.
+     * @param id - The ID of the rule to fetch. If not null, the search will return only this specific rule.
+     * @param attributeFilters - A map of attributes to their associated set of values used to filter the rules.
      */
     public BoolQueryBuilder buildGetRuleQuery(String id, Map<Attribute, Set<String>> attributeFilters) {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
@@ -178,20 +176,39 @@ public abstract class RulePersistenceService {
      */
     protected abstract FeatureType retrieveFeatureTypeInstance();
 
-    protected abstract <T extends GetRuleResponse> T buildGetRuleResponse(Map<String, Rule> ruleMap, String nextSearchAfter, RestStatus restStatus);
+    /**
+     * Builds a GetRuleResponse. Subclasses can override based on their own needs.
+     * @param ruleMap - The map of rules the response contains
+     * @param nextSearchAfter - The search after string containing a rule id used for pagination
+     * @param restStatus - Status of the response
+     */
+    protected abstract <T extends GetRuleResponse> T buildGetRuleResponse(
+        Map<String, Rule> ruleMap,
+        String nextSearchAfter,
+        RestStatus restStatus
+    );
 
     private ThreadContext.StoredContext getContext() {
         return client.threadPool().getThreadContext().stashContext();
     }
 
+    /**
+     * Get the max return size allowed for page for get request when pagination is needed
+     */
     public int getMaxReturnSizeAllowedPerGetRequest() {
         return MAX_RETURN_SIZE_ALLOWED_PER_GET_REQUEST;
     }
 
+    /**
+     * client getter
+     */
     public Client getClient() {
         return client;
     }
 
+    /**
+     * clusterService getter
+     */
     public ClusterService getClusterService() {
         return clusterService;
     }
