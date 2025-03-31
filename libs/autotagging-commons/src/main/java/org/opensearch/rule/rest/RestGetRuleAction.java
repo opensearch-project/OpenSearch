@@ -37,8 +37,14 @@ import static org.opensearch.autotagging.Rule._ID_STRING;
  * @opensearch.experimental
  */
 public abstract class RestGetRuleAction extends BaseRestHandler {
+    /**
+     * field name used for pagination
+     */
     public static final String SEARCH_AFTER_STRING = "search_after";
 
+    /**
+     * Constructor for RestGetRuleAction
+     */
     public RestGetRuleAction() {}
 
     @Override
@@ -74,6 +80,11 @@ public abstract class RestGetRuleAction extends BaseRestHandler {
         };
     }
 
+    /**
+     * Abstract method for subclasses to retrieve the Attribute corresponding
+     * to the attribute name.
+     * @param name - The name of the attribute to retrieve.
+     */
     protected abstract Attribute getAttributeFromName(String name);
 
     /**
@@ -81,5 +92,13 @@ public abstract class RestGetRuleAction extends BaseRestHandler {
      */
     protected abstract <T extends ActionType<? extends GetRuleResponse>> T retrieveGetRuleActionInstance();
 
+    /**
+     * Abstract method for subclasses to construct a {@link GetRuleRequest}. This method allows subclasses
+     * to define their own request-building logic depending on their specific needs.
+     *
+     * @param id - The ID of the rule to retrieve.
+     * @param attributeFilters - A map of {@link Attribute} keys to sets of string values for filtering.
+     * @param searchAfter - The pagination value to fetch the next set of results.
+     */
     protected abstract GetRuleRequest buildGetRuleRequest(String id, Map<Attribute, Set<String>> attributeFilters, String searchAfter);
 }
