@@ -46,15 +46,14 @@ public class BytesRefsCollectionBuilderTests extends OpenSearchTestCase {
         assertTrue(reverseList instanceof List<BytesRef>);
     }
 
-    @Test(expected = IllegalStateException.class)
     public void testFrozen() {
         BytesRefsCollectionBuilder builder = new BytesRefsCollectionBuilder();
         String[] seedStrings = generateRandomStringArray(5, 10, false, true);
         Arrays.stream(seedStrings).map(BytesRef::new).forEachOrdered(builder);
         Collection<BytesRef> bytesRefCollection = builder.get();
-        assertTrue(bytesRefCollection instanceof Collection<BytesRef>);
         assertNotNull(bytesRefCollection);
-        builder.accept(new BytesRef("illegal state"));
+        assertEquals(seedStrings.length, bytesRefCollection.size());
+        assertThrows(IllegalStateException.class, () -> builder.accept(new BytesRef("illegal state")));
     }
 
     private static Collection<BytesRef> assertCollectionBuilt(List<BytesRef> sortedBytesRefs) {
