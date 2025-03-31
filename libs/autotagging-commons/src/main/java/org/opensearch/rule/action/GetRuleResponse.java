@@ -45,12 +45,22 @@ public abstract class GetRuleResponse extends ActionResponse implements ToXConte
     private final String searchAfter;
     private final RestStatus restStatus;
 
+    /**
+     * Constructor for GetRuleResponse
+     * @param rules - Rules get from the request
+     * @param searchAfter - The sort value used for pagination.
+     * @param restStatus - Status of the GetRuleResponse
+     */
     public GetRuleResponse(final Map<String, Rule> rules, String searchAfter, RestStatus restStatus) {
         this.rules = rules;
         this.searchAfter = searchAfter;
         this.restStatus = restStatus;
     }
 
+    /**
+     * Constructs a GetRuleResponse from a StreamInput for deserialization
+     * @param in - The {@link StreamInput} instance to read from.
+     */
     public GetRuleResponse(StreamInput in) throws IOException {
         this(in.readMap(StreamInput::readString, Rule::new), in.readOptionalString(), RestStatus.readFrom(in));
     }
@@ -77,15 +87,17 @@ public abstract class GetRuleResponse extends ActionResponse implements ToXConte
         return builder;
     }
 
+    /**
+     * rules getter
+     */
     public Map<String, Rule> getRules() {
         return rules;
     }
 
+    /**
+     * restStatus getter
+     */
     public RestStatus getRestStatus() {
         return restStatus;
-    }
-
-    public String getSearchAfter() {
-        return searchAfter;
     }
 }
