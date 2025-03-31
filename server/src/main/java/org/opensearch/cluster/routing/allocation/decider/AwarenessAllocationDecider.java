@@ -227,7 +227,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         final String shardAttributeForNode = getAttributeValueForNode(node, awarenessAttribute);
         // Get all assigned shards of the same type
         List<ShardRouting> assignedShards = getAssignedShards(allocation, shardRouting);
-        // Count assigned shards with matching attribute values
         int currentNodeCount = 0;
         for (ShardRouting assignedShard : assignedShards) {
             if (assignedShard.started() || assignedShard.initializing()) {
@@ -244,7 +243,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         if (moveToNode) {
             if (shardRouting.assignedToNode()) {
                 String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
-
                 if (node.nodeId().equals(nodeId) == false) {
                     // we work on different nodes, move counts around
                     if (getAttributeValueForNode(allocation.routingNodes().node(nodeId), awarenessAttribute).equals(shardAttributeForNode)
