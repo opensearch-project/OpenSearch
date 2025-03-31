@@ -6,18 +6,17 @@ base {
 }
 
 configurations {
-  bootstrap.extendsFrom(implementation)
+  bootstrapConfiguration.extendsFrom(implementation)
 }
 
 dependencies {
   implementation project(":libs:agent-sm:bootstrap")
   implementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
-}
 
-var bootClasspath = configurations.bootstrap.incoming.artifactView { }.files
-  .getFiles()
-  .collect { it.name }
+  testImplementation project(":test:framework")
+  testImplementation "junit:junit:${versions.junit}"
+}
 
 jar {
   manifest {
@@ -26,7 +25,7 @@ jar {
       "Can-Retransform-Classes": "true",
       "Agent-Class": "org.opensearch.javaagent.Agent",
       "Premain-Class": "org.opensearch.javaagent.Agent",
-      "Boot-Class-Path":  bootClasspath.join(' ')
+      "Boot-Class-Path": 'byte-buddy-1.17.2.jar opensearch-agent-bootstrap-3.0.0-SNAPSHOT.jar'
     )
   }
 }
@@ -42,10 +41,20 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-task prepareAgent(type: Copy) {
-  from(configurations.runtimeClasspath)
+task copyJars(type: Copy) {
+  from configurations.runtimeClasspath
   into "$buildDir/distributions"
   dependsOn jar
+}
+
+tasks.named('test') {
+  dependsOn(copyJars)
+
+  doFirst {
+    def agentPath = jar.archiveFile.get().asFile.absolutePath
+    jvmArgs += ["-javaagent:${agentPath}"]
+    systemProperty 'javaagent.path', agentPath
+  }
 }
 
 thirdPartyAudit {
@@ -60,5 +69,5 @@ thirdPartyAudit {
 }
 
 tasks.named('validateNebulaPom') {
-  dependsOn prepareAgent
+  dependsOn copyJars
 }
