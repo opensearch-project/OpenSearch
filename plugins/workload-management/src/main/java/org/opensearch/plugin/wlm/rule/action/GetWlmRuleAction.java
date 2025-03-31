@@ -14,22 +14,22 @@ import org.opensearch.action.ActionType;
  * Action type for getting Rules in workload management
  * @opensearch.experimental
  */
-public class GetRuleAction extends ActionType<GetRuleResponse> {
+public class GetWlmRuleAction extends ActionType<GetWlmRuleResponse> {
 
     /**
-     * An instance of GetRuleAction
+     * An instance of GetWlmRuleAction
      */
-    public static final GetRuleAction INSTANCE = new GetRuleAction();
+    public static final GetWlmRuleAction INSTANCE = new GetWlmRuleAction();
 
     /**
-     * Name for GetRuleAction
+     * Name for GetWlmRuleAction
      */
     public static final String NAME = "cluster:admin/opensearch/wlm/rule/_get";
 
     /**
-     * Default constructor for GetRuleAction
+     * Default constructor for GetWlmRuleAction
      */
-    private GetRuleAction() {
-        super(NAME, GetRuleResponse::new);
+    private GetWlmRuleAction() {
+        super(NAME, GetWlmRuleResponse::new);
     }
 }
