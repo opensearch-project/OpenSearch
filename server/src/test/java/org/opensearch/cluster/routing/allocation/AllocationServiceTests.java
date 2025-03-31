@@ -77,6 +77,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_SEARCH_REPLICAS;
+import static org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus.DECIDERS_NO;
+import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -87,13 +94,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_SEARCH_REPLICAS;
-import static org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus.DECIDERS_NO;
-import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
-import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
-import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
-import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING;
 
 public class AllocationServiceTests extends OpenSearchTestCase {
 
@@ -452,27 +452,39 @@ public class AllocationServiceTests extends OpenSearchTestCase {
         );
     }
 
-
     public void testAdaptAutoExpandReplicasWhenAutoExpandChangesExists() {
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         String indexName = "index1";
         Set<DiscoveryNodeRole> SEARCH_NODE_ROLE = new HashSet<>(List.of(DiscoveryNodeRole.SEARCH_ROLE));
         Set<DiscoveryNodeRole> DATA_NODE_ROLE = new HashSet<>(List.of(DiscoveryNodeRole.DATA_ROLE));
 
-        nodesBuilder.add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE,  Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE,  Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE,  Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node4", buildNewFakeTransportAddress(), Collections.emptyMap(), SEARCH_NODE_ROLE,  Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node5", buildNewFakeTransportAddress(), Collections.emptyMap(), SEARCH_NODE_ROLE,  Version.CURRENT));
+        nodesBuilder.add(
+            new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE, Version.CURRENT)
+        );
+        nodesBuilder.add(
+            new DiscoveryNode("node2", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE, Version.CURRENT)
+        );
+        nodesBuilder.add(
+            new DiscoveryNode("node3", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE, Version.CURRENT)
+        );
+        nodesBuilder.add(
+            new DiscoveryNode("node4", buildNewFakeTransportAddress(), Collections.emptyMap(), SEARCH_NODE_ROLE, Version.CURRENT)
+        );
+        nodesBuilder.add(
+            new DiscoveryNode("node5", buildNewFakeTransportAddress(), Collections.emptyMap(), SEARCH_NODE_ROLE, Version.CURRENT)
+        );
 
         Metadata.Builder metadataBuilder = Metadata.builder()
-            .put(IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT)
-                    .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                    .put(SETTING_AUTO_EXPAND_SEARCH_REPLICAS, "0-all"))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .numberOfSearchReplicas(1));
+            .put(
+                IndexMetadata.builder(indexName)
+                    .settings(
+                        settings(Version.CURRENT).put(SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                            .put(SETTING_AUTO_EXPAND_SEARCH_REPLICAS, "0-all")
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .numberOfSearchReplicas(1)
+            );
 
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsRecovery(metadataBuilder.get("index1"));
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -502,18 +514,30 @@ public class AllocationServiceTests extends OpenSearchTestCase {
         Set<DiscoveryNodeRole> SEARCH_NODE_ROLE = Set.of(DiscoveryNodeRole.SEARCH_ROLE);
         Set<DiscoveryNodeRole> DATA_NODE_ROLE = Set.of(DiscoveryNodeRole.DATA_ROLE);
 
-        nodesBuilder.add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE,  Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE,  Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE,  Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node4", buildNewFakeTransportAddress(), Collections.emptyMap(), SEARCH_NODE_ROLE,  Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node5", buildNewFakeTransportAddress(), Collections.emptyMap(), SEARCH_NODE_ROLE,  Version.CURRENT));
+        nodesBuilder.add(
+            new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE, Version.CURRENT)
+        );
+        nodesBuilder.add(
+            new DiscoveryNode("node2", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE, Version.CURRENT)
+        );
+        nodesBuilder.add(
+            new DiscoveryNode("node3", buildNewFakeTransportAddress(), Collections.emptyMap(), DATA_NODE_ROLE, Version.CURRENT)
+        );
+        nodesBuilder.add(
+            new DiscoveryNode("node4", buildNewFakeTransportAddress(), Collections.emptyMap(), SEARCH_NODE_ROLE, Version.CURRENT)
+        );
+        nodesBuilder.add(
+            new DiscoveryNode("node5", buildNewFakeTransportAddress(), Collections.emptyMap(), SEARCH_NODE_ROLE, Version.CURRENT)
+        );
 
         Metadata.Builder metadataBuilder = Metadata.builder()
-            .put(IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .numberOfSearchReplicas(1));
+            .put(
+                IndexMetadata.builder(indexName)
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .numberOfSearchReplicas(1)
+            );
 
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsRecovery(metadataBuilder.get("index1"));
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

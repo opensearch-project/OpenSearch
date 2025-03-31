@@ -96,7 +96,12 @@ public final class AutoExpandSearchReplicas {
                 max = Integer.parseInt(sMax);
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException(
-                    "failed to parse [" + IndexMetadata.SETTING_AUTO_EXPAND_SEARCH_REPLICAS + "] from value: [" + value + "] at index " + dash,
+                    "failed to parse ["
+                        + IndexMetadata.SETTING_AUTO_EXPAND_SEARCH_REPLICAS
+                        + "] from value: ["
+                        + value
+                        + "] at index "
+                        + dash,
                     e
                 );
             }
@@ -128,7 +133,7 @@ public final class AutoExpandSearchReplicas {
         return minSearchReplicas;
     }
 
-    int getMaxSearchReplicas() {
+    public int getMaxSearchReplicas() {
         return maxSearchReplicas;
     }
 
@@ -137,7 +142,10 @@ public final class AutoExpandSearchReplicas {
     }
 
     private OptionalInt getDesiredNumberOfSearchReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
-        int numMatchingSearchNodes = (int) allocation.nodes().getDataNodes().values().stream()
+        int numMatchingSearchNodes = (int) allocation.nodes()
+            .getDataNodes()
+            .values()
+            .stream()
             .filter(DiscoveryNode::isSearchNode)
             .map(node -> allocation.deciders().shouldAutoExpandToNode(indexMetadata, node, allocation))
             .filter(decision -> decision.type() != Decision.Type.NO)
@@ -152,10 +160,7 @@ public final class AutoExpandSearchReplicas {
         int maxPossibleReplicas = Math.min(numMatchingSearchNodes, maxSearchReplicas);
 
         // Determine the number of search replicas
-        int numberOfSearchReplicas = Math.max(
-            minSearchReplicas,
-            maxPossibleReplicas
-        );
+        int numberOfSearchReplicas = Math.max(minSearchReplicas, maxPossibleReplicas);
 
         // Additional check to ensure we don't exceed max possible search replicas
         if (numberOfSearchReplicas <= maxPossibleReplicas) {
@@ -182,14 +187,14 @@ public final class AutoExpandSearchReplicas {
         for (final IndexMetadata indexMetadata : metadata) {
             if (indexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
                 AutoExpandSearchReplicas autoExpandSearchReplicas = SETTING.get(indexMetadata.getSettings());
-                if(autoExpandSearchReplicas.isEnabled()) {
+                if (autoExpandSearchReplicas.isEnabled()) {
                     autoExpandSearchReplicas.getDesiredNumberOfSearchReplicas(indexMetadata, allocation)
                         .ifPresent(numberOfSearchReplicas -> {
                             if (numberOfSearchReplicas != indexMetadata.getNumberOfSearchOnlyReplicas()) {
                                 updatedSearchReplicas.computeIfAbsent(numberOfSearchReplicas, ArrayList::new)
                                     .add(indexMetadata.getIndex().getName());
-                        }
-                    });
+                            }
+                        });
                 }
             }
         }

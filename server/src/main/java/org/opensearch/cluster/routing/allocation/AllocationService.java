@@ -92,7 +92,6 @@ import static org.opensearch.cluster.routing.allocation.ExistingShardsAllocator.
  *
  * @opensearch.internal
  */
-//update
 public class AllocationService {
 
     private static final Logger logger = LogManager.getLogger(AllocationService.class);

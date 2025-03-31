@@ -40,7 +40,8 @@ public class AutoExpandReplicasIT extends OpenSearchIntegTestCase {
         assertEquals(2, numShards.totalNumShards);
 
         // Enable Auto expand on the index
-        client().admin().indices()
+        client().admin()
+            .indices()
             .prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put("index.auto_expand_replicas", "0-all"))
             .get();

@@ -35,7 +35,6 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -43,11 +42,8 @@ import org.opensearch.common.settings.Settings;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class AutoExpandSearchReplicasTests extends OpenSearchAllocationTestCase {
 
@@ -58,11 +54,15 @@ public class AutoExpandSearchReplicasTests extends OpenSearchAllocationTestCase 
         assertEquals(0, autoExpandSearchReplicas.getMinSearchReplicas());
         assertEquals(5, autoExpandSearchReplicas.getMaxSearchReplicas());
 
-        autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(Settings.builder().put("index.auto_expand_search_replicas", "0-all").build());
+        autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(
+            Settings.builder().put("index.auto_expand_search_replicas", "0-all").build()
+        );
         assertEquals(0, autoExpandSearchReplicas.getMinSearchReplicas());
         assertEquals(Integer.MAX_VALUE, autoExpandSearchReplicas.getMaxSearchReplicas());
 
-        autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(Settings.builder().put("index.auto_expand_search_replicas", "1-all").build());
+        autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(
+            Settings.builder().put("index.auto_expand_search_replicas", "1-all").build()
+        );
         assertEquals(1, autoExpandSearchReplicas.getMinSearchReplicas());
         assertEquals(Integer.MAX_VALUE, autoExpandSearchReplicas.getMaxSearchReplicas());
     }
@@ -88,7 +88,10 @@ public class AutoExpandSearchReplicasTests extends OpenSearchAllocationTestCase 
         throwable = assertThrows(IllegalArgumentException.class, () -> {
             AutoExpandSearchReplicas.SETTING.get(Settings.builder().put("index.auto_expand_search_replicas", "2-1").build());
         });
-        assertEquals("[index.auto_expand_search_replicas] minSearchReplicas must be =< maxSearchReplicas but wasn't 2 > 1", throwable.getMessage());
+        assertEquals(
+            "[index.auto_expand_search_replicas] minSearchReplicas must be =< maxSearchReplicas but wasn't 2 > 1",
+            throwable.getMessage()
+        );
     }
 
     public void testCalculateNumberOfSearchReplicas() {
@@ -126,11 +129,12 @@ public class AutoExpandSearchReplicasTests extends OpenSearchAllocationTestCase 
 
     public void testGetAutoExpandReplicaChanges() {
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test")
-                .settings(settings(Version.CURRENT).put("index.auto_expand_search_replicas", "0-all"))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .numberOfSearchReplicas(1)
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT).put("index.auto_expand_search_replicas", "0-all"))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .numberOfSearchReplicas(1)
             )
             .build();
 
@@ -138,11 +142,13 @@ public class AutoExpandSearchReplicasTests extends OpenSearchAllocationTestCase 
         ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(initialRoutingTable)
-            .nodes(DiscoveryNodes.builder()
-                .add(createNode(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.DATA_ROLE))
-                .add(createNode(DiscoveryNodeRole.SEARCH_ROLE))
-                .add(createNode(DiscoveryNodeRole.SEARCH_ROLE))
-                .build())
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(), SEARCH_ROLE, Version.CURRENT))
+                    .add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Collections.emptyMap(), SEARCH_ROLE, Version.CURRENT))
+                    .add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Collections.emptyMap(), SEARCH_ROLE, Version.CURRENT))
+                    .build()
+            )
             .build();
 
         RoutingAllocation allocation = new RoutingAllocation(
@@ -156,11 +162,4 @@ public class AutoExpandSearchReplicasTests extends OpenSearchAllocationTestCase 
 
         assertEquals(Map.of(3, List.of("test")), AutoExpandSearchReplicas.getAutoExpandSearchReplicaChanges(metadata, allocation));
     }
-
-    private static final AtomicInteger nodeIdGenerator = new AtomicInteger();
-
-    protected DiscoveryNode createNode(DiscoveryNodeRole... roles) {
-        final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), Set.of(roles), Version.CURRENT);
-    }
- }
+}

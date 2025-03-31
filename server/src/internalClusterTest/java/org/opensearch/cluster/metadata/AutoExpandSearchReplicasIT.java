@@ -52,10 +52,10 @@ public class AutoExpandSearchReplicasIT extends RemoteStoreBaseIntegTestCase {
         assertBusy(() -> assertEquals(1, getNumShards(indexName).numSearchReplicas));
 
         // Enable auto expand for search replica
-        client().admin().indices()
+        client().admin()
+            .indices()
             .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder()
-                .put("index.auto_expand_search_replicas", "0-all"))
+            .setSettings(Settings.builder().put("index.auto_expand_search_replicas", "0-all"))
             .get();
 
         // Add 2 more search nodes

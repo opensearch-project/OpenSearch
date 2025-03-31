@@ -141,7 +141,10 @@ public final class AutoExpandReplicas {
 
     private OptionalInt getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         if (enabled) {
-            int numMatchingDataNodes = (int) allocation.nodes().getDataNodes().values().stream()
+            int numMatchingDataNodes = (int) allocation.nodes()
+                .getDataNodes()
+                .values()
+                .stream()
                 .filter(node -> node.isSearchNode() == false && node.isWarmNode() == false)
                 .map(node -> allocation.deciders().shouldAutoExpandToNode(indexMetadata, node, allocation))
                 .filter(decision -> decision.type() != Decision.Type.NO)
