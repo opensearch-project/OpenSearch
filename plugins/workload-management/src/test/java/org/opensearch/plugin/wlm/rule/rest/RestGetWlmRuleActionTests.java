@@ -1,3 +1,4 @@
+
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -15,12 +16,12 @@ import java.util.List;
 
 import static org.opensearch.rest.RestRequest.Method.GET;
 
-public class RestGetRuleActionTests extends OpenSearchTestCase {
+public class RestGetWlmRuleActionTests extends OpenSearchTestCase {
     /**
      * Test case to validate the construction for RestGetRuleAction
      */
     public void testConstruction() {
-        RestGetRuleAction action = new RestGetRuleAction();
+        RestGetWlmRuleAction action = new RestGetWlmRuleAction();
         assertNotNull(action);
         assertEquals("get_rule", action.getName());
         List<RestHandler.Route> routes = action.routes();
