@@ -10,6 +10,7 @@ package org.opensearch.secure_sm.policy;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLEncoder;
 import java.security.GeneralSecurityException;
 
 /**
@@ -80,10 +81,10 @@ public class PropertyExpander {
                             // at the beginning of the string buffer
                             try {
                                 if (sb.length() > 0 || !(new URI(val)).isAbsolute()) {
-                                    val = ParseUtil.encodePath(val);
+                                    val = URLEncoder.encode(val);
                                 }
                             } catch (URISyntaxException use) {
-                                val = ParseUtil.encodePath(val);
+                                val = URLEncoder.encode(val);
                             }
                         }
                         sb.append(val);

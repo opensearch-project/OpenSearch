@@ -20,6 +20,7 @@ import java.net.MalformedURLException;
 import java.net.NetPermission;
 import java.net.SocketPermission;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.CodeSource;
 import java.security.Permission;
@@ -112,10 +113,11 @@ public class PolicyFile extends java.security.Policy {
         return;
     }
 
+    @SuppressWarnings("deprecation")
     public static InputStream getInputStream(URL url) throws IOException {
         if ("file".equals(url.getProtocol())) {
             String path = url.getFile().replace('/', File.separatorChar);
-            path = ParseUtil.decode(path);
+            path = URLDecoder.decode(path);
             return new FileInputStream(path);
         } else {
             return url.openStream();
