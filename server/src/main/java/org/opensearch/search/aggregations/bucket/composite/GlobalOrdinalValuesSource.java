@@ -165,16 +165,15 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
-        // Get the DocValues for this segment/leaf of the index
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
-
-        // Initialize lookup table for ordinals if not already done
         if (lookup == null) {
             initLookup(dvs);
         }
 
+        // unwrapSingleton() returns non-null only if the field is single-valued
         final SortedDocValues singleton = DocValues.unwrapSingleton(dvs);
 
+        // Optimization path: Field is confirmed to be single-valued
         if (singleton != null) {
             return new LeafBucketCollector() {
                 @Override
