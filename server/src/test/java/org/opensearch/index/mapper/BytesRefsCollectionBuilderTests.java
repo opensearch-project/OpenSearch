@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
+import java.util.stream.Stream;
 
 public class BytesRefsCollectionBuilderTests extends OpenSearchTestCase {
 
@@ -28,7 +29,7 @@ public class BytesRefsCollectionBuilderTests extends OpenSearchTestCase {
         assertCollectionBuilt(bytesRefList);
 
         assertTrue(sortedSet instanceof SortedSet<BytesRef>);
-        assertTrue(((SortedSet<BytesRef>) sortedSet).comparator() == null);
+        assertNull(((SortedSet<BytesRef>) sortedSet).comparator());
     }
 
     public void testBuildFooBar() {
@@ -40,7 +41,7 @@ public class BytesRefsCollectionBuilderTests extends OpenSearchTestCase {
         Collection<BytesRef> reverseList = assertCollectionBuilt(bytesRefList);
 
         assertTrue(sortedSet instanceof SortedSet<BytesRef>);
-        assertTrue(((SortedSet<BytesRef>) sortedSet).comparator() == null);
+        assertNull(((SortedSet<BytesRef>) sortedSet).comparator());
 
         assertTrue(reverseList instanceof List<BytesRef>);
     }
@@ -53,6 +54,7 @@ public class BytesRefsCollectionBuilderTests extends OpenSearchTestCase {
         assertNotNull(bytesRefCollection);
         assertEquals(seedStrings.length, bytesRefCollection.size());
         assertThrows(IllegalStateException.class, () -> builder.accept(new BytesRef("illegal state")));
+        assertSame(bytesRefCollection, builder.get());
     }
 
     private static Collection<BytesRef> assertCollectionBuilt(List<BytesRef> sortedBytesRefs) {
@@ -65,5 +67,16 @@ public class BytesRefsCollectionBuilderTests extends OpenSearchTestCase {
             assertTrue(iterator.next().bytesEquals(iterator2.next()));
         }
         return bytesRefCollection;
+    }
+
+    public void testCoverUnsupported() {
+        BytesRefsCollectionBuilder builder = new BytesRefsCollectionBuilder();
+        Stream.of("in", "order").map(BytesRef::new).forEachOrdered(builder);
+        SortedSet<BytesRef> bytesRefCollection = (SortedSet<BytesRef>) builder.get();
+        assertThrows(UnsupportedOperationException.class, () -> bytesRefCollection.subSet(new BytesRef("a"), new BytesRef("z")));
+        assertThrows(UnsupportedOperationException.class, () -> bytesRefCollection.headSet(new BytesRef("a")));
+        assertThrows(UnsupportedOperationException.class, () -> bytesRefCollection.tailSet(new BytesRef("a")));
+        assertThrows(UnsupportedOperationException.class, bytesRefCollection::first);
+        assertThrows(UnsupportedOperationException.class, bytesRefCollection::last);
     }
 }

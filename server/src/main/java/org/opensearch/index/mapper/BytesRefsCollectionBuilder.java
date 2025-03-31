@@ -29,10 +29,10 @@ import java.util.function.Supplier;
  */
 public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<Collection<BytesRef>> {
 
-    private interface BytesCollector extends Function<BytesRef, BytesCollector>, Supplier<Collection<BytesRef>> {}
+    protected interface CollectorStrategy extends Function<BytesRef, CollectorStrategy>, Supplier<Collection<BytesRef>> {}
 
-    private final List<BytesRef> terms = new ArrayList<>();
-    private BytesCollector delegate = new Start();
+    protected final List<BytesRef> terms = new ArrayList<>();
+    protected CollectorStrategy delegate = createStartStrategy();
 
     @Override
     public void accept(BytesRef bytesRef) {
@@ -42,79 +42,78 @@ public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<
     @Override
     public Collection<BytesRef> get() {
         Collection<BytesRef> result = delegate.get();
-        delegate = new Frozen(result);
+        delegate = createFrozenStrategy(result);
         return result;
     }
 
-    private class Start implements BytesCollector {
-        @Override
-        public BytesCollector apply(BytesRef firstBytes) {
-            terms.add(firstBytes); // firstly, just store
-            return new Sorted(firstBytes);
-        }
-
-        @Override
-        public Collection<BytesRef> get() {
-            return terms; // empty list
-        }
-    }
-
-    private class Sorted implements BytesCollector {
-        BytesRef prev;
-
-        public Sorted(BytesRef firstBytes) {
-            prev = firstBytes;
-        }
-
-        @Override
-        public BytesCollector apply(BytesRef bytesRef) {
-            terms.add(bytesRef);
-            if (bytesRef.compareTo(prev) >= 0) { // keep checking sorted
-                prev = bytesRef;
-                return this;
-            } else { // isn't sorted
-                return new NotSorted();
+    protected CollectorStrategy createStartStrategy() {
+        return new CollectorStrategy() {
+            @Override
+            public CollectorStrategy apply(BytesRef firstBytes) {
+                terms.add(firstBytes); // firstly, just store
+                return createSortedStrategy(firstBytes);
             }
-        }
 
-        @Override
-        public Collection<BytesRef> get() {
-            return new SortedBytesSet(terms);
-        }
+            @Override
+            public Collection<BytesRef> get() {
+                return terms; // empty list
+            }
+        };
     }
 
-    private class NotSorted implements BytesCollector {
-        @Override
-        public BytesCollector apply(BytesRef bytesRef) { // just storing
-            terms.add(bytesRef);
-            return this;
-        }
+    protected CollectorStrategy createSortedStrategy(BytesRef firstBytes) {
+        return new CollectorStrategy() {
+            BytesRef prev = firstBytes;
 
-        @Override
-        public Collection<BytesRef> get() {
-            return terms; // empty list
-        }
+            @Override
+            public CollectorStrategy apply(BytesRef bytesRef) {
+                terms.add(bytesRef);
+                if (bytesRef.compareTo(prev) >= 0) { // keep checking sorted
+                    prev = bytesRef;
+                    return this;
+                } else { // isn't sorted
+                    return createNotSortedStrategy();
+                }
+            }
+
+            @Override
+            public Collection<BytesRef> get() {
+                return new SortedBytesSet(terms);
+            }
+        };
     }
 
-    private static class Frozen implements BytesCollector {
-        private final Collection<BytesRef> result;
+    protected CollectorStrategy createNotSortedStrategy() {
+        return new CollectorStrategy() {
+            @Override
+            public CollectorStrategy apply(BytesRef bytesRef) { // just storing
+                terms.add(bytesRef);
+                return this;
+            }
 
-        public Frozen(Collection<BytesRef> result) {
-            this.result = result;
-        }
-
-        @Override
-        public BytesCollector apply(BytesRef bytesRef) {
-            throw new IllegalStateException("already build");
-        }
-
-        @Override
-        public Collection<BytesRef> get() {
-            return result;
-        }
+            @Override
+            public Collection<BytesRef> get() {
+                return terms;
+            }
+        };
     }
 
-    static class SortedBytesSet extends AbstractSet<BytesRef> implements SortedSet<BytesRef> {
+    protected CollectorStrategy createFrozenStrategy(Collection<BytesRef> result) {
+        return new CollectorStrategy() {
+
+            @Override
+            public CollectorStrategy apply(BytesRef bytesRef) {
+                throw new IllegalStateException("already build");
+            }
+
+            @Override
+            public Collection<BytesRef> get() {
+                return result;
+            }
+        };
+    }
+
+    protected static class SortedBytesSet extends AbstractSet<BytesRef> implements SortedSet<BytesRef> {
 
         private final List<BytesRef> bytesRefs;
 
