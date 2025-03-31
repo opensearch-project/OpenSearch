@@ -235,6 +235,7 @@ public class MissingDoclet extends StandardDoclet {
             case INTERFACE:
             case ENUM:
             case ANNOTATION_TYPE:
+            case RECORD:
                 if (level(element) >= CLASS) {
                     checkComment(element);
                     for (var subElement : element.getEnclosedElements()) {
@@ -343,7 +344,7 @@ public class MissingDoclet extends StandardDoclet {
         if (!isGenerated && element.getEnclosingElement() != null) {
             // check if enclosing element is generated
             return isGenerated(element.getEnclosingElement());
-        } 
+        }
 
         return isGenerated;
     }
