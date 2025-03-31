@@ -19,8 +19,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_ONE;
-import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
+import static org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils.NAME_ONE;
+import static org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils.queryGroupOne;
 
 public class UpdateQueryGroupRequestTests extends OpenSearchTestCase {
 

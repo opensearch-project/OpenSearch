@@ -12,36 +12,36 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.wlm.rule.service.RulePersistenceService;
+import org.opensearch.plugin.wlm.rule.service.WlmRulePersistenceService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 /**
- * Transport action to get Rule
+ * Transport action to get workload management Rules
  * @opensearch.experimental
  */
-public class TransportGetRuleAction extends HandledTransportAction<GetRuleRequest, GetRuleResponse> {
+public class TransportGetWlmRuleAction extends HandledTransportAction<GetWlmRuleRequest, GetWlmRuleResponse> {
 
-    private final RulePersistenceService rulePersistenceService;
+    private final WlmRulePersistenceService rulePersistenceService;
 
     /**
-     * Constructor for TransportGetRuleAction
+     * Constructor for TransportGetWlmRuleAction
      * @param transportService - a {@link TransportService} object
      * @param actionFilters - a {@link ActionFilters} object
-     * @param rulePersistenceService - a {@link RulePersistenceService} object
+     * @param rulePersistenceService - a {@link WlmRulePersistenceService} object
      */
     @Inject
-    public TransportGetRuleAction(
+    public TransportGetWlmRuleAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        RulePersistenceService rulePersistenceService
+        WlmRulePersistenceService rulePersistenceService
     ) {
-        super(GetRuleAction.NAME, transportService, actionFilters, GetRuleRequest::new);
+        super(GetWlmRuleAction.NAME, transportService, actionFilters, GetWlmRuleRequest::new);
         this.rulePersistenceService = rulePersistenceService;
     }
 
     @Override
-    protected void doExecute(Task task, GetRuleRequest request, ActionListener<GetRuleResponse> listener) {
+    protected void doExecute(Task task, GetWlmRuleRequest request, ActionListener<GetWlmRuleResponse> listener) {
         rulePersistenceService.getRule(request.getId(), request.getAttributeFilters(), request.getSearchAfter(), listener);
     }
 }

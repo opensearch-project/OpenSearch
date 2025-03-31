@@ -15,14 +15,14 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.wlm.QueryGroupTestUtils;
+import org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
+import static org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils.queryGroupOne;
 import static org.mockito.Mockito.mock;
 
 public class UpdateQueryGroupResponseTests extends OpenSearchTestCase {

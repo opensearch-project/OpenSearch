@@ -11,7 +11,7 @@ package org.opensearch.plugin.wlm.querygroup.action;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.plugin.wlm.QueryGroupTestUtils;
+import org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

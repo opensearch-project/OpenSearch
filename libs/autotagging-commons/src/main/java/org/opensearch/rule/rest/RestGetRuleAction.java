@@ -6,21 +6,20 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.rule.rest;
+package org.opensearch.rule.rest;
 
+import org.opensearch.action.ActionType;
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.plugin.wlm.rule.QueryGroupAttribute;
-import org.opensearch.plugin.wlm.rule.action.GetRuleAction;
-import org.opensearch.plugin.wlm.rule.action.GetRuleRequest;
-import org.opensearch.plugin.wlm.rule.action.GetRuleResponse;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.rule.action.GetRuleRequest;
+import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
@@ -32,35 +31,21 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.autotagging.Rule._ID_STRING;
-import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Rest action to get a Rule
  * @opensearch.experimental
  */
-public class RestGetRuleAction extends BaseRestHandler {
-    /**
-     * Field name used for search pagination with the search_after mechanism
-     */
+public abstract class RestGetRuleAction extends BaseRestHandler {
     public static final String SEARCH_AFTER_STRING = "search_after";
 
-    /**
-     * Constructor for RestGetRuleAction
-     */
     public RestGetRuleAction() {}
 
     @Override
-    public String getName() {
-        return "get_rule";
-    }
+    public abstract String getName();
 
-    /**
-     * The list of {@link Route}s that this RestHandler is responsible for handling.
-     */
     @Override
-    public List<Route> routes() {
-        return List.of(new Route(GET, "_wlm/rule/"), new Route(GET, "_wlm/rule/{_id}"));
-    }
+    public abstract List<Route> routes();
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
@@ -70,14 +55,14 @@ public class RestGetRuleAction extends BaseRestHandler {
                 continue;
             }
             String[] valuesArray = request.param(attributeName).split(",");
-            attributeFilters.put(QueryGroupAttribute.fromName(attributeName), new HashSet<>(Arrays.asList(valuesArray)));
+            attributeFilters.put(getAttributeFromName(attributeName), new HashSet<>(Arrays.asList(valuesArray)));
         }
-        final GetRuleRequest getRuleRequest = new GetRuleRequest(
+        final GetRuleRequest getRuleRequest = buildGetRuleRequest(
             request.param(_ID_STRING),
             attributeFilters,
             request.param(SEARCH_AFTER_STRING)
         );
-        return channel -> client.execute(GetRuleAction.INSTANCE, getRuleRequest, getRuleResponse(channel));
+        return channel -> client.execute(retrieveGetRuleActionInstance(), getRuleRequest, getRuleResponse(channel));
     }
 
     private RestResponseListener<GetRuleResponse> getRuleResponse(final RestChannel channel) {
@@ -88,4 +73,13 @@ public class RestGetRuleAction extends BaseRestHandler {
             }
         };
     }
+
+    protected abstract Attribute getAttributeFromName(String name);
+
+    /**
+     * Abstract method for subclasses to provide specific ActionType Instance
+     */
+    protected abstract <T extends ActionType<? extends GetRuleResponse>> T retrieveGetRuleActionInstance();
+
+    protected abstract GetRuleRequest buildGetRuleRequest(String id, Map<Attribute, Set<String>> attributeFilters, String searchAfter);
 }

@@ -32,9 +32,9 @@ import org.opensearch.plugin.wlm.querygroup.rest.RestDeleteQueryGroupAction;
 import org.opensearch.plugin.wlm.querygroup.rest.RestGetQueryGroupAction;
 import org.opensearch.plugin.wlm.querygroup.rest.RestUpdateQueryGroupAction;
 import org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService;
-import org.opensearch.plugin.wlm.rule.action.GetRuleAction;
-import org.opensearch.plugin.wlm.rule.action.TransportGetRuleAction;
-import org.opensearch.plugin.wlm.rule.rest.RestGetRuleAction;
+import org.opensearch.plugin.wlm.rule.action.GetWlmRuleAction;
+import org.opensearch.plugin.wlm.rule.action.TransportGetWlmRuleAction;
+import org.opensearch.plugin.wlm.rule.rest.RestGetWlmRuleAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
@@ -45,7 +45,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.opensearch.plugin.wlm.rule.service.RulePersistenceService.RULES_INDEX;
+import static org.opensearch.plugin.wlm.rule.service.WlmRulePersistenceService.RULES_INDEX;
 
 /**
  * Plugin class for WorkloadManagement
@@ -64,7 +64,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new ActionPlugin.ActionHandler<>(GetQueryGroupAction.INSTANCE, TransportGetQueryGroupAction.class),
             new ActionPlugin.ActionHandler<>(DeleteQueryGroupAction.INSTANCE, TransportDeleteQueryGroupAction.class),
             new ActionPlugin.ActionHandler<>(UpdateQueryGroupAction.INSTANCE, TransportUpdateQueryGroupAction.class),
-            new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class)
+            new ActionPlugin.ActionHandler<>(GetWlmRuleAction.INSTANCE, TransportGetWlmRuleAction.class)
         );
     }
 
@@ -88,7 +88,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new RestGetQueryGroupAction(),
             new RestDeleteQueryGroupAction(),
             new RestUpdateQueryGroupAction(),
-            new RestGetRuleAction()
+            new RestGetWlmRuleAction()
         );
     }
 
