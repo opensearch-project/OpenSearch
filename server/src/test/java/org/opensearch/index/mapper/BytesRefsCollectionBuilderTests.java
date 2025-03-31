@@ -10,7 +10,6 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collection;
