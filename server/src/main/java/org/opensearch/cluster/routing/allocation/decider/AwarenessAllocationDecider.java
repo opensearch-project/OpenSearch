@@ -212,10 +212,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     private static Set<String> getAttributeValues(ShardRouting shardRouting, RoutingAllocation allocation, String awarenessAttribute) {
-        if (shardRouting.isSearchOnly()) {
-            return allocation.routingNodes().searchNodesPerAttributesCounts(awarenessAttribute);
-        }
-        return allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
+        return allocation.routingNodes()
+            .nodesPerAttributesCounts(awarenessAttribute, routingNode -> routingNode.node().isSearchNode() == shardRouting.isSearchOnly());
     }
 
     private int getCurrentNodeCountForAttribute(
@@ -225,38 +223,42 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         boolean moveToNode,
         String awarenessAttribute
     ) {
-        // Get the attribute value for the current node
-        String shardAttributeForNode = getAttributeValueForNode(node, awarenessAttribute);
+        // build the count of shards per attribute value
+        final String shardAttributeForNode = getAttributeValueForNode(node, awarenessAttribute);
         // Get all assigned shards of the same type
         List<ShardRouting> assignedShards = getAssignedShards(allocation, shardRouting);
         // Count assigned shards with matching attribute values
         int currentNodeCount = 0;
         for (ShardRouting assignedShard : assignedShards) {
             if (assignedShard.started() || assignedShard.initializing()) {
+                // Note: this also counts relocation targets as that will be the new location of the shard.
+                // Relocation sources should not be counted as the shard is moving away
                 RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
+                // Increase node count when
                 if (getAttributeValueForNode(routingNode, awarenessAttribute).equals(shardAttributeForNode)) {
-                    currentNodeCount++;
+                    ++currentNodeCount;
                 }
             }
         }
 
-        // Adjust count for node movement scenarios
         if (moveToNode) {
             if (shardRouting.assignedToNode()) {
                 String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
 
                 if (node.nodeId().equals(nodeId) == false) {
-                    // Adjust count when moving between nodes
-                    RoutingNode sourceNode = allocation.routingNodes().node(nodeId);
-                    if (getAttributeValueForNode(sourceNode, awarenessAttribute).equals(shardAttributeForNode) && currentNodeCount > 0) {
-                        currentNodeCount--;
+                    // we work on different nodes, move counts around
+                    if (getAttributeValueForNode(allocation.routingNodes().node(nodeId), awarenessAttribute).equals(shardAttributeForNode)
+                        && currentNodeCount > 0) {
+                        --currentNodeCount;
                     }
-                    currentNodeCount++;
+
+                    ++currentNodeCount;
                 }
             } else {
-                currentNodeCount++;
+                ++currentNodeCount;
             }
         }
+
         return currentNodeCount;
     }
 

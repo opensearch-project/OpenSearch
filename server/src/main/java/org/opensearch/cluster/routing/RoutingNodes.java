@@ -299,34 +299,27 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     /**
-     * Retrieves all unique values for a specific awareness attribute across nodes
-     * which are not dedicated search nodes.
+     * Retrieves all unique values for a specific awareness attribute across all nodes
      * Eg: "zone" : ["zone1", "zone2", "zone3"]
      * @param attributeName The name of the awareness attribute to collect values for
      * @return A set of unique attribute values for the specified attribute
      */
     public Set<String> nodesPerAttributesCounts(String attributeName) {
-        return nodesPerAttributeNames.computeIfAbsent(
-            attributeName,
-            ignored -> stream().filter(r -> r.node().isSearchNode() == false)
-                .map(r -> r.node().getAttributes().get(attributeName))
-                .collect(Collectors.toSet())
-        );
+        return nodesPerAttributesCounts(attributeName, routingNode -> true);
     }
 
     /**
-     * Retrieves all unique values for a specific awareness attribute across nodes
-     * which are dedicated search nodes.
+     * Retrieves all unique values for a specific awareness attribute across filtered nodes
      * Eg: "zone" : ["zone1", "zone2", "zone3"]
      * @param attributeName The name of the awareness attribute to collect values for
+     * @param routingNodeFilter filters the routing nodes based on given condition
      * @return A set of unique attribute values for the specified attribute
      */
-    public Set<String> searchNodesPerAttributesCounts(String attributeName) {
-        return searchNodesPerAttributeNames.computeIfAbsent(
+    public Set<String> nodesPerAttributesCounts(String attributeName, Predicate<RoutingNode> routingNodeFilter) {
+
+        return nodesPerAttributeNames.computeIfAbsent(
             attributeName,
-            ignored -> stream().filter(r -> r.node().isSearchNode())
-                .map(r -> r.node().getAttributes().get(attributeName))
-                .collect(Collectors.toSet())
+            ignored -> stream().filter(routingNodeFilter).map(r -> r.node().getAttributes().get(attributeName)).collect(Collectors.toSet())
         );
     }
 

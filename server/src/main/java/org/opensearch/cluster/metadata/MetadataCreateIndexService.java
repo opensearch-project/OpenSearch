@@ -1503,9 +1503,9 @@ public class MetadataCreateIndexService {
             int searchReplicaCount = settings.getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
 
-            Optional<String> replicaValidationError = awarenessReplicaBalance.validateReplicas(replicaCount, autoExpandReplica);
+            Optional<String> replicaValidationError = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
             replicaValidationError.ifPresent(validationErrors::add);
-            Optional<String> searchReplicaValidationError = awarenessReplicaBalance.validateSearchReplicas(searchReplicaCount);
+            Optional<String> searchReplicaValidationError = awarenessReplicaBalance.validate(searchReplicaCount);
             searchReplicaValidationError.ifPresent(validationErrors::add);
         }
         return validationErrors;

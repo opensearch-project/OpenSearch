@@ -102,7 +102,7 @@ public class AwarenessReplicaBalance {
         return awarenessAttributes;
     }
 
-    public Optional<String> validateReplicas(int replicaCount, AutoExpandReplicas autoExpandReplica) {
+    public Optional<String> validate(int replicaCount, AutoExpandReplicas autoExpandReplica) {
         if (autoExpandReplica.isEnabled()) {
             if ((autoExpandReplica.getMaxReplicas() != Integer.MAX_VALUE)
                 && ((autoExpandReplica.getMaxReplicas() + 1) % maxAwarenessAttributes() != 0)) {
@@ -122,7 +122,7 @@ public class AwarenessReplicaBalance {
         return Optional.empty();
     }
 
-    public Optional<String> validateSearchReplicas(int searchReplicaCount) {
+    public Optional<String> validate(int searchReplicaCount) {
         // TODO: For now Search replicas do not support auto expand, when we add support update this validation
         if (searchReplicaCount > 0 && searchReplicaCount % maxAwarenessAttributes() != 0) {
             String errorMessage = "total search replicas needs to be a multiple of total awareness attributes ["

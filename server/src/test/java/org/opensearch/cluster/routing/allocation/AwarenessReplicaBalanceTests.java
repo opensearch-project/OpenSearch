@@ -35,11 +35,11 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
         AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);
         assertThat(awarenessReplicaBalance.maxAwarenessAttributes(), equalTo(1));
 
-        assertEquals(awarenessReplicaBalance.validateReplicas(0, autoExpandReplica), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validateReplicas(1, autoExpandReplica), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0, autoExpandReplica), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(1, autoExpandReplica), Optional.empty());
 
-        assertEquals(awarenessReplicaBalance.validateSearchReplicas(0), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validateSearchReplicas(1), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(1), Optional.empty());
     }
 
     public void testForcedAwarenessAttribute() {
@@ -55,9 +55,9 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
         AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);
         AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
         assertThat(awarenessReplicaBalance.maxAwarenessAttributes(), equalTo(3));
-        assertEquals(awarenessReplicaBalance.validateReplicas(2, autoExpandReplica), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validateReplicas(1, autoExpandReplica), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validateReplicas(0, autoExpandReplica), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(2, autoExpandReplica), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(1, autoExpandReplica), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0, autoExpandReplica), Optional.empty());
 
         // When auto expand replica settings is passed as max cap
         settings = Settings.builder()
@@ -72,9 +72,9 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
         autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
 
         assertThat(awarenessReplicaBalance.maxAwarenessAttributes(), equalTo(3));
-        assertEquals(awarenessReplicaBalance.validateReplicas(2, autoExpandReplica), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validateReplicas(1, autoExpandReplica), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validateReplicas(0, autoExpandReplica), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(2, autoExpandReplica), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(1, autoExpandReplica), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0, autoExpandReplica), Optional.empty());
 
         // when auto expand is not valid set as per zone awareness
         settings = Settings.builder()
@@ -89,11 +89,11 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
         autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
 
         assertEquals(
-            awarenessReplicaBalance.validateReplicas(1, autoExpandReplica),
+            awarenessReplicaBalance.validate(1, autoExpandReplica),
             Optional.of("expected max cap on auto expand to be a multiple of total awareness attributes [3]")
         );
         assertEquals(
-            awarenessReplicaBalance.validateReplicas(2, autoExpandReplica),
+            awarenessReplicaBalance.validate(2, autoExpandReplica),
             Optional.of("expected max cap on auto expand to be a multiple of total awareness attributes [3]")
         );
 
@@ -108,24 +108,24 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
         awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);
         autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
 
-        assertEquals(awarenessReplicaBalance.validateReplicas(2, autoExpandReplica), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(2, autoExpandReplica), Optional.empty());
         assertEquals(
-            awarenessReplicaBalance.validateReplicas(1, autoExpandReplica),
+            awarenessReplicaBalance.validate(1, autoExpandReplica),
             Optional.of("expected total copies needs to be a multiple of total awareness attributes [3]")
         );
         assertEquals(
-            awarenessReplicaBalance.validateReplicas(0, autoExpandReplica),
+            awarenessReplicaBalance.validate(0, autoExpandReplica),
             Optional.of("expected total copies needs to be a multiple of total awareness attributes [3]")
         );
 
-        assertEquals(awarenessReplicaBalance.validateSearchReplicas(3), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validateSearchReplicas(0), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(3), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0), Optional.empty());
         assertEquals(
-            awarenessReplicaBalance.validateSearchReplicas(2),
+            awarenessReplicaBalance.validate(2),
             Optional.of("total search replicas needs to be a multiple of total awareness attributes [3]")
         );
         assertEquals(
-            awarenessReplicaBalance.validateSearchReplicas(1),
+            awarenessReplicaBalance.validate(1),
             Optional.of("total search replicas needs to be a multiple of total awareness attributes [3]")
         );
     }
@@ -141,8 +141,8 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
         AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
 
         assertThat(awarenessReplicaBalance.maxAwarenessAttributes(), equalTo(1));
-        assertEquals(awarenessReplicaBalance.validateReplicas(0, autoExpandReplica), Optional.empty());
-        assertEquals(awarenessReplicaBalance.validateReplicas(1, autoExpandReplica), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(0, autoExpandReplica), Optional.empty());
+        assertEquals(awarenessReplicaBalance.validate(1, autoExpandReplica), Optional.empty());
     }
 
 }
