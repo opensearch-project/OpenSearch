@@ -31,6 +31,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
@@ -57,7 +58,13 @@ import java.util.function.Supplier;
 /**
  * FlightStreamPlugin class extends BaseFlightStreamPlugin and provides implementation for FlightStream plugin.
  */
-public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, NetworkPlugin, ActionPlugin, ClusterPlugin {
+public class FlightStreamPlugin extends Plugin
+    implements
+        StreamManagerPlugin,
+        NetworkPlugin,
+        ActionPlugin,
+        ClusterPlugin,
+        ExtensiblePlugin {
 
     private final FlightService flightService;
     private final boolean isArrowStreamsEnabled;
