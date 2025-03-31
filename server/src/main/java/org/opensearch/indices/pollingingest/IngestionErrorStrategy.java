@@ -40,6 +40,11 @@ public interface IngestionErrorStrategy {
     }
 
     /**
+     * Returns the name of the error policy.
+     */
+    String getName();
+
+    /**
      * Indicates available error handling strategies
      */
     @ExperimentalApi
