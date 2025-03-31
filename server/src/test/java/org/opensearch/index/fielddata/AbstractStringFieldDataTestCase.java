@@ -498,6 +498,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         LeafOrdinalsFieldData afd = globalOrdinals.load(leaf);
         SortedSetDocValues values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));
+        assertEquals(2, values.docValueCount());
         long ord = values.nextOrd();
         assertThat(ord, equalTo(3L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("02"));
@@ -506,6 +507,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
         assertFalse(values.advanceExact(1));
         assertTrue(values.advanceExact(2));
+        assertEquals(1, values.docValueCount());
         ord = values.nextOrd();
         assertThat(ord, equalTo(4L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("03"));
@@ -515,6 +517,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         afd = globalOrdinals.load(leaf);
         values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));
+        assertEquals(3, values.docValueCount());
         ord = values.nextOrd();
         assertThat(ord, equalTo(5L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
@@ -525,6 +528,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(ord, equalTo(7L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
         assertTrue(values.advanceExact(1));
+        assertEquals(3, values.docValueCount());
         ord = values.nextOrd();
         assertThat(ord, equalTo(7L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
@@ -536,6 +540,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
         assertFalse(values.advanceExact(2));
         assertTrue(values.advanceExact(3));
+        assertEquals(3, values.docValueCount());
         ord = values.nextOrd();
         assertThat(ord, equalTo(9L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
@@ -551,6 +556,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         afd = globalOrdinals.load(leaf);
         values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));
+        assertEquals(3, values.docValueCount());
         ord = values.nextOrd();
         assertThat(ord, equalTo(0L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!08"));
