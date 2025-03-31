@@ -556,11 +556,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     if (false == segmentOrds.advanceExact(doc)) {
                         return;
                     }
-                    int count = segmentOrds.docValueCount();
-                    long segmentOrd;
-                    while ((--count > 0) && (segmentOrd = segmentOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                    for (int i = 0; i < segmentOrds.docValueCount(); i++) {
                         long docCount = docCountProvider.getDocCount(doc);
-                        segmentDocCounts.increment(segmentOrd + 1, docCount);
+                        segmentDocCounts.increment(segmentOrds.nextOrd() + 1, docCount);
                     }
                 }
             });
