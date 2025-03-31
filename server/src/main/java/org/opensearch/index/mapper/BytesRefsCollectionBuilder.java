@@ -29,6 +29,9 @@ import java.util.function.Supplier;
  */
 public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<Collection<BytesRef>> {
 
+    /**
+     * Strategy for building BytesRef collection.
+     * */
     protected interface CollectorStrategy extends Function<BytesRef, CollectorStrategy>, Supplier<Collection<BytesRef>> {}
 
     protected final List<BytesRef> terms = new ArrayList<>();
@@ -113,6 +116,9 @@ public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<
         };
     }
 
+    /**
+     * SortedSet<BytesRef> for passing into TermInSetQuery()
+     * */
     protected static class SortedBytesSet extends AbstractSet<BytesRef> implements SortedSet<BytesRef> {
 
         private final List<BytesRef> bytesRefs;
