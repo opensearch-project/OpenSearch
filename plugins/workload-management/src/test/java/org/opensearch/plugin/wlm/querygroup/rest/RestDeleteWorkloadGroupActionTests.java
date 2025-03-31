@@ -11,13 +11,8 @@ package org.opensearch.plugin.wlm.querygroup.rest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;
-<<<<<<<< HEAD:plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/rest/RestDeleteWorkloadGroupActionTests.java
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
-========
-import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupAction;
-import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupRequest;
->>>>>>>> eaf11b7f929 (add get rule api logic):plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/rest/RestDeleteQueryGroupActionTests.java
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.rule.action;
+package org.opensearch.rule.action;
 
 import org.opensearch.autotagging.Rule;
 import org.opensearch.core.action.ActionResponse;
@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.opensearch.autotagging.Rule._ID_STRING;
-import static org.opensearch.plugin.wlm.rule.rest.RestGetRuleAction.SEARCH_AFTER_STRING;
 
 /**
  * Response for the get API for Rule.
@@ -41,27 +40,17 @@ import static org.opensearch.plugin.wlm.rule.rest.RestGetRuleAction.SEARCH_AFTER
  * }
  * @opensearch.experimental
  */
-public class GetRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
+public abstract class GetRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final Map<String, Rule> rules;
     private final String searchAfter;
     private final RestStatus restStatus;
 
-    /**
-     * Constructor for GetRuleResponse
-     * @param rules - The Map of Rules to be included in the response
-     * @param searchAfter - The searchAfter field for the response
-     * @param restStatus - The restStatus for the response
-     */
     public GetRuleResponse(final Map<String, Rule> rules, String searchAfter, RestStatus restStatus) {
         this.rules = rules;
         this.searchAfter = searchAfter;
         this.restStatus = restStatus;
     }
 
-    /**
-     * Constructor for GetRuleResponse
-     * @param in - A {@link StreamInput} object
-     */
     public GetRuleResponse(StreamInput in) throws IOException {
         this(in.readMap(StreamInput::readString, Rule::new), in.readOptionalString(), RestStatus.readFrom(in));
     }
@@ -82,29 +71,20 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
         }
         builder.endArray();
         if (searchAfter != null && !searchAfter.isEmpty()) {
-            builder.field(SEARCH_AFTER_STRING, new Object[] { searchAfter });
+            builder.field("search_after", new Object[] { searchAfter });
         }
         builder.endObject();
         return builder;
     }
 
-    /**
-     * rules getter
-     */
     public Map<String, Rule> getRules() {
         return rules;
     }
 
-    /**
-     * restStatus getter
-     */
     public RestStatus getRestStatus() {
         return restStatus;
     }
 
-    /**
-     * searchAfter getter
-     */
     public String getSearchAfter() {
         return searchAfter;
     }

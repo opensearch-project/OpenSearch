@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm;
+package org.opensearch.plugin.wlm.rule;
 
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.Rule;
@@ -16,9 +16,7 @@ import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.plugin.wlm.rule.QueryGroupAttribute;
-import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
-import org.opensearch.plugin.wlm.rule.service.RulePersistenceService;
+import org.opensearch.plugin.wlm.rule.service.WlmRulePersistenceService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
@@ -30,7 +28,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RuleTestUtils {
+public class WlmRuleTestUtils {
     public static final String _ID_ONE = "AgfUO5Ja9yfvhdONlYi3TQ==";
     public static final String _ID_TWO = "G5iIq84j7eK1qIAAAAIH53=1";
     public static final String FEATURE_VALUE_ONE = "feature_value_one";
@@ -63,7 +61,7 @@ public class RuleTestUtils {
         return Map.of(_ID_ONE, ruleOne, _ID_TWO, ruleTwo);
     }
 
-    public static RulePersistenceService setUpRulePersistenceService(Map<String, QueryGroup> queryGroupMap) {
+    public static WlmRulePersistenceService setUpRulePersistenceService(Map<String, QueryGroup> queryGroupMap) {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         ClusterState clusterState = mock(ClusterState.class);
@@ -76,7 +74,7 @@ public class RuleTestUtils {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.queryGroups()).thenReturn(queryGroupMap);
-        return new RulePersistenceService(clusterService, client);
+        return new WlmRulePersistenceService(clusterService, client);
     }
 
     public static void assertEqualRules(Map<String, Rule> mapOne, Map<String, Rule> mapTwo, boolean ruleUpdated) {

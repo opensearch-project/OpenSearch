@@ -6,40 +6,46 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.rule.service;
+package org.opensearch.rule.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.autotagging.Attribute;
+import org.opensearch.autotagging.FeatureType;
 import org.opensearch.autotagging.Rule;
 import org.opensearch.autotagging.Rule.Builder;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.DeprecationHandler;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.*;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
-import org.opensearch.plugin.wlm.rule.action.GetRuleResponse;
+import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 
 import static org.opensearch.autotagging.Rule._ID_STRING;
@@ -48,7 +54,7 @@ import static org.opensearch.autotagging.Rule._ID_STRING;
  * This class encapsulates the logic to manage the lifecycle of rules at index level
  * @opensearch.experimental
  */
-public class RulePersistenceService {
+public abstract class RulePersistenceService {
     /**
      * The system index name used for storing rules
      */
@@ -56,16 +62,12 @@ public class RulePersistenceService {
     private final Client client;
     private final ClusterService clusterService;
     private static final Logger logger = LogManager.getLogger(RulePersistenceService.class);
+
     /**
      * The maximum number of results allowed per GET request
      */
     public static final int MAX_RETURN_SIZE_ALLOWED_PER_GET_REQUEST = 50;
 
-    /**
-     * Constructor for RulePersistenceService
-     * @param clusterService {@link ClusterService} - The cluster service to be used by RulePersistenceService
-     * @param client {@link Settings} - The client to be used by RulePersistenceService
-     */
     @Inject
     public RulePersistenceService(final ClusterService clusterService, final Client client) {
         this.clusterService = clusterService;
@@ -84,7 +86,7 @@ public class RulePersistenceService {
         String id,
         Map<Attribute, Set<String>> attributeFilters,
         String searchAfter,
-        ActionListener<GetRuleResponse> listener
+        ActionListener<? extends GetRuleResponse> listener
     ) {
         // Stash the current thread context when interacting with system index to perform
         // operations as the system itself, bypassing authorization checks. This ensures that
@@ -93,7 +95,7 @@ public class RulePersistenceService {
             BoolQueryBuilder boolQuery = buildGetRuleQuery(id, attributeFilters);
             SearchRequestBuilder searchRequest = client.prepareSearch(RULES_INDEX)
                 .setQuery(boolQuery)
-                .setSize(MAX_RETURN_SIZE_ALLOWED_PER_GET_REQUEST);
+                .setSize(getMaxReturnSizeAllowedPerGetRequest());
             if (searchAfter != null) {
                 searchRequest.addSort(_ID_STRING, SortOrder.ASC).searchAfter(new Object[] { searchAfter });
             }
@@ -110,7 +112,7 @@ public class RulePersistenceService {
      * @param id              The ID of the rule to fetch. If not null, the search will return only this specific rule.
      * @param attributeFilters A map of attributes to their associated set of values used to filter the rules.
      */
-    BoolQueryBuilder buildGetRuleQuery(String id, Map<Attribute, Set<String>> attributeFilters) {
+    public BoolQueryBuilder buildGetRuleQuery(String id, Map<Attribute, Set<String>> attributeFilters) {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
         if (id != null) {
             return boolQuery.must(QueryBuilders.termQuery(_ID_STRING, id));
@@ -126,7 +128,7 @@ public class RulePersistenceService {
                 boolQuery.must(attributeQuery);
             }
         }
-        boolQuery.filter(QueryBuilders.existsQuery(QueryGroupFeatureType.NAME));
+        boolQuery.filter(QueryBuilders.existsQuery(retrieveFeatureTypeInstance().getName()));
         return boolQuery;
     }
 
@@ -135,7 +137,7 @@ public class RulePersistenceService {
      * @param searchResponse - Response received from index
      * @param listener - ActionListener for GetRuleResponse
      */
-    void handleGetRuleResponse(String id, SearchResponse searchResponse, ActionListener<GetRuleResponse> listener) {
+    void handleGetRuleResponse(String id, SearchResponse searchResponse, ActionListener<? extends GetRuleResponse> listener) {
         List<SearchHit> hits = Arrays.asList(searchResponse.getHits().getHits());
         if (id != null && hits.isEmpty()) {
             logger.error("Rule with ID " + id + " not found.");
@@ -147,7 +149,7 @@ public class RulePersistenceService {
             .filter(Objects::nonNull)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         String nextSearchAfter = hits.isEmpty() ? null : hits.get(hits.size() - 1).getId();
-        listener.onResponse(new GetRuleResponse(ruleMap, nextSearchAfter, RestStatus.OK));
+        listener.onResponse(buildGetRuleResponse(ruleMap, nextSearchAfter, RestStatus.OK));
     }
 
     /**
@@ -160,27 +162,36 @@ public class RulePersistenceService {
             XContentParser parser = MediaTypeRegistry.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source)
         ) {
-            return Map.entry(id, Builder.fromXContent(parser, QueryGroupFeatureType.INSTANCE).build());
+            return Map.entry(id, Builder.fromXContent(parser, retrieveFeatureTypeInstance()).build());
         } catch (IOException e) {
             logger.info("Issue met when parsing rule for ID {}: {}", id, e.getMessage());
             return null;
         }
     }
 
+    private boolean isExistingQueryGroup(String queryGroupId) {
+        return clusterService.state().metadata().queryGroups().containsKey(queryGroupId);
+    }
+
+    /**
+     * Abstract method for subclasses to provide specific FeatureType Instance
+     */
+    protected abstract FeatureType retrieveFeatureTypeInstance();
+
+    protected abstract <T extends GetRuleResponse> T buildGetRuleResponse(Map<String, Rule> ruleMap, String nextSearchAfter, RestStatus restStatus);
+
     private ThreadContext.StoredContext getContext() {
         return client.threadPool().getThreadContext().stashContext();
     }
 
-    /**
-     * client getter
-     */
+    public int getMaxReturnSizeAllowedPerGetRequest() {
+        return MAX_RETURN_SIZE_ALLOWED_PER_GET_REQUEST;
+    }
+
     public Client getClient() {
         return client;
     }
 
-    /**
-     * clusterService getter
-     */
     public ClusterService getClusterService() {
         return clusterService;
     }
