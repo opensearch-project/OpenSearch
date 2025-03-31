@@ -301,7 +301,18 @@ public class MetadataUpdateSettingsService {
                         }
                         final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(openSettings);
                         if (preserveExisting == false) {
-                            // TODO: Honor awareness validation to search replicas.
+                            for (Index index : request.indices()) {
+                                if (index.getName().charAt(0) != '.') {
+                                    // No replica count validation for system indices
+                                    Optional<String> error = awarenessReplicaBalance.validate(updatedNumberOfSearchReplicas);
+
+                                    if (error.isPresent()) {
+                                        ValidationException ex = new ValidationException();
+                                        ex.addValidationError(error.get());
+                                        throw ex;
+                                    }
+                                }
+                            }
 
                             // Verify that this won't take us over the cluster shard limit.
                             int totalNewShards = Arrays.stream(request.indices())
