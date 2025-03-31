@@ -211,7 +211,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
     }
 
-    private static Set<String> getAttributeValues(ShardRouting shardRouting, RoutingAllocation allocation, String awarenessAttribute) {
+    private Set<String> getAttributeValues(ShardRouting shardRouting, RoutingAllocation allocation, String awarenessAttribute) {
         return allocation.routingNodes()
             .nodesPerAttributesCounts(awarenessAttribute, routingNode -> routingNode.node().isSearchNode() == shardRouting.isSearchOnly());
     }
