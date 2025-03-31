@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * This class is responsible for managing in-memory view of Rules and Find matching Rule for the request
@@ -26,12 +27,17 @@ import java.util.Set;
 public class InMemoryRuleProcessingService {
 
     /**
-     *  Main constructor which should be initialised with auto-tagging features
-     *  the feature specific implementations of some constructs will remain with plugins
-     * @param enabledFeatures
+     *  Main constructor which should be initialised
      */
-    public InMemoryRuleProcessingService(List<FeatureType> enabledFeatures) {
-        AttributeValueStoreFactory.init(enabledFeatures);
+    public InMemoryRuleProcessingService() {}
+
+    /**
+     * This methods adds the support for a feature to use auto-tagging framework
+     * @param featureType
+     * @param attributeValueStoreSupplier
+     */
+    public void enableFeatureType(FeatureType featureType, Supplier<AttributeValueStore<String, String>> attributeValueStoreSupplier) {
+        AttributeValueStoreFactory.init(featureType, attributeValueStoreSupplier);
     }
 
     /**
