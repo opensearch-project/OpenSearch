@@ -6,16 +6,6 @@
  * compatible open source license.
  */
 
-grant codeBase "${codebase.netty-common}" {
-   permission java.net.SocketPermission "*", "accept,connect,listen,resolve";
-   permission java.lang.RuntimePermission "*", "setContextClassLoader";
-};
-
-grant codeBase "${codebase.grpc-core}" {
-   permission java.net.SocketPermission "*", "accept,connect,listen,resolve";
-   permission java.lang.RuntimePermission "*", "setContextClassLoader";
-};
-
 grant {
   // arrow flight service permissions
   permission java.util.PropertyPermission "arrow.allocation.manager.type", "write";
@@ -42,4 +32,7 @@ grant {
 
   // Memory access
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+
+  // needed by netty-common
+  permission java.lang.RuntimePermission "*", "setContextClassLoader";
 };
