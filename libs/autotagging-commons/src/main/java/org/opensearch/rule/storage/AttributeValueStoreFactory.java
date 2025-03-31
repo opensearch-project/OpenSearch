@@ -12,14 +12,14 @@ import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.FeatureType;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Factory class for AttributeValueStore
  */
 public class AttributeValueStoreFactory {
-    private static Map<String, AttributeValueStore<String, String>> attributeValueStores;
+    private final static Map<String, AttributeValueStore<String, String>> attributeValueStores = new HashMap<>();
 
     /**
      * Making the class to be uninitializable
@@ -28,14 +28,12 @@ public class AttributeValueStoreFactory {
 
     /**
      * This should be the first method to be invoked else the factory method will throw an exception
-     * @param featureTypes  are the features which are using rule based auto tagging
+     * @param featureType  is the feature which are using rule based auto tagging
+     * @param attributeValueStoreSupplier supplies the feature level AttributeValueStore instance
      */
-    public static void init(List<FeatureType> featureTypes) {
-        attributeValueStores = new HashMap<>();
-        for (FeatureType featureType : featureTypes) {
-            for (Attribute attribute : featureType.getAllowedAttributesRegistry().values()) {
-                attributeValueStores.put(attribute.getName(), new DefaultAttributeValueStore<>());
-            }
+    public static void init(FeatureType featureType, Supplier<AttributeValueStore<String, String>> attributeValueStoreSupplier) {
+        for (Attribute attribute : featureType.getAllowedAttributesRegistry().values()) {
+            attributeValueStores.put(attribute.getName(), attributeValueStoreSupplier.get());
         }
     }
 
