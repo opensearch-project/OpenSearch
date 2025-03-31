@@ -117,7 +117,7 @@ public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<
     }
 
     /**
-     * SortedSet<BytesRef> for passing into TermInSetQuery()
+     * {@link SortedSet<BytesRef>} for passing into TermInSetQuery()
      * */
     protected static class SortedBytesSet extends AbstractSet<BytesRef> implements SortedSet<BytesRef> {
 
