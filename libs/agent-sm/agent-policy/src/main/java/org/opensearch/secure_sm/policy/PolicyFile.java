@@ -210,7 +210,7 @@ public class PolicyFile extends java.security.Policy {
 
         try (InputStreamReader isr = getInputStreamReader(getInputStream(policy))) {
 
-            PolicyParser pp = new PolicyParser(expandProperties);
+            PolicyParser pp = new PolicyParser();
             pp.read(isr);
 
             Enumeration<PolicyParser.GrantEntry> enum_ = pp.grantElements();

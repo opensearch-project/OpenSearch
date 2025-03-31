@@ -22,6 +22,19 @@ public final class Tokenizer {
      * Recognize both C-style and C++-style comments
      * Treat end-of-line as white space, not as a token
      */
+
+    // new Token(StreamTokenizer.TT_WORD, "grant", line) // keyword
+    // new Token(StreamTokenizer.TT_WORD, "Codebase", line)
+    // new Token('"', "file:/some/path", line) // quoted string
+    // new Token('{', "{", line) // symbol
+    // new Token(StreamTokenizer.TT_WORD, "permission", line)
+    // new Token(StreamTokenizer.TT_WORD, "java.io.FilePermission", line)
+    // new Token('"', "file", line)
+    // new Token(',', ",", line)
+    // new Token('"', "read", line)
+    // new Token(';', ";", line)
+    // new Token('}', "}", line)
+    // new Token(';', ";", line)
     public static StreamTokenizer configureTokenizer(Reader reader) {
         StreamTokenizer st = new StreamTokenizer(reader);
 
@@ -44,5 +57,4 @@ public final class Tokenizer {
 
         return st;
     }
-
 }
