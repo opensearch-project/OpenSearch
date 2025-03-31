@@ -31,7 +31,7 @@ grpc              = "1.68.2"
 json_smart        = "2.5.2"
 
 # when updating the JNA version, also update the version in buildSrc/build.gradle
-jna               = "5.13.0"
+jna               = "5.16.0"
 
 netty             = "4.1.118.Final"
 joda              = "2.12.7"
@@ -70,15 +70,15 @@ password4j        = "1.8.2"
 randomizedrunner  = "2.7.1"
 junit             = "4.13.2"
 hamcrest          = "2.1"
-mockito           = "5.14.2"
+mockito           = "5.16.1"
 objenesis         = "3.3"
-bytebuddy         = "1.15.10"
+bytebuddy         = "1.17.4"
 
 # benchmark dependencies
 jmh               = "1.35"
 
 # compression
-zstd              = "1.5.5-5"
+zstd              = "1.5.6-1"
 
 jzlib             = "1.1.3"
 

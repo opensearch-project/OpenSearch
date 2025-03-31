@@ -40,17 +40,19 @@ subprojects {
    * other libs. This keeps our dependencies simpler.
    */
   project.afterEvaluate {
-    configurations.all { Configuration conf ->
-      dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
-        Project depProject = project.project(dep.path)
-        if (depProject != null
-          && (false == depProject.path.equals(':libs:opensearch-core') &&
-              false == depProject.path.equals(':libs:opensearch-common'))
-          && depProject.path.startsWith(':libs')) {
-          throw new InvalidUserDataException("projects in :libs "
-            + "may not depend on other projects libs except "
-            + ":libs:opensearch-core or :libs:opensearch-common but "
-            + "${project.path} depends on ${depProject.path}")
+    if (!project.path.equals(':libs:agent-sm:agent')) {
+      configurations.all { Configuration conf ->
+        dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
+          Project depProject = project.project(dep.path)
+          if (depProject != null
+            && (false == depProject.path.equals(':libs:opensearch-core') &&
+                false == depProject.path.equals(':libs:opensearch-common'))
+            && depProject.path.startsWith(':libs')) {
+            throw new InvalidUserDataException("projects in :libs "
+              + "may not depend on other projects libs except "
+              + ":libs:opensearch-core or :libs:opensearch-common but "
+              + "${project.path} depends on ${depProject.path}")
+          }
         }
       }
     }
