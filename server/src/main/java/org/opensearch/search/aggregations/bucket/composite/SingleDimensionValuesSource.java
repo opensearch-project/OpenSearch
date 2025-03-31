@@ -32,10 +32,8 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
