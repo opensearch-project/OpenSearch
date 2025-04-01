@@ -15,7 +15,7 @@ import org.junit.Test;
 import java.security.Policy;
 import java.util.Set;
 
-public class SystemInterceptorTests {
+public class SystemExitInterceptorTests {
     @SuppressWarnings("removal")
     @BeforeClass
     public static void setUp() {
@@ -24,7 +24,7 @@ public class SystemInterceptorTests {
     }
 
     @Test(expected = SecurityException.class)
-    public void testSystemExitIsForbidded() {
+    public void testSystemExitIsForbidden() {
         System.exit(0);
     }
 }

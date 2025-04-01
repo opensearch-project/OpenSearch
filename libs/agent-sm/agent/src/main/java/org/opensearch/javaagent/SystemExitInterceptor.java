@@ -17,11 +17,11 @@ import net.bytebuddy.asm.Advice;
 /**
  * {@link System#exit} interceptor
  */
-public class SystemInterceptor {
+public class SystemExitInterceptor {
     /**
-     * SystemInterceptor
+     * SystemExitInterceptor
      */
-    public SystemInterceptor() {}
+    public SystemExitInterceptor() {}
 
     /**
      * Interceptor

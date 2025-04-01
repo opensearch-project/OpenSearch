@@ -78,10 +78,10 @@ public class Agent {
             .ignore(ElementMatchers.none())
             .type(systemType)
             .transform(transformer)
-            .type(ElementMatchers.named("java.lang.System"))
+            .type(ElementMatchers.is(java.lang.System.class))
             .transform(
                 (b, typeDescription, classLoader, module, pd) -> b.visit(
-                    Advice.to(SystemInterceptor.class).on(ElementMatchers.named("exit"))
+                    Advice.to(SystemExitInterceptor.class).on(ElementMatchers.named("exit"))
                 )
             );
 
