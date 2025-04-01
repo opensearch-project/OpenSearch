@@ -13,6 +13,7 @@ import java.lang.StackWalker.StackFrame;
 import java.security.Permission;
 import java.security.Policy;
 import java.security.ProtectionDomain;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -27,6 +28,7 @@ public class AgentPolicy {
     private static final Logger LOGGER = Logger.getLogger(AgentPolicy.class.getName());
     private static volatile Policy policy;
     private static volatile Set<String> trustedHosts;
+    private static volatile Set<String> classesThatCanExit;
 
     private AgentPolicy() {}
 
@@ -35,18 +37,20 @@ public class AgentPolicy {
      * @param policy policy
      */
     public static void setPolicy(Policy policy) {
-        setPolicy(policy, Set.of());
+        setPolicy(policy, Set.of(), new String[0]);
     }
 
     /**
      * Set Agent policy
      * @param policy policy
      * @param trustedHosts trusted hosts
+     * @param classesThatCanExit classed that are allowed to call {@link System#exit}
      */
-    public static void setPolicy(Policy policy, final Set<String> trustedHosts) {
+    public static void setPolicy(Policy policy, final Set<String> trustedHosts, final String[] classesThatCanExit) {
         if (AgentPolicy.policy == null) {
             AgentPolicy.policy = policy;
             AgentPolicy.trustedHosts = Collections.unmodifiableSet(trustedHosts);
+            AgentPolicy.classesThatCanExit = Arrays.stream(classesThatCanExit).collect(Collectors.toSet());
             LOGGER.info("Policy attached successfully: " + policy);
         } else {
             throw new SecurityException("The Policy has been set already: " + AgentPolicy.policy);
@@ -85,5 +89,14 @@ public class AgentPolicy {
      */
     public static boolean isTrustedHost(String hostname) {
         return AgentPolicy.trustedHosts.contains(hostname);
+    }
+
+    /**
+     * Check if class is allowed to call {@link System#exit}
+     * @param name class name
+     * @return is class allowed to call {@link System#exit} or not
+     */
+    public static boolean isClassThatCanExit(String name) {
+        return AgentPolicy.classesThatCanExit.contains(name);
     }
 }

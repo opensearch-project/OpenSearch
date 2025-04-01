@@ -109,6 +109,12 @@ import org.opensearch.action.admin.indices.shrink.ResizeResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
@@ -865,4 +871,22 @@ public interface IndicesAdminClient extends OpenSearchClient {
 
     /** Update a view */
     ActionFuture<GetViewAction.Response> updateView(CreateViewAction.Request request);
+
+    /** Pause ingestion */
+    ActionFuture<PauseIngestionResponse> pauseIngestion(PauseIngestionRequest request);
+
+    /** Pause ingestion */
+    void pauseIngestion(PauseIngestionRequest request, ActionListener<PauseIngestionResponse> listener);
+
+    /** Resume ingestion */
+    ActionFuture<ResumeIngestionResponse> resumeIngestion(ResumeIngestionRequest request);
+
+    /** Resume ingestion */
+    void resumeIngestion(ResumeIngestionRequest request, ActionListener<ResumeIngestionResponse> listener);
+
+    /** Get ingestion state */
+    ActionFuture<GetIngestionStateResponse> getIngestionState(GetIngestionStateRequest request);
+
+    /** Get ingestion state */
+    void getIngestionState(GetIngestionStateRequest request, ActionListener<GetIngestionStateResponse> listener);
 }
