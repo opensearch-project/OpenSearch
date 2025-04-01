@@ -395,6 +395,8 @@ public class ClusterServiceIT extends OpenSearchIntegTestCase {
         assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(10));
         assertThat(pendingClusterTasks.get(0).getSource().string(), equalTo("1"));
         assertThat(pendingClusterTasks.get(0).isExecuting(), equalTo(true));
+        assertThat(pendingClusterTasks.get(0).getTimeInExecutionInMillis(), greaterThan(0L));
+        assertThat(pendingClusterTasks.get(1).getTimeInExecutionInMillis(), equalTo(0L));
         for (PendingClusterTask task : pendingClusterTasks) {
             controlSources.remove(task.getSource().string());
         }
