@@ -39,6 +39,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.bucket.range.InternalRange;
@@ -159,11 +160,16 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
             // Numeric-terms query with range aggregation
             for (int cases = 0; cases < 100; cases++) {
-                // query of status field
+                // term query of status field
                 String queryField = SIZE;
                 long queryValue = NumericUtils.floatToSortableInt(random.nextInt(50) + 0.5f);
                 query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
                 queryBuilder = new TermQueryBuilder(queryField, queryValue);
+                testCase(indexSearcher, query, queryBuilder, rangeAggregationBuilder, starTree, supportedDimensions);
+
+                // range query on same field as aggregation field
+                query = SortedNumericDocValuesField.newSlowRangeQuery(STATUS, 15, 35);
+                queryBuilder = new RangeQueryBuilder(STATUS).from(15).to(35);
                 testCase(indexSearcher, query, queryBuilder, rangeAggregationBuilder, starTree, supportedDimensions);
             }
         }

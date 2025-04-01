@@ -15,6 +15,7 @@ import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
@@ -197,11 +198,13 @@ public class StarTreeQueryContext {
             return false;
         }
 
-        // Validate request field is part of dimensions
+        // Validate request field is part of dimensions & is a numeric field
+        // TODO: Add support for date type ranges
         if (compositeIndexFieldInfo.getDimensions()
             .stream()
-            .map(Dimension::getField)
-            .noneMatch(rangeAggregatorFactory.getField()::equals)) {
+            .noneMatch(
+                dimension -> rangeAggregatorFactory.getField().equals(dimension.getField()) && dimension instanceof NumericDimension
+            )) {
             return false;
         }
 
