@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Changed
 - Migrate BC libs to their FIPS counterparts ([#14912](https://github.com/opensearch-project/OpenSearch/pull/14912))
+- Increase the floor segment size to 16MB ([#17699](https://github.com/opensearch-project/OpenSearch/pull/17699))
 
 ### Dependencies
 - Bump `com.nimbusds:nimbus-jose-jwt` from 9.41.1 to 10.0.2 ([#17607](https://github.com/opensearch-project/OpenSearch/pull/17607), [#17669](https://github.com/opensearch-project/OpenSearch/pull/17669))
@@ -32,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.github.luben:zstd-jni` from 1.5.5-1 to 1.5.6-1 ([#17674](https://github.com/opensearch-project/OpenSearch/pull/17674))
 - Bump `lycheeverse/lychee-action` from 2.3.0 to 2.4.0 ([#17731](https://github.com/opensearch-project/OpenSearch/pull/17731))
 - Bump `com.netflix.nebula.ospackage-base` from 11.11.1 to 11.11.2 ([#17734](https://github.com/opensearch-project/OpenSearch/pull/17734))
+- Bump `com.nimbusds:oauth2-oidc-sdk` from 11.21 to 11.23.1 ([#17729](https://github.com/opensearch-project/OpenSearch/pull/17729))
 - Bump `com.google.api.grpc:proto-google-common-protos` from 2.52.0 to 2.54.1 ([#17733](https://github.com/opensearch-project/OpenSearch/pull/17733))
 
 ### Changed
