@@ -1,6 +1,7 @@
 ---
 "Shrink index ignores target template mapping":
-
+    - skip:
+        features: [warnings, arbitrary_key, allowed_warnings]
     - do:
         nodes.info:
           node_id: data:true
