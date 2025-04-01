@@ -18,20 +18,20 @@ import java.util.stream.Stream;
 import net.bytebuddy.asm.Advice;
 
 /**
- * {@link System#exit} interceptor
+ * {@link Runtime#halt} interceptor
  */
-public class SystemExitInterceptor {
+public class RuntimeHaltInterceptor {
     /**
      * SystemExitInterceptor
      */
-    public SystemExitInterceptor() {}
+    public RuntimeHaltInterceptor() {}
 
     /**
      * Interceptor
      * @param code exit code
      * @throws Exception exceptions
      */
-    @Advice.OnMethodEnter()
+    @Advice.OnMethodEnter
     @SuppressWarnings("removal")
     public static void intercept(int code) throws Exception {
         final Policy policy = AgentPolicy.getPolicy();
@@ -47,6 +47,6 @@ public class SystemExitInterceptor {
             return;
         }
 
-        throw new SecurityException("The class " + caller + " is not allowed to call System::exit(" + code + ")");
+        throw new SecurityException("The class " + caller + " is not allowed to call Runtime::halt(" + code + ")");
     }
 }
