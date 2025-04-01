@@ -23,21 +23,30 @@ import java.util.function.Supplier;
 
 /**
  * This class is responsible for managing in-memory view of Rules and Find matching Rule for the request
+ * Each auto-tagging feature should use a separate instance of this class as this avoid potential concurrency overhead
+ * in case of dynamic updates and attribute sharing scenarios
  */
 public class InMemoryRuleProcessingService {
 
-    /**
-     *  Main constructor which should be initialised
-     */
-    public InMemoryRuleProcessingService() {}
+    private AttributeValueStoreFactory attributeValueStoreFactory;
 
     /**
-     * This methods adds the support for a feature to use auto-tagging framework
+     *  Make the instance accessible using static factory method only
+     */
+    private InMemoryRuleProcessingService() {}
+
+    /**
+     * This factory methods creates an instance of InMemoryRuleProcessingService to use auto-tagging framework
      * @param featureType
      * @param attributeValueStoreSupplier
      */
-    public void enableFeatureType(FeatureType featureType, Supplier<AttributeValueStore<String, String>> attributeValueStoreSupplier) {
-        AttributeValueStoreFactory.init(featureType, attributeValueStoreSupplier);
+    public static InMemoryRuleProcessingService createForFeature(
+        FeatureType featureType,
+        Supplier<AttributeValueStore<String, String>> attributeValueStoreSupplier
+    ) {
+        InMemoryRuleProcessingService service = new InMemoryRuleProcessingService();
+        service.attributeValueStoreFactory = AttributeValueStoreFactory.create(featureType, attributeValueStoreSupplier);
+        return service;
     }
 
     /**
@@ -45,7 +54,7 @@ public class InMemoryRuleProcessingService {
      * @param rule to be added
      */
     public synchronized void add(final Rule rule) {
-        new AddRuleOperation(rule).perform();
+        new AddRuleOperation(rule, attributeValueStoreFactory).perform();
     }
 
     /**
@@ -53,7 +62,7 @@ public class InMemoryRuleProcessingService {
      * @param rule to be removed
      */
     public synchronized void remove(final Rule rule) {
-        new DeleteRuleOperation(rule).perform();
+        new DeleteRuleOperation(rule, attributeValueStoreFactory).perform();
     }
 
     /**
@@ -64,9 +73,10 @@ public class InMemoryRuleProcessingService {
      * @return a label if there is unique label otherwise empty
      */
     public Optional<String> evaluateLabel(List<AttributeExtractor<String>> attributeExtractors) {
+        assert attributeValueStoreFactory != null;
         Optional<String> result = Optional.empty();
         for (AttributeExtractor<String> attributeExtractor : attributeExtractors) {
-            AttributeValueStore<String, String> valueStore = AttributeValueStoreFactory.getAttributeValueStore(
+            AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(
                 attributeExtractor.getAttribute()
             );
             for (String value : attributeExtractor.extract()) {
@@ -91,9 +101,11 @@ public class InMemoryRuleProcessingService {
 
     private static abstract class RuleProcessingOperation {
         protected final Rule rule;
+        protected final AttributeValueStoreFactory attributeValueStoreFactory;
 
-        public RuleProcessingOperation(Rule rule) {
+        public RuleProcessingOperation(Rule rule, AttributeValueStoreFactory attributeValueStoreFactory) {
             this.rule = rule;
+            this.attributeValueStoreFactory = attributeValueStoreFactory;
         }
 
         void perform() {
@@ -105,16 +117,16 @@ public class InMemoryRuleProcessingService {
             }
         }
 
-        protected static AttributeValueStore<String, String> getAttributeValueStore(final Attribute attribute) {
-            return AttributeValueStoreFactory.getAttributeValueStore(attribute);
+        protected AttributeValueStore<String, String> getAttributeValueStore(final Attribute attribute) {
+            return this.attributeValueStoreFactory.getAttributeValueStore(attribute);
         }
 
         protected abstract void processAttributeEntry(Map.Entry<Attribute, Set<String>> attributeEntry);
     }
 
     private static class DeleteRuleOperation extends RuleProcessingOperation {
-        public DeleteRuleOperation(Rule rule) {
-            super(rule);
+        public DeleteRuleOperation(Rule rule, AttributeValueStoreFactory attributeValueStoreFactory) {
+            super(rule, attributeValueStoreFactory);
         }
 
         @Override
@@ -127,8 +139,8 @@ public class InMemoryRuleProcessingService {
     }
 
     private static class AddRuleOperation extends RuleProcessingOperation {
-        public AddRuleOperation(Rule rule) {
-            super(rule);
+        public AddRuleOperation(Rule rule, AttributeValueStoreFactory attributeValueStoreFactory) {
+            super(rule, attributeValueStoreFactory);
         }
 
         @Override
