@@ -8,6 +8,7 @@
 
 package org.opensearch.tasks;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -34,7 +35,11 @@ public class TaskCancellationStats implements ToXContentFragment, Writeable {
     }
 
     public TaskCancellationStats(StreamInput in) throws IOException {
-        searchTaskCancellationStats = new SearchTaskCancellationStats(in);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            searchTaskCancellationStats = new SearchTaskCancellationStats(in);
+        } else {
+            searchTaskCancellationStats = new SearchTaskCancellationStats(0, 0);
+        }
         searchShardTaskCancellationStats = new SearchShardTaskCancellationStats(in);
     }
 
@@ -58,7 +63,9 @@ public class TaskCancellationStats implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        searchTaskCancellationStats.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            searchTaskCancellationStats.writeTo(out);
+        }
         searchShardTaskCancellationStats.writeTo(out);
     }
 
