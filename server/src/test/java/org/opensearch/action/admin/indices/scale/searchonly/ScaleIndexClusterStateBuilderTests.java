@@ -28,8 +28,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCHONLY_BLOCK;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCHONLY_BLOCK_ID;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCH_ONLY_BLOCK;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCH_ONLY_BLOCK_ID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -83,7 +83,7 @@ public class ScaleIndexClusterStateBuilderTests extends OpenSearchTestCase {
         ClusterState newState = builder.buildScaleDownState(initialState, testIndex, blockedIndices);
 
         // Verify block was added
-        assertTrue("Scale down block should be present", newState.blocks().hasIndexBlockWithId(testIndex, INDEX_SEARCHONLY_BLOCK_ID));
+        assertTrue("Scale down block should be present", newState.blocks().hasIndexBlockWithId(testIndex, INDEX_SEARCH_ONLY_BLOCK_ID));
 
         // Verify blocked indices map was updated
         assertFalse("Blocked indices map should not be empty", blockedIndices.isEmpty());
@@ -102,7 +102,7 @@ public class ScaleIndexClusterStateBuilderTests extends OpenSearchTestCase {
             "Temporary block should be removed",
             finalState.blocks().hasIndexBlock(testIndex, blockedIndices.get(indexMetadata.getIndex()))
         );
-        assertTrue("Search-only block should be present", finalState.blocks().hasIndexBlock(testIndex, INDEX_SEARCHONLY_BLOCK));
+        assertTrue("Search-only block should be present", finalState.blocks().hasIndexBlock(testIndex, INDEX_SEARCH_ONLY_BLOCK));
 
         // Verify metadata was updated
         IndexMetadata updatedMetadata = finalState.metadata().index(testIndex);

@@ -167,15 +167,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     // Block ID and block for scale operations (IDs 20-29 reserved for scaling)
-    public static final int INDEX_SEARCHONLY_BLOCK_ID = 20;
+    public static final int INDEX_SEARCH_ONLY_BLOCK_ID = 20;
 
     /**
      * Permanent cluster block applied to indices in search-only mode.
      * <p>
      * This block prevents write operations to the index while allowing read operations.
      */
-    public static final ClusterBlock INDEX_SEARCHONLY_BLOCK = new ClusterBlock(
-        INDEX_SEARCHONLY_BLOCK_ID,
+    public static final ClusterBlock INDEX_SEARCH_ONLY_BLOCK = new ClusterBlock(
+        INDEX_SEARCH_ONLY_BLOCK_ID,
         "index scaled down",
         false,
         false,
@@ -524,7 +524,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         WRITE("write", INDEX_WRITE_BLOCK),
         METADATA("metadata", INDEX_METADATA_BLOCK),
         READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK),
-        SEARCH_ONLY("search_only", INDEX_SEARCHONLY_BLOCK);
+        SEARCH_ONLY("search_only", INDEX_SEARCH_ONLY_BLOCK);
 
         final String name;
         final String settingName;

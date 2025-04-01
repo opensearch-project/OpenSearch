@@ -31,8 +31,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.opensearch.cluster.block.ClusterBlockLevel.WRITE;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCHONLY_BLOCK;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCHONLY_BLOCK_ID;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCH_ONLY_BLOCK;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCH_ONLY_BLOCK_ID;
 
 /**
  * Utility class responsible for constructing new cluster states during scale operations.
@@ -106,7 +106,7 @@ class ScaleIndexClusterStateBuilder {
             throw new IllegalStateException("Index " + index + " not found");
         }
 
-        blocksBuilder.removeIndexBlockWithId(index, INDEX_SEARCHONLY_BLOCK_ID);
+        blocksBuilder.removeIndexBlockWithId(index, INDEX_SEARCH_ONLY_BLOCK_ID);
 
         Settings updatedSettings = Settings.builder()
             .put(indexMetadata.getSettings())
@@ -117,7 +117,7 @@ class ScaleIndexClusterStateBuilder {
             IndexMetadata.builder(indexMetadata).settings(updatedSettings).settingsVersion(indexMetadata.getSettingsVersion() + 1)
         );
 
-        blocksBuilder.addIndexBlock(index, INDEX_SEARCHONLY_BLOCK);
+        blocksBuilder.addIndexBlock(index, INDEX_SEARCH_ONLY_BLOCK);
 
         updateRoutingTableForScaleDown(routingTableBuilder, currentState, index);
 
@@ -260,7 +260,7 @@ class ScaleIndexClusterStateBuilder {
      */
     static ClusterBlock createScaleDownBlock() {
         return new ClusterBlock(
-            INDEX_SEARCHONLY_BLOCK_ID,
+            INDEX_SEARCH_ONLY_BLOCK_ID,
             UUIDs.randomBase64UUID(),
             "index preparing to scale down",
             false,

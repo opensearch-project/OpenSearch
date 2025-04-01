@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCHONLY_BLOCK_ID;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCH_ONLY_BLOCK_ID;
 
 /**
  * Transport action implementation for search-only scale operations.
@@ -439,7 +439,7 @@ public class TransportScaleIndexAction extends TransportClusterManagerNodeAction
             ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(tempState.blocks());
             Metadata.Builder metadataBuilder = Metadata.builder(tempState.metadata());
 
-            blocksBuilder.removeIndexBlockWithId(index, INDEX_SEARCHONLY_BLOCK_ID);
+            blocksBuilder.removeIndexBlockWithId(index, INDEX_SEARCH_ONLY_BLOCK_ID);
             IndexMetadata indexMetadata = tempState.metadata().index(index);
             Settings updatedSettings = Settings.builder()
                 .put(indexMetadata.getSettings())

@@ -141,7 +141,9 @@ public class RemoteStoreRestoreService {
     ) {
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap = new HashMap<>();
         ClusterState remoteState = null;
-        boolean metadataFromRemoteStore = restoreClusterUUID != null && !restoreClusterUUID.isEmpty();
+        boolean metadataFromRemoteStore = (restoreClusterUUID == null
+            || restoreClusterUUID.isEmpty()
+            || restoreClusterUUID.isBlank()) == false;
 
         if (metadataFromRemoteStore) {
             try {
@@ -173,9 +175,9 @@ public class RemoteStoreRestoreService {
                     logger.warn("Index restore is not supported for non-existent index. Skipping: {}", indexName);
                     continue;
                 }
-                boolean isSearchOnly = indexMetadata.getSettings()
+                boolean isSearchOnlyClusterBlockEnabled = indexMetadata.getSettings()
                     .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
-                if (isSearchOnly) {
+                if (isSearchOnlyClusterBlockEnabled) {
                     throw new IllegalArgumentException(
                         String.format(Locale.ROOT, "Cannot use _remotestore/_restore on search_only mode enabled index [%s].", indexName)
                     );

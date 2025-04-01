@@ -94,16 +94,6 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         hasDiscoveredClusterManager = clusterState.nodes().getClusterManagerNodeId() != null;
         indices = new HashMap<>();
 
-        boolean hasSearchOnlyIndices = false;
-        for (String index : concreteIndices) {
-            IndexMetadata indexMetadata = clusterState.metadata().index(index);
-            if (indexMetadata != null
-                && indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)) {
-                hasSearchOnlyIndices = true;
-                break;
-            }
-        }
-
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
             IndexMetadata indexMetadata = clusterState.metadata().index(index);
@@ -133,22 +123,9 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             computeStatus = getClusterHealthStatus(indexHealth, computeStatus);
         }
 
-        if (hasSearchOnlyIndices) {
-            Map<String, ClusterIndexHealth> searchOnlyIndices = new HashMap<>();
-            for (String index : concreteIndices) {
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
-                if (indexMetadata == null) continue;
+        Map<String, ClusterIndexHealth> searchOnlyIndices = collectSearchOnlyIndices(clusterState, concreteIndices, indices);
 
-                boolean isSearchOnlyEnabled = indexMetadata.getSettings()
-                    .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
-
-                if (isSearchOnlyEnabled) {
-                    ClusterIndexHealth indexHealth = indices.get(indexMetadata.getIndex().getName());
-                    if (indexHealth != null) {
-                        searchOnlyIndices.put(indexHealth.getIndex(), indexHealth);
-                    }
-                }
-            }
+        if (searchOnlyIndices.isEmpty() == false) {
             for (ClusterIndexHealth indexHealth : searchOnlyIndices.values()) {
                 if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
                     computeStatus = ClusterHealthStatus.RED;
@@ -200,16 +177,6 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         boolean isIndexOrShardLevelHealthRequired = healthLevel == ClusterHealthRequest.Level.INDICES
             || healthLevel == ClusterHealthRequest.Level.SHARDS;
 
-        boolean hasSearchOnlyIndices = false;
-        for (String index : concreteIndices) {
-            IndexMetadata indexMetadata = clusterState.metadata().index(index);
-            if (indexMetadata != null
-                && indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)) {
-                hasSearchOnlyIndices = true;
-                break;
-            }
-        }
-
         ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
         int computeActivePrimaryShards = 0;
         int computeActiveShards = 0;
@@ -226,8 +193,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             }
 
             ClusterHealthRequest.Level indexHealthLevel = healthLevel;
-            if (healthLevel == ClusterHealthRequest.Level.CLUSTER
-                && indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)) {
+            if (healthLevel == ClusterHealthRequest.Level.CLUSTER && isSearchOnlyClusterBlockEnabled(indexMetadata)) {
                 indexHealthLevel = ClusterHealthRequest.Level.SHARDS;
             }
 
@@ -241,8 +207,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             computeStatus = getClusterHealthStatus(indexHealth, computeStatus);
 
             if (isIndexOrShardLevelHealthRequired
-                || (indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)
-                    && indexHealthLevel == ClusterHealthRequest.Level.SHARDS)) {
+                || (isSearchOnlyClusterBlockEnabled(indexMetadata) && indexHealthLevel == ClusterHealthRequest.Level.SHARDS)) {
                 // Store ClusterIndexHealth when:
                 // 1. Health is requested at Index or Shard level, OR
                 // 2. This is a search_only index we're examining at SHARDS level
@@ -250,21 +215,8 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             }
         }
 
-        if (hasSearchOnlyIndices) {
-            Map<String, ClusterIndexHealth> searchOnlyIndices = new HashMap<>();
-            for (String index : concreteIndices) {
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
-                if (indexMetadata == null) continue;
-
-                if (indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)) {
-                    String indexName = indexMetadata.getIndex().getName();
-                    ClusterIndexHealth indexHealth = indices.get(indexName);
-                    if (indexHealth != null) {
-                        searchOnlyIndices.put(indexName, indexHealth);
-                    }
-                }
-            }
-
+        Map<String, ClusterIndexHealth> searchOnlyIndices = collectSearchOnlyIndices(clusterState, concreteIndices, indices);
+        if (searchOnlyIndices.isEmpty() == false) {
             for (ClusterIndexHealth indexHealth : searchOnlyIndices.values()) {
                 if (indexHealth.getUnassignedShards() > 0 && indexHealth.getActiveShards() == 0) {
                     computeStatus = ClusterHealthStatus.RED;
@@ -298,6 +250,46 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             }
             this.activeShardsPercent = (((double) activeShardCount) / totalShardCount) * 100;
         }
+    }
+
+    /**
+     * Checks if an index has search-only mode enabled.
+     *
+     * @param indexMetadata The index metadata
+     * @return true if search-only mode is enabled, false otherwise
+     */
+    private static boolean isSearchOnlyClusterBlockEnabled(IndexMetadata indexMetadata) {
+        return indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+    }
+
+    /**
+     * Collects health information for search-only indices.
+     *
+     * @param clusterState The current cluster state
+     * @param concreteIndices Array of index names
+     * @param healthIndices Map of existing index health objects
+     * @return Map of index health objects for search-only indices
+     */
+    private static Map<String, ClusterIndexHealth> collectSearchOnlyIndices(
+        final ClusterState clusterState,
+        final String[] concreteIndices,
+        final Map<String, ClusterIndexHealth> healthIndices
+    ) {
+
+        Map<String, ClusterIndexHealth> searchOnlyIndices = new HashMap<>();
+        for (String index : concreteIndices) {
+            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            if (indexMetadata == null) continue;
+
+            if (isSearchOnlyClusterBlockEnabled(indexMetadata)) {
+                String indexName = indexMetadata.getIndex().getName();
+                ClusterIndexHealth indexHealth = healthIndices.get(indexName);
+                if (indexHealth != null) {
+                    searchOnlyIndices.put(indexName, indexHealth);
+                }
+            }
+        }
+        return searchOnlyIndices;
     }
 
     private static ClusterHealthStatus getClusterHealthStatus(ClusterIndexHealth indexHealth, ClusterHealthStatus computeStatus) {

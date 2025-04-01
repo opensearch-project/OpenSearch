@@ -212,7 +212,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         int computeUnassignedShards = 0;
         int computeDelayedUnassignedShards = 0;
 
-        boolean isSearchOnlyEnabled = indexMetadata.getSettings()
+        boolean isSearchOnlyClusterBlockEnabled = indexMetadata.getSettings()
             .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
         boolean isShardLevelHealthRequired = healthLevel == ClusterHealthRequest.Level.SHARDS;
         if (isShardLevelHealthRequired) {
@@ -256,7 +256,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
                 ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
 
                 if (primaryShard == null) {
-                    if (isSearchOnlyEnabled) {
+                    if (isSearchOnlyClusterBlockEnabled) {
                         computeStatus = getIndexHealthStatus(ClusterHealthStatus.GREEN, computeStatus);
                     } else {
                         computeStatus = getIndexHealthStatus(ClusterHealthStatus.RED, computeStatus);

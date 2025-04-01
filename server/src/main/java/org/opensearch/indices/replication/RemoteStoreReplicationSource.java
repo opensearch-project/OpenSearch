@@ -86,7 +86,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 } else {
                     // Regular replicas should not be active without metadata
                     listener.onFailure(
-                        new IllegalStateException("Remote metadata file can't be null for active regular replica: " + indexShard.shardId())
+                        new IllegalStateException("Remote metadata file can't be null if shard is active: " + indexShard.shardId())
                     );
                     return;
                 }

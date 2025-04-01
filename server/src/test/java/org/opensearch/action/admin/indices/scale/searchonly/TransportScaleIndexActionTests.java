@@ -62,7 +62,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.mockito.ArgumentCaptor;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCHONLY_BLOCK_ID;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCH_ONLY_BLOCK_ID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -666,8 +666,8 @@ public class TransportScaleIndexActionTests extends OpenSearchTestCase {
         Collection<ClusterBlock> indexBlocks = newState.blocks().indices().get(indexName);
         assertNotNull("Index blocks should not be null", indexBlocks);
         assertTrue("Index should have at least one block", !indexBlocks.isEmpty());
-        boolean hasBlockWithCorrectId = indexBlocks.stream().anyMatch(block -> block.id() == INDEX_SEARCHONLY_BLOCK_ID);
-        assertTrue("Should find a block with ID " + INDEX_SEARCHONLY_BLOCK_ID, hasBlockWithCorrectId);
+        boolean hasBlockWithCorrectId = indexBlocks.stream().anyMatch(block -> block.id() == INDEX_SEARCH_ONLY_BLOCK_ID);
+        assertTrue("Should find a block with ID " + INDEX_SEARCH_ONLY_BLOCK_ID, hasBlockWithCorrectId);
 
         // Test execution with missing index
         initialState = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder().build()).build();

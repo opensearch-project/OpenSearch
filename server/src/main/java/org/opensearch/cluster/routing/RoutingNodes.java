@@ -128,11 +128,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         for (final IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (IndexShardRoutingTable indexShard : indexRoutingTable) {
                 IndexMetadata idxMetadata = metadata.index(indexShard.shardId().getIndex());
-                boolean isSearchOnly = false;
+                boolean isSearchOnlyClusterBlockEnabled = false;
                 if (idxMetadata != null) {
-                    isSearchOnly = idxMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+                    isSearchOnlyClusterBlockEnabled = idxMetadata.getSettings()
+                        .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
                 }
-                if (!isSearchOnly) {
+                if (isSearchOnlyClusterBlockEnabled == false) {
                     assert indexShard.primary != null : "Primary shard routing can't be null for non-search-only indices";
                 }
                 for (ShardRouting shard : indexShard) {
@@ -192,13 +193,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert routing.initializing() : "routing must be initializing: " + routing;
 
         IndexMetadata idxMetadata = metadata.index(routing.index());
-        boolean isSearchOnly = false;
+        boolean isSearchOnlyClusterBlockEnabled = false;
         if (idxMetadata != null) {
-            isSearchOnly = idxMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+            isSearchOnlyClusterBlockEnabled = idxMetadata.getSettings()
+                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
         }
 
         // TODO: check primary == null || primary.active() after all tests properly add ReplicaAfterPrimaryActiveAllocationDecider
-        if (!isSearchOnly) {
+        if (isSearchOnlyClusterBlockEnabled == false) {
             assert primary == null || primary.assignedToNode() : "shard is initializing but its primary is not assigned to a node";
         }
 

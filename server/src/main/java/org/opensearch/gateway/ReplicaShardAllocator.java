@@ -253,36 +253,19 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         if (primaryShard == null) {
             // Determine if the index is configured for search-only.
 
-            boolean isIndexSearchOnly = allocation.metadata()
-                .getIndexSafe(unassignedShard.index())
-                .getSettings()
-                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+            if (unassignedShard.isSearchOnly()) {
+                boolean isSearchOnlyClusterBlockEnabled = allocation.metadata()
+                    .getIndexSafe(unassignedShard.index())
+                    .getSettings()
+                    .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
 
-            // Only proceed if both the shard is marked search-only and the index setting is enabled.
-            if (unassignedShard.isSearchOnly() && isIndexSearchOnly) {
-                // Obtain the collection of data nodes once.
-                Collection<DiscoveryNode> dataNodes = allocation.nodes().getDataNodes().values();
-
-                // Use a stream to find the first candidate node where the allocation decider returns YES.
-                DiscoveryNode selectedCandidate = dataNodes.stream()
-                    .filter(candidate -> allocation.routingNodes().node(candidate.getId()) != null)
-                    .filter(candidate -> {
-                        RoutingNode node = allocation.routingNodes().node(candidate.getId());
-                        Decision decision = allocation.deciders().canAllocate(unassignedShard, node, allocation);
-                        return decision.type() == Decision.Type.YES;
-                    })
-                    .findFirst()
-                    .orElse(null);
-
-                // If a candidate was found, return a YES allocation decision.
-                if (selectedCandidate != null) {
-                    return AllocateUnassignedDecision.yes(selectedCandidate, null, new ArrayList<>(), false);
+                if (isSearchOnlyClusterBlockEnabled) {
+                    return getSearchReplicaAllocationDecision(unassignedShard, allocation);
                 }
-
-                // If there are no data nodes available, delay allocation.
-                return AllocateUnassignedDecision.delayed(0L, 0L, null);
             } else {
                 // For non-search-only replicas, if there is no active primary we do not attempt an allocation.
+                assert explain : "primary should only be null here if we are in explain mode, so we didn't "
+                    + "exit early when canBeAllocatedToAtLeastOneNode didn't return a YES decision";
                 return AllocateUnassignedDecision.no(
                     UnassignedInfo.AllocationStatus.fromDecision(allocationDecision.v1().type()),
                     new ArrayList<>(allocationDecision.v2().values())
@@ -363,6 +346,33 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         }
 
         return AllocateUnassignedDecision.NOT_TAKEN;
+    }
+
+    /**
+     * Handles allocation decisions for search-only replica shards
+     */
+    private AllocateUnassignedDecision getSearchReplicaAllocationDecision(ShardRouting unassignedShard, RoutingAllocation allocation) {
+        // Obtain the collection of data nodes once
+        Collection<DiscoveryNode> dataNodes = allocation.nodes().getDataNodes().values();
+
+        // Use a stream to find the first candidate node where the allocation decider returns YES
+        DiscoveryNode selectedCandidate = dataNodes.stream()
+            .filter(candidate -> allocation.routingNodes().node(candidate.getId()) != null)
+            .filter(candidate -> {
+                RoutingNode node = allocation.routingNodes().node(candidate.getId());
+                Decision decision = allocation.deciders().canAllocate(unassignedShard, node, allocation);
+                return decision.type() == Decision.Type.YES;
+            })
+            .findFirst()
+            .orElse(null);
+
+        // If a candidate was found, return a YES allocation decision
+        if (selectedCandidate != null) {
+            return AllocateUnassignedDecision.yes(selectedCandidate, null, new ArrayList<>(), false);
+        }
+
+        // If there are no data nodes available, delay allocation
+        return AllocateUnassignedDecision.delayed(0L, 0L, null);
     }
 
     /**

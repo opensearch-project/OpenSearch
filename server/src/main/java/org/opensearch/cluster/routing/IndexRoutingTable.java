@@ -141,7 +141,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
             throw new IllegalStateException("Wrong number of shards in routing table, missing: " + expected);
         }
 
-        boolean isSearchOnlyEnabled = indexMetadata.getSettings()
+        boolean isSearchOnlyClusterBlockEnabled = indexMetadata.getSettings()
             .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
 
         for (IndexShardRoutingTable indexShardRoutingTable : this) {
@@ -149,7 +149,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
             int expectedReplicas = indexMetadata.getNumberOfReplicas() + indexMetadata.getNumberOfSearchOnlyReplicas();
 
             // Only throw if we are NOT in search-only mode. Otherwise, we ignore or log the mismatch.
-            if (routingNumberOfReplicas != expectedReplicas && isSearchOnlyEnabled == false) {
+            if (routingNumberOfReplicas != expectedReplicas && isSearchOnlyClusterBlockEnabled == false) {
                 throw new IllegalStateException(
                     "Shard ["
                         + indexShardRoutingTable.shardId().id()
