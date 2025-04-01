@@ -1,10 +1,3 @@
-FROM gradle:8.12.1-jdk23-alpine AS builder
-USER gradle
-WORKDIR /home/wazuh-indexer
-COPY --chown=gradle:gradle . /home/wazuh-indexer
-RUN gradle clean
-
-
 FROM eclipse-temurin:23-jdk-alpine
 RUN apk add git && \
   apk add curl && \
@@ -15,7 +8,8 @@ RUN apk add git && \
   chmod 0775 /home/wazuh-indexer && \
   chown -R 1000:0 /home/wazuh-indexer
 USER wazuh-indexer
-COPY --from=builder --chown=1000:0 /home/wazuh-indexer /home/wazuh-indexer
+COPY --chown=1000:0 . /home/wazuh-indexer
 WORKDIR /home/wazuh-indexer
+RUN ./gradlew clean
 RUN git config --global --add safe.directory /home/wazuh-indexer
 EXPOSE 9200 9300
