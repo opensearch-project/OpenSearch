@@ -22,24 +22,14 @@ public class AttributeValueStoreFactory {
     private final Map<String, AttributeValueStore<String, String>> attributeValueStores = new HashMap<>();
 
     /**
-     * Making the class to be uninitializable
-     */
-    private AttributeValueStoreFactory() {}
-
-    /**
-     * This should be the first method to be invoked else the factory method will throw an exception
+     * Constructor
      * @param featureType  is the feature which are using rule based auto tagging
      * @param attributeValueStoreSupplier supplies the feature level AttributeValueStore instance
      */
-    public static AttributeValueStoreFactory create(
-        FeatureType featureType,
-        Supplier<AttributeValueStore<String, String>> attributeValueStoreSupplier
-    ) {
-        final AttributeValueStoreFactory instance = new AttributeValueStoreFactory();
+    public AttributeValueStoreFactory(FeatureType featureType, Supplier<AttributeValueStore<String, String>> attributeValueStoreSupplier) {
         for (Attribute attribute : featureType.getAllowedAttributesRegistry().values()) {
-            instance.attributeValueStores.put(attribute.getName(), attributeValueStoreSupplier.get());
+            attributeValueStores.put(attribute.getName(), attributeValueStoreSupplier.get());
         }
-        return instance;
     }
 
     /**

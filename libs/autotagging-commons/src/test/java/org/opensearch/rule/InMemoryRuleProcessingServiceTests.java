@@ -27,7 +27,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        sut = InMemoryRuleProcessingService.createForFeature(WLMFeatureType.WLM, DefaultAttributeValueStore::new);
+        sut = new InMemoryRuleProcessingService(WLMFeatureType.WLM, DefaultAttributeValueStore::new);
     }
 
     public void testAdd() {
