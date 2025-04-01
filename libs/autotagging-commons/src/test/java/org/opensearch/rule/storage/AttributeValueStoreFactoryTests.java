@@ -14,31 +14,25 @@ import org.opensearch.rule.InMemoryRuleProcessingServiceTests.WLMFeatureType;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class AttributeValueStoreFactoryTests extends OpenSearchTestCase {
+    AttributeValueStoreFactory sut;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        AttributeValueStoreFactory.init(WLMFeatureType.WLM, () -> new DefaultAttributeValueStore<>());
+        sut = AttributeValueStoreFactory.create(WLMFeatureType.WLM, () -> new DefaultAttributeValueStore<>());
     }
 
     public void testFeatureLevelStoreInitialisation() {
         for (Attribute attribute : WLMFeatureType.WLM.getAllowedAttributesRegistry().values()) {
-            assertTrue(AttributeValueStoreFactory.getAttributeValueStore(attribute) instanceof DefaultAttributeValueStore<String, String>);
+            assertTrue(sut.getAttributeValueStore(attribute) instanceof DefaultAttributeValueStore<String, String>);
         }
     }
 
     public void testValidGetAttributeValueStore() {
-        assertTrue(
-            AttributeValueStoreFactory.getAttributeValueStore(TestAttribute.TEST_ATTRIBUTE) instanceof DefaultAttributeValueStore<
-                String,
-                String>
-        );
+        assertTrue(sut.getAttributeValueStore(TestAttribute.TEST_ATTRIBUTE) instanceof DefaultAttributeValueStore<String, String>);
     }
 
     public void testInValidGetAttributeValueStore() {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> { AttributeValueStoreFactory.getAttributeValueStore(TestAttribute.INVALID_ATTRIBUTE); }
-        );
+        assertThrows(IllegalArgumentException.class, () -> { sut.getAttributeValueStore(TestAttribute.INVALID_ATTRIBUTE); });
     }
 }

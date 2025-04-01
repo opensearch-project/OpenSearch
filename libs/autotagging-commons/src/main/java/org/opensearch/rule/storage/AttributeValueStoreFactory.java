@@ -16,10 +16,10 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Factory class for AttributeValueStore
+ * Factory class for AttributeValueStore per feature type as two feature types can potentially share same attribute
  */
 public class AttributeValueStoreFactory {
-    private final static Map<String, AttributeValueStore<String, String>> attributeValueStores = new HashMap<>();
+    private final Map<String, AttributeValueStore<String, String>> attributeValueStores = new HashMap<>();
 
     /**
      * Making the class to be uninitializable
@@ -31,10 +31,15 @@ public class AttributeValueStoreFactory {
      * @param featureType  is the feature which are using rule based auto tagging
      * @param attributeValueStoreSupplier supplies the feature level AttributeValueStore instance
      */
-    public static void init(FeatureType featureType, Supplier<AttributeValueStore<String, String>> attributeValueStoreSupplier) {
+    public static AttributeValueStoreFactory create(
+        FeatureType featureType,
+        Supplier<AttributeValueStore<String, String>> attributeValueStoreSupplier
+    ) {
+        final AttributeValueStoreFactory instance = new AttributeValueStoreFactory();
         for (Attribute attribute : featureType.getAllowedAttributesRegistry().values()) {
-            attributeValueStores.put(attribute.getName(), attributeValueStoreSupplier.get());
+            instance.attributeValueStores.put(attribute.getName(), attributeValueStoreSupplier.get());
         }
+        return instance;
     }
 
     /**
@@ -42,7 +47,7 @@ public class AttributeValueStoreFactory {
      * @param attribute
      * @return
      */
-    public static AttributeValueStore<String, String> getAttributeValueStore(final Attribute attribute) {
+    public AttributeValueStore<String, String> getAttributeValueStore(final Attribute attribute) {
         final String attributeName = attribute.getName();
         if (attributeValueStores == null) {
             throw new IllegalStateException("AttributeValueStoreFactory is not initialized yet.");
