@@ -55,7 +55,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
      * scaling search replicas while in search-only mode, verifying cluster health in
      * various states, and then scaling back up to normal mode.
      */
-    public void testFullSearchOnlyLifecycleWithReplicaScaling() throws Exception {
+    public void testFullSearchOnlyReplicasFullLifecycle() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         internalCluster().startSearchOnlyNodes(3);
@@ -93,6 +93,24 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
         // Verify search-only setting is enabled
         GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(TEST_INDEX).get();
         assertTrue(settingsResponse.getSetting(TEST_INDEX, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey()).equals("true"));
+
+        // Verify that write operations are blocked during scale-down
+        assertBusy(() -> {
+            try {
+                // Attempt to index a document while scale-down is in progress
+                client().prepareIndex(TEST_INDEX)
+                    .setId("sample-write-after-search-only-block")
+                    .setSource("field1", "value1")
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .get();
+                fail("Write operation should be blocked during scale-down");
+            } catch (Exception e) {
+                assertTrue(
+                    "Exception should indicate index scaled down",
+                    e.getMessage().contains("blocked by: [FORBIDDEN/20/index scaled down]")
+                );
+            }
+        }, 10, TimeUnit.SECONDS);
 
         ensureGreen(TEST_INDEX);
 

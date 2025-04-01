@@ -174,7 +174,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res3);
         ExecutionException exception = assertThrows(ExecutionException.class, () -> res3.get());
         assertTrue(exception.getCause() instanceof IllegalStateException);
-        assertTrue(exception.getCause().getMessage().contains("Remote metadata file can't be null for active regular replica"));
+        assertTrue(exception.getCause().getMessage().contains("Remote metadata file can't be null if shard is active"));
     }
 
     private void buildIndexShardBehavior(IndexShard mockShard, IndexShard indexShard) {
