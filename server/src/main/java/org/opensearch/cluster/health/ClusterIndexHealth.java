@@ -71,6 +71,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     private static final String STATUS = "status";
     private static final String NUMBER_OF_SHARDS = "number_of_shards";
     private static final String NUMBER_OF_REPLICAS = "number_of_replicas";
+    private static final String NUMBER_OF_SEARCH_REPLICAS = "number_of_search_replicas";
     private static final String ACTIVE_PRIMARY_SHARDS = "active_primary_shards";
     private static final String ACTIVE_SHARDS = "active_shards";
     private static final String RELOCATING_SHARDS = "relocating_shards";
@@ -85,6 +86,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
             int i = 0;
             int numberOfShards = (int) parsedObjects[i++];
             int numberOfReplicas = (int) parsedObjects[i++];
+            int numberOfSearchReplicas = (int) parsedObjects[i++];
             int activeShards = (int) parsedObjects[i++];
             int relocatingShards = (int) parsedObjects[i++];
             int initializingShards = (int) parsedObjects[i++];
@@ -107,6 +109,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
                 index,
                 numberOfShards,
                 numberOfReplicas,
+                numberOfSearchReplicas,
                 activeShards,
                 relocatingShards,
                 initializingShards,
@@ -126,6 +129,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     static {
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_REPLICAS));
+        PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_SEARCH_REPLICAS));
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(RELOCATING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(INITIALIZING_SHARDS));
@@ -139,6 +143,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     private final String index;
     private final int numberOfShards;
     private final int numberOfReplicas;
+    private final int numberOfSearchReplicas;
     private final int activeShards;
     private final int relocatingShards;
     private final int initializingShards;
@@ -152,6 +157,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         this.index = indexMetadata.getIndex().getName();
         this.numberOfShards = indexMetadata.getNumberOfShards();
         this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
+        this.numberOfSearchReplicas = indexMetadata.getNumberOfSearchOnlyReplicas();
 
         shards = new HashMap<>();
         for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
@@ -200,6 +206,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         this.index = indexMetadata.getIndex().getName();
         this.numberOfShards = indexMetadata.getNumberOfShards();
         this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
+        this.numberOfSearchReplicas = indexMetadata.getNumberOfSearchOnlyReplicas();
 
         shards = new HashMap<>();
 
@@ -299,6 +306,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         index = in.readString();
         numberOfShards = in.readVInt();
         numberOfReplicas = in.readVInt();
+        numberOfSearchReplicas = in.readVInt();
         activePrimaryShards = in.readVInt();
         activeShards = in.readVInt();
         relocatingShards = in.readVInt();
@@ -321,6 +329,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         String index,
         int numberOfShards,
         int numberOfReplicas,
+        int numberOfSearchReplicas,
         int activeShards,
         int relocatingShards,
         int initializingShards,
@@ -332,6 +341,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         this.index = index;
         this.numberOfShards = numberOfShards;
         this.numberOfReplicas = numberOfReplicas;
+        this.numberOfSearchReplicas = numberOfSearchReplicas;
         this.activeShards = activeShards;
         this.relocatingShards = relocatingShards;
         this.initializingShards = initializingShards;
@@ -351,6 +361,10 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
 
     public int getNumberOfReplicas() {
         return numberOfReplicas;
+    }
+
+    public int getNumberOfSearchReplicas() {
+        return numberOfSearchReplicas;
     }
 
     public int getActiveShards() {
@@ -395,6 +409,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         out.writeString(index);
         out.writeVInt(numberOfShards);
         out.writeVInt(numberOfReplicas);
+        out.writeVInt(numberOfSearchReplicas);
         out.writeVInt(activePrimaryShards);
         out.writeVInt(activeShards);
         out.writeVInt(relocatingShards);
@@ -410,6 +425,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         builder.field(STATUS, getStatus().name().toLowerCase(Locale.ROOT));
         builder.field(NUMBER_OF_SHARDS, getNumberOfShards());
         builder.field(NUMBER_OF_REPLICAS, getNumberOfReplicas());
+        builder.field(NUMBER_OF_SEARCH_REPLICAS, getNumberOfSearchReplicas());
         builder.field(ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
         builder.field(ACTIVE_SHARDS, getActiveShards());
         builder.field(RELOCATING_SHARDS, getRelocatingShards());
@@ -451,6 +467,8 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
             + numberOfShards
             + ", numberOfReplicas="
             + numberOfReplicas
+            + ", numberOfSearchReplicas="
+            + numberOfSearchReplicas
             + ", activeShards="
             + activeShards
             + ", relocatingShards="
@@ -476,6 +494,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         return Objects.equals(index, that.index)
             && numberOfShards == that.numberOfShards
             && numberOfReplicas == that.numberOfReplicas
+            && numberOfSearchReplicas == that.numberOfSearchReplicas
             && activeShards == that.activeShards
             && relocatingShards == that.relocatingShards
             && initializingShards == that.initializingShards
