@@ -226,7 +226,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expectedDocValues, onlyDocValues.termsQuery(sortedStrings, null));
     }
 
-    @AwaitsFix(bugUrl = "never.ever")
+    @AwaitsFix(bugUrl = "no commit")
     public void testMockTermsSortedQuery() {
         String[] seedStrings = generateRandomStringArray(10, 10, false, false);
         if (seedStrings.length == 1) {
