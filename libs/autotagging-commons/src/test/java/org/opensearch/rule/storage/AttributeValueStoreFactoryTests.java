@@ -19,7 +19,7 @@ public class AttributeValueStoreFactoryTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        sut = AttributeValueStoreFactory.create(WLMFeatureType.WLM, () -> new DefaultAttributeValueStore<>());
+        sut = new AttributeValueStoreFactory(WLMFeatureType.WLM, DefaultAttributeValueStore::new);
     }
 
     public void testFeatureLevelStoreInitialisation() {

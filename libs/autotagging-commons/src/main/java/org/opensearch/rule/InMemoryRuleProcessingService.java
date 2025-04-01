@@ -31,22 +31,15 @@ public class InMemoryRuleProcessingService {
     private AttributeValueStoreFactory attributeValueStoreFactory;
 
     /**
-     *  Make the instance accessible using static factory method only
-     */
-    private InMemoryRuleProcessingService() {}
-
-    /**
-     * This factory methods creates an instance of InMemoryRuleProcessingService to use auto-tagging framework
+     *  Constrcutor
      * @param featureType
      * @param attributeValueStoreSupplier
      */
-    public static InMemoryRuleProcessingService createForFeature(
+    public InMemoryRuleProcessingService(
         FeatureType featureType,
         Supplier<AttributeValueStore<String, String>> attributeValueStoreSupplier
     ) {
-        InMemoryRuleProcessingService service = new InMemoryRuleProcessingService();
-        service.attributeValueStoreFactory = AttributeValueStoreFactory.create(featureType, attributeValueStoreSupplier);
-        return service;
+        attributeValueStoreFactory = new AttributeValueStoreFactory(featureType, attributeValueStoreSupplier);
     }
 
     /**
