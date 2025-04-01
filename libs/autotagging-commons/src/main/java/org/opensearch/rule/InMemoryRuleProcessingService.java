@@ -28,7 +28,7 @@ import java.util.function.Supplier;
  */
 public class InMemoryRuleProcessingService {
 
-    private AttributeValueStoreFactory attributeValueStoreFactory;
+    private final AttributeValueStoreFactory attributeValueStoreFactory;
 
     /**
      *  Constrcutor
