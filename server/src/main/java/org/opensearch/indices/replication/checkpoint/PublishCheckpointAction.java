@@ -23,6 +23,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContextAccess;
 import org.opensearch.core.action.ActionListener;
@@ -82,7 +83,10 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             actionFilters,
             PublishCheckpointRequest::new,
             PublishCheckpointRequest::new,
-            ThreadPool.Names.REFRESH
+            ThreadPool.Names.REFRESH,
+            false,
+            false,
+            new TimeValue(Long.MAX_VALUE)
         );
         this.replicationService = targetService;
     }

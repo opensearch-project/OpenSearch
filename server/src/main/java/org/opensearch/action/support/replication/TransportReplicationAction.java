@@ -184,39 +184,7 @@ public abstract class TransportReplicationAction<
             replicaRequestReader,
             executor,
             false,
-            false
-        );
-    }
-
-    protected TransportReplicationAction(
-        Settings settings,
-        String actionName,
-        TransportService transportService,
-        ClusterService clusterService,
-        IndicesService indicesService,
-        ThreadPool threadPool,
-        ShardStateAction shardStateAction,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader,
-        Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        String executor,
-        boolean syncGlobalCheckpointAfterOperation,
-        boolean forceExecutionOnPrimary
-    ) {
-        this(
-            settings,
-            actionName,
-            transportService,
-            clusterService,
-            indicesService,
-            threadPool,
-            shardStateAction,
-            actionFilters,
-            requestReader,
-            replicaRequestReader,
-            executor,
-            syncGlobalCheckpointAfterOperation,
-            forceExecutionOnPrimary,
+            false,
             null
         );
     }
@@ -235,7 +203,43 @@ public abstract class TransportReplicationAction<
         String executor,
         boolean syncGlobalCheckpointAfterOperation,
         boolean forceExecutionOnPrimary,
-        AdmissionControlActionType admissionControlActionType
+        TimeValue retryTimeout
+    ) {
+        this(
+            settings,
+            actionName,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            requestReader,
+            replicaRequestReader,
+            executor,
+            syncGlobalCheckpointAfterOperation,
+            forceExecutionOnPrimary,
+            null,
+            retryTimeout
+        );
+    }
+
+    protected TransportReplicationAction(
+        Settings settings,
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        Writeable.Reader<ReplicaRequest> replicaRequestReader,
+        String executor,
+        boolean syncGlobalCheckpointAfterOperation,
+        boolean forceExecutionOnPrimary,
+        AdmissionControlActionType admissionControlActionType,
+        TimeValue retryTimeout
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
@@ -249,7 +253,7 @@ public abstract class TransportReplicationAction<
         this.transportReplicaAction = actionName + REPLICA_ACTION_SUFFIX;
 
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
-        this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
+        this.retryTimeout = retryTimeout != null ? retryTimeout : REPLICATION_RETRY_TIMEOUT.get(settings);
         this.forceExecutionOnPrimary = forceExecutionOnPrimary;
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
@@ -273,7 +277,9 @@ public abstract class TransportReplicationAction<
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_INITIAL_RETRY_BACKOFF_BOUND, (v) -> initialRetryBackoffBound = v);
-        clusterSettings.addSettingsUpdateConsumer(REPLICATION_RETRY_TIMEOUT, (v) -> retryTimeout = v);
+        if (retryTimeout == null) {
+            clusterSettings.addSettingsUpdateConsumer(REPLICATION_RETRY_TIMEOUT, (v) -> this.retryTimeout = v);
+        }
     }
 
     /**

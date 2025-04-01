@@ -124,7 +124,8 @@ public abstract class TransportWriteAction<
             ThreadPool.Names.SAME,
             true,
             forceExecutionOnPrimary,
-            admissionControlActionType
+            admissionControlActionType,
+            null
         );
         this.executorFunction = executorFunction;
         this.indexingPressureService = indexingPressureService;
