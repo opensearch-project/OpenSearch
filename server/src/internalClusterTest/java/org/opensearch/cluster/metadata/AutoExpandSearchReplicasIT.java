@@ -58,17 +58,17 @@ public class AutoExpandSearchReplicasIT extends RemoteStoreBaseIntegTestCase {
             .setSettings(Settings.builder().put("index.auto_expand_search_replicas", "0-all"))
             .get();
 
-        // Add 2 more search nodes
-        internalCluster().startSearchOnlyNodes(2);
+        // Add 1 more search nodes
+        internalCluster().startSearchOnlyNode();
 
-        assertBusy(() -> assertEquals(3, getNumShards(indexName).numSearchReplicas));
+        assertBusy(() -> assertEquals(2, getNumShards(indexName).numSearchReplicas));
 
         // Stop a node which hosts search replica
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(searchNode));
-        assertBusy(() -> assertEquals(2, getNumShards(indexName).numSearchReplicas));
+        assertBusy(() -> assertEquals(1, getNumShards(indexName).numSearchReplicas));
 
-        // Add 2 more search nodes
-        internalCluster().startSearchOnlyNodes(2);
-        assertBusy(() -> assertEquals(4, getNumShards(indexName).numSearchReplicas));
+        // Add 1 more search nodes
+        internalCluster().startSearchOnlyNode();
+        assertBusy(() -> assertEquals(2, getNumShards(indexName).numSearchReplicas));
     }
 }

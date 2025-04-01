@@ -506,6 +506,10 @@ public class AllocationServiceTests extends OpenSearchTestCase {
         assertEquals(2, updatedClusterState.metadata().index(indexName).getNumberOfReplicas());
         assertEquals(2, updatedClusterState.metadata().index(indexName).getNumberOfSearchOnlyReplicas());
         assertNotEquals(updatedClusterState, clusterState);
+        assertEquals(
+            clusterState.metadata().index(indexName).getSettingsVersion() + 1,
+            updatedClusterState.metadata().index(indexName).getSettingsVersion()
+        );
     }
 
     public void testAdaptAutoExpandReplicasWhenAutoExpandChangesNotExists() {

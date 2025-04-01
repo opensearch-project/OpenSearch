@@ -385,6 +385,8 @@ public class AllocationService {
         } else {
             final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
             final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
+            final Set<String> updatedIndices = new HashSet<>();
+
             for (Map.Entry<Integer, List<String>> entry : autoExpandReplicaChanges.entrySet()) {
                 final int numberOfReplicas = entry.getKey();
                 final String[] indices = entry.getValue().toArray(new String[0]);
@@ -392,14 +394,7 @@ public class AllocationService {
                 // operation which make these copies stale
                 routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
                 metadataBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
-                // update settings version for each index
-                for (final String index : indices) {
-                    final IndexMetadata indexMetadata = metadataBuilder.get(index);
-                    final IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata).settingsVersion(
-                        1 + indexMetadata.getSettingsVersion()
-                    );
-                    metadataBuilder.put(indexMetadataBuilder);
-                }
+                updatedIndices.addAll(Set.of(indices));
                 logger.info("updating number_of_replicas to [{}] for indices {}", numberOfReplicas, indices);
             }
 
@@ -410,15 +405,17 @@ public class AllocationService {
                 // operation which make these copies stale
                 routingTableBuilder.updateNumberOfSearchReplicas(numberOfSearchReplicas, indices);
                 metadataBuilder.updateNumberOfSearchReplicas(numberOfSearchReplicas, indices);
-                // update settings version for each index
-                for (final String index : indices) {
-                    final IndexMetadata indexMetadata = metadataBuilder.get(index);
-                    final IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata).settingsVersion(
-                        1 + indexMetadata.getSettingsVersion()
-                    );
-                    metadataBuilder.put(indexMetadataBuilder);
-                }
+                updatedIndices.addAll(Set.of(indices));
                 logger.info("updating number_of_search_replicas to [{}] for indices {}", numberOfSearchReplicas, indices);
+            }
+
+            // update settings version for each updated index
+            for (final String index : updatedIndices) {
+                final IndexMetadata indexMetadata = metadataBuilder.get(index);
+                final IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata).settingsVersion(
+                    1 + indexMetadata.getSettingsVersion()
+                );
+                metadataBuilder.put(indexMetadataBuilder);
             }
 
             final ClusterState fixedState = ClusterState.builder(clusterState)

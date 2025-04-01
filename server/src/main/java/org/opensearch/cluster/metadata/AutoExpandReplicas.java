@@ -145,7 +145,7 @@ public final class AutoExpandReplicas {
                 .getDataNodes()
                 .values()
                 .stream()
-                .filter(node -> node.isSearchNode() == false && node.isWarmNode() == false)
+                .filter(node -> node.isSearchNode() == false)
                 .map(node -> allocation.deciders().shouldAutoExpandToNode(indexMetadata, node, allocation))
                 .filter(decision -> decision.type() != Decision.Type.NO)
                 .count();
