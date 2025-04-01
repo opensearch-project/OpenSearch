@@ -77,7 +77,13 @@ public class Agent {
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
             .ignore(ElementMatchers.none())
             .type(systemType)
-            .transform(transformer);
+            .transform(transformer)
+            .type(ElementMatchers.named("java.lang.System"))
+            .transform(
+                (b, typeDescription, classLoader, module, pd) -> b.visit(
+                    Advice.to(SystemInterceptor.class).on(ElementMatchers.named("exit"))
+                )
+            );
 
         return agentBuilder;
     }
