@@ -12,24 +12,36 @@
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description = 'Arrow flight based Stream implementation'
+  description = 'Arrow flight based transport and stream implementation. It also provides Arrow vector and memory dependencies as' +
+    'an extended-plugin at runtime; consumers should take a compile time dependency and not runtime on this project.\'\n'
   classname = 'org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin'
-  extendedPlugins = ['opensearch-arrow-core']
 }
 
 dependencies {
   implementation project(':libs:opensearch-arrow-spi')
 
-  // dependencies to use arrow vectorsat runtime.
-  // opensearch-arrow-core will add these dependencies to the classloader thus declaring it as compileOnly
-  compileOnly project(':modules:opensearch-arrow-core')
-  testImplementation project(':modules:opensearch-arrow-core')
-  compileOnly 'org.checkerframework:checker-qual:3.44.0'
+  // all transitive dependencies exported to use arrow-vector and arrow-memory-core
+  api "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
+  api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  api "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "org.apache.arrow:arrow-vector:${versions.arrow}"
+  api "org.apache.arrow:arrow-format:${versions.arrow}"
 
+  compileOnly 'org.checkerframework:checker-qual:3.44.0'
+  api "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+
+  // arrow flight dependencies.
   implementation "org.apache.arrow:flight-core:${versions.arrow}"
 
   // since netty-common will be added by opensearch-arrow-core at runtime, so declaring them as compileOnly
-  compileOnly "io.netty:netty-common:${versions.netty}"
+  // compileOnly "io.netty:netty-common:${versions.netty}"
   implementation "io.netty:netty-codec:${versions.netty}"
   implementation "io.netty:netty-codec-http:${versions.netty}"
   implementation "io.netty:netty-codec-http2:${versions.netty}"
@@ -112,6 +124,19 @@ tasks.named('forbiddenApisMain').configure {
 
 tasks.named('thirdPartyAudit').configure {
   ignoreMissingClasses(
+    'org.apache.commons.logging.Log',
+    'org.apache.commons.logging.LogFactory',
+
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder',
+
+    // from Log4j (deliberate, Netty will fallback to Log4j 2)
+    'org.apache.log4j.Level',
+    'org.apache.log4j.Logger',
+
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
     'com.google.gson.stream.JsonReader',
     'com.google.gson.stream.JsonToken',
     'org.apache.parquet.schema.GroupType',
@@ -228,5 +253,50 @@ tasks.named('thirdPartyAudit').configure {
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5',
+    'io.netty.util.internal.PlatformDependent0',
+    'io.netty.util.internal.PlatformDependent0$1',
+    'io.netty.util.internal.PlatformDependent0$2',
+    'io.netty.util.internal.PlatformDependent0$3',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+    'io.netty.util.internal.PlatformDependent0',
+    'io.netty.util.internal.PlatformDependent0$1',
+    'io.netty.util.internal.PlatformDependent0$2',
+    'io.netty.util.internal.PlatformDependent0$3',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1'
   )
 }
