@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.is;
 import static org.awaitility.Awaitility.await;
 
 /**
- * Integration test for Kafka ingestion
+ * Integration test for Kafka ingestion.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
