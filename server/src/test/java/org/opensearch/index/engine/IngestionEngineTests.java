@@ -35,6 +35,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.mockito.Mockito;
+
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -126,6 +128,22 @@ public class IngestionEngineTests extends EngineTestCase {
         ingestionEngine.close();
         ingestionEngine = buildIngestionEngine(new AtomicLong(0), ingestionEngineStore, indexSettings);
         waitForResults(ingestionEngine, 4);
+    }
+
+    public void testPushAPIFailures() throws IOException {
+        try {
+            ingestionEngine.index(Mockito.any());
+            fail("Expected UnsupportedOperationException to be thrown");
+        } catch (Exception e) {
+            assertEquals("push-based indexing is not supported in ingestion engine, use streaming source instead", e.getMessage());
+        }
+
+        try {
+            ingestionEngine.delete(Mockito.any());
+            fail("Expected UnsupportedOperationException to be thrown");
+        } catch (Exception e) {
+            assertEquals("push-based deletion is not supported in ingestion engine, use streaming source instead", e.getMessage());
+        }
     }
 
     public void testCreationFailure() throws IOException {
