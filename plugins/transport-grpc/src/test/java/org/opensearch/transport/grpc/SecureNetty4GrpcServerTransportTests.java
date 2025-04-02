@@ -112,7 +112,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             // Client with un-trusted cert - TODO
 
             // Client with trusted cert
-            NettyGrpcClient hasTrustedCertClient = new NettyGrpcClient.Builder().setAddress(remoteAddress).mTLS(true).build();
+            NettyGrpcClient hasTrustedCertClient = new NettyGrpcClient.Builder().setAddress(remoteAddress).clientAuth(true).build();
             assertEquals(hasTrustedCertClient.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
             hasTrustedCertClient.close();
 
@@ -149,7 +149,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             // Client with un-trusted cert - TODO
 
             // Client with trusted cert
-            NettyGrpcClient hasTrustedCertClient = new NettyGrpcClient.Builder().setAddress(remoteAddress).mTLS(true).build();
+            NettyGrpcClient hasTrustedCertClient = new NettyGrpcClient.Builder().setAddress(remoteAddress).clientAuth(true).build();
             assertEquals(hasTrustedCertClient.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
             hasTrustedCertClient.close();
 

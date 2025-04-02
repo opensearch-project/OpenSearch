@@ -17,7 +17,6 @@ import javax.net.ssl.SSLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import io.grpc.ManagedChannel;
@@ -111,7 +110,7 @@ public class NettyGrpcClient implements AutoCloseable {
     }
 
     public static class Builder {
-        private Boolean mTLS = false;
+        private Boolean clientAuth = false;
         private Boolean insecure = false;
         private TransportAddress addr;
 
@@ -128,7 +127,7 @@ public class NettyGrpcClient implements AutoCloseable {
             NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(addr.getAddress(), addr.getPort())
                 .proxyDetector(NOOP_PROXY_DETECTOR);
 
-            if (mTLS) {
+            if (clientAuth) {
                 SslContextBuilder builder = SslContextBuilder.forClient();
                 builder.applicationProtocolConfig(CLIENT_ALPN);
                 builder.keyManager(getTestKeyManagerFactory(CLIENT_KEYSTORE));
@@ -152,10 +151,10 @@ public class NettyGrpcClient implements AutoCloseable {
         }
 
         /**
-         * Enable mTLS - load client keystore.
+         * Enable clientAuth - load client keystore.
          */
-        public Builder mTLS(boolean enable) {
-            this.mTLS = enable;
+        public Builder clientAuth(boolean enable) {
+            this.clientAuth = enable;
             return this;
         }
 
