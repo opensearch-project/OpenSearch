@@ -31,6 +31,7 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import static org.opensearch.transport.grpc.SecureSettingsHelpers.ConnectExceptions.BAD_CERT;
+import static org.opensearch.transport.grpc.SecureSettingsHelpers.ConnectExceptions.CERT_REQUIRED;
 import static org.opensearch.transport.grpc.SecureSettingsHelpers.ConnectExceptions.UNAVAILABLE;
 
 public class SecureSettingsHelpers {
@@ -53,7 +54,8 @@ public class SecureSettingsHelpers {
     protected enum ConnectExceptions {
         NONE("Connection succeeded"),
         UNAVAILABLE("Network closed for unknown reason"),
-        BAD_CERT("bad_certificate");
+        BAD_CERT("bad_certificate"),
+        CERT_REQUIRED("certificate_required");
 
         String exceptionMsg = null;
 
@@ -69,6 +71,9 @@ public class SecureSettingsHelpers {
             }
             if (e.getCause() != null && e.getCause().getMessage().contains(BAD_CERT.exceptionMsg)) {
                 return BAD_CERT;
+            }
+            if (e.getCause() != null && e.getCause().getMessage().contains(CERT_REQUIRED.exceptionMsg)) {
+                return CERT_REQUIRED;
             }
         }
         if (e.getMessage() != null && e.getMessage().contains(UNAVAILABLE.exceptionMsg)) {

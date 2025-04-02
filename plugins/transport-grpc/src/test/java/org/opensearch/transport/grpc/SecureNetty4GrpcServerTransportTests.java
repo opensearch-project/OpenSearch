@@ -142,7 +142,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             try {
                 hasNoCertClient.checkHealth();
             } catch (Exception e) {
-                assertEquals(FailurefromException(e), SecureSettingsHelpers.ConnectExceptions.BAD_CERT);
+                assertEquals(FailurefromException(e), SecureSettingsHelpers.ConnectExceptions.CERT_REQUIRED);
             }
             hasNoCertClient.close();
 
