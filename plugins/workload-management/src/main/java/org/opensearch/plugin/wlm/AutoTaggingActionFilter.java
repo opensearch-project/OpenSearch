@@ -16,8 +16,8 @@ import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
-import org.opensearch.plugin.wlm.rule.InMemoryRuleProcessingService;
 import org.opensearch.plugin.wlm.rule.attribute_extractor.IndicesExtractor;
+import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.QueryGroupTask;
@@ -29,13 +29,14 @@ import java.util.Optional;
  * This class is responsible to evaluate and assign the QUERY_GROUP_ID header in ThreadContext
  */
 public class AutoTaggingActionFilter implements ActionFilter {
-    private InMemoryRuleProcessingService ruleProcessingService;
+    public static final int LARGE_NUMBER_TO_ENSURE_IT_IS_NOT_FIRST = Integer.MAX_VALUE;
+    private final InMemoryRuleProcessingService ruleProcessingService;
     ThreadPool threadPool;
 
     /**
      * Main constructor
-     * @param ruleProcessingService
-     * @param threadPool
+     * @param ruleProcessingService provides access to in memory view of rules
+     * @param threadPool to access assign the label
      */
     public AutoTaggingActionFilter(InMemoryRuleProcessingService ruleProcessingService, ThreadPool threadPool) {
         this.ruleProcessingService = ruleProcessingService;
@@ -44,7 +45,7 @@ public class AutoTaggingActionFilter implements ActionFilter {
 
     @Override
     public int order() {
-        return 101;
+        return LARGE_NUMBER_TO_ENSURE_IT_IS_NOT_FIRST;
     }
 
     @Override

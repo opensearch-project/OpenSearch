@@ -10,14 +10,20 @@ package org.opensearch.plugin.wlm;
 
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.autotagging.Attribute;
+import org.opensearch.autotagging.FeatureType;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.plugin.wlm.rule.InMemoryRuleProcessingService;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.rule.InMemoryRuleProcessingService;
+import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.QueryGroupTask;
 
+import java.io.IOException;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.Mockito.anyList;
@@ -37,7 +43,7 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("AutoTaggingActionFilterTests");
-        ruleProcessingService = spy(new InMemoryRuleProcessingService());
+        ruleProcessingService = spy(new InMemoryRuleProcessingService(WLMFeatureType.WLM, DefaultAttributeValueStore::new));
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
     }
 
@@ -78,5 +84,44 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         );
 
         verify(ruleProcessingService, times(0)).evaluateLabel(anyList());
+    }
+
+    public enum WLMFeatureType implements FeatureType {
+        WLM;
+
+        @Override
+        public String getName() {
+            return "";
+        }
+
+        @Override
+        public Map<String, Attribute> getAllowedAttributesRegistry() {
+            return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
+        }
+
+        @Override
+        public void registerFeatureType() {}
+    }
+
+    public enum TestAttribute implements Attribute {
+        TEST_ATTRIBUTE("test_attribute"),
+        INVALID_ATTRIBUTE("invalid_attribute");
+
+        private final String name;
+
+        TestAttribute(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public void validateAttribute() {}
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }
