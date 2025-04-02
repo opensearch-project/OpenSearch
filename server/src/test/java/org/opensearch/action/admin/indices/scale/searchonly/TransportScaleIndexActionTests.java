@@ -32,7 +32,9 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
@@ -58,7 +60,9 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.mockito.ArgumentCaptor;
 
@@ -70,7 +74,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -470,6 +473,7 @@ public class TransportScaleIndexActionTests extends OpenSearchTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         IndicesService indicesService = mock(IndicesService.class);
         TransportChannel channel = mock(TransportChannel.class);
+        DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
 
         // Use a real ThreadPool but with a controlled executor
         ThreadPool threadPool = new TestThreadPool("testHandleShardSyncRequest");
@@ -490,14 +494,32 @@ public class TransportScaleIndexActionTests extends OpenSearchTestCase {
             when(clusterState.metadata()).thenReturn(metadata);
             when(metadata.index(indexName)).thenReturn(indexMetadata);
             when(indexMetadata.getIndex()).thenReturn(index);
+            when(clusterService.localNode()).thenReturn(localNode);
 
             // Mock index service and shard
             IndexService indexService = mock(IndexService.class);
             IndexShard indexShard = mock(IndexShard.class);
+            TranslogStats translogStats = mock(TranslogStats.class);
+
             when(indicesService.indexService(any(Index.class))).thenReturn(indexService);
             when(indexService.getShardOrNull(anyInt())).thenReturn(indexShard);
             when(indexShard.shardId()).thenReturn(shardId);
-            when(indexShard.translogStats()).thenReturn(mock(TranslogStats.class));
+            when(indexShard.translogStats()).thenReturn(translogStats);
+            when(translogStats.getUncommittedOperations()).thenReturn(0);
+            when(indexShard.isSyncNeeded()).thenReturn(false);
+
+            // Mock shard routing to return a primary routing
+            ShardRouting shardRouting = mock(ShardRouting.class);
+            when(shardRouting.primary()).thenReturn(true);
+            when(indexShard.routingEntry()).thenReturn(shardRouting);
+
+            // Mock the acquireAllPrimaryOperationsPermits method to immediately call the listener
+            doAnswer(invocation -> {
+                ActionListener<Releasable> listener = invocation.getArgument(0);
+                Releasable releasable = mock(Releasable.class);
+                listener.onResponse(releasable);
+                return null;
+            }).when(indexShard).acquireAllPrimaryOperationsPermits(any(ActionListener.class), any(TimeValue.class));
 
             // Create action instance with the real ThreadPool
             TransportScaleIndexAction action = new TransportScaleIndexAction(
@@ -510,18 +532,17 @@ public class TransportScaleIndexActionTests extends OpenSearchTestCase {
                 indicesService
             );
 
-            // Call handleShardSyncRequest which should delegate to the thread pool
+            // Call handleShardSyncRequest
             action.handleShardSyncRequest(request, channel);
 
             // Wait a short time for the async task to execute
-            assertBusy(() -> { verify(channel).sendResponse(any(ScaleIndexNodeResponse.class)); }, 2, TimeUnit.SECONDS);
+            assertBusy(() -> { verify(channel).sendResponse(any(ScaleIndexNodeResponse.class)); }, 5, TimeUnit.SECONDS);
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
     public void testSyncSingleShard() throws Exception {
-        // Mock dependencies
         IndexShard shard = mock(IndexShard.class);
         ShardId shardId = new ShardId(new Index("test_index", "_na_"), 0);
         TranslogStats translogStats = mock(TranslogStats.class);
@@ -539,31 +560,79 @@ public class TransportScaleIndexActionTests extends OpenSearchTestCase {
             indicesService
         );
 
-        // Test successful sync
         when(translogStats.getUncommittedOperations()).thenReturn(0);
         when(shard.isSyncNeeded()).thenReturn(false);
 
-        ScaleIndexShardResponse response = action.syncSingleShard(shard);
-        assertFalse(response.needsSync());
-        assertFalse(response.hasUncommittedOperations());
+        final AtomicReference<ScaleIndexShardResponse> successResponseRef = new AtomicReference<>();
+        final AtomicReference<Exception> successExceptionRef = new AtomicReference<>();
+        final CountDownLatch successLatch = new CountDownLatch(1);
 
-        // Verify sync and flush calls for the successful case
+        action.syncSingleShard(shard, new ActionListener<>() {
+            @Override
+            public void onResponse(ScaleIndexShardResponse response) {
+                successResponseRef.set(response);
+                successLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                successExceptionRef.set(e);
+                successLatch.countDown();
+            }
+        });
+
+        ArgumentCaptor<ActionListener> successPermitCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        verify(shard).acquireAllPrimaryOperationsPermits(successPermitCaptor.capture(), any(TimeValue.class));
+        successPermitCaptor.getValue().onResponse(mock(Releasable.class));
+
+        assertTrue(successLatch.await(1, TimeUnit.SECONDS));
+
+        assertNull("No exception expected", successExceptionRef.get());
+        assertNotNull("Response should not be null", successResponseRef.get());
+        assertFalse("Response should not indicate sync needed", successResponseRef.get().needsSync());
+        assertFalse("Response should not indicate uncommitted operations", successResponseRef.get().hasUncommittedOperations());
+
         verify(shard, times(1)).sync();
         verify(shard, times(1)).flush(any(FlushRequest.class));
         verify(shard, times(1)).waitForRemoteStoreSync();
 
-        // Clear all invocations before testing failure case
         clearInvocations(shard);
 
-        // Test uncommitted operations case
         when(translogStats.getUncommittedOperations()).thenReturn(5);
-        assertThrows(IllegalStateException.class, () -> action.syncSingleShard(shard));
+        when(shard.isSyncNeeded()).thenReturn(true);
 
-        // Verify sync and flush calls for the failure case
+        final AtomicReference<ScaleIndexShardResponse> responseRef = new AtomicReference<>();
+        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        action.syncSingleShard(shard, new ActionListener<>() {
+            @Override
+            public void onResponse(ScaleIndexShardResponse response) {
+                responseRef.set(response);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exceptionRef.set(e);
+                latch.countDown();
+            }
+        });
+
+        ArgumentCaptor<ActionListener> permitListenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        verify(shard).acquireAllPrimaryOperationsPermits(permitListenerCaptor.capture(), any(TimeValue.class));
+        permitListenerCaptor.getValue().onResponse(mock(Releasable.class));
+
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
+
+        assertNull("No exception expected", exceptionRef.get());
+        assertNotNull("Response should not be null", responseRef.get());
+        assertTrue("Response should indicate uncommitted operations", responseRef.get().hasUncommittedOperations());
+        assertTrue("Response should indicate sync needed", responseRef.get().needsSync());
+
         verify(shard, times(1)).sync();
         verify(shard, times(1)).flush(any(FlushRequest.class));
-        // waitForRemoteStoreSync is not called in the failure case because an exception is thrown earlier
-        verify(shard, never()).waitForRemoteStoreSync();
+        verify(shard, times(1)).waitForRemoteStoreSync();
     }
 
     public void testCheckBlock() {

@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -28,7 +30,9 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
@@ -41,11 +45,9 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCH_ONLY_BLOCK_ID;
@@ -69,7 +71,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCH_ONLY_BL
 public class TransportScaleIndexAction extends TransportClusterManagerNodeAction<ScaleIndexRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportScaleIndexAction.class);
-    /** Transport action name for shard sync requests */
+    /**
+     * Transport action name for shard sync requests
+     */
     public static final String NAME = ScaleIndexAction.NAME + "[s]";
 
     public static final String SHARD_SYNC_EXECUTOR = ThreadPool.Names.MANAGEMENT;
@@ -85,13 +89,13 @@ public class TransportScaleIndexAction extends TransportClusterManagerNodeAction
     /**
      * Constructs a new TransportSearchOnlyAction.
      *
-     * @param transportService          the transport service for network communication
-     * @param clusterService            the cluster service for accessing cluster state
-     * @param threadPool                the thread pool for executing operations
-     * @param actionFilters             filters for action requests
+     * @param transportService            the transport service for network communication
+     * @param clusterService              the cluster service for accessing cluster state
+     * @param threadPool                  the thread pool for executing operations
+     * @param actionFilters               filters for action requests
      * @param indexNameExpressionResolver resolver for index names and expressions
-     * @param allocationService         service for shard allocation decisions
-     * @param indicesService            service for accessing index shards
+     * @param allocationService           service for shard allocation decisions
+     * @param indicesService              service for accessing index shards
      */
     @Inject
     public TransportScaleIndexAction(
@@ -155,8 +159,8 @@ public class TransportScaleIndexAction extends TransportClusterManagerNodeAction
      * This method determines whether to execute a scale-up or scale-down operation
      * based on the request parameters, and submits the appropriate cluster state update task.
      *
-     * @param request the search-only scale request
-     * @param state   the current cluster state
+     * @param request  the search-only scale request
+     * @param state    the current cluster state
      * @param listener the listener to notify with the operation result
      */
     @Override
@@ -232,20 +236,13 @@ public class TransportScaleIndexAction extends TransportClusterManagerNodeAction
         }
 
         IndexService indexService = getIndexService(indexMetadata);
+        ChannelActionListener<ScaleIndexNodeResponse, ScaleIndexNodeRequest> listener = new ChannelActionListener<>(
+            channel,
+            "sync_shard",
+            request
+        );
 
-        threadPool.executor(SHARD_SYNC_EXECUTOR).execute(() -> {
-            try {
-                List<ScaleIndexShardResponse> shardResponses = syncShards(indexService, request.getShardIds());
-                channel.sendResponse(new ScaleIndexNodeResponse(clusterService.localNode(), shardResponses));
-            } catch (Exception e) {
-                try {
-                    channel.sendResponse(e);
-                } catch (Exception ex) {
-                    logger.error("Failed to send error response for shard sync request", ex);
-                }
-            }
-        });
-
+        syncShards(indexService, request.getShardIds(), listener);
     }
 
     private IndexService getIndexService(IndexMetadata indexMetadata) {
@@ -256,38 +253,52 @@ public class TransportScaleIndexAction extends TransportClusterManagerNodeAction
         return indexService;
     }
 
-    private List<ScaleIndexShardResponse> syncShards(IndexService indexService, List<ShardId> shardIds) throws Exception {
-        List<ScaleIndexShardResponse> shardResponses = new ArrayList<>();
+    private void syncShards(IndexService indexService, List<ShardId> shardIds, ActionListener<ScaleIndexNodeResponse> listener) {
+
+        GroupedActionListener<ScaleIndexShardResponse> groupedActionListener = new GroupedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Collection<ScaleIndexShardResponse> shardResponses) {
+                listener.onResponse(new ScaleIndexNodeResponse(clusterService.localNode(), shardResponses.stream().toList()));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        }, shardIds.size());
 
         for (ShardId shardId : shardIds) {
             IndexShard shard = indexService.getShardOrNull(shardId.id());
-            if (shard == null) {
-                continue;
+            if (shard == null || shard.routingEntry().primary() == false) {
+                groupedActionListener.onFailure(new IllegalStateException("Attempting to scale down a replica shard"));
+                break;
             }
-
-            shardResponses.add(syncSingleShard(shard));
+            threadPool.executor(SHARD_SYNC_EXECUTOR).execute(() -> { syncSingleShard(shard, groupedActionListener); });
         }
-
-        return shardResponses;
     }
 
-    ScaleIndexShardResponse syncSingleShard(IndexShard shard) throws Exception {
-        logger.info("Performing final sync and flush for shard {}", shard.shardId());
-        shard.sync();
-        shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+    void syncSingleShard(IndexShard shard, ActionListener<ScaleIndexShardResponse> listener) {
+        shard.acquireAllPrimaryOperationsPermits(new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                logger.info("Performing final sync and flush for shard {}", shard.shardId());
+                try {
+                    shard.sync();
+                    shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+                    shard.waitForRemoteStoreSync();
+                    listener.onResponse(
+                        new ScaleIndexShardResponse(shard.shardId(), shard.isSyncNeeded(), shard.translogStats().getUncommittedOperations())
+                    );
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                }
+            }
 
-        if (shard.translogStats().getUncommittedOperations() > 0) {
-            String errorMsg = String.format(
-                Locale.ROOT,
-                "Shard [%s] still has %d uncommitted operations after flush. Please wait and retry the scale down operation.",
-                shard.shardId(),
-                shard.translogStats().getUncommittedOperations()
-            );
-            throw new IllegalStateException(errorMsg);
-        }
-
-        shard.waitForRemoteStoreSync();
-        return new ScaleIndexShardResponse(shard.shardId(), shard.isSyncNeeded(), shard.translogStats().getUncommittedOperations());
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        }, TimeValue.timeValueSeconds(30));
     }
 
     /**
