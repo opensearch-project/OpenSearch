@@ -74,11 +74,15 @@ import org.opensearch.action.admin.indices.refresh.RefreshRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.common.xcontent.XContentType;
@@ -607,5 +611,36 @@ public class Requests {
      */
     public static DeleteDecommissionStateRequest deleteDecommissionStateRequest() {
         return new DeleteDecommissionStateRequest();
+    }
+
+    /**
+     * Creates a pause ingestion request given list of index names.
+     */
+    public static PauseIngestionRequest pauseIngestionRequest(String... index) {
+        return new PauseIngestionRequest(index);
+    }
+
+    /**
+     * Creates a resume ingestion request given list of index names.
+     */
+    public static ResumeIngestionRequest resumeIngestionRequest(String... index) {
+        return new ResumeIngestionRequest(index);
+    }
+
+    /**
+     * Creates a get ingestion state request given an index.
+     */
+    public static GetIngestionStateRequest getIngestionStateRequest(String index) {
+        return new GetIngestionStateRequest(new String[] { index });
+    }
+
+    /**
+     * Creates a get ingestion state request given list of indices.
+     */
+    public static GetIngestionStateRequest getIngestionStateRequest(String[] indices, int[] shards, PageParams pageParams) {
+        GetIngestionStateRequest request = new GetIngestionStateRequest(indices);
+        request.setShards(shards);
+        request.setPageParams(pageParams);
+        return request;
     }
 }
