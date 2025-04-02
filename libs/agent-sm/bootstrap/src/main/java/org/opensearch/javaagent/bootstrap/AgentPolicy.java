@@ -29,16 +29,16 @@ public class AgentPolicy {
     private static final Logger LOGGER = Logger.getLogger(AgentPolicy.class.getName());
     private static volatile Policy policy;
     private static volatile Set<String> trustedHosts;
-    private static volatile BiFunction<Class<?>, List<Class<?>>, Boolean> classesThatCanExit;
+    private static volatile BiFunction<Class<?>, Stream<Class<?>>, Boolean> classesThatCanExit;
 
     /**
-     * Everyone is allowed to call {@link System#exit} or {@link Runtime#halt}
+     * None of the classes is allowed to call {@link System#exit} or {@link Runtime#halt}
      */
-    public static final class AllCanExit implements BiFunction<Class<?>, Stream<Class<?>>, Boolean> {
+    public static final class NoneCanExit implements BiFunction<Class<?>, Stream<Class<?>>, Boolean> {
         /**
-         * AllCanExit
+         * NoneCanExit
          */
-        public AllCanExit() {}
+        public NoneCanExit() {}
 
         /**
          * Check if class is allowed to call {@link System#exit}, {@link Runtime#halt}
@@ -86,7 +86,7 @@ public class AgentPolicy {
     /**
      * Any caller in the chain is allowed to call {@link System#exit} or {@link Runtime#halt}
      */
-    public static final class AnyCanExit implements BiFunction<Class<?>, List<Class<?>>, Boolean> {
+    public static final class AnyCanExit implements BiFunction<Class<?>, Stream<Class<?>>, Boolean> {
         private final String[] classesThatCanExit;
 
         /**
@@ -104,15 +104,15 @@ public class AgentPolicy {
          * @return is class allowed to call {@link System#exit}, {@link Runtime#halt} or not
          */
         @Override
-        public Boolean apply(Class<?> caller, List<Class<?>> chain) {
-            for (final Class<?> clazz : chain) {
+        public Boolean apply(Class<?> caller, Stream<Class<?>> chain) {
+            return chain.anyMatch(clazz -> {
                 for (final String classThatCanExit : classesThatCanExit) {
                     if (clazz.getName().matches(classThatCanExit)) {
                         return true;
                     }
                 }
-            }
-            return false;
+                return false;
+            });
         }
     }
 
@@ -123,7 +123,7 @@ public class AgentPolicy {
      * @param policy policy
      */
     public static void setPolicy(Policy policy) {
-        setPolicy(policy, Set.of(), new AllCanExit());
+        setPolicy(policy, Set.of(), new NoneCanExit());
     }
 
     /**
@@ -135,7 +135,7 @@ public class AgentPolicy {
     public static void setPolicy(
         Policy policy,
         final Set<String> trustedHosts,
-        final BiFunction<Class<?>, List<Class<?>>, Boolean> classesThatCanExit
+        final BiFunction<Class<?>, Stream<Class<?>>, Boolean> classesThatCanExit
     ) {
         if (AgentPolicy.policy == null) {
             AgentPolicy.policy = policy;

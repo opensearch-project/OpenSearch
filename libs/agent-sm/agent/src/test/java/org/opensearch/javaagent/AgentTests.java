@@ -20,7 +20,7 @@ public class AgentTests {
     @BeforeClass
     public static void setUp() {
         AgentPolicy.setPolicy(new Policy() {
-        }, Set.of(), new AgentPolicy.CallerCanExit(new String[] { "worker.org.gradle.process.internal.worker.GradleWorkerMain" }));
+        }, Set.of(), (caller, chain) -> caller.getName().equalsIgnoreCase("worker.org.gradle.process.internal.worker.GradleWorkerMain"));
     }
 
     @Test(expected = SecurityException.class)

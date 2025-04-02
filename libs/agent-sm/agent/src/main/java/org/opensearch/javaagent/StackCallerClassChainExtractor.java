@@ -9,9 +9,7 @@
 package org.opensearch.javaagent;
 
 import java.lang.StackWalker.StackFrame;
-import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -34,6 +32,11 @@ public final class StackCallerClassChainExtractor implements Function<Stream<Sta
      */
     @Override
     public Stream<Class<?>> apply(Stream<StackFrame> frames) {
-        return frames.map(StackFrame::getDeclaringClass).filter(c -> !c.isHidden()).distinct();
+        return cast(frames);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <A> Stream<A> cast(Stream<StackFrame> frames) {
+        return (Stream<A>) frames.map(StackFrame::getDeclaringClass).filter(c -> !c.isHidden()).distinct();
     }
 }
