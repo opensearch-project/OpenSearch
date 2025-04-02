@@ -81,6 +81,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.SortedSet;
 import java.util.stream.Stream;
 
@@ -226,7 +227,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expectedDocValues, onlyDocValues.termsQuery(sortedStrings, null));
     }
 
-    @AwaitsFix(bugUrl = "no commit")
+    @AwaitsFix(bugUrl = "nocommit")
     public void testMockTermsSortedQuery() {
         String[] seedStrings = generateRandomStringArray(10, 10, false, false);
         if (seedStrings.length == 1) {
@@ -254,6 +255,26 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
             assertNotNull(onlyDocValues.termsQuery(sortedStrings, null));
         }
+    }
+
+    @AwaitsFix(bugUrl = "nocommit")
+    public void testHeavyWeight() {
+        int arraySize = 10000000;
+        BytesRef[] array = new BytesRef[arraySize];
+        Random random = random();
+        for (int i = 0; i < arraySize; i++) {
+            String str = RandomStrings.randomAsciiOfLength(random, 10);
+            array[i] = new BytesRef(str);
+        }
+        BytesRefsCollectionBuilder outofOrder = new BytesRefsCollectionBuilder();
+        BytesRefsCollectionBuilder inOrder = new BytesRefsCollectionBuilder();
+        Arrays.stream(array).forEach(outofOrder);
+        Arrays.stream(array).sorted().forEachOrdered(inOrder);
+        long start = System.currentTimeMillis(), intermid;
+        new TermInSetQuery("foo", outofOrder.get());
+        System.out.println("out of order" + ((intermid = System.currentTimeMillis()) - start) + " ms");
+        new TermInSetQuery("foo", inOrder.get());
+        System.out.println("in order" + (System.currentTimeMillis() - intermid) + " ms");
     }
 
     public void testExistsQuery() {
