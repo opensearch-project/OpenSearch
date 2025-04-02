@@ -10,6 +10,7 @@ package org.opensearch.plugin.wlm.rule.action;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -28,7 +29,12 @@ public class GetWlmRuleRequestTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleRequest
      */
     public void testSerialization() throws IOException {
-        GetWlmRuleRequest request = new GetWlmRuleRequest(_ID_ONE, Map.of(INDEX_PATTERN, Set.of(PATTERN_ONE)), null);
+        GetWlmRuleRequest request = new GetWlmRuleRequest(
+            _ID_ONE,
+            Map.of(INDEX_PATTERN, Set.of(PATTERN_ONE)),
+            null,
+            QueryGroupFeatureType.INSTANCE
+        );
         assertEquals(_ID_ONE, request.getId());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
@@ -42,7 +48,7 @@ public class GetWlmRuleRequestTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleRequest when name is null
      */
     public void testSerializationWithNull() throws IOException {
-        GetWlmRuleRequest request = new GetWlmRuleRequest((String) null, new HashMap<>(), SEARCH_AFTER);
+        GetWlmRuleRequest request = new GetWlmRuleRequest((String) null, new HashMap<>(), SEARCH_AFTER, QueryGroupFeatureType.INSTANCE);
         assertNull(request.getId());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
