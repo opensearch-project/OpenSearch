@@ -218,6 +218,10 @@ public class DocumentMapper implements ToXContentFragment {
         return metadataMapper(SourceFieldMapper.class);
     }
 
+    public boolean isDerivedSourceEnabled() {
+        return sourceMapper().isDerivedSourceEnabled();
+    }
+
     public IdFieldMapper idFieldMapper() {
         return metadataMapper(IdFieldMapper.class);
     }

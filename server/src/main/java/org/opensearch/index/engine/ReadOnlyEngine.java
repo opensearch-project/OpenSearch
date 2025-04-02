@@ -45,6 +45,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
@@ -284,7 +285,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory) throws EngineException {
+    public GetResult get(Get get, MapperService mapperService, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory)
+        throws EngineException {
         return getFromSearcher(get, searcherFactory, SearcherScope.EXTERNAL);
     }
 

@@ -786,6 +786,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return Collections.unmodifiableSet(mapperRegistry.getMetadataMapperParsers().keySet());
     }
 
+    public boolean isDerivedSourceEnabled() {
+        return documentMapper() != null && documentMapper().isDerivedSourceEnabled();
+    }
+
     /**
      * An analyzer wrapper that can lookup fields within the index mappings
      */

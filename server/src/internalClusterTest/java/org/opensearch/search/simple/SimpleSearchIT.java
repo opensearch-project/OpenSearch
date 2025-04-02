@@ -45,11 +45,13 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
@@ -59,11 +61,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
@@ -722,6 +727,135 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                     + "] index level setting."
             )
         );
+    }
+
+    public void testDerivedSourceSearch() throws Exception {
+        // Create index with _source option set as derived
+        String createIndexSource = """
+            {
+                "settings": {
+                    "index": {
+                        "number_of_shards": 2,
+                        "number_of_replicas": 0
+                    }
+                },
+                "mappings": {
+                    "_doc": {
+                        "_source": {
+                            "enabled": "derived"
+                        },
+                        "properties": {
+                            "geopoint_field": {
+                                "type": "geo_point"
+                            },
+                            "keyword_field": {
+                                "type": "keyword"
+                            },
+                            "numeric_field": {
+                                "type": "long"
+                            },
+                            "date_field": {
+                                "type": "date"
+                            },
+                            "bool_field": {
+                                "type": "boolean"
+                            },
+                            "ip_field": {
+                                "type": "ip"
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        assertAcked(prepareCreate("test_derive").setSource(createIndexSource, MediaTypeRegistry.JSON));
+        ensureGreen();
+
+        // Index multiple documents
+        int numDocs = 10;
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            builders.add(
+                client().prepareIndex("test_derive")
+                    .setId(Integer.toString(i))
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field("geopoint_field", Geohash.stringEncode(40.0 + i, 75.0 + i))
+                            .field("keyword_field", "keyword_" + i)
+                            .field("numeric_field", i)
+                            .field("date_field", "2023-01-" + String.format(Locale.ROOT, "%02d", i + 1))
+                            .field("bool_field", i % 2 == 0)
+                            .field("ip_field", "192.168.1." + i)
+                            .endObject()
+                    )
+            );
+        }
+        indexRandom(true, builders);
+
+        // Test 1: Basic search with derived source
+        SearchResponse response = client().prepareSearch("test_derive").setQuery(QueryBuilders.matchAllQuery()).get();
+        assertNoFailures(response);
+        assertHitCount(response, numDocs);
+        for (SearchHit hit : response.getHits()) {
+            Map<String, Object> source = hit.getSourceAsMap();
+            assertNotNull("Derive source should be present", source);
+            int id = ((Number) source.get("numeric_field")).intValue();
+            assertEquals(Integer.toString(id), hit.getId());
+            assertEquals("keyword_" + id, source.get("keyword_field"));
+            assertEquals("192.168.1." + id, source.get("ip_field"));
+        }
+
+        // Test 2: Search with source filtering
+        response = client().prepareSearch("test_derive")
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setFetchSource(new String[] { "keyword_field", "numeric_field" }, null)
+            .get();
+        assertNoFailures(response);
+        for (SearchHit hit : response.getHits()) {
+            Map<String, Object> source = hit.getSourceAsMap();
+            assertEquals("Source should only contain 2 fields", 2, source.size());
+            assertTrue(source.containsKey("keyword_field"));
+            assertTrue(source.containsKey("numeric_field"));
+        }
+
+        // Test 3: Search with range query
+        response = client().prepareSearch("test_derive").setQuery(QueryBuilders.rangeQuery("numeric_field").from(3).to(6)).get();
+        assertNoFailures(response);
+        assertHitCount(response, 4);
+        for (SearchHit hit : response.getHits()) {
+            int value = ((Number) hit.getSourceAsMap().get("numeric_field")).intValue();
+            assertTrue("Value should be between 3 and 6", value >= 3 && value <= 6);
+        }
+
+        // Test 4: Search with sorting on number field
+        response = client().prepareSearch("test_derive")
+            .setQuery(QueryBuilders.matchAllQuery())
+            .addSort("numeric_field", SortOrder.DESC)
+            .get();
+        assertNoFailures(response);
+        int lastValue = Integer.MAX_VALUE;
+        for (SearchHit hit : response.getHits()) {
+            int currentValue = ((Number) hit.getSourceAsMap().get("numeric_field")).intValue();
+            assertTrue("Results should be sorted in descending order", currentValue <= lastValue);
+            lastValue = currentValue;
+        }
+
+        // Test 5: Search with complex boolean query
+        response = client().prepareSearch("test_derive")
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.rangeQuery("numeric_field").gt(5))
+                    .must(QueryBuilders.termQuery("bool_field", true))
+            )
+            .get();
+        assertNoFailures(response);
+        for (SearchHit hit : response.getHits()) {
+            Map<String, Object> source = hit.getSourceAsMap();
+            int numValue = ((Number) source.get("numeric_field")).intValue();
+            boolean boolValue = (Boolean) source.get("bool_field");
+            assertTrue(numValue > 5);
+            assertTrue(boolValue);
+        }
     }
 
     private void assertWindowFails(SearchRequestBuilder search) {

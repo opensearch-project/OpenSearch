@@ -33,6 +33,7 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,7 +42,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -177,4 +180,111 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertThat(response, matcher().created(0).slices(hasSize(0)));
     }
 
+    public void testReindexWithDerivedSource() throws Exception {
+        // Create source index with _source option set as derived
+        String sourceIndexMapping = """
+            {
+                "settings": {
+                    "index": {
+                        "number_of_shards": 1,
+                        "number_of_replicas": 0
+                    }
+                },
+                "mappings": {
+                    "_doc": {
+                        "_source": {
+                            "enabled": "derived"
+                        },
+                        "properties": {
+                            "foo": {
+                                "type": "keyword",
+                                "store": true
+                            },
+                            "bar": {
+                                "type": "integer",
+                                "store": true
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        // Create indices
+        assertAcked(prepareCreate("source_index").setSource(sourceIndexMapping, XContentType.JSON));
+        assertAcked(prepareCreate("dest_index").setSource(sourceIndexMapping, XContentType.JSON));
+        ensureGreen();
+
+        // Index some documents
+        int numDocs = randomIntBetween(5, 20);
+        List<IndexRequestBuilder> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            docs.add(client().prepareIndex("source_index").setId(Integer.toString(i)).setSource("foo", "value_" + i, "bar", i));
+        }
+        indexRandom(true, docs);
+
+        // Test 1: Basic reindex
+        ReindexRequestBuilder copy = reindex().source("source_index").destination("dest_index").refresh(true);
+
+        BulkByScrollResponse response = copy.get();
+        assertThat(response, matcher().created(numDocs));
+        long expectedCount = client().prepareSearch("dest_index").setQuery(matchAllQuery()).get().getHits().getTotalHits().value();
+        assertEquals(numDocs, expectedCount);
+
+        // Test 2: Reindex with query filter
+        String destIndexFiltered = "dest_index_filtered";
+        assertAcked(prepareCreate(destIndexFiltered).setSource(sourceIndexMapping, XContentType.JSON));
+
+        copy = reindex().source("source_index").destination(destIndexFiltered).filter(termQuery("bar", 1)).refresh(true);
+
+        response = copy.get();
+        expectedCount = client().prepareSearch("source_index").setQuery(termQuery("bar", 1)).get().getHits().getTotalHits().value();
+        assertThat(response, matcher().created(expectedCount));
+
+        // Test 3: Reindex with slices
+        String destIndexSliced = "dest_index_sliced";
+        assertAcked(prepareCreate(destIndexSliced).setSource(sourceIndexMapping, XContentType.JSON));
+
+        int slices = randomSlices();
+        int expectedSlices = expectedSliceStatuses(slices, "source_index");
+
+        copy = reindex().source("source_index").destination(destIndexSliced).setSlices(slices).refresh(true);
+
+        response = copy.get();
+        assertThat(response, matcher().created(numDocs).slices(hasSize(expectedSlices)));
+
+        // Test 4: Reindex with maxDocs
+        String destIndexMaxDocs = "dest_index_maxdocs";
+        assertAcked(prepareCreate(destIndexMaxDocs).setSource(sourceIndexMapping, XContentType.JSON));
+
+        int maxDocs = numDocs / 2;
+        copy = reindex().source("source_index").destination(destIndexMaxDocs).maxDocs(maxDocs).refresh(true);
+
+        response = copy.get();
+        assertThat(response, matcher().created(maxDocs));
+        expectedCount = client().prepareSearch(destIndexMaxDocs).setQuery(matchAllQuery()).get().getHits().getTotalHits().value();
+        assertEquals(maxDocs, expectedCount);
+
+        // Test 5: Multiple source indices
+        String sourceIndex2 = "source_index_2";
+        assertAcked(prepareCreate(sourceIndex2).setSource(sourceIndexMapping, XContentType.JSON));
+
+        int numDocs2 = randomIntBetween(5, 20);
+        List<IndexRequestBuilder> docs2 = new ArrayList<>();
+        for (int i = 0; i < numDocs2; i++) {
+            docs2.add(
+                client().prepareIndex(sourceIndex2).setId(Integer.toString(i + numDocs)).setSource("foo", "value2_" + i, "bar", i + numDocs)
+            );
+        }
+        indexRandom(true, docs2);
+
+        String destIndexMulti = "dest_index_multi";
+        assertAcked(prepareCreate(destIndexMulti).setSource(sourceIndexMapping, XContentType.JSON));
+
+        copy = reindex().source("source_index", "source_index_2").destination(destIndexMulti).refresh(true);
+
+        response = copy.get();
+        assertThat(response, matcher().created(numDocs + numDocs2));
+        expectedCount = client().prepareSearch(destIndexMulti).setQuery(matchAllQuery()).get().getHits().getTotalHits().value();
+        assertEquals(numDocs + numDocs2, expectedCount);
+    }
 }

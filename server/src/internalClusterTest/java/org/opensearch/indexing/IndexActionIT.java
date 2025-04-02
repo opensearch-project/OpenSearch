@@ -57,6 +57,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -307,5 +308,189 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         });
         assertThat(e.getMessage(), containsString("failed to parse"));
         assertThat(e.getRootCause().getMessage(), containsString("field name cannot be an empty string"));
+    }
+
+    public void testDeriveSourceMapperValidation() throws Exception {
+        // Test 1: Validate basic derive source mapping
+        String basicMapping = """
+            {
+                "_source": {
+                    "enabled": "derived"
+                },
+                "properties": {
+                    "numeric_field": {
+                        "type": "long"
+                    },
+                    "keyword_field": {
+                        "type": "keyword"
+                    }
+                }
+            }""";
+
+        // Should succeed with derive source enabled and doc values enabled (default)
+        assertAcked(prepareCreate("test_derive_1").setMapping(basicMapping));
+
+        // Test 2: Validate mapping with doc values disabled
+        String docValuesDisabledMapping = """
+            {
+                "_source": {
+                    "enabled": "derived"
+                },
+                "properties": {
+                    "numeric_field": {
+                        "type": "long",
+                        "doc_values": false
+                    }
+                }
+            }""";
+
+        // Should fail because doc values and stored are both disabled
+        expectThrows(MapperParsingException.class, () -> prepareCreate("test_derive_2").setMapping(docValuesDisabledMapping).get());
+
+        // Test 3: Validate mapping with stored enabled but doc values disabled
+        String storedEnabledMapping = """
+            {
+                "_source": {
+                    "enabled": "derived"
+                },
+                "properties": {
+                    "numeric_field": {
+                        "type": "long",
+                        "doc_values": false,
+                        "store": true
+                    }
+                }
+            }""";
+
+        // Should succeed because stored is enabled
+        assertAcked(prepareCreate("test_derive_3").setMapping(storedEnabledMapping));
+
+        // Test 4: Validate keyword field with normalizer
+        String normalizerMapping = """
+            {
+                "_source": {
+                    "enabled": "derived"
+                },
+                "properties": {
+                    "keyword_field": {
+                        "type": "keyword",
+                        "normalizer": "lowercase"
+                    }
+                }
+            }""";
+
+        // Should fail because normalizer is not supported with derive source
+        expectThrows(
+            MapperParsingException.class,
+            () -> prepareCreate("test_derive_4").setSettings(
+                Settings.builder()
+                    .put("analysis.normalizer.lowercase.type", "custom")
+                    .putList("analysis.normalizer.lowercase.filter", "lowercase")
+            ).setMapping(normalizerMapping).get()
+        );
+
+        // Test 5: Validate keyword field with ignore_above
+        String ignoreAboveMapping = """
+            {
+                "_source": {
+                    "enabled": "derived"
+                },
+                "properties": {
+                    "keyword_field": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                    }
+                }
+            }""";
+
+        // Should fail because ignore_above is not supported with derive source
+        expectThrows(MapperParsingException.class, () -> prepareCreate("test_derive_5").setMapping(ignoreAboveMapping).get());
+
+        // Test 6: Validate object field with nested enabled
+        String nestedMapping = """
+            {
+                "_source": {
+                    "enabled": "derived"
+                },
+                "properties": {
+                    "nested_field": {
+                        "type": "nested",
+                        "properties": {
+                            "inner_field": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        // Should fail because nested fields are not supported with derive source
+        expectThrows(MapperParsingException.class, () -> prepareCreate("test_derive_6").setMapping(nestedMapping).get());
+
+        // Test 7: Validate field with copy_to
+        String copyToMapping = """
+            {
+                "_source": {
+                    "enabled": "derived"
+                },
+                "properties": {
+                    "field1": {
+                        "type": "keyword",
+                        "copy_to": "field2"
+                    },
+                    "field2": {
+                        "type": "keyword"
+                    }
+                }
+            }""";
+
+        // Should fail because copy_to is not supported with derive source
+        expectThrows(MapperParsingException.class, () -> prepareCreate("test_derive_7").setMapping(copyToMapping).get());
+
+        // Test 8: Validate multiple field types
+        String multiTypeMapping = """
+            {
+                "_source": {
+                    "enabled": "derived"
+                },
+                "properties": {
+                    "keyword_field": {
+                        "type": "keyword"
+                    },
+                    "numeric_field": {
+                        "type": "long"
+                    },
+                    "date_field": {
+                        "type": "date"
+                    },
+                    "boolean_field": {
+                        "type": "boolean"
+                    },
+                    "ip_field": {
+                        "type": "ip"
+                    }
+                }
+            }""";
+
+        // Should succeed because all field types support derive source
+        assertAcked(prepareCreate("test_derive_8").setMapping(multiTypeMapping));
+
+        // Test 9: Validate with both doc_values and stored disabled
+        String bothDisabledMapping = """
+            {
+                "_source": {
+                    "enabled": "derived"
+                },
+                "properties": {
+                    "keyword_field": {
+                        "type": "keyword",
+                        "doc_values": false,
+                        "store": false
+                    }
+                }
+            }""";
+
+        // Should fail because both doc_values and stored are disabled
+        expectThrows(MapperParsingException.class, () -> prepareCreate("test_derive_9").setMapping(bothDisabledMapping).get());
     }
 }
