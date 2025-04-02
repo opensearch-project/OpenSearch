@@ -44,7 +44,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
 
     @Before
     public void setup() throws IOException {
-        remoteSegmentMetadataHandler = new RemoteSegmentMetadataHandler();
+        remoteSegmentMetadataHandler = new RemoteSegmentMetadataHandler(2);
 
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)

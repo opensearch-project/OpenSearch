@@ -1654,8 +1654,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
         startCluster();
     }
 
-    private void setupTestCluster(int clusterManagerNodes, int dataNodes, int searchNodes) {
-        testClusterNodes = new TestClusterNodes(clusterManagerNodes, dataNodes, searchNodes);
+    private void setupTestCluster(int clusterManagerNodes, int dataNodes, int warmNodes) {
+        testClusterNodes = new TestClusterNodes(clusterManagerNodes, dataNodes, warmNodes);
         startCluster();
     }
 
@@ -1735,7 +1735,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             this(clusterManagerNodes, dataNodes, 0);
         }
 
-        TestClusterNodes(int clusterManagerNodes, int dataNodes, int searchNodes) {
+        TestClusterNodes(int clusterManagerNodes, int dataNodes, int warmNodes) {
             for (int i = 0; i < clusterManagerNodes; ++i) {
                 nodes.computeIfAbsent("node" + i, nodeName -> {
                     try {
@@ -1754,10 +1754,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     }
                 });
             }
-            for (int i = 0; i < searchNodes; ++i) {
-                nodes.computeIfAbsent("search-node" + i, nodeName -> {
+            for (int i = 0; i < warmNodes; ++i) {
+                nodes.computeIfAbsent("warm-node" + i, nodeName -> {
                     try {
-                        return newSearchNode(nodeName);
+                        return newWarmNode(nodeName);
                     } catch (IOException e) {
                         throw new AssertionError(e);
                     }
@@ -1781,8 +1781,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             return newNode(nodeName, DiscoveryNodeRole.DATA_ROLE);
         }
 
-        private TestClusterNode newSearchNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNodeRole.SEARCH_ROLE);
+        private TestClusterNode newWarmNode(String nodeName) throws IOException {
+            return newNode(nodeName, DiscoveryNodeRole.WARM_ROLE);
         }
 
         private TestClusterNode newNode(String nodeName, DiscoveryNodeRole role) throws IOException {

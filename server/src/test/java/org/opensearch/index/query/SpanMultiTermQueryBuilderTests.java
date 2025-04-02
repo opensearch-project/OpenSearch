@@ -182,6 +182,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         public String fieldName() {
             return "foo";
         }
+
+        @Override
+        public QueryBuilder filter(QueryBuilder filter) {
+            return this;
+        }
     }
 
     @Override

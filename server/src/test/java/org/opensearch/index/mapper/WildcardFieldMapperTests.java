@@ -92,22 +92,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List.of(
                 WildcardFieldTypeTests.prefixAnchored("p"),
                 WildcardFieldTypeTests.prefixAnchored("pi"),
-                "p",
-                "pi",
                 "pic",
-                "i",
-                "ic",
                 "ick",
-                "c",
-                "ck",
                 "ckl",
-                "k",
-                "kl",
                 "kle",
-                "l",
-                "le",
                 WildcardFieldTypeTests.suffixAnchored("le"),
-                "e",
                 WildcardFieldTypeTests.suffixAnchored("e")
             ),
             terms
@@ -121,7 +110,14 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 terms.add(charTermAttribute.toString());
             }
         }
-        assertEquals(List.of(WildcardFieldTypeTests.prefixAnchored("a"), "a", WildcardFieldTypeTests.suffixAnchored("a")), terms);
+        assertEquals(
+            List.of(
+                WildcardFieldTypeTests.prefixAnchored("a"),
+                WildcardFieldTypeTests.suffixAnchored((char) 0 + "a"),
+                WildcardFieldTypeTests.suffixAnchored("a")
+            ),
+            terms
+        );
     }
 
     public void testEnableDocValues() throws IOException {
@@ -198,13 +194,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List.of(
                 WildcardFieldTypeTests.prefixAnchored("a"),
                 WildcardFieldTypeTests.prefixAnchored("ab"),
-                "a",
-                "ab",
                 "abc",
-                "b",
-                "bc",
                 WildcardFieldTypeTests.suffixAnchored("bc"),
-                "c",
                 WildcardFieldTypeTests.suffixAnchored("c")
             ),
             terms
@@ -252,13 +243,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List.of(
                 WildcardFieldTypeTests.prefixAnchored("u"),
                 WildcardFieldTypeTests.prefixAnchored("ur"),
-                "u",
-                "ur",
                 "uri",
-                "r",
-                "ri",
                 WildcardFieldTypeTests.suffixAnchored("ri"),
-                "i",
                 WildcardFieldTypeTests.suffixAnchored("i")
             ),
             terms
@@ -291,16 +277,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List.of(
                 WildcardFieldTypeTests.prefixAnchored("1"),
                 WildcardFieldTypeTests.prefixAnchored("12"),
-                "1",
-                "12",
                 "123",
-                "2",
-                "23",
                 "234",
-                "3",
-                "34",
                 WildcardFieldTypeTests.suffixAnchored("34"),
-                "4",
                 WildcardFieldTypeTests.suffixAnchored("4")
             ),
             terms

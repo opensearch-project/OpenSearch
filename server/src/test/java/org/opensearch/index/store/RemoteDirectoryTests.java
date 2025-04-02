@@ -92,7 +92,7 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
             storeDirectory,
             filename,
             filename,
-            IOContext.READONCE,
+            IOContext.DEFAULT,
             () -> postUploadInvoked.set(true),
             new ActionListener<>() {
                 @Override
@@ -130,7 +130,7 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
             storeDirectory,
             filename,
             filename,
-            IOContext.READONCE,
+            IOContext.DEFAULT,
             () -> postUploadInvoked.set(true),
             new ActionListener<>() {
                 @Override

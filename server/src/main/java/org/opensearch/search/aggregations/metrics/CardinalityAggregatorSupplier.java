@@ -51,6 +51,7 @@ public interface CardinalityAggregatorSupplier {
         int precision,
         SearchContext context,
         Aggregator parent,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        CardinalityAggregatorFactory.ExecutionMode executionMode
     ) throws IOException;
 }
