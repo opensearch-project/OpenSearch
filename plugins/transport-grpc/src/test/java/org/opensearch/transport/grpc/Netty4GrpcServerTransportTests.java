@@ -64,7 +64,7 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.getBoundAddress().boundAddresses());
             try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(remoteAddress).build()) {
-                assertTrue(client.listServices().size() > 1);
+                assertTrue(client.listServices().get().size() > 1);
             }
             transport.stop();
         } catch (Exception e) {

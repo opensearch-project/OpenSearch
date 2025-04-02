@@ -16,6 +16,7 @@ import javax.net.ssl.SSLException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -70,42 +71,34 @@ public class NettyGrpcClient implements AutoCloseable {
      * Note: ProtoReflectionService only implements a streaming interface and has no blocking stub.
      * @return services registered on the server.
      */
-    public List<ServiceResponse> listServices() {
-        List<ServiceResponse> respServices = new ArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
+    public CompletableFuture<List<ServiceResponse>> listServices() {
+        CompletableFuture<List<ServiceResponse>> respServices = new CompletableFuture<>();
 
         StreamObserver<ServerReflectionResponse> responseObserver = new StreamObserver<>() {
+            final List<ServiceResponse> services = new ArrayList<>();
+
             @Override
             public void onNext(ServerReflectionResponse response) {
                 if (response.hasListServicesResponse()) {
-                    respServices.addAll(response.getListServicesResponse().getServiceList());
+                    services.addAll(response.getListServicesResponse().getServiceList());
                 }
             }
 
             @Override
             public void onError(Throwable t) {
-                latch.countDown();
+                respServices.completeExceptionally(t);
                 throw new RuntimeException(t);
             }
 
             @Override
             public void onCompleted() {
-                latch.countDown();
+                respServices.complete(services);
             }
         };
 
         StreamObserver<ServerReflectionRequest> requestObserver = reflectionStub.serverReflectionInfo(responseObserver);
         requestObserver.onNext(ServerReflectionRequest.newBuilder().setListServices("").build());
         requestObserver.onCompleted();
-
-        try {
-            if (!latch.await(5, TimeUnit.SECONDS)) {
-                throw new RuntimeException(NettyGrpcClient.class.getSimpleName() + " timed out waiting for response.");
-            }
-        } catch (InterruptedException e) {
-            throw new RuntimeException(NettyGrpcClient.class.getSimpleName() + " interrupted waiting for response: " + e.getMessage());
-        }
-
         return respServices;
     }
 
