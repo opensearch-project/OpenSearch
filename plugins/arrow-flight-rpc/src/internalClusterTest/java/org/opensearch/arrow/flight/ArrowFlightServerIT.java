@@ -192,7 +192,7 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
                     fail("Expected FlightRuntimeException");
                 } catch (FlightRuntimeException e) {
                     assertEquals("INTERNAL", e.status().code().name());
-                    assertEquals("There was an error servicing your request.", e.getMessage());
+                    assertEquals("Internal server error: Server error while producing batch", e.getMessage());
                 }
                 assertEquals(1, totalBatches);
             }
