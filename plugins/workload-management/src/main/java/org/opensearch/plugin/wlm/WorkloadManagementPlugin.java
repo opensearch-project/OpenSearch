@@ -10,6 +10,7 @@ package org.opensearch.plugin.wlm;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilter;
+import org.opensearch.autotagging.FeatureType;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -37,12 +38,13 @@ import org.opensearch.plugin.wlm.rest.RestDeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
-import org.opensearch.plugin.wlm.rule.InMemoryRuleProcessingService;
+
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
