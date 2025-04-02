@@ -124,7 +124,7 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
      * Port settings are set using the transport type, in this case GRPC_TRANSPORT_SETTING_KEY.
      * Child classes have distinct transport type keys and need to override these settings.
      */
-    protected String portSettingKey = SETTING_GRPC_PORT.getKey();
+    protected String portSettingKey;
 
     /**
      * Settings.
@@ -165,6 +165,7 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
 
         this.port = SETTING_GRPC_PORT.get(settings);
         this.nettyEventLoopThreads = SETTING_GRPC_WORKER_COUNT.get(settings);
+        this.portSettingKey = SETTING_GRPC_PORT.getKey();
     }
 
     // public for tests
