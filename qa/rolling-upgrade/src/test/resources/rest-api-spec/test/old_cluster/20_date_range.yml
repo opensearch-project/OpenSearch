@@ -38,8 +38,7 @@
 "Create index with joda style index that is incompatible with java.time (>6.1)":
   - skip:
       features: "allowed_warnings"
-      version: " - 7.0.0 -"
-      reason: change of warning message, we skip 7 becase this format will be considered java
+
   - do:
       allowed_warnings:
         - "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.; 'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. Prefix your date format with '8' to use the new specifier."
