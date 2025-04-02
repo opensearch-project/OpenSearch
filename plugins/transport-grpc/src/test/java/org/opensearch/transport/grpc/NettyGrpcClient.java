@@ -8,6 +8,8 @@
 
 package org.opensearch.transport.grpc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.transport.TransportAddress;
 
 import javax.net.ssl.SSLException;
@@ -37,6 +39,7 @@ import static org.opensearch.transport.grpc.SecureSettingsHelpers.getTestKeyMana
 import static io.grpc.internal.GrpcUtil.NOOP_PROXY_DETECTOR;
 
 public class NettyGrpcClient implements AutoCloseable {
+    private static final Logger logger = LogManager.getLogger(NettyGrpcClient.class);
     private final ManagedChannel channel;
     private final HealthGrpc.HealthBlockingStub healthStub;
     private final ServerReflectionGrpc.ServerReflectionStub reflectionStub;
@@ -48,9 +51,12 @@ public class NettyGrpcClient implements AutoCloseable {
     }
 
     public void shutdown() throws InterruptedException {
-        channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+        channel.shutdown();
         if (!channel.awaitTermination(5, TimeUnit.SECONDS)) {
-            channel.shutdownNow();
+            channel.shutdownNow(); // forced shutdown
+            if (!channel.awaitTermination(5, TimeUnit.SECONDS)) {
+                logger.warn("Unable to shutdown the managed channel gracefully");
+            }
         }
     }
 
