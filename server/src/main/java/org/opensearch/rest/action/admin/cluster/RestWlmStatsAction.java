@@ -82,57 +82,74 @@ public class RestWlmStatsAction extends BaseRestHandler {
         Boolean breach = request.hasParam("breach") ? Boolean.parseBoolean(request.param("boolean")) : null;
         WlmStatsRequest wlmStatsRequest = new WlmStatsRequest(nodesIds, workloadGroupIds, breach);
 
+        int pageSize = parsePageSize(request);
+        String nextToken = request.param("next_token");
+        SortBy sortBy = parseSortBy(request.param("sort", "node_id"));
+        SortOrder sortOrder = parseSortOrder(request.param("order", "asc"));
+
+        if (request.rawPath().contains("_list/wlm_stats")) {
+            return handleTabularRequest(request, client, wlmStatsRequest, pageSize, nextToken, sortBy, sortOrder);
+        }
+
+        return channel -> client.admin().cluster().wlmStats(wlmStatsRequest, new RestActions.NodesResponseRestListener<>(channel));
+    }
+
+    private RestChannelConsumer handleTabularRequest(
+        RestRequest request,
+        NodeClient client,
+        WlmStatsRequest wlmStatsRequest,
+        int pageSize,
+        String nextToken,
+        SortBy sortBy,
+        SortOrder sortOrder
+    ) {
+        return channel -> client.admin().cluster().wlmStats(wlmStatsRequest,
+            new RestResponseListener<WlmStatsResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(WlmStatsResponse response) throws Exception {
+                    try {
+                        WlmPaginationStrategy paginationStrategy =
+                            new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
+
+                        List<WlmStats> paginatedStats = paginationStrategy.getPaginatedStats();
+                        PageToken nextPageToken = paginationStrategy.getResponseToken();
+
+                        Table paginatedTable = createTableWithHeaders(nextPageToken);
+                        buildTable(paginatedTable, paginatedStats, paginationStrategy);
+
+                        request.params().put("v", "true");
+                        return RestTable.buildResponse(paginatedTable, channel);
+                    } catch (OpenSearchParseException e) {
+                        handlePaginationError(channel, nextToken, pageSize, sortBy, sortOrder, e);
+                        return null;
+                    }
+                }
+            }
+        );
+    }
+
+    private SortBy parseSortBy(String sortByParam) throws OpenSearchParseException {
+        try {
+            return SortBy.fromString(sortByParam);
+        } catch (IllegalArgumentException e) {
+            throw new OpenSearchParseException("Invalid value for 'sort'. Allowed: 'node_id', 'query_group'", e);
+        }
+    }
+
+    private SortOrder parseSortOrder(String sortOrderParam) throws OpenSearchParseException {
+        try {
+            return SortOrder.fromString(sortOrderParam);
+        } catch (IllegalArgumentException e) {
+            throw new OpenSearchParseException("Invalid value for 'order'. Allowed: 'asc', 'desc'", e);
+        }
+    }
+
+    private int parsePageSize(RestRequest request) {
         int pageSize = request.paramAsInt("size", DEFAULT_PAGE_SIZE);
         if (pageSize <= 0 || pageSize > MAX_PAGE_SIZE) {
             throw new OpenSearchParseException("Invalid value for 'size'. Allowed range: 1 to " + MAX_PAGE_SIZE);
         }
-        String nextToken = request.param("next_token");
-        String sortByParam = request.param("sort", "node_id");
-        String sortOrderParam = request.param("order", "asc");
-
-        SortBy sortBy;
-        SortOrder sortOrder;
-
-        try {
-            sortBy = SortBy.fromString(sortByParam);
-        } catch (IllegalArgumentException e) {
-            throw new OpenSearchParseException("Invalid value for 'sort'. Allowed: 'node_id', 'query_group'", e);
-        }
-
-        try {
-            sortOrder = SortOrder.fromString(sortOrderParam);
-        } catch (IllegalArgumentException e) {
-            throw new OpenSearchParseException("Invalid value for 'order'. Allowed: 'asc', 'desc'", e);
-        }
-
-        boolean isTabular = request.rawPath().contains("_list/wlm_stats");
-
-        if (isTabular) {
-            return channel -> client.admin().cluster().wlmStats(wlmStatsRequest,
-                new RestResponseListener<WlmStatsResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(WlmStatsResponse response) throws Exception {
-                        try {
-                            WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
-                            List<WlmStats> paginatedStats = paginationStrategy.getPaginatedStats();
-                            PageToken nextPageToken = paginationStrategy.getResponseToken();
-
-                            // Use constructor to create Table with token
-                            Table paginatedTable = createTableWithHeaders(nextPageToken);
-                            buildTable(paginatedTable, paginatedStats, paginationStrategy);
-
-                            request.params().put("v", "true");
-                            return RestTable.buildResponse(paginatedTable, channel);
-                        } catch (OpenSearchParseException e) {
-                            handlePaginationError(channel, nextToken, pageSize, sortBy, sortOrder, e);
-                            return null;
-                        }
-                    }
-                }
-            );
-        }
-
-        return channel -> client.admin().cluster().wlmStats(wlmStatsRequest, new RestActions.NodesResponseRestListener<>(channel));
+        return pageSize;
     }
 
     private void handlePaginationError(RestChannel channel, String nextToken, int pageSize, SortBy sortBy, SortOrder sortOrder, OpenSearchParseException e) throws IOException {
