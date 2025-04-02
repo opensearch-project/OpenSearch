@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Dependencies
 - Bump `com.nimbusds:nimbus-jose-jwt` from 9.41.1 to 10.0.2 ([#17607](https://github.com/opensearch-project/OpenSearch/pull/17607), [#17669](https://github.com/opensearch-project/OpenSearch/pull/17669))
 - Bump `com.google.api:api-common` from 1.8.1 to 2.46.1 ([#17604](https://github.com/opensearch-project/OpenSearch/pull/17604))
+- Bump `com.google.api-client:google-api-client` from 1.35.2 to 2.7.2 ([#17135](https://github.com/opensearch-project/OpenSearch/pull/17135))
 - Bump `ch.qos.logback:logback-core` from 1.5.16 to 1.5.17 ([#17609](https://github.com/opensearch-project/OpenSearch/pull/17609))
 - Bump `org.jruby.joni:joni` from 2.2.3 to 2.2.6 ([#17608](https://github.com/opensearch-project/OpenSearch/pull/17608), [#17732](https://github.com/opensearch-project/OpenSearch/pull/17732))
 - Bump `dangoslen/dependabot-changelog-helper` from 3 to 4 ([#17498](https://github.com/opensearch-project/OpenSearch/pull/17498))
