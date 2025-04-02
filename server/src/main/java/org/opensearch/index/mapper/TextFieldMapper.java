@@ -1237,9 +1237,10 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         if (keywordMapperForDerivedSource == null) {
             for (final Mapper mapper : this.multiFields()) {
                 if (mapper instanceof KeywordFieldMapper) {
-                    KeywordFieldMapper.KeywordFieldType subType = ((KeywordFieldMapper) mapper).fieldType();
-                    if (subType.isStored() || subType.hasDocValues()) {
-                        keywordMapperForDerivedSource = (KeywordFieldMapper) mapper;
+                    try {
+                        final KeywordFieldMapper subFieldMapper = (KeywordFieldMapper) mapper;
+                        subFieldMapper.canDeriveSourceInternal();
+                        keywordMapperForDerivedSource = subFieldMapper;
                         keywordMapperForDerivedSource.setDerivedFieldGenerator(
                             new DerivedFieldGenerator(
                                 keywordMapperForDerivedSource.fieldType(),
@@ -1248,15 +1249,29 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                             )
                         );
                         return;
-                    }
+                    } catch (Exception ignored) {}
                 }
             }
         }
         throw new UnsupportedOperationException(
-            "Unable to derive source for [" + name() + "] with stored field " + "disabled and subfield is not there with keyword field type"
+            "Unable to derive source for ["
+                + name()
+                + "] with stored field disabled and "
+                + "keyword subfield is not there with derived source supported"
         );
     }
 
+    /**
+     * 1. If store=true, then derive source using stored field
+     * 2. If there is any subfield present of type keyword, for which source can be derived(doc_values/stored field
+     *    is present and other conditional for keyword field mapper are valid to derive source, i.e. ignore_above or
+     *    normalizer should not be present in subfield mapping)
+     * <p>
+     * Considerations:
+     *    1. When deriving source from stored field of text, order and duplicate values would be preserved
+     *    2. When using doc values for sub keyword field, for multi value field, result would be deduplicated and in sorted order
+     *    3. When using stored field for sub keyword field, order and duplicate values would be preserved
+     */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
         return new DerivedFieldGenerator(mappedFieldType, null, new StoredFieldFetcher(mappedFieldType, simpleName())) {

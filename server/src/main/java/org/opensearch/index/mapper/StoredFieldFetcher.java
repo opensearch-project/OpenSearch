@@ -23,7 +23,7 @@ import java.util.List;
  */
 public class StoredFieldFetcher extends FieldValueFetcher {
 
-    protected StoredFieldFetcher(MappedFieldType mappedFieldType, String SimpleName) {
+    public StoredFieldFetcher(MappedFieldType mappedFieldType, String SimpleName) {
         super(SimpleName);
         this.mappedFieldType = mappedFieldType;
     }

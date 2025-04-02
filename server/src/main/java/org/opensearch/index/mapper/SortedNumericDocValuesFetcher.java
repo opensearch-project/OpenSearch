@@ -22,7 +22,8 @@ import java.util.List;
  * @opensearch.internal
  */
 public class SortedNumericDocValuesFetcher extends FieldValueFetcher {
-    protected SortedNumericDocValuesFetcher(MappedFieldType mappedFieldType, String SimpleName) {
+
+    public SortedNumericDocValuesFetcher(MappedFieldType mappedFieldType, String SimpleName) {
         super(SimpleName);
         this.mappedFieldType = mappedFieldType;
     }
@@ -30,10 +31,16 @@ public class SortedNumericDocValuesFetcher extends FieldValueFetcher {
     @Override
     public List<Object> fetch(LeafReader reader, int docId) throws IOException {
         List<Object> values = new ArrayList<>();
-        final SortedNumericDocValues sortedNumericDocValues = reader.getSortedNumericDocValues(mappedFieldType.name());
-        sortedNumericDocValues.advanceExact(docId);
-        for (int i = 0; i < sortedNumericDocValues.docValueCount(); i++) {
-            values.add(sortedNumericDocValues.nextValue());
+        try {
+            final SortedNumericDocValues sortedNumericDocValues = reader.getSortedNumericDocValues(mappedFieldType.name());
+            if (sortedNumericDocValues == null || !sortedNumericDocValues.advanceExact(docId)) {
+                return values;
+            }
+            for (int i = 0; i < sortedNumericDocValues.docValueCount(); i++) {
+                values.add(sortedNumericDocValues.nextValue());
+            }
+        } catch (Exception e) {
+            throw new IOException("Failed to read doc values for document " + docId + " in field " + mappedFieldType.name(), e);
         }
         return values;
     }

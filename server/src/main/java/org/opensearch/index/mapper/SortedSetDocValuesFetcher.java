@@ -23,7 +23,8 @@ import java.util.List;
  * @opensearch.internal
  */
 public class SortedSetDocValuesFetcher extends FieldValueFetcher {
-    protected SortedSetDocValuesFetcher(MappedFieldType mappedFieldType, String simpleName) {
+
+    public SortedSetDocValuesFetcher(MappedFieldType mappedFieldType, String simpleName) {
         super(simpleName);
         this.mappedFieldType = mappedFieldType;
     }
@@ -31,15 +32,21 @@ public class SortedSetDocValuesFetcher extends FieldValueFetcher {
     @Override
     public List<Object> fetch(LeafReader reader, int docId) throws IOException {
         List<Object> values = new ArrayList<>();
-        final SortedSetDocValues sortedSetDocValues = reader.getSortedSetDocValues(mappedFieldType.name());
-        sortedSetDocValues.advanceExact(docId);
-        int valueCount = sortedSetDocValues.docValueCount();
-        if (valueCount > 0) {
-            long ord;
-            while (values.size() < valueCount && (ord = sortedSetDocValues.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
-                BytesRef value = sortedSetDocValues.lookupOrd(ord);
-                values.add(BytesRef.deepCopyOf(value));
+        try {
+            final SortedSetDocValues sortedSetDocValues = reader.getSortedSetDocValues(mappedFieldType.name());
+            if (sortedSetDocValues == null || !sortedSetDocValues.advanceExact(docId)) {
+                return values;
             }
+            int valueCount = sortedSetDocValues.docValueCount();
+            if (valueCount > 0) {
+                long ord;
+                while (values.size() < valueCount && (ord = sortedSetDocValues.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                    BytesRef value = sortedSetDocValues.lookupOrd(ord);
+                    values.add(BytesRef.deepCopyOf(value));
+                }
+            }
+        } catch (IOException e) {
+            throw new IOException("Failed to read doc values for document " + docId + " in field " + mappedFieldType.name(), e);
         }
         return values;
     }
