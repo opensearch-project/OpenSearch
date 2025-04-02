@@ -33,6 +33,8 @@ package org.opensearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
@@ -270,11 +272,12 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         BytesRefsCollectionBuilder inOrder = new BytesRefsCollectionBuilder();
         Arrays.stream(array).forEach(outofOrder);
         Arrays.stream(array).sorted().forEachOrdered(inOrder);
+        Logger logger = LogManager.getLogger(KeywordFieldTypeTests.class);
         long start = System.currentTimeMillis(), intermid;
         new TermInSetQuery("foo", outofOrder.get());
-        System.out.println("out of order" + ((intermid = System.currentTimeMillis()) - start) + " ms");
+        logger.info("out of order {} ms", (intermid = System.currentTimeMillis()) - start);
         new TermInSetQuery("foo", inOrder.get());
-        System.out.println("in order" + (System.currentTimeMillis() - intermid) + " ms");
+        logger.info("in order{} ms", System.currentTimeMillis() - intermid);
     }
 
     public void testExistsQuery() {
