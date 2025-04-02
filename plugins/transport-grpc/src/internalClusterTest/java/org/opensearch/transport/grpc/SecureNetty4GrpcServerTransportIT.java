@@ -108,7 +108,11 @@ public abstract class SecureNetty4GrpcServerTransportIT extends OpenSearchIntegT
     }
 
     protected SecureSettingsHelpers.ConnectExceptions trustedCertClientConnect() throws Exception {
-        try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(randomNetty4GrpcServerTransportAddr()).clientAuth(true).build()) {
+        try (
+            NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(randomNetty4GrpcServerTransportAddr())
+                .clientAuth(true)
+                .build()
+        ) {
             return tryConnectClient(client);
         }
     }

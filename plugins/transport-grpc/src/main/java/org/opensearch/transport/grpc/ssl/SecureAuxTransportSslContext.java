@@ -8,14 +8,12 @@
 
 package org.opensearch.transport.grpc.ssl;
 
-import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSessionContext;
-import javax.net.ssl.TrustManagerFactory;
 
 import java.util.List;
 import java.util.Optional;
@@ -91,9 +89,7 @@ public class SecureAuxTransportSslContext extends SslContext {
     public SecureAuxTransportSslContext(SecureAuxTransportSettingsProvider provider) {
         Optional<SecureAuxTransportSettingsProvider.SecureAuxTransportParameters> params = provider.parameters();
         if (params.isEmpty()) {
-            throw new OpenSearchSecurityException(
-                "Aux transport ssl context failed to initialize. Secure settings provider not found."
-            );
+            throw new OpenSearchSecurityException("Aux transport ssl context failed to initialize. Secure settings provider not found.");
         }
         try {
             this.sslContext = buildContext(params.get());
@@ -108,24 +104,16 @@ public class SecureAuxTransportSslContext extends SslContext {
      */
     private SslContext buildContext(SecureAuxTransportSettingsProvider.SecureAuxTransportParameters p) throws SSLException {
         if (p.keyManagerFactory().isEmpty()) {
-            throw new OpenSearchSecurityException(
-                "Aux transport ssl context failed to initialize. No keystore provided."
-            );
+            throw new OpenSearchSecurityException("Aux transport ssl context failed to initialize. No keystore provided.");
         }
         if (p.sslProvider().isEmpty()) {
-            throw new OpenSearchSecurityException(
-                "Aux transport ssl context failed to initialize. Ssl provider not found."
-            );
+            throw new OpenSearchSecurityException("Aux transport ssl context failed to initialize. Ssl provider not found.");
         }
         if (p.clientAuth().isEmpty()) {
-            throw new OpenSearchSecurityException(
-                "Aux transport ssl context failed to initialize. No client auth mode configured."
-            );
+            throw new OpenSearchSecurityException("Aux transport ssl context failed to initialize. No client auth mode configured.");
         }
         if (p.trustManagerFactory().isEmpty()) {
-            throw new OpenSearchSecurityException(
-                "Aux transport ssl context failed to initialize. No truststore provided."
-            );
+            throw new OpenSearchSecurityException("Aux transport ssl context failed to initialize. No truststore provided.");
         }
         SslContextBuilder builder = SslContextBuilder.forServer(p.keyManagerFactory().get())
             .sslProvider(providerHelper(p.sslProvider().get()))
