@@ -12,6 +12,7 @@ import org.apache.commons.collections4.trie.PatriciaTrie;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * This is a patricia trie based implementation of AttributeValueStore
@@ -20,7 +21,10 @@ import java.util.Optional;
  * ref: https://commons.apache.org/proper/commons-collections/javadocs/api-4.4/org/apache/commons/collections4/trie/PatriciaTrie.html
  */
 public class DefaultAttributeValueStore<K extends String, V> implements AttributeValueStore<K, V> {
-    PatriciaTrie<V> trie;
+    private final PatriciaTrie<V> trie;
+    private static final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    private static final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
+    private static final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
 
     /**
      * Default constructor
@@ -39,34 +43,48 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
 
     @Override
     public void put(K key, V value) {
-        trie.put(key, value);
+        writeLock.lock();
+        try {
+            trie.put(key, value);
+        } finally {
+            writeLock.unlock();
+        }
     }
 
     @Override
     public void remove(String key) {
-        trie.remove(key);
+        writeLock.lock();
+        try {
+            trie.remove(key);
+        } finally {
+            writeLock.unlock();
+        }
     }
 
     @Override
     public Optional<V> get(String key) {
-        /**
-         * Since we are inserting prefixes into the trie and searching for larger strings
-         * It is important to find the largest matching prefix key in the trie efficiently
-         * Hence we can do binary search
-         */
-        final String longestMatchingPrefix = findLongestMatchingPrefix(key);
+        readLock.lock();
+        try {
+            /**
+             * Since we are inserting prefixes into the trie and searching for larger strings
+             * It is important to find the largest matching prefix key in the trie efficiently
+             * Hence we can do binary search
+             */
+            final String longestMatchingPrefix = findLongestMatchingPrefix(key);
 
-        /**
-         * Now there are following cases for this prefix
-         * 1. There is a Rule which has this prefix as one of the attribute values. In this case we should return the
-         *     Rule's label otherwise send empty
-         */
-        for (Map.Entry<String, V> possibleMatch : trie.prefixMap(longestMatchingPrefix).entrySet()) {
-            if (key.startsWith(possibleMatch.getKey())) {
-                return Optional.of(possibleMatch.getValue());
+            /**
+             * Now there are following cases for this prefix
+             * 1. There is a Rule which has this prefix as one of the attribute values. In this case we should return the
+             *     Rule's label otherwise send empty
+             */
+            for (Map.Entry<String, V> possibleMatch : trie.prefixMap(longestMatchingPrefix).entrySet()) {
+                if (key.startsWith(possibleMatch.getKey())) {
+                    return Optional.of(possibleMatch.getValue());
+                }
             }
+        } finally {
+            readLock.unlock();
         }
-
         return Optional.empty();
     }
 

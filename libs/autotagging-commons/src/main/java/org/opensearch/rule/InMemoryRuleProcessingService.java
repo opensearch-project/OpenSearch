@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -46,16 +47,36 @@ public class InMemoryRuleProcessingService {
      * Adds the rule to in-memory view
      * @param rule to be added
      */
-    public synchronized void add(final Rule rule) {
-        new AddRuleOperation(rule, attributeValueStoreFactory).perform();
+    public void add(final Rule rule) {
+        perform(rule, this::addOperation);
     }
 
     /**
      * Removes the rule from in-memory view
      * @param rule to be removed
      */
-    public synchronized void remove(final Rule rule) {
-        new DeleteRuleOperation(rule, attributeValueStoreFactory).perform();
+    public void remove(final Rule rule) {
+        perform(rule, this::removeOperation);
+    }
+
+    private void perform(Rule rule, BiConsumer<Map.Entry<Attribute, Set<String>>, Rule> ruleOperation) {
+        for (Map.Entry<Attribute, Set<String>> attributeEntry : rule.getAttributeMap().entrySet()) {
+            ruleOperation.accept(attributeEntry, rule);
+        }
+    }
+
+    private void removeOperation(Map.Entry<Attribute, Set<String>> attributeEntry, Rule rule) {
+        AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
+        for (String value : attributeEntry.getValue()) {
+            valueStore.remove(value);
+        }
+    }
+
+    private void addOperation(Map.Entry<Attribute, Set<String>> attributeEntry, Rule rule) {
+        AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
+        for (String value : attributeEntry.getValue()) {
+            valueStore.put(value, rule.getFeatureValue());
+        }
     }
 
     /**
@@ -90,58 +111,5 @@ public class InMemoryRuleProcessingService {
             }
         }
         return result;
-    }
-
-    private static abstract class RuleProcessingOperation {
-        protected final Rule rule;
-        protected final AttributeValueStoreFactory attributeValueStoreFactory;
-
-        public RuleProcessingOperation(Rule rule, AttributeValueStoreFactory attributeValueStoreFactory) {
-            this.rule = rule;
-            this.attributeValueStoreFactory = attributeValueStoreFactory;
-        }
-
-        void perform() {
-            final FeatureType feature = rule.getFeatureType();
-            final String label = rule.getFeatureValue();
-
-            for (Map.Entry<Attribute, Set<String>> attributeEntry : rule.getAttributeMap().entrySet()) {
-                processAttributeEntry(attributeEntry);
-            }
-        }
-
-        protected AttributeValueStore<String, String> getAttributeValueStore(final Attribute attribute) {
-            return this.attributeValueStoreFactory.getAttributeValueStore(attribute);
-        }
-
-        protected abstract void processAttributeEntry(Map.Entry<Attribute, Set<String>> attributeEntry);
-    }
-
-    private static class DeleteRuleOperation extends RuleProcessingOperation {
-        public DeleteRuleOperation(Rule rule, AttributeValueStoreFactory attributeValueStoreFactory) {
-            super(rule, attributeValueStoreFactory);
-        }
-
-        @Override
-        protected void processAttributeEntry(Map.Entry<Attribute, Set<String>> attributeEntry) {
-            AttributeValueStore<String, String> valueStore = getAttributeValueStore(attributeEntry.getKey());
-            for (String value : attributeEntry.getValue()) {
-                valueStore.remove(value);
-            }
-        }
-    }
-
-    private static class AddRuleOperation extends RuleProcessingOperation {
-        public AddRuleOperation(Rule rule, AttributeValueStoreFactory attributeValueStoreFactory) {
-            super(rule, attributeValueStoreFactory);
-        }
-
-        @Override
-        protected void processAttributeEntry(Map.Entry<Attribute, Set<String>> attributeEntry) {
-            AttributeValueStore<String, String> valueStore = getAttributeValueStore(attributeEntry.getKey());
-            for (String value : attributeEntry.getValue()) {
-                valueStore.put(value, this.rule.getFeatureValue());
-            }
-        }
     }
 }
