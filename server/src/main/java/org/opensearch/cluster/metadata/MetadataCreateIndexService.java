@@ -1092,9 +1092,7 @@ public class MetadataCreateIndexService {
         validateRefreshIntervalSettings(request.settings(), clusterSettings);
         validateTranslogFlushIntervalSettingsForCompositeIndex(request.settings(), clusterSettings);
         validateTranslogDurabilitySettings(request.settings(), clusterSettings, settings);
-        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
-            validateSearchOnlyReplicasSettings(indexSettings);
-        }
+        validateSearchOnlyReplicasSettings(indexSettings);
         validateIndexTotalPrimaryShardsPerNodeSetting(indexSettings);
         return indexSettings;
     }

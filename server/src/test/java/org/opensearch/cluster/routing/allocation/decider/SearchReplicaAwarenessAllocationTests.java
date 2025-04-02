@@ -23,7 +23,6 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 
 import java.util.Comparator;
 import java.util.List;
@@ -41,10 +40,7 @@ public class SearchReplicaAwarenessAllocationTests extends OpenSearchAllocationT
 
     public void testAllocationAwarenessForIndexWithSearchReplica() {
         AllocationService strategy = createAllocationService(
-            Settings.builder()
-                .put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.getKey(), true)
-                .put("cluster.routing.allocation.awareness.attributes", "zone")
-                .build()
+            Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build()
         );
 
         logger.info("--> Building initial routing table");
@@ -122,10 +118,7 @@ public class SearchReplicaAwarenessAllocationTests extends OpenSearchAllocationT
 
     public void testMoveShardOnceNewNodeWithOutAwarenessAttributeAdded() {
         AllocationService strategy = createAllocationService(
-            Settings.builder()
-                .put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.getKey(), true)
-                .put("cluster.routing.allocation.awareness.attributes", "zone")
-                .build()
+            Settings.builder().put("cluster.routing.allocation.awareness.attributes", "zone").build()
         );
 
         logger.info("--> Building initial routing table'");
@@ -195,7 +188,6 @@ public class SearchReplicaAwarenessAllocationTests extends OpenSearchAllocationT
     public void testFullAwarenessWithSearchReplica() {
         AllocationService strategy = createAllocationService(
             Settings.builder()
-                .put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.getKey(), true)
                 .put("cluster.routing.allocation.awareness.attributes", "zone")
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
                 .build()

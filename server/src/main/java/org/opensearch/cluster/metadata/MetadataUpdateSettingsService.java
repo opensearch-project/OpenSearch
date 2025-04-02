@@ -58,7 +58,6 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
@@ -296,9 +295,7 @@ public class MetadataUpdateSettingsService {
                     }
 
                     if (IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(openSettings)) {
-                        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
-                            validateSearchReplicaCountSettings(normalizedSettings, request.indices(), currentState);
-                        }
+                        validateSearchReplicaCountSettings(normalizedSettings, request.indices(), currentState);
                         final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(openSettings);
                         if (preserveExisting == false) {
                             for (Index index : request.indices()) {

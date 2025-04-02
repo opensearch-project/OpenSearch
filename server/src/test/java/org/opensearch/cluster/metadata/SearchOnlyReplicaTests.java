@@ -21,7 +21,6 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.Environment;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.indices.ShardLimitValidator;
@@ -71,14 +70,6 @@ public class SearchOnlyReplicaTests extends OpenSearchSingleNodeTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         terminate(threadPool);
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.getKey(), true)
-            .build();
     }
 
     public void testCreateWithDefaultSearchReplicasSetting() {
