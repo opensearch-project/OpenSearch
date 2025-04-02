@@ -33,27 +33,31 @@ public abstract class GetRuleRequest extends ActionRequest {
     private final String id;
     private final Map<Attribute, Set<String>> attributeFilters;
     private final String searchAfter;
+    private final FeatureType featureType;
 
     /**
      * Constructor for GetRuleRequest
      * @param id - Rule id to get
      * @param attributeFilters - Rules will be filtered based on the attribute-value mappings.
      * @param searchAfter - The sort value used for pagination.
+     * @param featureType - The feature type related to rule.
      */
-    public GetRuleRequest(String id, Map<Attribute, Set<String>> attributeFilters, String searchAfter) {
+    public GetRuleRequest(String id, Map<Attribute, Set<String>> attributeFilters, String searchAfter, FeatureType featureType) {
         this.id = id;
         this.attributeFilters = attributeFilters;
         this.searchAfter = searchAfter;
+        this.featureType = featureType;
     }
 
     /**
-     * Constructs a GetRuleRequest from a StreamInput for deserialization
+     * Constructs a GetRuleRequest from a StreamInput for deserialization.
      * @param in - The {@link StreamInput} instance to read from.
      */
     public GetRuleRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readOptionalString();
-        attributeFilters = in.readMap(i -> Attribute.from(i, retrieveFeatureTypeInstance()), i -> new HashSet<>(i.readStringList()));
+        featureType = FeatureType.from(in);
+        attributeFilters = in.readMap(i -> Attribute.from(i, featureType), i -> new HashSet<>(i.readStringList()));
         searchAfter = in.readOptionalString();
     }
 
@@ -66,14 +70,10 @@ public abstract class GetRuleRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(id);
+        featureType.writeTo(out);
         out.writeMap(attributeFilters, (output, attribute) -> attribute.writeTo(output), StreamOutput::writeStringCollection);
         out.writeOptionalString(searchAfter);
     }
-
-    /**
-     * Abstract method for subclasses to provide specific FeatureType Instance
-     */
-    protected abstract FeatureType retrieveFeatureTypeInstance();
 
     /**
      * id getter

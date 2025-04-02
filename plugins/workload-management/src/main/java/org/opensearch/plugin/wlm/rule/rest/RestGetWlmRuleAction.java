@@ -11,6 +11,7 @@ package org.opensearch.plugin.wlm.rule.rest;
 import org.opensearch.action.ActionType;
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.plugin.wlm.rule.QueryGroupAttribute;
+import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 import org.opensearch.plugin.wlm.rule.action.GetWlmRuleAction;
 import org.opensearch.plugin.wlm.rule.action.GetWlmRuleRequest;
 import org.opensearch.rule.action.GetRuleRequest;
@@ -59,6 +60,6 @@ public class RestGetWlmRuleAction extends RestGetRuleAction {
 
     @Override
     protected GetRuleRequest buildGetRuleRequest(String id, Map<Attribute, Set<String>> attributeFilters, String searchAfter) {
-        return new GetWlmRuleRequest(id, attributeFilters, searchAfter);
+        return new GetWlmRuleRequest(id, attributeFilters, searchAfter, QueryGroupFeatureType.INSTANCE);
     }
 }

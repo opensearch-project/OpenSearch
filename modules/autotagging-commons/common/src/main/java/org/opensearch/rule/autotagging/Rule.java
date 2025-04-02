@@ -8,9 +8,14 @@
 
 package org.opensearch.rule.autotagging;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
@@ -56,6 +61,7 @@ public class Rule implements Writeable, ToXContentObject {
      * updated_at field
      */
     public static final String UPDATED_AT_STRING = "updated_at";
+    public static final Logger logger = LogManager.getLogger(Rule.class);
 
     /**
      * Main constructor
