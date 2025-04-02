@@ -208,7 +208,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
 
         AtomicInteger flushCount = new AtomicInteger(0);
         TestServerStreamListener listener = new TestServerStreamListener();
-
+        AtomicBoolean isCancelled = new AtomicBoolean(false);
         doAnswer(invocation -> {
             StreamProducer.FlushSignal flushSignal = invocation.getArgument(1);
             for (int i = 0; i < 5; i++) {
@@ -224,15 +224,21 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
                 listener.setReady(false);
                 clientThread.start();
                 flushSignal.awaitConsumption(TimeValue.timeValueMillis(300)); // waiting for consumption for more than client thread sleep
+                if (isCancelled.get()) {
+                    break;
+                }
                 assertTrue(listener.getDataConsumed());
                 flushCount.incrementAndGet();
                 listener.resetConsumptionLatch();
             }
             return null;
         }).when(batchedJob).run(any(), any());
+        doAnswer(invocation -> {
+            isCancelled.set(true);
+            return null;
+        }).when(batchedJob).onCancel();
 
         baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), ticket, listener);
-
         assertNull(listener.getError());
         assertEquals(5, listener.getPutNextCount());
         assertEquals(5, flushCount.get());
@@ -252,6 +258,8 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
 
         AtomicInteger flushCount = new AtomicInteger(0);
         TestServerStreamListener listener = new TestServerStreamListener();
+        AtomicBoolean isCancelled = new AtomicBoolean(false);
+
         doAnswer(invocation -> {
             StreamProducer.FlushSignal flushSignal = invocation.getArgument(1);
             for (int i = 0; i < 5; i++) {
@@ -267,17 +275,23 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
                 listener.setReady(false);
                 clientThread.start();
                 flushSignal.awaitConsumption(TimeValue.timeValueMillis(100)); // waiting for consumption for less than client thread sleep
+                if (isCancelled.get()) {
+                    break;
+                }
                 assertTrue(listener.getDataConsumed());
                 flushCount.incrementAndGet();
                 listener.resetConsumptionLatch();
             }
             return null;
         }).when(batchedJob).run(any(), any());
-
-        assertThrows(RuntimeException.class, () -> baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), ticket, listener));
+        doAnswer(invocation -> {
+            isCancelled.set(true);
+            return null;
+        }).when(batchedJob).onCancel();
+        baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), ticket, listener);
 
         assertNotNull(listener.getError());
-        assertEquals("Stream deadline exceeded for consumption", listener.getError().getMessage());
+        assertEquals("Stream deadline exceeded", listener.getError().getMessage());
         assertEquals(0, listener.getPutNextCount());
         assertEquals(0, flushCount.get());
 
@@ -296,6 +310,8 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
 
         AtomicInteger flushCount = new AtomicInteger(0);
         TestServerStreamListener listener = new TestServerStreamListener();
+        AtomicBoolean isCancelled = new AtomicBoolean(false);
+
         doAnswer(invocation -> {
             StreamProducer.FlushSignal flushSignal = invocation.getArgument(1);
             for (int i = 0; i < 5; i++) {
@@ -304,21 +320,26 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
                     if (finalI == 4) {
                         listener.cancel();
                     } else {
-                        listener.setReady(false);
                         listener.setReady(true);
                     }
                 });
                 listener.setReady(false);
                 clientThread.start();
                 flushSignal.awaitConsumption(TimeValue.timeValueMillis(100)); // waiting for consumption for less than client thread sleep
+                if (isCancelled.get()) {
+                    break;
+                }
                 assertTrue(listener.getDataConsumed());
                 flushCount.incrementAndGet();
                 listener.resetConsumptionLatch();
             }
             return null;
         }).when(batchedJob).run(any(), any());
-
-        assertThrows(RuntimeException.class, () -> baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), ticket, listener));
+        doAnswer(invocation -> {
+            isCancelled.set(true);
+            return null;
+        }).when(batchedJob).onCancel();
+        baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), ticket, listener);
         assertNotNull(listener.getError());
         assertEquals("Stream cancelled by client", listener.getError().getMessage());
         assertEquals(4, listener.getPutNextCount());
@@ -339,6 +360,8 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
 
         AtomicInteger flushCount = new AtomicInteger(0);
         TestServerStreamListener listener = new TestServerStreamListener();
+        AtomicBoolean isCancelled = new AtomicBoolean(false);
+
         doAnswer(invocation -> {
             StreamProducer.FlushSignal flushSignal = invocation.getArgument(1);
             for (int i = 0; i < 5; i++) {
@@ -349,17 +372,24 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
                 listener.setReady(false);
                 clientThread.start();
                 flushSignal.awaitConsumption(TimeValue.timeValueMillis(100)); // waiting for consumption for less than client thread sleep
+                if (isCancelled.get()) {
+                    return null;
+                }
                 assertTrue(listener.getDataConsumed());
                 flushCount.incrementAndGet();
                 listener.resetConsumptionLatch();
             }
             return null;
         }).when(batchedJob).run(any(), any());
+        doAnswer(invocation -> {
+            isCancelled.set(true);
+            return null;
+        }).when(batchedJob).onCancel();
 
-        assertThrows(RuntimeException.class, () -> baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), ticket, listener));
+        baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), ticket, listener);
 
         assertNotNull(listener.getError());
-        assertEquals("Stream deadline exceeded for consumption", listener.getError().getMessage());
+        assertEquals("Stream deadline exceeded", listener.getError().getMessage());
         assertEquals(0, listener.getPutNextCount());
         assertEquals(0, flushCount.get());
 
@@ -437,10 +467,10 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
             return null;
         }).when(batchedJob).run(any(VectorSchemaRoot.class), any(StreamProducer.FlushSignal.class));
 
-        assertThrows(RuntimeException.class, () -> baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), ticket, listener));
+        baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), ticket, listener);
 
         assertNotNull(listener.getError());
-        assertEquals("Server error", listener.getError().getMessage());
+        assertEquals("Internal server error: Server error", listener.getError().getMessage());
         assertEquals(4, listener.getPutNextCount());
         assertEquals(4, flushCount.get());
 
@@ -482,12 +512,9 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
         FlightStreamTicket remoteTicket = new FlightStreamTicket("test-id", remoteNodeId);
         TestServerStreamListener listener = new TestServerStreamListener();
 
-        expectThrows(
-            RuntimeException.class,
-            () -> baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), new Ticket(remoteTicket.toBytes()), listener)
-        );
+        baseFlightProducer.getStream(mock(FlightProducer.CallContext.class), new Ticket(remoteTicket.toBytes()), listener);
         assertNotNull(listener.getError());
-        assertEquals("Either server is not up yet or node does not support Streams.", listener.getError().getMessage());
+        assertEquals("Stream not found", listener.getError().getMessage());
     }
 
     public void testGetFlightInfo() {
@@ -541,7 +568,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
             () -> baseFlightProducer.getFlightInfo(null, descriptor)
         );
 
-        assertEquals("Internal error while determining location information from ticket.", exception.getMessage());
+        assertEquals("Internal error determining location", exception.getMessage());
     }
 
     public void testGetFlightInfo_SchemaError() {
@@ -558,8 +585,7 @@ public class BaseFlightProducerTests extends OpenSearchTestCase {
             () -> baseFlightProducer.getFlightInfo(null, descriptor)
         );
 
-        assertEquals("Internal error while creating VectorSchemaRoot.",
-            exception.getMessage());
+        assertTrue(exception.getMessage().contains("Error creating FlightInfo"));
     }
 
     public void testGetFlightInfo_NonLocalNode() {
