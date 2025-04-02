@@ -157,6 +157,7 @@ setup:
 "Filtering the cluster state returns cluster_uuid at the top level regardless of metric filters":
   - skip:
       features: allowed_warnings
+
   # Get the current cluster_uuid
   - do:
       cluster.state: {}

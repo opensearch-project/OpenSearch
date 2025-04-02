@@ -2,6 +2,7 @@
 "REST test with headers":
   - skip:
       features: ["headers", "yaml"]
+
   - do:
       index:
         index: test_1
