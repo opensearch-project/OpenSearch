@@ -8,6 +8,8 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -17,6 +19,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
+import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActions;
@@ -49,6 +52,11 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  */
 public class RestWlmStatsAction extends BaseRestHandler {
 
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final Logger logger = LogManager.getLogger(RestWlmStatsAction.class);
+
+
     @Override
     public List<Route> routes() {
         return unmodifiableList(
@@ -74,7 +82,10 @@ public class RestWlmStatsAction extends BaseRestHandler {
         Boolean breach = request.hasParam("breach") ? Boolean.parseBoolean(request.param("boolean")) : null;
         WlmStatsRequest wlmStatsRequest = new WlmStatsRequest(nodesIds, workloadGroupIds, breach);
 
-        int pageSize = request.paramAsInt("size", 10);
+        int pageSize = request.paramAsInt("size", DEFAULT_PAGE_SIZE);
+        if (pageSize <= 0 || pageSize > MAX_PAGE_SIZE) {
+            throw new OpenSearchParseException("Invalid value for 'size'. Allowed range: 1 to " + MAX_PAGE_SIZE);
+        }
         String nextToken = request.param("next_token");
         String sortByParam = request.param("sort", "node_id");
         String sortOrderParam = request.param("order", "asc");
@@ -104,7 +115,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
                         try {
                             WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
                             List<WlmStats> paginatedStats = paginationStrategy.getPaginatedStats();
-                            PageToken nextPageToken = paginationStrategy.getNextToken();
+                            PageToken nextPageToken = paginationStrategy.getResponseToken();
 
                             // Use constructor to create Table with token
                             Table paginatedTable = createTableWithHeaders(nextPageToken);
@@ -113,16 +124,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
                             request.params().put("v", "true");
                             return RestTable.buildResponse(paginatedTable, channel);
                         } catch (OpenSearchParseException e) {
-                            String userMessage = "Pagination state has changed (e.g., new query groups added or removed). "
-                                + "Please restart pagination from the beginning by omitting the 'next_token' parameter.";
-
-                            XContentBuilder builder = XContentFactory.jsonBuilder();
-                            builder.startObject();
-                            builder.field("error", userMessage);
-                            builder.field("details", e.getMessage());
-                            builder.endObject();
-
-                            channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
+                            handlePaginationError(channel, nextToken, pageSize, sortBy, sortOrder, e);
                             return null;
                         }
                     }
@@ -131,6 +133,22 @@ public class RestWlmStatsAction extends BaseRestHandler {
         }
 
         return channel -> client.admin().cluster().wlmStats(wlmStatsRequest, new RestActions.NodesResponseRestListener<>(channel));
+    }
+
+    private void handlePaginationError(RestChannel channel, String nextToken, int pageSize, SortBy sortBy, SortOrder sortOrder, OpenSearchParseException e) throws IOException {
+        String userMessage = "Pagination state has changed (e.g., new query groups added or removed). "
+            + "Please restart pagination from the beginning by omitting the 'next_token' parameter.";
+
+        logger.error("Failed to paginate WLM stats. next_token={}, pageSize={}, sortBy={}, sortOrder={}. Reason: {}",
+            nextToken, pageSize, sortBy, sortOrder, e.getMessage(), e);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        builder.field("error", userMessage);
+        builder.field("details", e.getMessage());
+        builder.endObject();
+
+        channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
     }
 
     private Table createTableWithHeaders(PageToken pageToken) {
@@ -203,7 +221,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
             }
         }
 
-        if (paginationStrategy.getNextToken() == null) {
+        if (paginationStrategy.getResponseToken() == null) {
             addFooterRow(table, COLUMN_COUNT);
         }
     }
