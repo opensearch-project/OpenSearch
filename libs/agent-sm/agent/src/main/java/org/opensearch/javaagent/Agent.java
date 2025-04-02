@@ -36,6 +36,22 @@ public class Agent {
     private Agent() {}
 
     /**
+     * List of methods that are intercepted
+     */
+    public static final String[] INTERCEPTED_METHODS = {
+        "delete",
+        "deleteIfExists",
+        "createFile",
+        "createDirectories",
+        "createLink",
+        "move",
+        "copy",
+        "newByteChannel",
+        "open",
+        "write",
+        "read" };
+
+    /**
      * Premain
      * @param agentArguments agent arguments
      * @param instrumentation instrumentation
@@ -66,21 +82,7 @@ public class Agent {
         );
 
         final AgentBuilder.Transformer fileTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
-            Advice.to(FileInterceptor.class)
-                .on(
-                    ElementMatchers.named("delete")
-                        .or(ElementMatchers.named("deleteIfExists"))
-                        .or(ElementMatchers.named("createFile"))
-                        .or(ElementMatchers.named("createDirectories"))
-                        .or(ElementMatchers.named("createLink"))
-                        .or(ElementMatchers.named("move"))
-                        .or(ElementMatchers.named("copy"))
-                        .or(ElementMatchers.named("newByteChannel"))
-                        .or(ElementMatchers.named("open"))
-                        .or(ElementMatchers.named("write"))
-                        .or(ElementMatchers.named("read"))
-                        .or(ElementMatchers.isConstructor())
-                )
+            Advice.to(FileInterceptor.class).on(ElementMatchers.namedOneOf(INTERCEPTED_METHODS).or(ElementMatchers.isAbstract()))
         );
 
         ClassInjector.UsingUnsafe.ofBootLoader()
@@ -91,17 +93,21 @@ public class Agent {
                     new TypeDescription.ForLoadedType(StackCallerClassChainExtractor.class),
                     ClassFileLocator.ForClassLoader.read(StackCallerClassChainExtractor.class),
                     new TypeDescription.ForLoadedType(AgentPolicy.class),
-                    ClassFileLocator.ForClassLoader.read(AgentPolicy.class)
+                    ClassFileLocator.ForClassLoader.read(AgentPolicy.class),
+                    new TypeDescription.ForLoadedType(FileInterceptor.class),
+                    ClassFileLocator.ForClassLoader.read(FileInterceptor.class)
                 )
             );
 
         final ByteBuddy byteBuddy = new ByteBuddy().with(Implementation.Context.Disabled.Factory.INSTANCE);
-        return new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
+        final AgentBuilder agentBuilder = new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
             .with(AgentBuilder.RedefinitionStrategy.REDEFINITION)
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
             .ignore(ElementMatchers.none())
             .type(systemType)
-            .transform(transformer)
+            .transform(socketTransformer)
+            .type(pathType.or(fileChannelType))
+            .transform(fileTransformer)
             .type(ElementMatchers.is(java.lang.System.class))
             .transform(
                 (b, typeDescription, classLoader, module, pd) -> b.visit(
