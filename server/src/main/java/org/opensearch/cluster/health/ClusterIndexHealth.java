@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.health;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -306,7 +307,11 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         index = in.readString();
         numberOfShards = in.readVInt();
         numberOfReplicas = in.readVInt();
-        numberOfSearchReplicas = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            numberOfSearchReplicas = in.readVInt();
+        } else {
+            numberOfSearchReplicas = 0;
+        }
         activePrimaryShards = in.readVInt();
         activeShards = in.readVInt();
         relocatingShards = in.readVInt();
@@ -409,7 +414,9 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         out.writeString(index);
         out.writeVInt(numberOfShards);
         out.writeVInt(numberOfReplicas);
-        out.writeVInt(numberOfSearchReplicas);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeVInt(numberOfSearchReplicas);
+        }
         out.writeVInt(activePrimaryShards);
         out.writeVInt(activeShards);
         out.writeVInt(relocatingShards);
