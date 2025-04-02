@@ -18,8 +18,6 @@ opensearchplugin {
 }
 
 dependencies {
-  implementation project(':libs:opensearch-arrow-spi')
-
   // all transitive dependencies exported to use arrow-vector and arrow-memory-core
   api "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
   api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
