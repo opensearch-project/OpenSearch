@@ -89,56 +89,89 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         }
     }
 
+    /**
+     * Applies pagination to a list of WlmStats entries.
+     *
+     * Flattens stats by query group, sorts them using the specified sortBy and sortOrder,
+     * determines the start index from the given requestedToken, and returns a sublist
+     * limited by pageSize. Sets responseToken if more results are available.
+     *
+     * @param rawStats unpaginated stats from all nodes
+     * @param requestedToken pagination token from the client, or null for the first page
+     * @param currentHash hash representing the current snapshot, used for token validation
+     * @return paginated sublist of WlmStats
+     */
+
     private List<WlmStats> applyPagination(List<WlmStats> rawStats, WlmStrategyToken requestedToken, String currentHash) {
         if (rawStats.isEmpty()) {
             this.responseToken = null;
             return Collections.emptyList();
         }
 
-        List<WlmStats> perQueryGroupStats = new ArrayList<>();
+        List<WlmStats> perQueryGroupStats = extractQueryGroupStats(rawStats);
+
+        perQueryGroupStats = perQueryGroupStats.stream()
+                .sorted(sortOrder.apply(sortBy.getComparator()))
+                .collect(Collectors.toList());
+
+        int startIndex = getStartIndex(perQueryGroupStats, requestedToken);
+
+        List<WlmStats> page = getPage(perQueryGroupStats, startIndex);
+
+        setResponseToken(perQueryGroupStats, startIndex + page.size(), currentHash);
+
+        return page;
+    }
+
+    private List<WlmStats> extractQueryGroupStats(List<WlmStats> rawStats) {
+        List<WlmStats> result = new ArrayList<>();
         for (WlmStats stat : rawStats) {
             Map<String, QueryGroupStats.QueryGroupStatsHolder> queryGroups = stat.getQueryGroupStats().getStats();
             for (Map.Entry<String, QueryGroupStats.QueryGroupStatsHolder> entry : queryGroups.entrySet()) {
                 String queryGroupId = entry.getKey();
                 QueryGroupStats singleQueryGroupStats = new QueryGroupStats(Map.of(queryGroupId, entry.getValue()));
-                perQueryGroupStats.add(new WlmStats(stat.getNode(), singleQueryGroupStats));
+                result.add(new WlmStats(stat.getNode(), singleQueryGroupStats));
             }
         }
+        return result;
+    }
 
-        perQueryGroupStats = perQueryGroupStats.stream()
-            .sorted(sortOrder.apply(sortBy.getComparator()))
-            .collect(Collectors.toList());
-
-        int startIndex = 0;
-        if (requestedToken != null) {
-            OptionalInt foundIndex = findIndex(
-                perQueryGroupStats,
-                requestedToken.getNodeId(),
-                requestedToken.getQueryGroupId()
-            );
-            if (foundIndex.isEmpty()) {
-                throw new OpenSearchParseException("Invalid or outdated token: " + nextToken);
-            }
-            startIndex = foundIndex.getAsInt();
+    private int getStartIndex(List<WlmStats> sortedStats, WlmStrategyToken token) {
+        if (token == null) {
+            return 0;
         }
 
-        int endIndex = Math.min(startIndex + pageSize, perQueryGroupStats.size());
-        List<WlmStats> page = perQueryGroupStats.subList(startIndex, endIndex);
+        OptionalInt index = findIndex(
+                sortedStats,
+                token.getNodeId(),
+                token.getQueryGroupId()
+        );
 
-        if (endIndex < perQueryGroupStats.size()) {
-            WlmStats lastEntry = perQueryGroupStats.get(endIndex - 1);
+        if (index.isEmpty()) {
+            throw new OpenSearchParseException("Invalid or outdated token: " + nextToken);
+        }
+
+        return index.getAsInt();
+    }
+
+    private List<WlmStats> getPage(List<WlmStats> stats, int startIndex) {
+        int endIndex = Math.min(startIndex + pageSize, stats.size());
+        return stats.subList(startIndex, endIndex);
+    }
+
+    private void setResponseToken(List<WlmStats> stats, int nextIndex, String currentHash) {
+        if (nextIndex < stats.size()) {
+            WlmStats lastEntry = stats.get(nextIndex - 1);
             String nodeId = lastEntry.getNode().getId();
             String queryGroupId = lastEntry.getQueryGroupStats().getStats().keySet().iterator().next();
 
             this.responseToken = new PageToken(
-                WlmStrategyToken.generateEncryptedToken(nodeId, queryGroupId, snapshotQueryGroupCount, currentHash),
-                DEFAULT_PAGINATED_ENTITY
+                    WlmStrategyToken.generateEncryptedToken(nodeId, queryGroupId, snapshotQueryGroupCount, currentHash),
+                    DEFAULT_PAGINATED_ENTITY
             );
         } else {
             this.responseToken = null;
         }
-
-        return page;
     }
 
     private OptionalInt findIndex(List<WlmStats> stats, String nodeId, String queryGroupId) {
@@ -164,10 +197,6 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
 
     public List<WlmStats> getPaginatedStats() {
         return paginatedStats;
-    }
-
-    public PageToken getNextToken() {
-        return responseToken;
     }
 
     public static class WlmStrategyToken {
@@ -219,7 +248,10 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
             Objects.requireNonNull(token, "Token cannot be null");
             String decrypted = PaginationStrategy.decryptStringToken(token);
             final String[] parts = decrypted.split(SPLIT_REGEX);
-            if (parts.length != 4 || parts[0].isEmpty() || parts[1].isEmpty() || parts[3].isEmpty()) {
+            if (parts.length != 4 ||
+                    parts[NODE_ID_POS].isEmpty() ||
+                    parts[QUERY_GROUP_ID_POS].isEmpty() ||
+                    parts[HASH_POS].isEmpty()) {
                 throw new OpenSearchParseException("Invalid pagination token format");
             }
         }

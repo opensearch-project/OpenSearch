@@ -245,7 +245,6 @@ public class Table {
         return pageToken;
     }
 
-
     /**
      * Cell in a table
      *

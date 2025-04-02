@@ -29,13 +29,12 @@ public enum SortOrder {
     public abstract Comparator<WlmStats> apply(Comparator<WlmStats> baseComparator);
 
     public static SortOrder fromString(String input) {
-        switch (input.toLowerCase()) {
-            case "asc":
-                return ASC;
-            case "desc":
-                return DESC;
-            default:
-                throw new IllegalArgumentException("Invalid sort order: " + input);
+        try {
+            return SortOrder.valueOf(input.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Invalid sort order: " + input + ". Allowed values: asc, desc"
+            );
         }
     }
 }

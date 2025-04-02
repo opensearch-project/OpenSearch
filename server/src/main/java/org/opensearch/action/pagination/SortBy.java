@@ -39,13 +39,12 @@ public enum SortBy {
     public abstract Comparator<WlmStats> getComparator();
 
     public static SortBy fromString(String input) {
-        switch (input.toLowerCase()) {
-            case "query_group":
-                return QUERY_GROUP;
-            case "node_id":
-                return NODE_ID;
-            default:
-                throw new IllegalArgumentException("Invalid sort field: " + input);
+        try {
+            return SortBy.valueOf(input.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Invalid sort field: " + input + ". Allowed values: query_group, node_id"
+            );
         }
     }
 }
