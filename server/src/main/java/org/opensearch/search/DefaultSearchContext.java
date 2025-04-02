@@ -114,6 +114,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -206,7 +208,7 @@ final class DefaultSearchContext extends SearchContext {
     private final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
-    private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final BiFunction<SearchSourceBuilder, BooleanSupplier, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
     private final String concurrentSearchMode;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
     private final int maxAggRewriteFilters;
@@ -227,7 +229,7 @@ final class DefaultSearchContext extends SearchContext {
         Version minNodeVersion,
         boolean validate,
         Executor executor,
-        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
+        BiFunction<SearchSourceBuilder, BooleanSupplier, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
     ) throws IOException {
         this.readerContext = readerContext;

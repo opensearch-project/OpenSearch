@@ -117,10 +117,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.LongSupplier;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -514,6 +511,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             }
             OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            BooleanSupplier isRequestCancelled = () -> {
+              if (task instanceof CancellableTask) {
+                  return ((CancellableTask) task).isCancelled();
+              }
+              return false;
+            };
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(
                     task,
@@ -533,7 +536,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         localIndices,
                         remoteClusterIndices,
                         timeProvider,
-                        searchService.aggReduceContextBuilder(searchRequest.source()),
+                        searchService.aggReduceContextBuilder(searchRequest.source(), isRequestCancelled),
                         remoteClusterService,
                         threadPool,
                         listener,
@@ -1265,7 +1268,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 task.getProgressListener(),
                 searchRequest,
                 shardIterators.size(),
-                exc -> cancelTask(task, exc)
+                exc -> cancelTask(task, exc),
+                task::isCancelled
             );
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {

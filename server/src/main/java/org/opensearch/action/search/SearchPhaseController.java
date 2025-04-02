@@ -81,6 +81,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -757,7 +758,8 @@ public final class SearchPhaseController {
         SearchProgressListener listener,
         SearchRequest request,
         int numShards,
-        Consumer<Exception> onPartialMergeFailure
+        Consumer<Exception> onPartialMergeFailure,
+        Supplier<Boolean> isCancelled
     ) {
         return new QueryPhaseResultConsumer(
             request,
@@ -767,7 +769,8 @@ public final class SearchPhaseController {
             listener,
             namedWriteableRegistry,
             numShards,
-            onPartialMergeFailure
+            onPartialMergeFailure,
+            isCancelled
         );
     }
 

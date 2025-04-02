@@ -57,7 +57,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * A {@link ArraySearchPhaseResults} implementation that incrementally reduces aggregation results
@@ -78,6 +80,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final SearchProgressListener progressListener;
     private final ReduceContextBuilder aggReduceContextBuilder;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final BooleanSupplier isTaskCancelled;
 
     private final int topNSize;
     private final boolean hasTopDocs;
@@ -99,7 +102,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         SearchProgressListener progressListener,
         NamedWriteableRegistry namedWriteableRegistry,
         int expectedResultSize,
-        Consumer<Exception> onPartialMergeFailure
+        Consumer<Exception> onPartialMergeFailure,
+        Supplier<Boolean> isTaskCancelled
     ) {
         super(expectedResultSize);
         this.executor = executor;
@@ -117,6 +121,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
+        this.isTaskCancelled = isTaskCancelled;
     }
 
     @Override

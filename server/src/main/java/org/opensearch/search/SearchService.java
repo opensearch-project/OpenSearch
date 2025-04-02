@@ -164,6 +164,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
@@ -1804,14 +1805,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Returns a builder for {@link InternalAggregation.ReduceContext}. This
      * builder retains a reference to the provided {@link SearchSourceBuilder}.
      */
-    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchSourceBuilder searchSourceBuilder) {
+    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchSourceBuilder searchSourceBuilder, BooleanSupplier isRequestCancelled) {
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
                 return InternalAggregation.ReduceContext.forPartialReduction(
                     bigArrays,
                     scriptService,
-                    () -> requestToPipelineTree(searchSourceBuilder)
+                    () -> requestToPipelineTree(searchSourceBuilder),
+                    isRequestCancelled
                 );
             }
 
@@ -1822,7 +1824,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     bigArrays,
                     scriptService,
                     multiBucketConsumerService.create(),
-                    pipelineTree
+                    pipelineTree,
+                    isRequestCancelled
                 );
             }
         };
