@@ -35,6 +35,7 @@ import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.StreamPoller;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -145,6 +146,16 @@ public class IngestionEngine extends InternalEngine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
+        throw new UnsupportedEncodingException("push-based indexing is not supported in ingestion engine, use streaming source instead");
+    }
+
+    /**
+     * Indexes the document into the engine. This is used internally by the stream poller only.
+     * @param index the index request
+     * @return the index result
+     * @throws IOException if an error occurs
+     */
+    public IndexResult indexInternal(Index index) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         ensureOpen();
         final IndexResult indexResult;
@@ -168,7 +179,7 @@ public class IngestionEngine extends InternalEngine {
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
-        return null;
+        throw new UnsupportedEncodingException("push-based deletion is not supported in ingestion engine, use streaming source instead");
     }
 
     @Override

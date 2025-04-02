@@ -119,7 +119,7 @@ public class MessageProcessorRunnable implements Runnable {
                 Engine.Operation operation = getOperation(payload, pointer);
                 switch (operation.operationType()) {
                     case INDEX:
-                        engine.index((Engine.Index) operation);
+                        engine.indexInternal((Engine.Index) operation);
                         break;
                     case DELETE:
                         engine.delete((Engine.Delete) operation);
