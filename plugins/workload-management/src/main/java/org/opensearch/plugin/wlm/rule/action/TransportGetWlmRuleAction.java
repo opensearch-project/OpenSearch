@@ -12,7 +12,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.wlm.rule.service.WlmRulePersistenceService;
+import org.opensearch.rule.service.RuleService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
@@ -22,26 +22,22 @@ import org.opensearch.transport.TransportService;
  */
 public class TransportGetWlmRuleAction extends HandledTransportAction<GetWlmRuleRequest, GetWlmRuleResponse> {
 
-    private final WlmRulePersistenceService rulePersistenceService;
+    private final RuleService ruleService;
 
     /**
      * Constructor for TransportGetWlmRuleAction
      * @param transportService - a {@link TransportService} object
      * @param actionFilters - a {@link ActionFilters} object
-     * @param rulePersistenceService - a {@link WlmRulePersistenceService} object
+     * @param ruleService - a {@link RuleService} object
      */
     @Inject
-    public TransportGetWlmRuleAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        WlmRulePersistenceService rulePersistenceService
-    ) {
+    public TransportGetWlmRuleAction(TransportService transportService, ActionFilters actionFilters, RuleService ruleService) {
         super(GetWlmRuleAction.NAME, transportService, actionFilters, GetWlmRuleRequest::new);
-        this.rulePersistenceService = rulePersistenceService;
+        this.ruleService = ruleService;
     }
 
     @Override
     protected void doExecute(Task task, GetWlmRuleRequest request, ActionListener<GetWlmRuleResponse> listener) {
-        rulePersistenceService.getRule(request.getId(), request.getAttributeFilters(), request.getSearchAfter(), listener);
+        ruleService.processGetRuleRequest(request, listener);
     }
 }

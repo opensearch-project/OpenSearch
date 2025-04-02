@@ -14,7 +14,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
-import org.opensearch.plugin.wlm.rule.action.GetWlmRuleResponse;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.Client;
@@ -54,7 +53,7 @@ public class WlmRulePersistenceServiceTests extends OpenSearchTestCase {
     public void testGetRule_WithId() {
         WlmRulePersistenceService rulePersistenceService = setUpRulePersistenceService(new HashMap<>());
         Client client = rulePersistenceService.getClient();
-        ActionListener<GetWlmRuleResponse> listener = mock(ActionListener.class);
+        ActionListener<SearchResponse> listener = mock(ActionListener.class);
         SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
         SetupMocksForGetRule(client, searchRequestBuilder);
 
@@ -67,7 +66,7 @@ public class WlmRulePersistenceServiceTests extends OpenSearchTestCase {
     public void testGetRule_WithSearchAfter() {
         WlmRulePersistenceService rulePersistenceService = setUpRulePersistenceService(new HashMap<>());
         Client client = rulePersistenceService.getClient();
-        ActionListener<GetWlmRuleResponse> listener = mock(ActionListener.class);
+        ActionListener<SearchResponse> listener = mock(ActionListener.class);
         SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
         SetupMocksForGetRule(client, searchRequestBuilder);
         when(searchRequestBuilder.addSort(anyString(), any(SortOrder.class))).thenReturn(searchRequestBuilder);
