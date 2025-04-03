@@ -14,7 +14,7 @@ import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.util.regex.MatchResult;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class PropertyExpander {
@@ -29,20 +29,6 @@ public class PropertyExpander {
         }
     }
 
-    private static class UncheckedExpandException extends RuntimeException {
-        private final ExpandException cause;
-
-        UncheckedExpandException(ExpandException cause) {
-            super(cause);
-            this.cause = cause;
-        }
-
-        @Override
-        public ExpandException getCause() {
-            return cause;
-        }
-    }
-
     public static String expand(String value) throws ExpandException {
         return expand(value, false);
     }
@@ -52,23 +38,19 @@ public class PropertyExpander {
             return value;
         }
 
-        try {
-            return PLACEHOLDER_PATTERN.matcher(value).replaceAll(match -> {
-                try {
-                    return handleMatch(match, encodeURL);
-                } catch (ExpandException e) {
-                    throw new UncheckedExpandException(e);
-                }
-            });
-        } catch (UncheckedExpandException e) {
-            throw e.getCause();
+        Matcher matcher = PLACEHOLDER_PATTERN.matcher(value);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String replacement = handleMatch(matcher, encodeURL);
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 
-    private static String handleMatch(MatchResult match, boolean encodeURL) throws ExpandException {
+    private static String handleMatch(Matcher match, boolean encodeURL) throws ExpandException {
         String escaped = match.group("escaped");
         if (escaped != null) {
-            // Preserve escaped placeholders like ${{...}}
             return "${{" + escaped + "}}";
         }
 

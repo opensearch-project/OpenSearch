@@ -20,95 +20,69 @@ import java.net.SocketPermission;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.security.AllPermission;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.ProtectionDomain;
+import java.security.SecurityPermission;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Optional;
+import java.util.PropertyPermission;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 @SuppressWarnings("removal")
 public class PolicyFile extends java.security.Policy {
-    public static final SocketPermission LOCAL_LISTEN_PERMISSION = new SocketPermission("localhost:0", "listen");
+    public static final Set<String> PERM_CLASSES_TO_SKIP = Set.of(
+        "org.opensearch.secure_sm.ThreadContextPermission",
+        "org.opensearch.secure_sm.ThreadPermission",
+        "org.opensearch.SpecialPermission",
+        "org.bouncycastle.crypto.CryptoServicesPermission",
+        "org.opensearch.script.ClassPermission",
+        "javax.security.auth.AuthPermission"
+    );
 
     private static final int DEFAULT_CACHE_SIZE = 1;
     private volatile PolicyInfo policyInfo;
     private URL url;
 
-    /**
-     * When a policy file has a syntax error, the exception code may generate
-     * another permission check and this can cause the policy file to be parsed
-     * repeatedly, leading to a StackOverflowError or ClassCircularityError.
-     * To avoid this, this set is populated with policy files that have been
-     * previously parsed and have syntax errors, so that they can be
-     * subsequently ignored.
-     */
-    private static Set<URL> badPolicyURLs = Collections.newSetFromMap(new ConcurrentHashMap<URL, Boolean>());
-
-    /**
-     * Initializes the Policy object and reads the default policy
-     * from the specified URL only.
-     */
     public PolicyFile(URL url) {
         this.url = url;
-        init(url);
+        try {
+            init(url);
+        } catch (PolicyInitializationException e) {
+            throw new RuntimeException("Failed to initialize policy file", e);
+        }
     }
 
-    /**
-     * Initializes the Policy object and reads the default policy
-     * configuration file(s) into the Policy object.
-     *
-     * See the class description for details on the algorithm used to
-     * initialize the Policy object.
-     */
-    private void init(URL url) {
+    private void init(URL url) throws PolicyInitializationException {
         int numCaches = DEFAULT_CACHE_SIZE;
         PolicyInfo newInfo = new PolicyInfo(numCaches);
         initPolicyFile(newInfo, url);
         policyInfo = newInfo;
     }
 
-    private void initPolicyFile(final PolicyInfo newInfo, final URL url) {
+    private void initPolicyFile(final PolicyInfo newInfo, final URL url) throws PolicyInitializationException {
         init(url, newInfo);
     }
 
-    /**
-     * Reads a policy configuration into the Policy object using a
-     * Reader object.
-     */
-    private void init(URL policy, PolicyInfo newInfo) {
-        if (badPolicyURLs.contains(policy)) {
-            return;
-        }
-
+    private void init(URL policy, PolicyInfo newInfo) throws PolicyInitializationException {
         try (InputStreamReader reader = new InputStreamReader(getInputStream(policy), StandardCharsets.UTF_8)) {
             PolicyParser policyParser = new PolicyParser();
             policyParser.read(reader);
 
-            Collections.list(policyParser.grantElements()).forEach(grantNode -> {
-                try {
-                    addGrantNode(grantNode, newInfo);
-                } catch (Exception e) {
-                    e.printStackTrace(System.err);
-                }
-            });
+            for (GrantNode grantNode : Collections.list(policyParser.grantElements())) {
+                addGrantNode(grantNode, newInfo);
+            }
 
-            return;
-        } catch (PolicyParser.ParsingException pe) {
-            badPolicyURLs.add(policy);
-            pe.printStackTrace(System.err);
-        } catch (IOException ioe) {
-            ioe.printStackTrace(System.err);
+        } catch (Exception e) {
+            throw new PolicyInitializationException("Failed to load policy from: " + policy, e);
         }
-
-        return;
     }
 
     public static InputStream getInputStream(URL url) throws IOException {
@@ -121,38 +95,42 @@ public class PolicyFile extends java.security.Policy {
         }
     }
 
-    /**
-     * Given a GrantEntry, create a codeSource.
-     *
-     * @return null if signedBy alias is not recognized
-     */
-    private CodeSource getCodeSource(GrantNode grantEntry, PolicyInfo newInfo) throws java.net.MalformedURLException {
-        Certificate[] certs = null;
-        URL location;
-
-        if (grantEntry.codeBase != null) location = newURL(grantEntry.codeBase);
-        else location = null;
-
-        return (canonicalizeCodebase(new CodeSource(location, certs)));
+    private CodeSource getCodeSource(GrantNode grantEntry, PolicyInfo newInfo) throws PolicyInitializationException {
+        try {
+            Certificate[] certs = null;
+            URL location = (grantEntry.codeBase != null) ? newURL(grantEntry.codeBase) : null;
+            return canonicalizeCodebase(new CodeSource(location, certs));
+        } catch (Exception e) {
+            throw new PolicyInitializationException("Failed to get CodeSource", e);
+        }
     }
 
-    private void addGrantNode(GrantNode grantEntry, PolicyInfo newInfo) throws Exception {
-
+    private void addGrantNode(GrantNode grantEntry, PolicyInfo newInfo) throws PolicyInitializationException {
         CodeSource codesource = getCodeSource(grantEntry, newInfo);
-        if (codesource == null) return;
+        if (codesource == null) {
+            throw new PolicyInitializationException("Null CodeSource for: " + grantEntry.codeBase);
+        }
 
         PolicyEntry entry = new PolicyEntry(codesource);
         Enumeration<PermissionNode> enum_ = grantEntry.permissionElements();
         while (enum_.hasMoreElements()) {
             PermissionNode pe = enum_.nextElement();
+            expandPermissionName(pe);
             try {
-                // Store the original name before expansion
-                expandPermissionName(pe);
-
                 Optional<Permission> perm = getInstance(pe.permission, pe.name, pe.action);
-                perm.ifPresent(entry::add);
-            } catch (ClassNotFoundException cfne) {
-                cfne.printStackTrace(System.err);
+                if (perm.isPresent()) {
+                    entry.add(perm.get());
+                }
+            } catch (ClassNotFoundException e) {
+
+                // these were mostly custom permission classes added for security
+                // manager. Since security manager is deprecated, we can skip these
+                // permissions classes.
+                if (PERM_CLASSES_TO_SKIP.contains(pe.permission)) {
+                    continue; // skip this permission
+                }
+
+                throw new PolicyInitializationException("Permission class not found: " + pe.permission, e);
             }
         }
         newInfo.policyEntries.add(entry);
@@ -168,12 +146,9 @@ public class PolicyFile extends java.security.Policy {
         StringBuilder sb = new StringBuilder();
 
         while ((b = pe.name.indexOf("${{", startIndex)) != -1 && (e = pe.name.indexOf("}}", b)) != -1) {
-
             sb.append(pe.name, startIndex, b);
             String value = pe.name.substring(b + 3, e);
-
             sb.append("${{").append(value).append("}}");
-
             startIndex = e + 2;
         }
 
@@ -184,60 +159,56 @@ public class PolicyFile extends java.security.Policy {
     private static final Optional<Permission> getInstance(String type, String name, String actions) throws ClassNotFoundException {
         Class<?> pc = Class.forName(type, false, null);
         Permission answer = getKnownPermission(pc, name, actions);
-        if (answer != null) {
-            return Optional.of(answer);
-        }
 
-        return Optional.empty();
+        return Optional.ofNullable(answer);
     }
 
-    /**
-     * Creates one of the well-known permissions in the java.base module
-     * directly instead of via reflection. Keep list short to not penalize
-     * permissions from other modules.
-     */
     private static Permission getKnownPermission(Class<?> claz, String name, String actions) {
         if (claz.equals(FilePermission.class)) {
             return new FilePermission(name, actions);
         } else if (claz.equals(SocketPermission.class)) {
             return new SocketPermission(name, actions);
+        } else if (claz.equals(RuntimePermission.class)) {
+            return new RuntimePermission(name, actions);
+        } else if (claz.equals(PropertyPermission.class)) {
+            return new PropertyPermission(name, actions);
         } else if (claz.equals(NetPermission.class)) {
             return new NetPermission(name, actions);
+        } else if (claz.equals(AllPermission.class)) {
+            return new AllPermission();
+        } else if (claz.equals(SecurityPermission.class)) {
+            return new SecurityPermission(name, actions);
         } else {
             return null;
         }
     }
 
-    /**
-     * Refreshes the policy object by re-reading all the policy files.
-     */
     @Override
     public void refresh() {
-        init(url);
+        try {
+            init(url);
+        } catch (PolicyInitializationException e) {
+            throw new RuntimeException("Failed to refresh policy", e);
+        }
     }
 
     @Override
     public boolean implies(ProtectionDomain pd, Permission p) {
         PermissionCollection pc = getPermissions(pd);
-        if (pc == null) {
-            return false;
-        }
-
-        // cache mapping of protection domain to its PermissionCollection
-        return pc.implies(p);
+        return pc != null && pc.implies(p);
     }
 
     @Override
     public PermissionCollection getPermissions(ProtectionDomain domain) {
         Permissions perms = new Permissions();
-
         if (domain == null) return perms;
 
-        getPermissionsForProtectionDomain(perms, domain);
+        try {
+            getPermissionsForProtectionDomain(perms, domain);
+        } catch (PolicyInitializationException e) {
+            throw new RuntimeException("Failed to get permissions for domain", e);
+        }
 
-        // add static perms
-        // - adding static perms after policy perms is necessary
-        // to avoid a regression for 4301064
         PermissionCollection pc = domain.getPermissions();
         if (pc != null) {
             synchronized (pc) {
@@ -253,12 +224,16 @@ public class PolicyFile extends java.security.Policy {
 
     @Override
     public PermissionCollection getPermissions(CodeSource codesource) {
-        if (codesource == null) {
-            return new Permissions();
-        }
+        if (codesource == null) return new Permissions();
 
         Permissions perms = new Permissions();
-        CodeSource canonicalCodeSource = canonicalizeCodebase(codesource);
+        CodeSource canonicalCodeSource;
+
+        try {
+            canonicalCodeSource = canonicalizeCodebase(codesource);
+        } catch (PolicyInitializationException e) {
+            throw new RuntimeException("Failed to canonicalize CodeSource", e);
+        }
 
         for (PolicyEntry entry : policyInfo.policyEntries) {
             if (entry.getCodeSource().implies(canonicalCodeSource)) {
@@ -271,33 +246,30 @@ public class PolicyFile extends java.security.Policy {
         return perms;
     }
 
-    private PermissionCollection getPermissionsForProtectionDomain(Permissions perms, ProtectionDomain pd) {
+    private void getPermissionsForProtectionDomain(Permissions perms, ProtectionDomain pd) throws PolicyInitializationException {
         final CodeSource cs = pd.getCodeSource();
-        if (cs == null) return perms;
+        if (cs == null) return;
+
+        CodeSource canonicalCodeSource = canonicalizeCodebase(cs);
 
         for (PolicyEntry entry : policyInfo.policyEntries) {
-            if (entry.getCodeSource().implies(cs)) {
+            if (entry.getCodeSource().implies(canonicalCodeSource)) {
                 for (Permission permission : entry.permissions) {
                     perms.add(permission);
                 }
             }
         }
-
-        return perms;
     }
 
-    private CodeSource canonicalizeCodebase(CodeSource cs) {
+    private CodeSource canonicalizeCodebase(CodeSource cs) throws PolicyInitializationException {
         URL location = cs.getLocation();
-        if (location == null) {
-            return cs;
-        }
+        if (location == null) return cs;
 
         try {
             URL canonicalUrl = canonicalizeUrl(location);
             return new CodeSource(canonicalUrl, cs.getCertificates());
         } catch (IOException e) {
-            // Log the exception or handle it as appropriate
-            return cs;
+            throw new PolicyInitializationException("Failed to canonicalize CodeSource", e);
         }
     }
 
@@ -312,7 +284,7 @@ public class PolicyFile extends java.security.Policy {
                 try {
                     url = new URL(spec.substring(0, separator));
                 } catch (MalformedURLException e) {
-                    // If unwrapping fails, keep the original URL
+                    throw new IOException("Malformed nested jar URL", e);
                 }
             }
         }
@@ -329,35 +301,25 @@ public class PolicyFile extends java.security.Policy {
     private String canonicalizePath(String path) throws IOException {
         if (path.endsWith("*")) {
             path = path.substring(0, path.length() - 1);
-            String canonicalPath = new File(path).getCanonicalPath();
-            return canonicalPath + "*";
+            return new File(path).getCanonicalPath() + "*";
         } else {
             return new File(path).getCanonicalPath();
         }
     }
 
     private static class PolicyEntry {
-
         private final CodeSource codesource;
         final List<Permission> permissions;
 
         PolicyEntry(CodeSource cs) {
             this.codesource = cs;
-            this.permissions = new ArrayList<Permission>();
+            this.permissions = new ArrayList<>();
         }
 
-        /**
-         * add a Permission object to this entry.
-         * No need to sync add op because perms are added to entry only
-         * while entry is being initialized
-         */
         void add(Permission p) {
             permissions.add(p);
         }
 
-        /**
-         * Return the CodeSource for this policy entry
-         */
         CodeSource getCodeSource() {
             return codesource;
         }
@@ -365,27 +327,16 @@ public class PolicyFile extends java.security.Policy {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append("{");
-            sb.append(getCodeSource());
-            sb.append("\n");
-            for (int j = 0; j < permissions.size(); j++) {
-                Permission p = permissions.get(j);
-                sb.append(" ");
-                sb.append(" ");
-                sb.append(p);
-                sb.append("\n");
+            sb.append("{").append(getCodeSource()).append("\n");
+            for (Permission p : permissions) {
+                sb.append("  ").append(p).append("\n");
             }
-            sb.append("}");
-            sb.append("\n");
+            sb.append("}\n");
             return sb.toString();
         }
     }
 
-    /**
-     * holds policy information that we need to synch on
-     */
     private static class PolicyInfo {
-        // Stores grant entries in the policy
         final List<PolicyEntry> policyEntries;
 
         PolicyInfo(int numCaches) {

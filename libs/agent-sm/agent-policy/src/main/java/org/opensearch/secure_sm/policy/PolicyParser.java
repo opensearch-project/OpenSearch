@@ -35,9 +35,10 @@ public class PolicyParser {
         while (!tokenStream.isEOF()) {
             if (peek("grant")) {
                 GrantNode grantNode = parseGrantEntry();
-                addGrantNode(grantNode);
-            } else {
-                throw new ParsingException(tokenStream.line(), "Expected 'grant'");
+
+                if (grantNode != null) {
+                    addGrantNode(grantNode);
+                }
             }
         }
     }
@@ -94,7 +95,9 @@ public class PolicyParser {
                 try {
                     grantNode.codeBase = PropertyExpander.expand(rawCodebase, true).replace(File.separatorChar, '/');
                 } catch (ExpandException e) {
-                    e.printStackTrace();
+                    // skip this grant as expansion failed due to missing expansion property.
+                    skipCurrentGrantBlock();
+                    return null;
                 }
                 pollOnMatch(",");
             } else {
@@ -125,6 +128,37 @@ public class PolicyParser {
         }
 
         return grantNode;
+    }
+
+    private void skipCurrentGrantBlock() throws IOException, ParsingException {
+        // Consume until we find a matching closing '}'
+        int braceDepth = 0;
+
+        // Go until we find the initial '{'
+        while (!tokenStream.isEOF()) {
+            Token token = tokenStream.peek();
+            if ("{".equals(token.text)) {
+                braceDepth++;
+                tokenStream.consume();
+                break;
+            }
+            tokenStream.consume();
+        }
+
+        // Now consume until matching '}'
+        while (braceDepth > 0 && !tokenStream.isEOF()) {
+            Token token = tokenStream.consume();
+            if ("{".equals(token.text)) {
+                braceDepth++;
+            } else if ("}".equals(token.text)) {
+                braceDepth--;
+            }
+        }
+
+        // Consume optional trailing semicolon
+        if (peek(";")) {
+            poll(";");
+        }
     }
 
     private PermissionNode parsePermissionEntry() throws ParsingException, IOException {
