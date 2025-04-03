@@ -40,7 +40,7 @@ import static org.opensearch.autotagging.Rule._ID_STRING;
  * }
  * @opensearch.experimental
  */
-public abstract class GetRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
+public class GetRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final Map<String, Rule> rules;
     private final String searchAfter;
     private final RestStatus restStatus;

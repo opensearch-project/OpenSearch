@@ -29,7 +29,7 @@ import java.util.Set;
  * curl -X GET "localhost:9200/_wlm/rule?index_pattern=a,b" - get all rules containing attribute index_pattern as a or b
  * @opensearch.experimental
  */
-public abstract class GetRuleRequest extends ActionRequest {
+public class GetRuleRequest extends ActionRequest {
     private final String id;
     private final Map<Attribute, Set<String>> attributeFilters;
     private final String searchAfter;

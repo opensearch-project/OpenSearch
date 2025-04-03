@@ -7,6 +7,6 @@
  */
 
 /**
- * Package for the service classes related to rules in WorkloadManagementPlugin
+ * This package contains utility classes for rules
  */
-package org.opensearch.plugin.wlm.rule.service;
+package org.opensearch.rule.Utils;
