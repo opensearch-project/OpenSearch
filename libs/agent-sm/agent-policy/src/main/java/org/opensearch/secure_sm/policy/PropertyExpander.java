@@ -8,22 +8,38 @@
 
 package org.opensearch.secure_sm.policy;
 
+import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.util.regex.MatchResult;
+import java.util.regex.Pattern;
 
-/**
- * Adapted from: https://github.com/openjdk/jdk23u/blob/master/src/java.base/share/classes/sun/security/util/PropertyExpander.java
- */
 public class PropertyExpander {
+
+    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\$\\{\\{(?<escaped>.*?)}}|\\$\\{(?<normal>.*?)}");
 
     public static class ExpandException extends GeneralSecurityException {
         private static final long serialVersionUID = -1L;
 
-        public ExpandException(String msg) {
-            super(msg);
+        public ExpandException(String message) {
+            super(message);
+        }
+    }
+
+    private static class UncheckedExpandException extends RuntimeException {
+        private final ExpandException cause;
+
+        UncheckedExpandException(ExpandException cause) {
+            super(cause);
+            this.cause = cause;
+        }
+
+        @Override
+        public ExpandException getCause() {
+            return cause;
         }
     }
 
@@ -32,79 +48,53 @@ public class PropertyExpander {
     }
 
     public static String expand(String value, boolean encodeURL) throws ExpandException {
-        if (value == null) return null;
-
-        int p = value.indexOf("${");
-
-        // no special characters
-        if (p == -1) return value;
-
-        StringBuilder sb = new StringBuilder(value.length());
-        int max = value.length();
-        int i = 0;  // index of last character we copied
-
-        scanner: while (p < max) {
-            if (p > i) {
-                // copy in anything before the special stuff
-                sb.append(value.substring(i, p));
-            }
-            int pe = p + 2;
-
-            // do not expand ${{ ... }}
-            if (pe < max && value.charAt(pe) == '{') {
-                pe = value.indexOf("}}", pe);
-                if (pe == -1 || pe + 2 == max) {
-                    // append remaining chars
-                    sb.append(value.substring(p));
-                    break scanner;
-                } else {
-                    // append as normal text
-                    pe++;
-                    sb.append(value.substring(p, pe + 1));
-                }
-            } else {
-                while ((pe < max) && (value.charAt(pe) != '}')) {
-                    pe++;
-                }
-                if (pe == max) {
-                    // no matching '}' found, just add in as normal text
-                    sb.append(value.substring(p, pe));
-                    break scanner;
-                }
-                String prop = value.substring(p + 2, pe);
-                if (prop.equals("/")) {
-                    sb.append(java.io.File.separatorChar);
-                } else {
-                    String val = System.getProperty(prop);
-                    if (val != null) {
-                        if (encodeURL) {
-                            // encode 'val' unless it's an absolute URI
-                            // at the beginning of the string buffer
-                            try {
-                                if (sb.length() > 0 || !(new URI(val)).isAbsolute()) {
-                                    val = URLEncoder.encode(val, StandardCharsets.UTF_8);
-                                }
-                            } catch (URISyntaxException use) {
-                                val = URLEncoder.encode(val, StandardCharsets.UTF_8);
-                            }
-                        }
-                        sb.append(val);
-                    } else {
-                        throw new ExpandException("unable to expand property " + prop);
-                    }
-                }
-            }
-            i = pe + 1;
-            p = value.indexOf("${", i);
-            if (p == -1) {
-                // no more to expand. copy in any extra
-                if (i < max) {
-                    sb.append(value.substring(i, max));
-                }
-                // break out of loop
-                break scanner;
-            }
+        if (value == null || !value.contains("${")) {
+            return value;
         }
-        return sb.toString();
+
+        try {
+            return PLACEHOLDER_PATTERN.matcher(value).replaceAll(match -> {
+                try {
+                    return handleMatch(match, encodeURL);
+                } catch (ExpandException e) {
+                    throw new UncheckedExpandException(e);
+                }
+            });
+        } catch (UncheckedExpandException e) {
+            throw e.getCause();
+        }
+    }
+
+    private static String handleMatch(MatchResult match, boolean encodeURL) throws ExpandException {
+        String escaped = match.group("escaped");
+        if (escaped != null) {
+            // Preserve escaped placeholders like ${{...}}
+            return "${{" + escaped + "}}";
+        }
+
+        String placeholder = match.group("normal");
+        return expandPlaceholder(placeholder, encodeURL);
+    }
+
+    private static String expandPlaceholder(String placeholder, boolean encodeURL) throws ExpandException {
+        return switch (placeholder) {
+            case "/" -> String.valueOf(File.separatorChar);
+            default -> {
+                String value = System.getProperty(placeholder);
+                if (value == null) {
+                    throw new ExpandException("Unable to expand property: " + placeholder);
+                }
+                yield encodeURL ? encodeValue(value) : value;
+            }
+        };
+    }
+
+    private static String encodeValue(String value) {
+        try {
+            URI uri = new URI(value);
+            return uri.isAbsolute() ? value : URLEncoder.encode(value, StandardCharsets.UTF_8);
+        } catch (URISyntaxException e) {
+            return URLEncoder.encode(value, StandardCharsets.UTF_8);
+        }
     }
 }
