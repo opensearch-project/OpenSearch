@@ -130,20 +130,9 @@ public class IngestionEngineTests extends EngineTestCase {
         waitForResults(ingestionEngine, 4);
     }
 
-    public void testPushAPIFailures() throws IOException {
-        try {
-            ingestionEngine.index(Mockito.any());
-            fail("Expected UnsupportedOperationException to be thrown");
-        } catch (Exception e) {
-            assertEquals("push-based indexing is not supported in ingestion engine, use streaming source instead", e.getMessage());
-        }
-
-        try {
-            ingestionEngine.delete(Mockito.any());
-            fail("Expected UnsupportedOperationException to be thrown");
-        } catch (Exception e) {
-            assertEquals("push-based deletion is not supported in ingestion engine, use streaming source instead", e.getMessage());
-        }
+    public void testPushAPIFailures() {
+        assertThrows(UnsupportedOperationException.class, () -> ingestionEngine.index(Mockito.any()));
+        assertThrows(UnsupportedOperationException.class, () -> ingestionEngine.delete(Mockito.any()));
     }
 
     public void testCreationFailure() throws IOException {
