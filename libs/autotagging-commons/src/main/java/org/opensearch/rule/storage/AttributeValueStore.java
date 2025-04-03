@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.rule.storage;
+package org.opensearch.rule.storage;
 
 import java.util.Optional;
 
