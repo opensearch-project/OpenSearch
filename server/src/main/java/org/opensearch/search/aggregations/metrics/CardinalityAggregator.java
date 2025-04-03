@@ -382,7 +382,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
          */
         private void prune(int doc) {
             if (queue.size() == 0) {
-                return ;
+                return;
             }
             DisiWrapper top = queue.top();
             if (top == null) {
