@@ -9,12 +9,13 @@
 package org.opensearch.plugin.wlm.rule.action;
 
 import org.opensearch.action.ActionType;
+import org.opensearch.rule.action.GetRuleResponse;
 
 /**
  * Action type for getting Rules in workload management
  * @opensearch.experimental
  */
-public class GetWlmRuleAction extends ActionType<GetWlmRuleResponse> {
+public class GetWlmRuleAction extends ActionType<GetRuleResponse> {
 
     /**
      * An instance of GetWlmRuleAction
@@ -30,6 +31,6 @@ public class GetWlmRuleAction extends ActionType<GetWlmRuleResponse> {
      * Default constructor for GetWlmRuleAction
      */
     private GetWlmRuleAction() {
-        super(NAME, GetWlmRuleResponse::new);
+        super(NAME, GetRuleResponse::new);
     }
 }

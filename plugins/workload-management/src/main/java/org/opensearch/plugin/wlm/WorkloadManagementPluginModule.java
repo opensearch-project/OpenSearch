@@ -14,10 +14,8 @@ import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;;
 import org.opensearch.plugin.wlm.rule.service.WlmRulePersistenceService;
 import org.opensearch.plugin.wlm.rule.service.WlmRuleProcessingService;
 import org.opensearch.plugin.wlm.rule.service.WlmRuleResponseBuilder;
+import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.service.RulePersistenceService;
-import org.opensearch.rule.service.RuleProcessingService;
-import org.opensearch.rule.service.RuleResponseBuilder;
-import org.opensearch.rule.service.RuleService;
 
 /**
  * Guice Module to manage WorkloadManagement related objects
@@ -37,5 +35,6 @@ public class WorkloadManagementPluginModule extends AbstractModule {
         bind(RuleProcessingService.class).to(WlmRuleProcessingService.class).in(Singleton.class);
         bind(RuleResponseBuilder.class).to(WlmRuleResponseBuilder.class).in(Singleton.class);
         bind(RuleService.class).in(Singleton.class);
+        bind(RulePersistenceService.class).to(IndexStoredRulePersistenceService.class);
     }
 }

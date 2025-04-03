@@ -9,4 +9,4 @@
 /**
  * Package for the service classes related to query groups in WorkloadManagementPlugin
  */
-package org.opensearch.plugin.wlm.rule.service;
+package org.opensearch.rule.Utils;

@@ -12,7 +12,10 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.rule.service.RuleService;
+import org.opensearch.rule.action.GetRuleRequest;
+import org.opensearch.rule.action.GetRuleResponse;
+import org.opensearch.rule.service.IndexStoredRulePersistenceService;
+import org.opensearch.rule.service.RulePersistenceService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
@@ -20,24 +23,28 @@ import org.opensearch.transport.TransportService;
  * Transport action to get workload management Rules
  * @opensearch.experimental
  */
-public class TransportGetWlmRuleAction extends HandledTransportAction<GetWlmRuleRequest, GetWlmRuleResponse> {
+public class TransportGetWlmRuleAction extends HandledTransportAction<GetRuleRequest, GetRuleResponse> {
 
-    private final RuleService ruleService;
+    private final RulePersistenceService rulePersistenceService;
 
     /**
      * Constructor for TransportGetWlmRuleAction
      * @param transportService - a {@link TransportService} object
      * @param actionFilters - a {@link ActionFilters} object
-     * @param ruleService - a {@link RuleService} object
+     * @param rulePersistenceService - a {@link RulePersistenceService} object
      */
     @Inject
-    public TransportGetWlmRuleAction(TransportService transportService, ActionFilters actionFilters, RuleService ruleService) {
-        super(GetWlmRuleAction.NAME, transportService, actionFilters, GetWlmRuleRequest::new);
-        this.ruleService = ruleService;
+    public TransportGetWlmRuleAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        RulePersistenceService rulePersistenceService
+    ) {
+        super(GetWlmRuleAction.NAME, transportService, actionFilters, GetRuleRequest::new);
+        this.rulePersistenceService = rulePersistenceService;
     }
 
     @Override
-    protected void doExecute(Task task, GetWlmRuleRequest request, ActionListener<GetWlmRuleResponse> listener) {
-        ruleService.processGetRuleRequest(request, listener);
+    protected void doExecute(Task task, GetRuleRequest request, ActionListener<GetRuleResponse> listener) {
+        rulePersistenceService.getRule(request, listener);
     }
 }
