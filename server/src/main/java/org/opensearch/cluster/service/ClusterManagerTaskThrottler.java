@@ -21,6 +21,7 @@ import org.opensearch.common.unit.TimeValue;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -31,9 +32,13 @@ import java.util.function.Supplier;
  * This class does throttling on task submission to cluster manager node, it uses throttling key defined in various executors
  * as key for throttling. Throttling will be performed over task executor's class level, different task types have different executors class.
  * <p>
- * Set specific setting to for setting the threshold of throttling of particular task type.
+ * Set specific setting for setting the threshold of throttling of a particular task type.
  * e.g : Set "cluster_manager.throttling.thresholds.put_mapping" to set throttling limit of "put mapping" tasks,
- * Set it to default value(-1) to disable the throttling for this task type.
+ * <p>
+ * Set it to (-1) to disable the throttling for this task type.
+ * <p>
+ * All task types must have a default threshold configured in {@link ClusterManagerTaskConfigurations}. The default threshold will be used
+ * when no specific setting is provided. An {@link IllegalArgumentException} is thrown if a task's default threshold is not configured.
  */
 public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     private static final Logger logger = LogManager.getLogger(ClusterManagerTaskThrottler.class);
@@ -122,6 +127,8 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
      * Added retry mechanism in TransportClusterManagerNodeAction, so it would be retried for customer generated tasks.
      * <p>
      * If tasks are not getting retried then we can register with false flag, so user won't be able to configure threshold limits for it.
+     * <p>
+     * If throttling is enabled, default threshold based on task type will be used if not specified in settings.
      */
     protected ThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
         ThrottlingKey throttlingKey = new ThrottlingKey(taskKey, throttlingEnabled);
@@ -129,6 +136,10 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
             throw new IllegalArgumentException("There is already a Throttling key registered with same name: " + taskKey);
         }
         THROTTLING_TASK_KEYS.put(taskKey, throttlingKey);
+
+        if (throttlingEnabled && Objects.isNull(getThrottlingLimit(taskKey))) {
+            tasksThreshold.put(taskKey, (long) ClusterManagerTaskConfigurations.Throttling.getThreshold(taskKey));
+        }
         return throttlingKey;
     }
 
@@ -176,7 +187,7 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
             if (!THROTTLING_TASK_KEYS.get(key).isThrottlingEnabled()) {
                 throw new IllegalArgumentException("Throttling is not enabled for given task type: " + key);
             }
-            int threshold = groups.get(key).getAsInt("value", MIN_THRESHOLD_VALUE);
+            int threshold = groups.get(key).getAsInt("value", ClusterManagerTaskConfigurations.Throttling.getThreshold(key));
             if (threshold < MIN_THRESHOLD_VALUE) {
                 throw new IllegalArgumentException("Provide positive integer for limit or -1 for disabling throttling");
             }
@@ -192,7 +203,8 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         settingKeys.addAll(tasksThreshold.keySet());
         for (String key : settingKeys) {
             Settings setting = groups.get(key);
-            updateLimit(key, setting == null ? MIN_THRESHOLD_VALUE : setting.getAsInt("value", MIN_THRESHOLD_VALUE));
+            int defaultThreshold = ClusterManagerTaskConfigurations.Throttling.getThreshold(key);
+            updateLimit(key, setting == null ? defaultThreshold : setting.getAsInt("value", defaultThreshold));
         }
     }
 

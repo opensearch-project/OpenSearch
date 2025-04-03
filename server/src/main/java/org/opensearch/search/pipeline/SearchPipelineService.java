@@ -26,7 +26,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.metrics.OperationMetrics;
@@ -63,6 +62,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.DELETE_SEARCH_PIPELINE_KEY;
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.PUT_SEARCH_PIPELINE_KEY;
 
 /**
  * The main entry point for search pipelines. Handles CRUD operations and exposes the API to execute search pipelines
@@ -126,8 +128,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             searchPipelinePlugins,
             p -> p.getSearchPhaseResultsProcessors(parameters)
         );
-        putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_SEARCH_PIPELINE_KEY, true);
-        deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SEARCH_PIPELINE_KEY, true);
+        putPipelineTaskKey = clusterService.registerClusterManagerTask(PUT_SEARCH_PIPELINE_KEY, true);
+        deletePipelineTaskKey = clusterService.registerClusterManagerTask(DELETE_SEARCH_PIPELINE_KEY, true);
     }
 
     private static <T extends Processor> Map<String, Processor.Factory<T>> processorFactories(

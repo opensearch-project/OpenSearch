@@ -45,7 +45,6 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
 import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -104,6 +103,12 @@ import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.va
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateIndexTotalPrimaryShardsPerNodeSetting;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.CREATE_COMPONENT_TEMPLATE_KEY;
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.CREATE_INDEX_TEMPLATE_KEY;
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.CREATE_INDEX_TEMPLATE_V2_KEY;
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.REMOVE_COMPONENT_TEMPLATE_KEY;
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.REMOVE_INDEX_TEMPLATE_KEY;
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.REMOVE_INDEX_TEMPLATE_V2_KEY;
 import static org.opensearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
@@ -148,18 +153,12 @@ public class MetadataIndexTemplateService {
         this.threadPool = threadPool;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        createIndexTemplateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_TEMPLATE_KEY, true);
-        createIndexTemplateV2TaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_TEMPLATE_V2_KEY, true);
-        removeIndexTemplateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_INDEX_TEMPLATE_KEY, true);
-        removeIndexTemplateV2TaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_INDEX_TEMPLATE_V2_KEY, true);
-        createComponentTemplateTaskKey = clusterService.registerClusterManagerTask(
-            ClusterManagerTaskKeys.CREATE_COMPONENT_TEMPLATE_KEY,
-            true
-        );
-        removeComponentTemplateTaskKey = clusterService.registerClusterManagerTask(
-            ClusterManagerTaskKeys.REMOVE_COMPONENT_TEMPLATE_KEY,
-            true
-        );
+        createIndexTemplateTaskKey = clusterService.registerClusterManagerTask(CREATE_INDEX_TEMPLATE_KEY, true);
+        createIndexTemplateV2TaskKey = clusterService.registerClusterManagerTask(CREATE_INDEX_TEMPLATE_V2_KEY, true);
+        removeIndexTemplateTaskKey = clusterService.registerClusterManagerTask(REMOVE_INDEX_TEMPLATE_KEY, true);
+        removeIndexTemplateV2TaskKey = clusterService.registerClusterManagerTask(REMOVE_INDEX_TEMPLATE_V2_KEY, true);
+        createComponentTemplateTaskKey = clusterService.registerClusterManagerTask(CREATE_COMPONENT_TEMPLATE_KEY, true);
+        removeComponentTemplateTaskKey = clusterService.registerClusterManagerTask(REMOVE_COMPONENT_TEMPLATE_KEY, true);
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {

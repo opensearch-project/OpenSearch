@@ -47,7 +47,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -85,6 +84,7 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validat
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findComponentTemplate;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.UPDATE_SETTINGS_KEY;
 import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.index.IndexSettings.same;
 
@@ -127,7 +127,7 @@ public class MetadataUpdateSettingsService {
         this.awarenessReplicaBalance = awarenessReplicaBalance;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        updateSettingsTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_SETTINGS_KEY, true);
+        updateSettingsTaskKey = clusterService.registerClusterManagerTask(UPDATE_SETTINGS_KEY, true);
     }
 
     public void updateSettings(

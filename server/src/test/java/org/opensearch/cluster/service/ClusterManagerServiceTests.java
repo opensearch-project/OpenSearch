@@ -95,6 +95,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.CREATE_INDEX_KEY;
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.DELETE_INDEX_KEY;
+import static org.opensearch.cluster.service.ClusterManagerTaskConfigurations.TaskKeys.PUT_MAPPING_KEY;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -914,7 +917,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
         int taskId = 1;
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final CountDownLatch latch = new CountDownLatch(1);
-        final String taskName = "test";
+        final String taskName = CREATE_INDEX_KEY;
         ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = clusterManagerService.registerClusterManagerTask(taskName, true);
         class Task {
             private final int id;
@@ -1010,9 +1013,9 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
         int numberOfTask1 = randomIntBetween(throttlingLimitForTask1, 10);
         int numberOfTask2 = randomIntBetween(throttlingLimitForTask2, 10);
         int numberOfTask3 = randomIntBetween(throttlingLimitForTask3, 10);
-        String task1 = "Task1";
-        String task2 = "Task2";
-        String task3 = "Task3";
+        String task1 = CREATE_INDEX_KEY;
+        String task2 = PUT_MAPPING_KEY;
+        String task3 = DELETE_INDEX_KEY;
 
         ClusterManagerTaskThrottler.ThrottlingKey throttlingKey1 = clusterManagerService.registerClusterManagerTask(task1, true);
         ClusterManagerTaskThrottler.ThrottlingKey throttlingKey2 = clusterManagerService.registerClusterManagerTask(task2, true);
