@@ -70,7 +70,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
@@ -101,9 +100,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.apache.lucene.document.LongPoint.pack;
-import static org.junit.Assume.assumeThat;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
@@ -853,11 +850,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder qsq = queryStringQuery(DATE_FIELD_NAME + ":1970-01-01");
         QueryShardContext context = createShardContext();
         Query query = qsq.toQuery(context);
-        assumeThat(
-            "Using Approximate Range Query as default",
-            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
-            is(true)
-        );
         assertThat(query, instanceOf(ApproximateScoreQuery.class));
         long lower = 0; // 1970-01-01T00:00:00.999 UTC
         long upper = 86399999;  // 1970-01-01T23:59:59.999 UTC
@@ -877,13 +869,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 DATE_FIELD_NAME,
                 pack(new long[] { lower }).bytes,
                 pack(new long[] { upper }).bytes,
-                new long[] { lower }.length
-            ) {
-                @Override
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            }
+                new long[] { lower }.length,
+                ApproximatePointRangeQuery.LONG_FORMAT
+            )
         );
     }
 
