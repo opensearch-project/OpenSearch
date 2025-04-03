@@ -39,9 +39,7 @@ public class SecureSettingsHelpers {
     private static final String TEST_PASS = "password"; // used for all keystores
 
     static final String SERVER_KEYSTORE = "/netty4-server-secure.jks";
-    static final String SERVER_CERT = "/server.crt";
     static final String CLIENT_KEYSTORE = "/netty4-client-secure.jks";
-    static final String CLIENT_CERT = "/client.crt";
     static final String[] DEFAULT_SSL_PROTOCOLS = { "TLSv1.3", "TLSv1.2", "TLSv1.1" };
     static final String[] DEFAULT_CIPHERS = {
         "TLS_AES_128_GCM_SHA256",
