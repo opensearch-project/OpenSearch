@@ -267,7 +267,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             DefaultRecoverySettings.INSTANCE,
             DefaultRemoteStoreSettings.INSTANCE,
             s -> {},
-            null
+            null,
+            () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE
         );
     }
 
