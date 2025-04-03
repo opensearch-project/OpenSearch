@@ -70,6 +70,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -892,8 +893,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             MediaTypeRegistry.JSON
         );
 
+        String longId = "a".repeat(512) + "a";
         PutSearchPipelineRequest maxLengthIdPutRequest = new PutSearchPipelineRequest(
-            "_idwyebdjgeiwnddhekebddmd",
+            longId,
             new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : \"foo\" } } ] }"),
             MediaTypeRegistry.JSON
         );
@@ -916,7 +918,12 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> searchPipelineService.validatePipeline(Map.of(n1, completePipelineInfo), maxLengthIdPutRequest)
         );
-        assertEquals("Search pipeline id [_idwyebdjgeiwnddhekebddmd] exceeds maximum length of 20 characters", e.getMessage());
+        String errorMessage = String.format(
+            Locale.ROOT,
+            "Search Pipeline id [%s] exceeds maximum length of 512 UTF-8 bytes (actual: 513 bytes)",
+            longId
+        );
+        assertEquals(errorMessage, e.getMessage());
 
         // Invalid configuration in request
         PutSearchPipelineRequest badPutRequest = new PutSearchPipelineRequest(

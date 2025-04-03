@@ -10,6 +10,7 @@ package org.opensearch.search.pipeline;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
@@ -74,7 +75,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
     public static final String AD_HOC_PIPELINE_ID = "_ad_hoc_pipeline";
     public static final String NOOP_PIPELINE_ID = "_none";
-    private static final int MAX_PIPELINE_ID_LENGTH = 20;
+    private static final int MAX_PIPELINE_ID_BYTES = 512;
     private static final Logger logger = LogManager.getLogger(SearchPipelineService.class);
     private final ClusterService clusterService;
     private final ScriptService scriptService;
@@ -281,13 +282,16 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             throw new IllegalStateException("Search pipeline info is empty");
         }
 
-        if (request.getId().length() > MAX_PIPELINE_ID_LENGTH) {
+        int pipelineIdLength = UnicodeUtil.calcUTF16toUTF8Length(request.getId(), 0, request.getId().length());
+
+        if (pipelineIdLength > MAX_PIPELINE_ID_BYTES) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
-                    "Search pipeline id [%s] exceeds maximum length of %d characters",
+                    "Search Pipeline id [%s] exceeds maximum length of %d UTF-8 bytes (actual: %d bytes)",
                     request.getId(),
-                    MAX_PIPELINE_ID_LENGTH
+                    MAX_PIPELINE_ID_BYTES,
+                    pipelineIdLength
                 )
             );
         }
