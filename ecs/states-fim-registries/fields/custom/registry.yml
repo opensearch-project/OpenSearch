@@ -35,7 +35,7 @@
       description: >
         SHA-256 hash of the file or registry value content
     - name: mtime
-      type: long
+      type: date
       level: custom
       description: >
         Last modified timestamp of the entity
