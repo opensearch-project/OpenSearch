@@ -14,7 +14,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
-import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.service.RulePersistenceService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
