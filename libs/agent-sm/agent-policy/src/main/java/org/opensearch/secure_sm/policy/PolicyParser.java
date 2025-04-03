@@ -1,0 +1,175 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.secure_sm.policy;
+
+import org.opensearch.secure_sm.policy.PropertyExpander.ExpandException;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StreamTokenizer;
+import java.util.Enumeration;
+import java.util.Vector;
+
+public class PolicyParser {
+
+    private final Vector<GrantNode> grantEntries = new Vector<>();
+    private TokenStream tokenStream;
+
+    public PolicyParser() {}
+
+    public void read(Reader policy) throws ParsingException, IOException {
+        if (!(policy instanceof BufferedReader)) {
+            policy = new BufferedReader(policy);
+        }
+
+        tokenStream = new TokenStream(policy);
+
+        while (!tokenStream.isEOF()) {
+            if (peek("grant")) {
+                GrantNode grantNode = parseGrantEntry();
+                addGrantNode(grantNode);
+            } else {
+                throw new ParsingException(tokenStream.line(), "Expected 'grant'");
+            }
+        }
+    }
+
+    private boolean pollOnMatch(String expect) throws ParsingException, IOException {
+        if (peek(expect)) {
+            poll(expect);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean peek(String expected) throws IOException {
+        Token token = tokenStream.peek();
+        return expected.equalsIgnoreCase(token.text);
+    }
+
+    private String poll(String expected) throws IOException, ParsingException {
+        Token token = tokenStream.consume();
+
+        // Match exact keyword or symbol
+        if (expected.equalsIgnoreCase("grant")
+            || expected.equalsIgnoreCase("Codebase")
+            || expected.equalsIgnoreCase("Permission")
+            || expected.equalsIgnoreCase("{")
+            || expected.equalsIgnoreCase("}")
+            || expected.equalsIgnoreCase(";")
+            || expected.equalsIgnoreCase(",")) {
+
+            if (!expected.equalsIgnoreCase(token.text)) {
+                throw new ParsingException(token.line, expected, token.text);
+            }
+            return token.text;
+        }
+
+        if (token.type == StreamTokenizer.TT_WORD || token.type == '"' || token.type == '\'') {
+            return token.text;
+        }
+
+        throw new ParsingException(token.line, expected, token.text);
+    }
+
+    private GrantNode parseGrantEntry() throws ParsingException, IOException {
+        GrantNode grantNode = new GrantNode();
+        poll("grant");
+
+        while (!peek("{")) {
+            if (pollOnMatch("Codebase")) {
+                if (grantNode.codeBase != null) {
+                    throw new ParsingException(tokenStream.line(), "Multiple Codebase expressions");
+                }
+
+                String rawCodebase = poll(tokenStream.peek().text);
+                try {
+                    grantNode.codeBase = PropertyExpander.expand(rawCodebase, true).replace(File.separatorChar, '/');
+                } catch (ExpandException e) {
+                    e.printStackTrace();
+                }
+                pollOnMatch(",");
+            } else {
+                throw new ParsingException(tokenStream.line(), "Expected codeBase");
+            }
+        }
+
+        poll("{");
+
+        while (!peek("}")) {
+            if (peek("Permission")) {
+                PermissionNode permissionEntry = parsePermissionEntry();
+                grantNode.add(permissionEntry);
+                poll(";");
+            } else {
+                throw new ParsingException(tokenStream.line(), "Expected permission entry");
+            }
+        }
+
+        poll("}");
+
+        if (peek(";")) {
+            poll(";");
+        }
+
+        if (grantNode.codeBase != null) {
+            grantNode.codeBase = grantNode.codeBase.replace(File.separatorChar, '/');
+        }
+
+        return grantNode;
+    }
+
+    private PermissionNode parsePermissionEntry() throws ParsingException, IOException {
+        PermissionNode permissionEntry = new PermissionNode();
+        poll("Permission");
+        permissionEntry.permission = poll(tokenStream.peek().text);
+
+        if (isQuotedToken(tokenStream.peek())) {
+            permissionEntry.name = poll(tokenStream.peek().text);
+        }
+
+        if (peek(",")) {
+            poll(",");
+        }
+
+        if (isQuotedToken(tokenStream.peek())) {
+            permissionEntry.action = poll(tokenStream.peek().text);
+        }
+
+        return permissionEntry;
+    }
+
+    private boolean isQuotedToken(Token token) {
+        return token.type == '"' || token.type == '\'';
+    }
+
+    public void addGrantNode(GrantNode grantNode) {
+        grantEntries.addElement(grantNode);
+    }
+
+    public Enumeration<GrantNode> grantElements() {
+        return grantEntries.elements();
+    }
+
+    public static class ParsingException extends Exception {
+        public ParsingException(String message) {
+            super(message);
+        }
+
+        public ParsingException(int line, String expected) {
+            super("line " + line + ": expected [" + expected + "]");
+        }
+
+        public ParsingException(int line, String expected, String found) {
+            super("line " + line + ": expected [" + expected + "], found [" + found + "]");
+        }
+    }
+}
