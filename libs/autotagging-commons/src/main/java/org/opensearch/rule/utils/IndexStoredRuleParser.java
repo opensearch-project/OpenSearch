@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule.Utils;
+package org.opensearch.rule.utils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,12 +19,23 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * Utility class for parsing index stored rules into Rule objects.
+ * @opensearch.experimental
+ */
 public class IndexStoredRuleParser {
+
+    /**
+     * constructor for IndexStoredRuleParser
+     */
+    public IndexStoredRuleParser() {}
+
     private static final Logger logger = LogManager.getLogger(IndexStoredRuleParser.class);
 
     /**
      * Parses a source string into a Rule object
      * @param source - The raw source string representing the rule to be parsed
+     * @param featureType - The feature type to associate with the parsed rule
      */
     public static Rule parseRule(String source, FeatureType featureType) {
         try (
