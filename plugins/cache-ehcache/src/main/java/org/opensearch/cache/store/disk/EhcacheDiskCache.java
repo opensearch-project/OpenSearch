@@ -454,21 +454,6 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @SuppressForbidden(reason = "Ehcache uses File.io")
     public void close() {
         EhcacheDiskCacheManager.closeCache(cacheType, diskCacheAlias, storagePath);
-        // try {
-        // cacheManager.close();
-        // } catch (Exception e) {
-        // logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close ehcache manager"), e);
-        // }
-        // // Delete all the disk cache related files/data in case it is present
-        // Path ehcacheDirectory = Paths.get(this.storagePath);
-        // if (Files.exists(ehcacheDirectory)) {
-        // try {
-        // IOUtils.rm(ehcacheDirectory);
-        // } catch (IOException e) {
-        // logger.error(() -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", this.storagePath));
-        // }
-        // }
-
     }
 
     /**

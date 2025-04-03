@@ -41,9 +41,7 @@ public class EhcacheDiskCacheSettings {
     );
 
     /**
-     *  Ehcache disk write maximum threads for its pool. We max disk write threads to ony go upto max(2, N / 8) where N
-     *  is the number of CPU cores. This is done as disk operations are typically I/O bound rather than CPU bound, so
-     *  can't scale this blindly just based on the CPU cores.
+     *  Ehcache disk write maximum threads for its pool.
      *
      *  Setting pattern: {cache_type}.ehcache_disk.max_threads
      */
