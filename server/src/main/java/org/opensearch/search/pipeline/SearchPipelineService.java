@@ -54,6 +54,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -73,6 +74,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
     public static final String AD_HOC_PIPELINE_ID = "_ad_hoc_pipeline";
     public static final String NOOP_PIPELINE_ID = "_none";
+    private static final int MAX_PIPELINE_ID_LENGTH = 20;
     private static final Logger logger = LogManager.getLogger(SearchPipelineService.class);
     private final ClusterService clusterService;
     private final ScriptService scriptService;
@@ -278,6 +280,18 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         if (searchPipelineInfos.isEmpty()) {
             throw new IllegalStateException("Search pipeline info is empty");
         }
+
+        if (request.getId().length() > MAX_PIPELINE_ID_LENGTH) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Search pipeline id [%s] exceeds maximum length of %d characters",
+                    request.getId(),
+                    MAX_PIPELINE_ID_LENGTH
+                )
+            );
+        }
+
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();
         Pipeline pipeline = PipelineWithMetrics.create(
             request.getId(),

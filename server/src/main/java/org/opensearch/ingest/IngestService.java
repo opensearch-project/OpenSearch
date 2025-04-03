@@ -86,6 +86,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -107,6 +108,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static final String NOOP_PIPELINE_NAME = "_none";
 
     public static final String INGEST_ORIGIN = "ingest";
+    private static final int MAX_PIPELINE_ID_LENGTH = 20;
 
     /**
      * Defines the limit for the number of processors which can run on a given document during ingestion.
@@ -510,6 +512,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     void validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request) throws Exception {
         if (ingestInfos.isEmpty()) {
             throw new IllegalStateException("Ingest info is empty");
+        }
+
+        if (request.getId().length() > MAX_PIPELINE_ID_LENGTH) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Pipeline id [%s] exceeds maximum length of %d characters",
+                    request.getId(),
+                    MAX_PIPELINE_ID_LENGTH
+                )
+            );
         }
 
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();

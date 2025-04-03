@@ -395,6 +395,32 @@ public class IngestServiceTests extends OpenSearchTestCase {
         ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
     }
 
+    public void testValidatePipelineId_WithNotValidLength_ShouldThrowException() throws Exception {
+        IngestService ingestService = createWithProcessors();
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_idwyebdjgeiwnddhekebddmd",
+            new BytesArray(
+                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}},"
+                    + "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"
+            ),
+            MediaTypeRegistry.JSON
+        );
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            "_node_id",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+        IngestInfo ingestInfo = new IngestInfo(Collections.singletonList(new ProcessorInfo("set")));
+
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest)
+        );
+        assertEquals("Pipeline id [_idwyebdjgeiwnddhekebddmd] exceeds maximum length of 20 characters", e.getMessage());
+    }
+
     public void testGetProcessorsInPipeline() throws Exception {
         IngestService ingestService = createWithProcessors();
         String id = "_id";

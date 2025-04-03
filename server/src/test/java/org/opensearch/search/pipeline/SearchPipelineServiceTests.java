@@ -878,7 +878,6 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         ProcessorInfo reqProcessor = new ProcessorInfo("scale_request_size");
         ProcessorInfo rspProcessor = new ProcessorInfo("fixed_score");
-        ProcessorInfo injProcessor = new ProcessorInfo("max_score");
         DiscoveryNode n1 = new DiscoveryNode("n1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode n2 = new DiscoveryNode("n2", buildNewFakeTransportAddress(), Version.CURRENT);
         PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(
@@ -890,6 +889,12 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     + "\"phase_results_processors\" : [ { \"max_score\" : { } } ]"
                     + "}"
             ),
+            MediaTypeRegistry.JSON
+        );
+
+        PutSearchPipelineRequest maxLengthIdPutRequest = new PutSearchPipelineRequest(
+            "_idwyebdjgeiwnddhekebddmd",
+            new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : \"foo\" } } ] }"),
             MediaTypeRegistry.JSON
         );
 
@@ -905,6 +910,13 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         // Discovery failed, no infos passed.
         expectThrows(IllegalStateException.class, () -> searchPipelineService.validatePipeline(Collections.emptyMap(), putRequest));
+
+        // Max length of pipeline length
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> searchPipelineService.validatePipeline(Map.of(n1, completePipelineInfo), maxLengthIdPutRequest)
+        );
+        assertEquals("Search pipeline id [_idwyebdjgeiwnddhekebddmd] exceeds maximum length of 20 characters", e.getMessage());
 
         // Invalid configuration in request
         PutSearchPipelineRequest badPutRequest = new PutSearchPipelineRequest(
