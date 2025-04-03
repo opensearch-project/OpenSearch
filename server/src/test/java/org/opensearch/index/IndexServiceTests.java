@@ -41,7 +41,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -634,14 +633,6 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(updatedTask.isScheduled());
         assertTrue(updatedTask.mustReschedule());
         assertEquals(1000, updatedTask.getInterval().millis());
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.getKey(), true)
-            .build();
     }
 
     private static String createTestMapping(String type) {

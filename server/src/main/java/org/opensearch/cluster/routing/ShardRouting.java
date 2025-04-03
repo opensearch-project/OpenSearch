@@ -38,7 +38,6 @@ import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -912,9 +911,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         XContentBuilder fieldBuilder = builder.startObject().field("state", state()).field("primary", primary());
-        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL)) {
-            fieldBuilder.field("searchOnly", isSearchOnly());
-        }
+        fieldBuilder.field("searchOnly", isSearchOnly());
         fieldBuilder.field("node", currentNodeId())
             .field("relocating_node", relocatingNodeId())
             .field("shard", id())

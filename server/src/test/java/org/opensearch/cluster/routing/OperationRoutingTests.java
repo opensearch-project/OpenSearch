@@ -1132,7 +1132,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
 
         try {
             OperationRouting opRouting = new OperationRouting(
-                Settings.builder().put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, "true").build(),
+                Settings.builder().build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
 
