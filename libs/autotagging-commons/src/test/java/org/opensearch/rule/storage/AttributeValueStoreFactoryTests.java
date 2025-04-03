@@ -24,12 +24,12 @@ public class AttributeValueStoreFactoryTests extends OpenSearchTestCase {
 
     public void testFeatureLevelStoreInitialisation() {
         for (Attribute attribute : WLMFeatureType.WLM.getAllowedAttributesRegistry().values()) {
-            assertTrue(sut.getAttributeValueStore(attribute) instanceof DefaultAttributeValueStore<String, String>);
+            assertTrue(sut.getAttributeValueStore(attribute) instanceof DefaultAttributeValueStore);
         }
     }
 
     public void testValidGetAttributeValueStore() {
-        assertTrue(sut.getAttributeValueStore(TestAttribute.TEST_ATTRIBUTE) instanceof DefaultAttributeValueStore<String, String>);
+        assertTrue(sut.getAttributeValueStore(TestAttribute.TEST_ATTRIBUTE) instanceof DefaultAttributeValueStore);
     }
 
     public void testInValidGetAttributeValueStore() {
