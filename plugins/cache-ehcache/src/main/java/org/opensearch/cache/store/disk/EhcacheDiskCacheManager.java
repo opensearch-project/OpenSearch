@@ -25,9 +25,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -50,13 +49,14 @@ import static org.opensearch.cache.store.disk.EhcacheDiskCache.UNIQUE_ID;
 public class EhcacheDiskCacheManager {
 
     // Defines one cache manager per cache type.
-    private static final ConcurrentMap<CacheType, Tuple<PersistentCacheManager, AtomicInteger>> cacheManagerMap = new ConcurrentHashMap<>();
+    private static final Map<CacheType, Tuple<PersistentCacheManager, AtomicInteger>> cacheManagerMap = new HashMap<>();
     private static final Logger logger = LogManager.getLogger(EhcacheDiskCacheManager.class);
     /**
      * This lock is used to synchronize the operation where we create/remove cache and increment/decrement the
      * reference counters.
      */
     private static final Lock lock = new ReentrantLock();
+    private static final String CACHE_MANAGER_DOES_NOT_EXIST_EXCEPTION_MSG = "Ehcache manager does not exist for " + "cache type: ";
 
     // For testing
     static Map<CacheType, Tuple<PersistentCacheManager, AtomicInteger>> getCacheManagerMap() {
@@ -82,10 +82,15 @@ public class EhcacheDiskCacheManager {
         Settings settings,
         String threadPoolAlias
     ) {
-        return cacheManagerMap.computeIfAbsent(
-            cacheType,
-            type -> new Tuple<>(createCacheManager(cacheType, storagePath, settings, threadPoolAlias), new AtomicInteger(0))
-        ).v1();
+        try {
+            lock.lock();
+            return cacheManagerMap.computeIfAbsent(
+                cacheType,
+                type -> new Tuple<>(createCacheManager(cacheType, storagePath, settings, threadPoolAlias), new AtomicInteger(0))
+            ).v1();
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
@@ -125,12 +130,18 @@ public class EhcacheDiskCacheManager {
             );
         }
         if (cacheManagerMap.get(cacheType) == null) {
-            throw new IllegalArgumentException("Ehcache manager does not exist for cache type: " + cacheType);
+            throw new IllegalArgumentException(CACHE_MANAGER_DOES_NOT_EXIST_EXCEPTION_MSG + cacheType);
         }
         // Creating the cache requires permissions specified in plugin-security.policy
         return AccessController.doPrivileged((PrivilegedAction<Cache<K, V>>) () -> {
             try {
                 lock.lock();
+                // Check again for null cache manager, in case it got removed by another thread in below closeCache()
+                // method.
+                if (cacheManagerMap.get(cacheType) == null) {
+                    logger.warn(CACHE_MANAGER_DOES_NOT_EXIST_EXCEPTION_MSG + cacheType);
+                    throw new IllegalStateException(CACHE_MANAGER_DOES_NOT_EXIST_EXCEPTION_MSG + cacheType);
+                }
                 Cache<K, V> cache = cacheManagerMap.get(cacheType).v1().createCache(diskCacheAlias, cacheConfigurationBuilder
                 // We pass ByteArrayWrapperSerializer as ehcache's value serializer. If V is an interface, and we pass its
                 // serializer directly to ehcache, ehcache requires the classes match exactly before/after serialization.
@@ -167,29 +178,35 @@ public class EhcacheDiskCacheManager {
         try {
             lock.lock();
             cacheManager.removeCache(diskCacheAlias);
-            cacheManagerMap.get(cacheType).v2().decrementAndGet();
+            int referenceCount = cacheManagerMap.get(cacheType).v2().decrementAndGet();
+            // All caches have been closed associated with this cache manager, lets close this as well.
+            if (referenceCount == 0) {
+                try {
+                    logger.debug("Closing cache manager for cacheType: " + cacheType);
+                    cacheManager.close();
+                } catch (Exception e) {
+                    logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close ehcache manager"), e);
+                }
+                // Delete all the disk cache related files/data in case it is present
+                Path ehcacheDirectory = Paths.get(storagePath);
+                if (Files.exists(ehcacheDirectory)) {
+                    try {
+                        logger.debug(
+                            "Removing disk cache related files for cacheType: " + cacheType + " under " + "directory: " + ehcacheDirectory
+                        );
+                        IOUtils.rm(ehcacheDirectory);
+                    } catch (IOException e) {
+                        logger.error(
+                            () -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", storagePath)
+                        );
+                    }
+                }
+                cacheManagerMap.remove(cacheType);
+            }
         } catch (Exception ex) {
             logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close cache: " + diskCacheAlias), ex);
         } finally {
             lock.unlock();
-        }
-        // All caches have been closed associated with this cache manager, lets close this as well.
-        if (cacheManagerMap.get(cacheType).v2().get() == 0) {
-            try {
-                cacheManager.close();
-            } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close ehcache manager"), e);
-            }
-            // Delete all the disk cache related files/data in case it is present
-            Path ehcacheDirectory = Paths.get(storagePath);
-            if (Files.exists(ehcacheDirectory)) {
-                try {
-                    IOUtils.rm(ehcacheDirectory);
-                } catch (IOException e) {
-                    logger.error(() -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", storagePath));
-                }
-            }
-            cacheManagerMap.remove(cacheType);
         }
     }
 
