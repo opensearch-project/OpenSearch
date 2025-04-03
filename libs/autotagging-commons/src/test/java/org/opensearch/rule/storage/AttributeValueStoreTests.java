@@ -13,13 +13,11 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 public class AttributeValueStoreTests extends OpenSearchTestCase {
 
     AttributeValueStore<String, String> subjectUnderTest;
     final static String ALPHA_NUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    final static Random random = new Random();
 
     public void setUp() throws Exception {
         super.setUp();
@@ -76,10 +74,10 @@ public class AttributeValueStoreTests extends OpenSearchTestCase {
     }
 
     public static String generateRandom(int maxLength) {
-        int length = random.nextInt(maxLength) + 1; // +1 to avoid length 0
+        int length = random().nextInt(maxLength) + 1; // +1 to avoid length 0
         StringBuilder sb = new StringBuilder(length);
         for (int i = 0; i < length; i++) {
-            sb.append(ALPHA_NUMERIC.charAt(random.nextInt(ALPHA_NUMERIC.length())));
+            sb.append(ALPHA_NUMERIC.charAt(random().nextInt(ALPHA_NUMERIC.length())));
         }
         return sb.toString();
     }
