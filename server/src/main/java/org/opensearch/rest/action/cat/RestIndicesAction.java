@@ -420,6 +420,7 @@ public class RestIndicesAction extends AbstractListAction {
         table.addCell("uuid", "alias:id,uuid;desc:index uuid");
         table.addCell("pri", "alias:p,shards.primary,shardsPrimary;text-align:right;desc:number of primary shards");
         table.addCell("rep", "alias:r,shards.replica,shardsReplica;text-align:right;desc:number of replica shards");
+        table.addCell("srep", "alias:s,shards.searchReplica,shardsSearchReplica;text-align:right;desc:number of search replica shards");
         table.addCell("docs.count", "alias:dc,docsCount;text-align:right;desc:available docs");
         table.addCell("docs.deleted", "alias:dd,docsDeleted;text-align:right;desc:deleted docs");
 
@@ -847,6 +848,7 @@ public class RestIndicesAction extends AbstractListAction {
             table.addCell(indexMetadata.getIndexUUID());
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfShards());
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());
+            table.addCell(indexHealth == null ? null : indexHealth.getNumberOfSearchReplicas());
 
             table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getCount());
             table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getDeleted());
