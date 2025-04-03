@@ -16,16 +16,16 @@ import java.util.stream.Stream;
 /**
  * Stack Caller Chain Extractor
  */
-public final class StackCallerChainExtractor implements Function<Stream<StackFrame>, Stream<ProtectionDomain>> {
+public final class StackCallerProtectionDomainChainExtractor implements Function<Stream<StackFrame>, Stream<ProtectionDomain>> {
     /**
      * Single instance of stateless class.
      */
-    public static final StackCallerChainExtractor INSTANCE = new StackCallerChainExtractor();
+    public static final StackCallerProtectionDomainChainExtractor INSTANCE = new StackCallerProtectionDomainChainExtractor();
 
     /**
      * Constructor
      */
-    private StackCallerChainExtractor() {}
+    private StackCallerProtectionDomainChainExtractor() {}
 
     /**
      * Folds the stack

@@ -47,7 +47,7 @@ public class SocketChannelInterceptor {
         }
 
         final StackWalker walker = StackWalker.getInstance(Option.RETAIN_CLASS_REFERENCE);
-        final Stream<ProtectionDomain> callers = walker.walk(StackCallerChainExtractor.INSTANCE);
+        final Stream<ProtectionDomain> callers = walker.walk(StackCallerProtectionDomainChainExtractor.INSTANCE);
 
         if (args[0] instanceof InetSocketAddress address) {
             if (!AgentPolicy.isTrustedHost(address.getHostString())) {
