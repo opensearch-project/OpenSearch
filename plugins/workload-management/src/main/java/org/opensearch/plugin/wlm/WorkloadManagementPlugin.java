@@ -11,6 +11,7 @@ package org.opensearch.plugin.wlm;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -18,6 +19,10 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugin.wlm.querygroup.action.CreateQueryGroupAction;
 import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupAction;
@@ -32,30 +37,56 @@ import org.opensearch.plugin.wlm.querygroup.rest.RestDeleteQueryGroupAction;
 import org.opensearch.plugin.wlm.querygroup.rest.RestGetQueryGroupAction;
 import org.opensearch.plugin.wlm.querygroup.rest.RestUpdateQueryGroupAction;
 import org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService;
+import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 import org.opensearch.plugin.wlm.rule.action.GetWlmRuleAction;
 import org.opensearch.plugin.wlm.rule.action.TransportGetWlmRuleAction;
 import org.opensearch.plugin.wlm.rule.rest.RestGetWlmRuleAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rule.service.IndexStoredRulePersistenceService;
+import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.opensearch.plugin.wlm.rule.service.WlmRulePersistenceService.RULES_INDEX;
-
 /**
  * Plugin class for WorkloadManagement
  */
 public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
+    public static final String INDEX_NAME = ".wlm_rules";
+    public static final int MAX_ENTRY_SIZE_PER_GET_REQUEST = 50;
 
     /**
      * Default constructor
      */
     public WorkloadManagementPlugin() {}
+
+    @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        return List.of(
+            new IndexStoredRulePersistenceService(INDEX_NAME, client, QueryGroupFeatureType.INSTANCE, MAX_ENTRY_SIZE_PER_GET_REQUEST)
+        );
+    }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -70,7 +101,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(new SystemIndexDescriptor(RULES_INDEX, "System index used for storing rules"));
+        return List.of(new SystemIndexDescriptor(".wlm_rules", "System index used for storing rules"));
     }
 
     @Override
