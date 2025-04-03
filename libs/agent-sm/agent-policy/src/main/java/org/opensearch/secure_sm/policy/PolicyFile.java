@@ -44,7 +44,8 @@ public class PolicyFile extends java.security.Policy {
         "org.opensearch.SpecialPermission",
         "org.bouncycastle.crypto.CryptoServicesPermission",
         "org.opensearch.script.ClassPermission",
-        "javax.security.auth.AuthPermission"
+        "javax.security.auth.AuthPermission",
+        "javax.security.auth.kerberos.ServicePermission"
     );
 
     private static final int DEFAULT_CACHE_SIZE = 1;
@@ -76,8 +77,8 @@ public class PolicyFile extends java.security.Policy {
             PolicyParser policyParser = new PolicyParser();
             policyParser.read(reader);
 
-            for (GrantNode grantNode : Collections.list(policyParser.grantElements())) {
-                addGrantNode(grantNode, newInfo);
+            for (GrantEntry grantEntry : Collections.list(policyParser.grantElements())) {
+                addGrantEntry(grantEntry, newInfo);
             }
 
         } catch (Exception e) {
@@ -95,7 +96,7 @@ public class PolicyFile extends java.security.Policy {
         }
     }
 
-    private CodeSource getCodeSource(GrantNode grantEntry, PolicyInfo newInfo) throws PolicyInitializationException {
+    private CodeSource getCodeSource(GrantEntry grantEntry, PolicyInfo newInfo) throws PolicyInitializationException {
         try {
             Certificate[] certs = null;
             URL location = (grantEntry.codeBase != null) ? newURL(grantEntry.codeBase) : null;
@@ -105,16 +106,16 @@ public class PolicyFile extends java.security.Policy {
         }
     }
 
-    private void addGrantNode(GrantNode grantEntry, PolicyInfo newInfo) throws PolicyInitializationException {
+    private void addGrantEntry(GrantEntry grantEntry, PolicyInfo newInfo) throws PolicyInitializationException {
         CodeSource codesource = getCodeSource(grantEntry, newInfo);
         if (codesource == null) {
             throw new PolicyInitializationException("Null CodeSource for: " + grantEntry.codeBase);
         }
 
         PolicyEntry entry = new PolicyEntry(codesource);
-        Enumeration<PermissionNode> enum_ = grantEntry.permissionElements();
+        Enumeration<PermissionEntry> enum_ = grantEntry.permissionElements();
         while (enum_.hasMoreElements()) {
-            PermissionNode pe = enum_.nextElement();
+            PermissionEntry pe = enum_.nextElement();
             expandPermissionName(pe);
             try {
                 Optional<Permission> perm = getInstance(pe.permission, pe.name, pe.action);
@@ -136,7 +137,7 @@ public class PolicyFile extends java.security.Policy {
         newInfo.policyEntries.add(entry);
     }
 
-    private void expandPermissionName(PermissionNode pe) {
+    private void expandPermissionName(PermissionEntry pe) {
         if (pe.name == null || !pe.name.contains("${{")) {
             return;
         }

@@ -10,7 +10,7 @@ package org.opensearch.secure_sm.policy;
 import java.io.PrintWriter;
 import java.util.Objects;
 
-public class PermissionNode {
+public class PermissionEntry {
     public String permission;
     public String name;
     public String action;
@@ -24,7 +24,7 @@ public class PermissionNode {
     public boolean equals(Object obj) {
         if (obj == this) return true;
 
-        return obj instanceof PermissionNode that
+        return obj instanceof PermissionEntry that
             && Objects.equals(this.permission, that.permission)
             && Objects.equals(this.name, that.name)
             && Objects.equals(this.action, that.action);

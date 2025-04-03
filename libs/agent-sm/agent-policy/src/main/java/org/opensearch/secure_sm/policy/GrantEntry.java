@@ -12,15 +12,15 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedList;
 
-public class GrantNode {
+public class GrantEntry {
     public String codeBase;
-    private final LinkedList<PermissionNode> permissionEntries = new LinkedList<>();
+    private final LinkedList<PermissionEntry> permissionEntries = new LinkedList<>();
 
-    public void add(PermissionNode entry) {
+    public void add(PermissionEntry entry) {
         permissionEntries.add(entry);
     }
 
-    public Enumeration<PermissionNode> permissionElements() {
+    public Enumeration<PermissionEntry> permissionElements() {
         return Collections.enumeration(permissionEntries);
     }
 
@@ -32,7 +32,7 @@ public class GrantNode {
             out.print("\"");
         }
         out.println(" {");
-        for (PermissionNode pe : permissionEntries) {
+        for (PermissionEntry pe : permissionEntries) {
             out.print("  permission ");
             out.print(pe.permission);
             if (pe.name != null) {

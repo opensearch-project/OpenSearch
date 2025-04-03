@@ -16,11 +16,12 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StreamTokenizer;
 import java.util.Enumeration;
+import java.util.Optional;
 import java.util.Vector;
 
 public class PolicyParser {
 
-    private final Vector<GrantNode> grantEntries = new Vector<>();
+    private final Vector<GrantEntry> grantEntries = new Vector<>();
     private TokenStream tokenStream;
 
     public PolicyParser() {}
@@ -34,11 +35,7 @@ public class PolicyParser {
 
         while (!tokenStream.isEOF()) {
             if (peek("grant")) {
-                GrantNode grantNode = parseGrantEntry();
-
-                if (grantNode != null) {
-                    addGrantNode(grantNode);
-                }
+                parseGrantEntry().ifPresent(this::addGrantEntry);
             }
         }
     }
@@ -81,23 +78,24 @@ public class PolicyParser {
         throw new ParsingException(token.line, expected, token.text);
     }
 
-    private GrantNode parseGrantEntry() throws ParsingException, IOException {
-        GrantNode grantNode = new GrantNode();
+    private Optional<GrantEntry> parseGrantEntry() throws ParsingException, IOException {
+        GrantEntry grantEntry = new GrantEntry();
         poll("grant");
 
         while (!peek("{")) {
             if (pollOnMatch("Codebase")) {
-                if (grantNode.codeBase != null) {
+                if (grantEntry.codeBase != null) {
                     throw new ParsingException(tokenStream.line(), "Multiple Codebase expressions");
                 }
 
                 String rawCodebase = poll(tokenStream.peek().text);
                 try {
-                    grantNode.codeBase = PropertyExpander.expand(rawCodebase, true).replace(File.separatorChar, '/');
+                    grantEntry.codeBase = PropertyExpander.expand(rawCodebase, true).replace(File.separatorChar, '/');
                 } catch (ExpandException e) {
                     // skip this grant as expansion failed due to missing expansion property.
                     skipCurrentGrantBlock();
-                    return null;
+
+                    return Optional.empty();
                 }
                 pollOnMatch(",");
             } else {
@@ -109,8 +107,8 @@ public class PolicyParser {
 
         while (!peek("}")) {
             if (peek("Permission")) {
-                PermissionNode permissionEntry = parsePermissionEntry();
-                grantNode.add(permissionEntry);
+                PermissionEntry permissionEntry = parsePermissionEntry();
+                grantEntry.add(permissionEntry);
                 poll(";");
             } else {
                 throw new ParsingException(tokenStream.line(), "Expected permission entry");
@@ -123,11 +121,11 @@ public class PolicyParser {
             poll(";");
         }
 
-        if (grantNode.codeBase != null) {
-            grantNode.codeBase = grantNode.codeBase.replace(File.separatorChar, '/');
+        if (grantEntry.codeBase != null) {
+            grantEntry.codeBase = grantEntry.codeBase.replace(File.separatorChar, '/');
         }
 
-        return grantNode;
+        return Optional.of(grantEntry);
     }
 
     private void skipCurrentGrantBlock() throws IOException, ParsingException {
@@ -161,8 +159,8 @@ public class PolicyParser {
         }
     }
 
-    private PermissionNode parsePermissionEntry() throws ParsingException, IOException {
-        PermissionNode permissionEntry = new PermissionNode();
+    private PermissionEntry parsePermissionEntry() throws ParsingException, IOException {
+        PermissionEntry permissionEntry = new PermissionEntry();
         poll("Permission");
         permissionEntry.permission = poll(tokenStream.peek().text);
 
@@ -185,11 +183,11 @@ public class PolicyParser {
         return token.type == '"' || token.type == '\'';
     }
 
-    public void addGrantNode(GrantNode grantNode) {
-        grantEntries.addElement(grantNode);
+    public void addGrantEntry(GrantEntry grantEntry) {
+        grantEntries.addElement(grantEntry);
     }
 
-    public Enumeration<GrantNode> grantElements() {
+    public Enumeration<GrantEntry> grantElements() {
         return grantEntries.elements();
     }
 
