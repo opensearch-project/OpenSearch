@@ -50,14 +50,17 @@ public class AutoTaggingActionFilter implements ActionFilter {
 
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse> void apply(
-        Task task, String action
-        , Request request
-        , ActionListener<Response> listener
-        , ActionFilterChain<Request, Response> chain) {
-        final boolean isValidRequest = request instanceof SearchRequest
-            || request instanceof SearchScrollRequest;
+        Task task,
+        String action,
+        Request request,
+        ActionListener<Response> listener,
+        ActionFilterChain<Request, Response> chain
+    ) {
+        final boolean isValidRequest = request instanceof SearchRequest || request instanceof SearchScrollRequest;
 
-        if (!isValidRequest) { return; }
+        if (!isValidRequest) {
+            return;
+        }
         Optional<String> label = ruleProcessingService.evaluateLabel(List.of(new IndicesExtractor((IndicesRequest) request)));
 
         label.ifPresent(s -> threadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, s));
