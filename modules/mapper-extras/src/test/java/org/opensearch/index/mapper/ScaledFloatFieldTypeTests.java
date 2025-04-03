@@ -51,6 +51,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -167,8 +168,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     }
 
     private String getQueryString(Query query) {
-        assertTrue(query instanceof IndexOrDocValuesQuery);
-        return ((IndexOrDocValuesQuery) query).getIndexQuery().toString();
+        assertTrue(query instanceof ApproximateScoreQuery);
+        return ((IndexOrDocValuesQuery) ((ApproximateScoreQuery) query).getOriginalQuery()).getIndexQuery().toString();
     }
 
     public void testValueForSearch() {
