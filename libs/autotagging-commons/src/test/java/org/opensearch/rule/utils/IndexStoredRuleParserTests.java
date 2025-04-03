@@ -39,7 +39,7 @@ public class IndexStoredRuleParserTests extends OpenSearchTestCase {
     public void testParseRule_Success() throws IOException {
         Rule parsedRule = IndexStoredRuleParser.parseRule(VALID_JSON, RuleTestUtils.MockRuleFeatureType.INSTANCE);
         assertNotNull(parsedRule);
-        assertEquals("A test rule for unit testing", parsedRule.getDescription());
+        assertEquals(DESCRIPTION_ONE, parsedRule.getDescription());
         assertEquals(RuleTestUtils.MockRuleFeatureType.INSTANCE, parsedRule.getFeatureType());
     }
 
@@ -50,5 +50,4 @@ public class IndexStoredRuleParserTests extends OpenSearchTestCase {
         );
         assertTrue(exception.getMessage().contains("mock_attribute_three is not a valid attribute within the mock_feature_type feature."));
     }
-
 }

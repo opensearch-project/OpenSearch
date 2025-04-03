@@ -10,6 +10,7 @@ package org.opensearch.rule.utils;
 
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.FeatureType;
+import org.opensearch.autotagging.Rule;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 
@@ -53,5 +54,21 @@ public class IndexStoredRuleUtils {
         }
         boolQuery.filter(QueryBuilders.existsQuery(featureType.getName()));
         return boolQuery;
+    }
+
+    /**
+     * Checks if a rule with the same attribute map already exists in the provided rule map and return its id.
+     * @param attributeMapToValidate The attribute map to be validated against existing rules.
+     * @param ruleMap A map of existing rules where the key is the rule ID and the value is the Rule object.
+     */
+    public static String getDuplicateRuleId(Map<Attribute, Set<String>> attributeMapToValidate, Map<String, Rule> ruleMap) {
+        for (Map.Entry<String, Rule> entry : ruleMap.entrySet()) {
+            String ruleId = entry.getKey();
+            Rule currRule = entry.getValue();
+            if (attributeMapToValidate.size() == currRule.getAttributeMap().size()) {
+                return ruleId;
+            }
+        }
+        return null;
     }
 }

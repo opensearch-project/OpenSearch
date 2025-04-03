@@ -36,8 +36,11 @@ import org.opensearch.plugin.wlm.rest.RestCreateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestDeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
+import org.opensearch.plugin.wlm.rule.action.CreateWlmRuleAction;
 import org.opensearch.plugin.wlm.rule.action.GetRuleAction;
+import org.opensearch.plugin.wlm.rule.action.TransportCreateWlmRuleAction;
 import org.opensearch.plugin.wlm.rule.action.TransportGetRuleAction;
+import org.opensearch.plugin.wlm.rule.rest.RestCreateWlmRuleAction;
 import org.opensearch.plugin.wlm.rule.rest.RestGetRuleAction;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.plugins.ActionPlugin;
@@ -91,7 +94,13 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         return List.of(
-            new IndexStoredRulePersistenceService(INDEX_NAME, client, QueryGroupFeatureType.INSTANCE, MAX_RULES_PER_GET_REQUEST)
+            new IndexStoredRulePersistenceService(
+                INDEX_NAME,
+                clusterService,
+                client,
+                QueryGroupFeatureType.INSTANCE,
+                MAX_RULES_PER_GET_REQUEST
+            )
         );
     }
 
@@ -102,7 +111,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new ActionPlugin.ActionHandler<>(GetWorkloadGroupAction.INSTANCE, TransportGetWorkloadGroupAction.class),
             new ActionPlugin.ActionHandler<>(DeleteWorkloadGroupAction.INSTANCE, TransportDeleteWorkloadGroupAction.class),
             new ActionPlugin.ActionHandler<>(UpdateWorkloadGroupAction.INSTANCE, TransportUpdateWorkloadGroupAction.class),
-            new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class)
+            new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class),
+            new ActionPlugin.ActionHandler<>(CreateWlmRuleAction.INSTANCE, TransportCreateWlmRuleAction.class)
         );
     }
 
@@ -126,7 +136,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new RestGetWorkloadGroupAction(),
             new RestDeleteWorkloadGroupAction(),
             new RestUpdateWorkloadGroupAction(),
-            new RestGetRuleAction()
+            new RestGetRuleAction(),
+            new RestCreateWlmRuleAction()
         );
     }
 
