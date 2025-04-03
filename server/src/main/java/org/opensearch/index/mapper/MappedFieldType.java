@@ -101,7 +101,7 @@ public abstract class MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        setBoost(1.0f);
+        this.boost = 1.0f;
         this.name = Objects.requireNonNull(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
