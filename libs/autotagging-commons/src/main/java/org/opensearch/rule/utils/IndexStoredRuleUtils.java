@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule.Utils;
+package org.opensearch.rule.utils;
 
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.FeatureType;
@@ -18,7 +18,23 @@ import java.util.Set;
 
 import static org.opensearch.autotagging.Rule._ID_STRING;
 
+/**
+ * Utility class that provides methods for the lifecycle of rules.
+ * @opensearch.experimental
+ */
 public class IndexStoredRuleUtils {
+
+    /**
+     * constructor for IndexStoredRuleUtils
+     */
+    public IndexStoredRuleUtils() {}
+
+    /**
+     * Builds a Boolean query to retrieve a rule by its ID or attribute filters.
+     * @param id               The ID of the rule to search for. If null, no ID-based filtering is applied.
+     * @param attributeFilters A map of attributes and their corresponding filter values. This allows filtering by specific attribute values.
+     * @param featureType      The feature type that is required in the query.
+     */
     public static BoolQueryBuilder buildGetRuleQuery(String id, Map<Attribute, Set<String>> attributeFilters, FeatureType featureType) {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
         if (id != null) {

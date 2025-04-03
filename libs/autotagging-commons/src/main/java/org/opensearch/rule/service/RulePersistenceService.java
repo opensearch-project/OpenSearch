@@ -12,6 +12,16 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
 
+/**
+ * Interface for a service that handles rule persistence CRUD operations.
+ * @opensearch.experimental
+ */
 public interface RulePersistenceService {
+
+    /**
+     * Get rules based on the provided request.
+     * @param request The request containing the details for retrieving the rule.
+     * @param listener The listener that will handle the response or failure.
+     */
     void getRule(GetRuleRequest request, ActionListener<GetRuleResponse> listener);
 }

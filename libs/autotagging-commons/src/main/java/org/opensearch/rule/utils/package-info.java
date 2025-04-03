@@ -9,4 +9,4 @@
 /**
  * This package contains utility classes for rules
  */
-package org.opensearch.rule.Utils;
+package org.opensearch.rule.utils;

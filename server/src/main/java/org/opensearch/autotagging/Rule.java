@@ -13,9 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.DeprecationHandler;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
@@ -91,23 +88,6 @@ public class Rule implements Writeable, ToXContentObject {
 
     public static Rule fromXContent(final XContentParser parser, FeatureType featureType) throws IOException {
         return Builder.fromXContent(parser, featureType).build();
-    }
-
-    /**
-     * Parses a source string into a Rule object
-     * @param id - document id for the Rule object
-     * @param source - The raw source string representing the rule to be parsed
-     */
-    public static Map.Entry<String, Rule> parseRule(String id, String source, FeatureType featureType) {
-        try (
-            XContentParser parser = MediaTypeRegistry.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source)
-        ) {
-            return Map.entry(id, Builder.fromXContent(parser, featureType).build());
-        } catch (IOException e) {
-            logger.info("Issue met when parsing rule for ID {}: {}", id, e.getMessage());
-            return null;
-        }
     }
 
     public String getDescription() {
