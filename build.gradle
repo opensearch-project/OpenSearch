@@ -141,13 +141,6 @@ subprojects {
   }
 }
 
-// TODO: remove once protobufs jar is published to Maven central (https://github.com/opensearch-project/.github/issues/305)
-repositories {
-  maven {
-    url = 'https://aws.oss.sonatype.org/content/repositories/snapshots'
-  }
-}
-
 tasks.register("updateCIBwcVersions") {
   doLast {
     File yml = file(".ci/bwcVersions")
