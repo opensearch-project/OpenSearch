@@ -35,15 +35,19 @@ public class RuleTestUtils {
     public static final String _ID_TWO = "G5iIq84j7eK1qIAAAAIH53=1";
     public static final String FEATURE_VALUE_ONE = "feature_value_one";
     public static final String FEATURE_VALUE_TWO = "feature_value_two";
-    public static final String PATTERN_ONE = "pattern_1";
-    public static final String PATTERN_TWO = "pattern_2";
+    public static final String ATTRIBUTE_VALUE_ONE = "mock_attribute_one";
+    public static final String ATTRIBUTE_VALUE_TWO = "mock_attribute_two";
     public static final String DESCRIPTION_ONE = "description_1";
     public static final String DESCRIPTION_TWO = "description_2";
+    public static final String SEARCH_AFTER = "search_after_id";
     public static final String TIMESTAMP_ONE = "2024-01-26T08:58:57.558Z";
     public static final String TIMESTAMP_TWO = "2023-01-26T08:58:57.558Z";
-    public static final String SEARCH_AFTER = "search_after_id";
+    public static final String FEATURE_TYPE_NAME = "mock_feature_type";
     public static final String TEST_INDEX_NAME = ".test_index_for_rule";
-    public static final Map<Attribute, Set<String>> ATTRIBUTE_MAP = Map.of(MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE, Set.of(PATTERN_ONE));
+    public static final Map<Attribute, Set<String>> ATTRIBUTE_MAP = Map.of(
+        MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE,
+        Set.of(ATTRIBUTE_VALUE_ONE)
+    );
     public static final Rule ruleOne = Rule.builder()
         .description(DESCRIPTION_ONE)
         .featureType(MockRuleFeatureType.INSTANCE)
@@ -56,7 +60,7 @@ public class RuleTestUtils {
         .description(DESCRIPTION_TWO)
         .featureType(MockRuleFeatureType.INSTANCE)
         .featureValue(FEATURE_VALUE_TWO)
-        .attributeMap(Map.of(MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO, Set.of(PATTERN_TWO)))
+        .attributeMap(Map.of(MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO, Set.of(ATTRIBUTE_VALUE_TWO)))
         .updatedAt(TIMESTAMP_TWO)
         .build();
 
@@ -77,7 +81,7 @@ public class RuleTestUtils {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.queryGroups()).thenReturn(queryGroupMap);
-        return new IndexStoredRulePersistenceService(TEST_INDEX_NAME, client, MockRuleFeatureType.INSTANCE, 50);
+        return new IndexStoredRulePersistenceService(TEST_INDEX_NAME, clusterService, client, MockRuleFeatureType.INSTANCE, 50);
     }
 
     public static void assertEqualRules(Map<String, Rule> mapOne, Map<String, Rule> mapTwo, boolean ruleUpdated) {
@@ -115,15 +119,15 @@ public class RuleTestUtils {
 
         @Override
         public String getName() {
-            return "mock_feature_type";
+            return FEATURE_TYPE_NAME;
         }
 
         @Override
         public Map<String, Attribute> getAllowedAttributesRegistry() {
             return Map.of(
-                "mock_attribute_one",
+                ATTRIBUTE_VALUE_ONE,
                 MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE,
-                "mock_attribute_two",
+                ATTRIBUTE_VALUE_TWO,
                 MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO
             );
         }
@@ -135,8 +139,8 @@ public class RuleTestUtils {
     }
 
     public enum MockRuleAttributes implements Attribute {
-        MOCK_RULE_ATTRIBUTE_ONE("mock_attribute_one"),
-        MOCK_RULE_ATTRIBUTE_TWO("mock_attribute_two");
+        MOCK_RULE_ATTRIBUTE_ONE(ATTRIBUTE_VALUE_ONE),
+        MOCK_RULE_ATTRIBUTE_TWO(ATTRIBUTE_VALUE_TWO);
         ;
 
         private final String name;

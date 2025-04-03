@@ -14,23 +14,24 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 
-import static org.opensearch.rest.RestRequest.Method.GET;
+import static org.opensearch.rest.RestRequest.Method.POST;
+import static org.opensearch.rest.RestRequest.Method.PUT;
 
-public class RestGetWlmRuleActionTests extends OpenSearchTestCase {
+public class RestCreateWlmRuleActionTests extends OpenSearchTestCase {
     /**
      * Test case to validate the construction for RestGetRuleAction
      */
     public void testConstruction() {
-        RestGetWlmRuleAction action = new RestGetWlmRuleAction();
+        RestCreateWlmRuleAction action = new RestCreateWlmRuleAction();
         assertNotNull(action);
-        assertEquals("get_rule", action.getName());
+        assertEquals("create_rule", action.getName());
         List<RestHandler.Route> routes = action.routes();
         assertEquals(2, routes.size());
         RestHandler.Route route = routes.get(0);
-        assertEquals(GET, route.getMethod());
+        assertEquals(POST, route.getMethod());
         assertEquals("_wlm/rule/", route.getPath());
         route = routes.get(1);
-        assertEquals(GET, route.getMethod());
-        assertEquals("_wlm/rule/{_id}", route.getPath());
+        assertEquals(PUT, route.getMethod());
+        assertEquals("_wlm/rule/", route.getPath());
     }
 }

@@ -32,17 +32,21 @@ import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleQueryMapper;
 import org.opensearch.rule.autotagging.Rule;
-import org.opensearch.rule.utils.RuleTestUtils;
+import org.opensearch.rule.RuleTestUtils;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.rest.RestStatus;
-import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.rule.action.GetRuleResponse;
-import org.opensearch.search.SearchHit;
-import org.opensearch.search.SearchHits;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.rule.action.CreateRuleResponse;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.client.AdminClient;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.IndicesAdminClient;
 
+import java.io.IOException;
 import java.util.HashMap;
 
 import org.mockito.ArgumentCaptor;
@@ -55,61 +59,87 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.opensearch.rule.RuleTestUtils.ATTRIBUTE_MAP;
 import static org.opensearch.rule.RuleTestUtils.TEST_INDEX_NAME;
-import static org.opensearch.rule.RuleTestUtils._ID_ONE;
+import static org.opensearch.rule.RuleTestUtils.ruleOne;
 import static org.opensearch.rule.RuleTestUtils.setUpIndexStoredRulePersistenceService;
-import static org.opensearch.rule.utils.IndexStoredRuleParserTests.VALID_JSON;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings("unchecked")
 public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
 
-    public void testGetRuleByIdSuccess() {
+    public void testCreateIndexIfAbsent_IndexExists() {
         IndexStoredRulePersistenceService rulePersistenceService = setUpIndexStoredRulePersistenceService(new HashMap<>());
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        SearchHits searchHits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
-        when(searchResponse.getHits()).thenReturn(searchHits);
-        SearchHit hit = searchHits.getHits()[0];
-        hit.sourceRef(new BytesArray(VALID_JSON));
-
-        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
-        rulePersistenceService.handleGetRuleResponse(_ID_ONE, searchResponse, listener);
-
-        ArgumentCaptor<GetRuleResponse> responseCaptor = ArgumentCaptor.forClass(GetRuleResponse.class);
-        verify(listener).onResponse(responseCaptor.capture());
-        GetRuleResponse response = responseCaptor.getValue();
-        assertEquals(response.getRules().size(), 1);
-        assertEquals(RestStatus.OK, response.getRestStatus());
+        ClusterService clusterService = rulePersistenceService.getClusterService();
+        when(clusterService.state().metadata().hasIndex(TEST_INDEX_NAME)).thenReturn(true);
+        ActionListener<Boolean> listener = mock(ActionListener.class);
+        rulePersistenceService.createIndexIfAbsent(listener);
+        verify(listener).onResponse(true);
+        verifyNoMoreInteractions(listener);
     }
 
-    public void testGetRuleByIdNotFound() {
+    public void testCreateIndexIfAbsent() {
         IndexStoredRulePersistenceService rulePersistenceService = setUpIndexStoredRulePersistenceService(new HashMap<>());
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(new SearchHits(new SearchHit[] {}, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f));
-
-        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
-        rulePersistenceService.handleGetRuleResponse(_ID_ONE, searchResponse, listener);
-
-        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
-        verify(listener).onFailure(exceptionCaptor.capture());
-        Exception exception = exceptionCaptor.getValue();
-        assertTrue(exception instanceof ResourceNotFoundException);
-    }
-
-    public void testGetRuleWithAttributes() {
-        IndexStoredRulePersistenceService rulePersistenceService = setUpIndexStoredRulePersistenceService(new HashMap<>());
-        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
-        SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
         Client client = rulePersistenceService.getClient();
-        when(client.prepareSearch(TEST_INDEX_NAME)).thenReturn(searchRequestBuilder);
-        when(searchRequestBuilder.setQuery(any(QueryBuilder.class))).thenReturn(searchRequestBuilder);
-        when(searchRequestBuilder.setSize(anyInt())).thenReturn(searchRequestBuilder);
-        rulePersistenceService.getRuleFromIndex(null, ATTRIBUTE_MAP, null, listener);
-        verify(client).prepareSearch(TEST_INDEX_NAME);
-        verify(searchRequestBuilder).setQuery(any());
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        when(client.admin()).thenReturn(mock(AdminClient.class));
+        when(client.admin().indices()).thenReturn(indicesAdminClient);
+        doAnswer(invocation -> {
+            ActionListener<CreateIndexResponse> listener = invocation.getArgument(1);
+            listener.onResponse(new CreateIndexResponse(true, true, TEST_INDEX_NAME)); // Assuming the index creation was successful
+            return null;
+        }).when(indicesAdminClient).create(any(CreateIndexRequest.class), any(ActionListener.class));
+        rulePersistenceService.createIndexIfAbsent(new ActionListener<>() {
+            @Override
+            public void onResponse(Boolean indexCreated) {
+                assertTrue(indexCreated);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Index creation failed: " + e.getMessage());
+            }
+        });
+        verify(indicesAdminClient).create(any(CreateIndexRequest.class), any(ActionListener.class));
+    }
+
+    public void testPersistRuleSuccess() {
+        IndexStoredRulePersistenceService rulePersistenceService = setUpIndexStoredRulePersistenceService(new HashMap<>());
+        Client client = rulePersistenceService.getClient();
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+        IndexResponse indexResponse = new IndexResponse(new ShardId(TEST_INDEX_NAME, "uuid", 0), "id", 1, 1, 1, true);
+        doAnswer(invocation -> {
+            ActionListener<IndexResponse> actionListener = invocation.getArgument(1);
+            actionListener.onResponse(indexResponse);
+            return null;
+        }).when(client).index(any(IndexRequest.class), any(ActionListener.class));
+
+        rulePersistenceService.persistRule(ruleOne, listener);
+        verify(client).index(any(IndexRequest.class), any(ActionListener.class));
+        ArgumentCaptor<CreateRuleResponse> responseCaptor = ArgumentCaptor.forClass(CreateRuleResponse.class);
+        verify(listener).onResponse(responseCaptor.capture());
+
+        CreateRuleResponse createRuleResponse = responseCaptor.getValue();
+        assertNotNull(createRuleResponse);
+        assertEquals(ruleOne, createRuleResponse.getRule());
+    }
+
+    public void testPersistRuleFailure() throws IOException {
+        IndexStoredRulePersistenceService rulePersistenceService = setUpIndexStoredRulePersistenceService(new HashMap<>());
+        Client client = rulePersistenceService.getClient();
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+        doAnswer(invocation -> {
+            ActionListener<IndexResponse> actionListener = invocation.getArgument(1);
+            actionListener.onFailure(new RuntimeException("Indexing failed"));
+            return null;
+        }).when(client).index(any(IndexRequest.class), any(ActionListener.class));
+
+        rulePersistenceService.persistRule(ruleOne, listener);
+        verify(client).index(any(IndexRequest.class), any(ActionListener.class));
+        verify(listener).onFailure(any(RuntimeException.class));
     }
 
     public void testDeleteRule_successful() {

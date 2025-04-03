@@ -9,8 +9,8 @@
 package org.opensearch.rule.service;
 
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.rule.action.GetRuleRequest;
-import org.opensearch.rule.action.GetRuleResponse;
+import org.opensearch.rule.action.CreateRuleRequest;
+import org.opensearch.rule.action.CreateRuleResponse;
 
 /**
  * Interface for a service that handles rule persistence CRUD operations.
@@ -19,9 +19,9 @@ import org.opensearch.rule.action.GetRuleResponse;
 public interface RulePersistenceService {
 
     /**
-     * Get rules based on the provided request.
-     * @param request The request containing the details for retrieving the rule.
+     * Create rules based on the provided request.
+     * @param request The request containing the details for creating the rule.
      * @param listener The listener that will handle the response or failure.
      */
-    void getRule(GetRuleRequest request, ActionListener<GetRuleResponse> listener);
+    void createRule(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener);
 }
