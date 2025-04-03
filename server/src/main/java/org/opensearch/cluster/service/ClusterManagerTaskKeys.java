@@ -39,6 +39,9 @@ public final class ClusterManagerTaskKeys {
     public static final String FINISH_PERSISTENT_TASK_KEY = "finish-persistent-task";
     public static final String REMOVE_PERSISTENT_TASK_KEY = "remove-persistent-task";
     public static final String UPDATE_TASK_STATE_KEY = "update-task-state";
+    public static final String CREATE_QUERY_GROUP_KEY = "create-query-group";
+    public static final String DELETE_QUERY_GROUP_KEY = "delete-query-group";
+    public static final String UPDATE_QUERY_GROUP_KEY = "update-query-group";
     public static final String PUT_SCRIPT_KEY = "put-script";
     public static final String DELETE_SCRIPT_KEY = "delete-script";
     public static final String PUT_REPOSITORY_KEY = "put-repository";
