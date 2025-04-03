@@ -229,7 +229,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expectedDocValues, onlyDocValues.termsQuery(sortedStrings, null));
     }
 
-    @AwaitsFix(bugUrl = "nocommit")
+    @AwaitsFix(bugUrl = "no commit")
     public void testMockTermsSortedQuery() {
         String[] seedStrings = generateRandomStringArray(10, 10, false, false);
         if (seedStrings.length == 1) {
@@ -259,7 +259,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "nocommit")
+    @AwaitsFix(bugUrl = "no commit")
     public void testHeavyWeight() {
         int arraySize = 10000000;
         BytesRef[] array = new BytesRef[arraySize];
