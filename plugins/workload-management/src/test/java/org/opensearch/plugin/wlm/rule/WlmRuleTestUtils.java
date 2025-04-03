@@ -10,23 +10,12 @@ package org.opensearch.plugin.wlm.rule;
 
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.Rule;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.QueryGroup;
-import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.plugin.wlm.rule.service.WlmRulePersistenceService;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.client.Client;
 
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class WlmRuleTestUtils {
     public static final String _ID_ONE = "AgfUO5Ja9yfvhdONlYi3TQ==";
@@ -61,21 +50,21 @@ public class WlmRuleTestUtils {
         return Map.of(_ID_ONE, ruleOne, _ID_TWO, ruleTwo);
     }
 
-    public static WlmRulePersistenceService setUpRulePersistenceService(Map<String, QueryGroup> queryGroupMap) {
-        Client client = mock(Client.class);
-        ClusterService clusterService = mock(ClusterService.class);
-        ClusterState clusterState = mock(ClusterState.class);
-        Metadata metadata = mock(Metadata.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(client.threadPool()).thenReturn(threadPool);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.queryGroups()).thenReturn(queryGroupMap);
-        return new WlmRulePersistenceService(clusterService, client);
-    }
+    // public static WlmRulePersistenceService setUpRulePersistenceService(Map<String, QueryGroup> queryGroupMap) {
+    // Client client = mock(Client.class);
+    // ClusterService clusterService = mock(ClusterService.class);
+    // ClusterState clusterState = mock(ClusterState.class);
+    // Metadata metadata = mock(Metadata.class);
+    // ThreadPool threadPool = mock(ThreadPool.class);
+    //
+    // ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    // when(client.threadPool()).thenReturn(threadPool);
+    // when(threadPool.getThreadContext()).thenReturn(threadContext);
+    // when(clusterService.state()).thenReturn(clusterState);
+    // when(clusterState.metadata()).thenReturn(metadata);
+    // when(metadata.queryGroups()).thenReturn(queryGroupMap);
+    // return new WlmRulePersistenceService(clusterService, client);
+    // }
 
     public static void assertEqualRules(Map<String, Rule> mapOne, Map<String, Rule> mapTwo, boolean ruleUpdated) {
         assertEquals(mapOne.size(), mapTwo.size());
