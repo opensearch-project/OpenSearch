@@ -724,7 +724,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 false,
                 discoveryNodes,
                 mockReplicationStatsProvider,
-                new MergedSegmentWarmerFactory(null, null, null)
+                new MergedSegmentWarmerFactory(null, null, null),
+                false,
+                () -> Boolean.FALSE,
+                indexSettings::getRefreshInterval
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

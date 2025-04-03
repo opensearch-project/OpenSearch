@@ -721,7 +721,10 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             false,
             IndexShardTestUtils.getFakeDiscoveryNodes(initializingShardRouting),
             mock(Function.class),
-            new MergedSegmentWarmerFactory(null, null, null)
+            new MergedSegmentWarmerFactory(null, null, null),
+            false,
+            () -> Boolean.FALSE,
+            () -> indexService.getIndexSettings().getRefreshInterval()
         );
     }
 
