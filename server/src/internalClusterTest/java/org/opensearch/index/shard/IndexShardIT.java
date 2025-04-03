@@ -719,7 +719,10 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             DefaultRemoteStoreSettings.INSTANCE,
             false,
             IndexShardTestUtils.getFakeDiscoveryNodes(initializingShardRouting),
-            mock(Function.class)
+            mock(Function.class),
+            false,
+            () -> Boolean.FALSE,
+            () -> indexService.getIndexSettings().getRefreshInterval()
         );
     }
 
