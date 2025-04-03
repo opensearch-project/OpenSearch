@@ -336,51 +336,6 @@ public class PolicyFile extends java.security.Policy {
         }
     }
 
-    private static class PolicyEntry {
-
-        private final CodeSource codesource;
-        final List<Permission> permissions;
-
-        PolicyEntry(CodeSource cs) {
-            this.codesource = cs;
-            this.permissions = new ArrayList<Permission>();
-        }
-
-        /**
-         * add a Permission object to this entry.
-         * No need to sync add op because perms are added to entry only
-         * while entry is being initialized
-         */
-        void add(Permission p) {
-            permissions.add(p);
-        }
-
-        /**
-         * Return the CodeSource for this policy entry
-         */
-        CodeSource getCodeSource() {
-            return codesource;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("{");
-            sb.append(getCodeSource());
-            sb.append("\n");
-            for (int j = 0; j < permissions.size(); j++) {
-                Permission p = permissions.get(j);
-                sb.append(" ");
-                sb.append(" ");
-                sb.append(p);
-                sb.append("\n");
-            }
-            sb.append("}");
-            sb.append("\n");
-            return sb.toString();
-        }
-    }
-
     /**
      * holds policy information that we need to synch on
      */
