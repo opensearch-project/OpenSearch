@@ -60,8 +60,14 @@ import java.util.function.Supplier;
  * Plugin class for WorkloadManagement
  */
 public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
+    /**
+     * The name of the index where rules are stored.
+     */
     public static final String INDEX_NAME = ".wlm_rules";
-    public static final int MAX_ENTRY_SIZE_PER_GET_REQUEST = 50;
+    /**
+     * The maximum number of rules allowed per GET request.
+     */
+    public static final int MAX_RULES_PER_GET_REQUEST = 50;
 
     /**
      * Default constructor
@@ -83,7 +89,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         return List.of(
-            new IndexStoredRulePersistenceService(INDEX_NAME, client, QueryGroupFeatureType.INSTANCE, MAX_ENTRY_SIZE_PER_GET_REQUEST)
+            new IndexStoredRulePersistenceService(INDEX_NAME, client, QueryGroupFeatureType.INSTANCE, MAX_RULES_PER_GET_REQUEST)
         );
     }
 
@@ -100,7 +106,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(new SystemIndexDescriptor(".wlm_rules", "System index used for storing rules"));
+        return List.of(new SystemIndexDescriptor(INDEX_NAME, "System index used for storing rules"));
     }
 
     @Override
