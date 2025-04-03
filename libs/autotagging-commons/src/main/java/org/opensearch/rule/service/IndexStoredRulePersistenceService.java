@@ -20,10 +20,10 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.query.BoolQueryBuilder;
-import org.opensearch.rule.Utils.IndexStoredRuleParser;
-import org.opensearch.rule.Utils.IndexStoredRuleUtils;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
+import org.opensearch.rule.utils.IndexStoredRuleParser;
+import org.opensearch.rule.utils.IndexStoredRuleUtils;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
@@ -47,27 +47,35 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final String indexName;
     private final Client client;
     private final FeatureType featureType;
-    private final int maxReturnSizeAllowedPerGetRequest;
+    private final int maxRulesPerGetRequest;
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
 
-    public IndexStoredRulePersistenceService(
-        String indexName,
-        Client client,
-        FeatureType featureType,
-        int maxReturnSizeAllowedPerGetRequest
-    ) {
+    /**
+     * Constructs an instance of {@link IndexStoredRulePersistenceService} with the specified parameters.
+     * This service handles persistence and retrieval of stored rules within an OpenSearch index.
+     * @param indexName - The name of the OpenSearch index where the rules are stored.
+     * @param client - The OpenSearch client used to interact with the OpenSearch cluster.
+     * @param featureType - The feature type associated with the stored rules.
+     * @param maxRulesPerGetRequest - The maximum number of rules that can be returned in a single get request.
+     */
+    public IndexStoredRulePersistenceService(String indexName, Client client, FeatureType featureType, int maxRulesPerGetRequest) {
         this.indexName = indexName;
         this.client = client;
         this.featureType = featureType;
-        this.maxReturnSizeAllowedPerGetRequest = maxReturnSizeAllowedPerGetRequest;
+        this.maxRulesPerGetRequest = maxRulesPerGetRequest;
     }
 
+    /**
+     * Entry point for the get rule api logic in persistence service.
+     * @param getRuleRequest the getRuleRequest to process.
+     * @param listener the listener for GetRuleResponse.
+     */
     public void getRule(GetRuleRequest getRuleRequest, ActionListener<GetRuleResponse> listener) {
         getRuleFromIndex(getRuleRequest.getId(), getRuleRequest.getAttributeFilters(), getRuleRequest.getSearchAfter(), listener);
     }
 
     /**
-     * Entry point for the get rule api logic in persistence service. If id is provided, we only get a single rule.
+     * Get rules from index. If id is provided, we only get a single rule.
      * Otherwise, we get all rules that satisfy the attributeFilters.
      * @param id - The id of the rule to get.
      * @param attributeFilters - A map containing the attributes that user want to filter on
@@ -85,9 +93,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         // actions within this block are trusted and executed with system-level privileges.
         try (ThreadContext.StoredContext context = getContext()) {
             BoolQueryBuilder boolQuery = IndexStoredRuleUtils.buildGetRuleQuery(id, attributeFilters, featureType);
-            SearchRequestBuilder searchRequest = client.prepareSearch(indexName)
-                .setQuery(boolQuery)
-                .setSize(maxReturnSizeAllowedPerGetRequest);
+            SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(boolQuery).setSize(maxRulesPerGetRequest);
             if (searchAfter != null) {
                 searchRequest.addSort(_ID_STRING, SortOrder.ASC).searchAfter(new Object[] { searchAfter });
             }
@@ -120,6 +126,9 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         return client.threadPool().getThreadContext().stashContext();
     }
 
+    /**
+     * client getter
+     */
     public Client getClient() {
         return client;
     }
