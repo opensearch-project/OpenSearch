@@ -33,7 +33,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-
 public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
 
     AutoTaggingActionFilter autoTaggingActionFilter;
@@ -60,14 +59,8 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         SearchRequest request = mock(SearchRequest.class);
         when(request.indices()).thenReturn(new String[] { "foo" });
         try (ThreadContext.StoredContext context = threadPool.getThreadContext().stashContext()) {
-            when(ruleProcessingService.evaluateLabel(anyList()))
-                .thenReturn(Optional.of("TestQG_ID"));
-            autoTaggingActionFilter.apply(
-                mock(Task.class),
-                "Test",
-                request,
-                null, null
-                );
+            when(ruleProcessingService.evaluateLabel(anyList())).thenReturn(Optional.of("TestQG_ID"));
+            autoTaggingActionFilter.apply(mock(Task.class), "Test", request, null, null);
 
             assertEquals("TestQG_ID", threadPool.getThreadContext().getHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER));
             verify(ruleProcessingService, times(1)).evaluateLabel(anyList());
@@ -76,12 +69,7 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
 
     public void testApplyForInValidRequest() {
         CancelTasksRequest request = new CancelTasksRequest();
-        autoTaggingActionFilter.apply(
-            mock(Task.class),
-            "Test",
-            request,
-           null, null
-        );
+        autoTaggingActionFilter.apply(mock(Task.class), "Test", request, null, null);
 
         verify(ruleProcessingService, times(0)).evaluateLabel(anyList());
     }
