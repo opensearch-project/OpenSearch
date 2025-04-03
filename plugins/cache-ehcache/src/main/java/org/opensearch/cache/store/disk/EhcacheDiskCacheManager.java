@@ -25,9 +25,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.ehcache.Cache;
 import org.ehcache.PersistentCacheManager;
@@ -47,8 +50,13 @@ import static org.opensearch.cache.store.disk.EhcacheDiskCache.UNIQUE_ID;
 public class EhcacheDiskCacheManager {
 
     // Defines one cache manager per cache type.
-    private static final Map<CacheType, Tuple<PersistentCacheManager, AtomicInteger>> cacheManagerMap = new HashMap<>();
+    private static final ConcurrentMap<CacheType, Tuple<PersistentCacheManager, AtomicInteger>> cacheManagerMap = new ConcurrentHashMap<>();
     private static final Logger logger = LogManager.getLogger(EhcacheDiskCacheManager.class);
+    /**
+     * This lock is used to synchronize the operation where we create/remove cache and increment/decrement the
+     * reference counters.
+     */
+    private static final Lock lock = new ReentrantLock();
 
     // For testing
     static Map<CacheType, Tuple<PersistentCacheManager, AtomicInteger>> getCacheManagerMap() {
@@ -68,7 +76,7 @@ public class EhcacheDiskCacheManager {
      * @param threadPoolAlias alias for disk thread pool
      * @return persistent cache manager
      */
-    public synchronized static PersistentCacheManager getCacheManager(
+    public static PersistentCacheManager getCacheManager(
         CacheType cacheType,
         String storagePath,
         Settings settings,
@@ -99,7 +107,7 @@ public class EhcacheDiskCacheManager {
      * @param <V> value type
      */
     @SuppressWarnings({ "removal" })
-    public static synchronized <K, V> Cache<K, V> createCache(
+    public static <K, V> Cache<K, V> createCache(
         CacheType cacheType,
         String diskCacheAlias,
         CacheConfigurationBuilder<K, V> cacheConfigurationBuilder
@@ -122,6 +130,7 @@ public class EhcacheDiskCacheManager {
         // Creating the cache requires permissions specified in plugin-security.policy
         return AccessController.doPrivileged((PrivilegedAction<Cache<K, V>>) () -> {
             try {
+                lock.lock();
                 Cache<K, V> cache = cacheManagerMap.get(cacheType).v1().createCache(diskCacheAlias, cacheConfigurationBuilder
                 // We pass ByteArrayWrapperSerializer as ehcache's value serializer. If V is an interface, and we pass its
                 // serializer directly to ehcache, ehcache requires the classes match exactly before/after serialization.
@@ -136,6 +145,8 @@ public class EhcacheDiskCacheManager {
             } catch (IllegalStateException ex) {
                 logger.error("Ehcache disk cache initialization failed: {}", ex.getMessage());
                 throw ex;
+            } finally {
+                lock.unlock();
             }
         });
     }
@@ -147,20 +158,23 @@ public class EhcacheDiskCacheManager {
      * @param storagePath storage path for cache
      */
     @SuppressForbidden(reason = "Ehcache uses File.io")
-    public synchronized static void closeCache(CacheType cacheType, String diskCacheAlias, String storagePath) {
+    public static void closeCache(CacheType cacheType, String diskCacheAlias, String storagePath) {
         if (cacheManagerMap.get(cacheType) == null) {
             logger.warn(() -> new ParameterizedMessage("Trying to close cache for: {} but cache manager does not " + "exist", cacheType));
             return;
         }
         PersistentCacheManager cacheManager = cacheManagerMap.get(cacheType).v1();
         try {
+            lock.lock();
             cacheManager.removeCache(diskCacheAlias);
+            cacheManagerMap.get(cacheType).v2().decrementAndGet();
         } catch (Exception ex) {
-            logger.error(() -> new ParameterizedMessage("Exception ocurred while trying to close cache: " + diskCacheAlias), ex);
+            logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close cache: " + diskCacheAlias), ex);
+        } finally {
+            lock.unlock();
         }
-        int referenceCount = cacheManagerMap.get(cacheType).v2().decrementAndGet();
         // All caches have been closed associated with this cache manager, lets close this as well.
-        if (referenceCount == 0) {
+        if (cacheManagerMap.get(cacheType).v2().get() == 0) {
             try {
                 cacheManager.close();
             } catch (Exception e) {
