@@ -1505,7 +1505,10 @@ public class MetadataCreateIndexService {
 
             Optional<String> replicaValidationError = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
             replicaValidationError.ifPresent(validationErrors::add);
-            Optional<String> searchReplicaValidationError = awarenessReplicaBalance.validate(searchReplicaCount);
+            Optional<String> searchReplicaValidationError = awarenessReplicaBalance.validate(
+                searchReplicaCount,
+                AutoExpandSearchReplicas.SETTING.get(settings)
+            );
             searchReplicaValidationError.ifPresent(validationErrors::add);
         }
         return validationErrors;
