@@ -27,6 +27,7 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ApplicationProtocolNames;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.grpc.reflection.v1alpha.ServerReflectionGrpc;
 import io.grpc.reflection.v1alpha.ServerReflectionRequest;
@@ -129,6 +130,7 @@ public class NettyGrpcClient implements AutoCloseable {
 
             if (clientAuth) {
                 SslContextBuilder builder = SslContextBuilder.forClient();
+                builder.sslProvider(SslProvider.JDK);
                 builder.applicationProtocolConfig(CLIENT_ALPN);
                 builder.keyManager(getTestKeyManagerFactory(CLIENT_KEYSTORE));
                 builder.trustManager(InsecureTrustManagerFactory.INSTANCE);
