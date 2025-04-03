@@ -12,6 +12,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.lucene.Lucene;
@@ -57,7 +58,7 @@ public class IngestionEngine extends InternalEngine {
         super(engineConfig);
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
         this.documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
-
+        registerDynamicIndexSettingsHandlers();
     }
 
     /**
@@ -105,6 +106,9 @@ public class IngestionEngine extends InternalEngine {
             ingestionSource.getType()
         );
 
+        StreamPoller.State initialPollerState = indexMetadata.getIngestionStatus().isPaused()
+            ? StreamPoller.State.PAUSED
+            : StreamPoller.State.NONE;
         streamPoller = new DefaultStreamPoller(
             startPointer,
             persistedPointers,
@@ -112,7 +116,8 @@ public class IngestionEngine extends InternalEngine {
             this,
             resetState,
             resetValue,
-            ingestionErrorStrategy
+            ingestionErrorStrategy,
+            initialPollerState
         );
         streamPoller.start();
     }
@@ -215,8 +220,16 @@ public class IngestionEngine extends InternalEngine {
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
 
-                // ingestion engine needs to record batch start pointer
-                commitData.put(StreamPoller.BATCH_START, streamPoller.getBatchStartPointer().asString());
+                /*
+                 * Ingestion engine needs to record batch start pointer.
+                 * Batch start pointer can be null at index creation time, if flush is called before the stream
+                 * poller has been completely initialized.
+                 */
+                if (streamPoller.getBatchStartPointer() != null) {
+                    commitData.put(StreamPoller.BATCH_START, streamPoller.getBatchStartPointer().asString());
+                } else {
+                    logger.warn("ignore null batch start pointer");
+                }
                 final String currentForceMergeUUID = forceMergeUUID;
                 if (currentForceMergeUUID != null) {
                     commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);
@@ -303,5 +316,49 @@ public class IngestionEngine extends InternalEngine {
     @Override
     public PollingIngestStats pollingIngestStats() {
         return streamPoller.getStats();
+    }
+
+    private void registerDynamicIndexSettingsHandlers() {
+        engineConfig.getIndexSettings()
+            .getScopedSettings()
+            .addSettingsUpdateConsumer(IndexMetadata.INGESTION_SOURCE_ERROR_STRATEGY_SETTING, this::updateErrorHandlingStrategy);
+    }
+
+    /**
+     * Handler for updating ingestion error strategy in the stream poller on dynamic index settings update.
+     */
+    private void updateErrorHandlingStrategy(IngestionErrorStrategy.ErrorStrategy errorStrategy) {
+        IngestionErrorStrategy updatedIngestionErrorStrategy = IngestionErrorStrategy.create(
+            errorStrategy,
+            engineConfig.getIndexSettings().getIndexMetadata().getIngestionSource().getType()
+        );
+        streamPoller.updateErrorStrategy(updatedIngestionErrorStrategy);
+    }
+
+    /**
+     * Pause the poller. Used by management flows.
+     */
+    public void pauseIngestion() {
+        streamPoller.pause();
+    }
+
+    /**
+     * Resumes the poller. Used by management flows.
+     */
+    public void resumeIngestion() {
+        streamPoller.resume();
+    }
+
+    /**
+     * Get current ingestion state. Used by management flows.
+     */
+    public ShardIngestionState getIngestionState() {
+        return new ShardIngestionState(
+            engineConfig.getIndexSettings().getIndex().getName(),
+            engineConfig.getShardId().getId(),
+            streamPoller.getState().toString(),
+            streamPoller.getErrorStrategy().getName(),
+            streamPoller.isPaused()
+        );
     }
 }

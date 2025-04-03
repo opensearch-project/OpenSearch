@@ -9,6 +9,7 @@
 package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
+import org.opensearch.cluster.metadata.AutoExpandSearchReplicas;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -122,4 +123,23 @@ public class AwarenessReplicaBalance {
         return Optional.empty();
     }
 
+    public Optional<String> validate(int searchReplicaCount, AutoExpandSearchReplicas autoExpandSearchReplicas) {
+        if (autoExpandSearchReplicas.isEnabled()) {
+            if ((autoExpandSearchReplicas.getMaxSearchReplicas() != Integer.MAX_VALUE)
+                && ((autoExpandSearchReplicas.getMaxSearchReplicas()) % maxAwarenessAttributes() != 0)) {
+                String errorMessage = "expected max cap on auto expand search replicas to be a multiple of total awareness attributes ["
+                    + maxAwarenessAttributes()
+                    + "]";
+                return Optional.of(errorMessage);
+            }
+        } else {
+            if (searchReplicaCount > 0 && searchReplicaCount % maxAwarenessAttributes() != 0) {
+                String errorMessage = "total search replicas needs to be a multiple of total awareness attributes ["
+                    + maxAwarenessAttributes()
+                    + "]";
+                return Optional.of(errorMessage);
+            }
+        }
+        return Optional.empty();
+    }
 }

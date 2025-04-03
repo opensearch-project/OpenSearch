@@ -192,6 +192,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
+    private final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled;
     private final RecoverySettings recoverySettings;
     private final RemoteStoreSettings remoteStoreSettings;
     private final FileCache fileCache;
@@ -232,6 +233,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
         FileCache fileCache,
@@ -307,6 +309,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.clusterDefaultRefreshIntervalSupplier = clusterDefaultRefreshIntervalSupplier;
+        this.fixedRefreshIntervalSchedulingEnabled = fixedRefreshIntervalSchedulingEnabled;
         // kick off async ops for the first shard in this index
         this.refreshTask = new AsyncRefreshTask(this);
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
@@ -361,6 +364,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings
     ) {
@@ -397,6 +401,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             recoveryStateFactory,
             translogFactorySupplier,
             clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
             recoverySettings,
             remoteStoreSettings,
             null,
@@ -652,9 +657,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
 
             Directory directory = null;
-            if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX_SETTING) &&
+            if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
-                this.indexSettings.isStoreLocalityPartial()) {
+                this.indexSettings.isWarmIndex()) {
                 Directory localDirectory = directoryFactory.newDirectory(this.indexSettings, path);
                 directory = new CompositeDirectory(localDirectory, remoteDirectory, fileCache);
             } else {
@@ -1316,7 +1321,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         protected final IndexService indexService;
 
         BaseAsyncTask(final IndexService indexService, final TimeValue interval) {
-            super(indexService.logger, indexService.threadPool, interval, true);
+            this(indexService, interval, () -> Boolean.FALSE);
+        }
+
+        BaseAsyncTask(final IndexService indexService, final TimeValue interval, Supplier<Boolean> fixedIntervalSchedulingEnabled) {
+            super(indexService.logger, indexService.threadPool, interval, true, fixedIntervalSchedulingEnabled);
             this.indexService = indexService;
             rescheduleIfNecessary();
         }
@@ -1366,7 +1375,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     final class AsyncRefreshTask extends BaseAsyncTask {
 
         AsyncRefreshTask(IndexService indexService) {
-            super(indexService, indexService.getRefreshInterval());
+            super(indexService, indexService.getRefreshInterval(), fixedRefreshIntervalSchedulingEnabled);
         }
 
         @Override

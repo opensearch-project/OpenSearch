@@ -1500,11 +1500,16 @@ public class MetadataCreateIndexService {
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
                 DEFAULT_REPLICA_COUNT_SETTING.get(this.clusterService.state().metadata().settings())
             );
+            int searchReplicaCount = settings.getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
-            Optional<String> error = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
-            if (error.isPresent()) {
-                validationErrors.add(error.get());
-            }
+
+            Optional<String> replicaValidationError = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
+            replicaValidationError.ifPresent(validationErrors::add);
+            Optional<String> searchReplicaValidationError = awarenessReplicaBalance.validate(
+                searchReplicaCount,
+                AutoExpandSearchReplicas.SETTING.get(settings)
+            );
+            searchReplicaValidationError.ifPresent(validationErrors::add);
         }
         return validationErrors;
     }
@@ -1847,7 +1852,8 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Validates {@code index.routing.allocation.total_primary_shards_per_node} is only set for remote store enabled cluster
+     * Validates the {@code index.routing.allocation.total_primary_shards_per_node} setting during index creation.
+     * Ensures this setting is only specified for remote store enabled clusters.
      */
     // TODO : Update this check for SegRep to DocRep migration on need basis
     public static void validateIndexTotalPrimaryShardsPerNodeSetting(Settings indexSettings) {

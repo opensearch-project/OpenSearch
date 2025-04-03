@@ -145,7 +145,7 @@ public final class IndexModule {
     );
 
     /**
-     * Index setting which used to determine how the data is cached locally fully or partially
+     * Index setting which used to determine how the data is cached locally fully or partially.
      */
     public static final Setting<DataLocalityType> INDEX_STORE_LOCALITY_SETTING = new Setting<>(
         "index.store.data_locality",
@@ -154,6 +154,8 @@ public final class IndexModule {
         Property.IndexScope,
         Property.NodeScope
     );
+
+    public static final Setting<Boolean> IS_WARM_INDEX_SETTING = Setting.boolSetting("index.warm", false, Property.IndexScope);
 
     public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = new Setting<>(
         "index.recovery.type",
@@ -628,6 +630,7 @@ public final class IndexModule {
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings
     ) throws IOException {
@@ -651,6 +654,7 @@ public final class IndexModule {
             remoteDirectoryFactory,
             translogFactorySupplier,
             clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
             recoverySettings,
             remoteStoreSettings,
             (s) -> {},
@@ -678,6 +682,7 @@ public final class IndexModule {
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
         Consumer<IndexShard> replicator,
@@ -739,6 +744,7 @@ public final class IndexModule {
                 recoveryStateFactory,
                 translogFactorySupplier,
                 clusterDefaultRefreshIntervalSupplier,
+                fixedRefreshIntervalSchedulingEnabled,
                 recoverySettings,
                 remoteStoreSettings,
                 fileCache,

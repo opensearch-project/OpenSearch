@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -54,7 +55,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         messages = new ArrayList<>();
-        ;
         messages.add("{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
         messages.add("{\"_id\":\"2\",\"_source\":{\"name\":\"alice\", \"age\": 21}}".getBytes(StandardCharsets.UTF_8));
         fakeConsumer = new FakeIngestionSource.FakeIngestionConsumer(messages, 0);
@@ -69,7 +69,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.NONE,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
     }
 
@@ -125,7 +126,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.NONE,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
 
         CountDownLatch latch = new CountDownLatch(2);
@@ -162,7 +164,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.EARLIEST,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
         CountDownLatch latch = new CountDownLatch(2);
         doAnswer(invocation -> {
@@ -185,7 +188,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.LATEST,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
 
         poller.start();
@@ -204,7 +208,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.REWIND_BY_OFFSET,
             "1",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
         CountDownLatch latch = new CountDownLatch(1);
         doAnswer(invocation -> {
@@ -247,16 +252,22 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
                 FakeIngestionSource.FakeIngestionShardPointer,
                 FakeIngestionSource.FakeIngestionMessage>> readResultsBatch1 = fakeConsumer.readNext(
                     fakeConsumer.earliestPointer(),
+                    true,
                     2,
                     100
                 );
         List<
             IngestionShardConsumer.ReadResult<
                 FakeIngestionSource.FakeIngestionShardPointer,
-                FakeIngestionSource.FakeIngestionMessage>> readResultsBatch2 = fakeConsumer.readNext(fakeConsumer.nextPointer(), 2, 100);
+                FakeIngestionSource.FakeIngestionMessage>> readResultsBatch2 = fakeConsumer.readNext(
+                    new FakeIngestionSource.FakeIngestionShardPointer(1),
+                    true,
+                    2,
+                    100
+                );
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
         when(mockConsumer.getShardId()).thenReturn(0);
-        when(mockConsumer.readNext(any(), anyLong(), anyInt())).thenThrow(new RuntimeException("message1 poll failed"))
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenThrow(new RuntimeException("message1 poll failed"))
             .thenReturn(readResultsBatch1)
             .thenThrow(new RuntimeException("message3 poll failed"))
             .thenReturn(readResultsBatch2)
@@ -270,13 +281,14 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.NONE,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
         poller.start();
         Thread.sleep(sleepTime);
 
-        verify(errorStrategy, times(2)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.POLLING));
-        verify(processor, times(4)).process(any(), any());
+        verify(errorStrategy, times(1)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.POLLING));
+        verify(processor, times(2)).process(any(), any());
     }
 
     public void testBlockErrorIngestionStrategy() throws TimeoutException, InterruptedException {
@@ -287,16 +299,22 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
                 FakeIngestionSource.FakeIngestionShardPointer,
                 FakeIngestionSource.FakeIngestionMessage>> readResultsBatch1 = fakeConsumer.readNext(
                     fakeConsumer.earliestPointer(),
+                    true,
                     2,
                     100
                 );
         List<
             IngestionShardConsumer.ReadResult<
                 FakeIngestionSource.FakeIngestionShardPointer,
-                FakeIngestionSource.FakeIngestionMessage>> readResultsBatch2 = fakeConsumer.readNext(fakeConsumer.nextPointer(), 2, 100);
+                FakeIngestionSource.FakeIngestionMessage>> readResultsBatch2 = fakeConsumer.readNext(
+                    new FakeIngestionSource.FakeIngestionShardPointer(1),
+                    true,
+                    2,
+                    100
+                );
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
         when(mockConsumer.getShardId()).thenReturn(0);
-        when(mockConsumer.readNext(any(), anyLong(), anyInt())).thenThrow(new RuntimeException("message1 poll failed"))
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenThrow(new RuntimeException("message1 poll failed"))
             .thenReturn(readResultsBatch1)
             .thenReturn(readResultsBatch2)
             .thenReturn(Collections.emptyList());
@@ -309,7 +327,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.NONE,
             "",
-            errorStrategy
+            errorStrategy,
+            StreamPoller.State.NONE
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -335,7 +354,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             processorRunnable,
             StreamPoller.ResetState.NONE,
             "",
-            mockErrorStrategy
+            mockErrorStrategy,
+            StreamPoller.State.NONE
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -345,5 +365,13 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // poller will continue to poll if an error is encountered during message processing but will be blocked by
         // the write to blockingQueue
         assertEquals(DefaultStreamPoller.State.POLLING, poller.getState());
+    }
+
+    public void testUpdateErrorStrategy() {
+        assertTrue(poller.getErrorStrategy() instanceof DropIngestionErrorStrategy);
+        assertTrue(processorRunnable.getErrorStrategy() instanceof DropIngestionErrorStrategy);
+        poller.updateErrorStrategy(new BlockIngestionErrorStrategy("ingestion_source"));
+        assertTrue(poller.getErrorStrategy() instanceof BlockIngestionErrorStrategy);
+        assertTrue(processorRunnable.getErrorStrategy() instanceof BlockIngestionErrorStrategy);
     }
 }
