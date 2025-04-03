@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class DiscoveryNodeRoleSettingTests extends OpenSearchTestCase {
 
     public void testIsDataNode() {
-        runRoleTest(DiscoveryNode::isDataNode, DiscoveryNodeRole.DATA_ROLE);
+        runRoleTest(DiscoveryNode::canContainData, DiscoveryNodeRole.DATA_ROLE);
     }
 
     public void testIsIngestNode() {

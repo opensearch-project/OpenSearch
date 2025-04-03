@@ -173,7 +173,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         // Refresh if a data node was added
         for (DiscoveryNode addedNode : event.nodesDelta().addedNodes()) {
-            if (addedNode.isDataNode()) {
+            if (addedNode.canContainData()) {
                 executeRefresh(event.state(), "data node added");
                 break;
             }
@@ -181,7 +181,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         // Clean up info for any removed nodes
         for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
-            if (removedNode.isDataNode()) {
+            if (removedNode.canContainData()) {
                 logger.trace("Removing node from cluster info: {}", removedNode.getId());
                 if (leastAvailableSpaceUsages.containsKey(removedNode.getId())) {
                     Map<String, DiskUsage> newMaxUsages = new HashMap<>(leastAvailableSpaceUsages);

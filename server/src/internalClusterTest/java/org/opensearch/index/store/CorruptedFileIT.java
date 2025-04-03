@@ -366,7 +366,7 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 dataNodeStats.add(stat);
             }
         }
@@ -433,7 +433,7 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 dataNodeStats.add(stat);
             }
         }
@@ -698,7 +698,7 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
         final NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         final List<NodeStats> dataNodeStats = nodeStats.getNodes()
             .stream()
-            .filter(stat -> stat.getNode().isDataNode())
+            .filter(stat -> stat.getNode().canContainData())
             .collect(Collectors.toUnmodifiableList());
         MatcherAssert.assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
 

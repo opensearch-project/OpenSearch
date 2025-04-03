@@ -223,7 +223,7 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
             );
 
             for (DiscoveryNode node : state.getNodes()) {
-                if (node.isDataNode() && node.getName().equals(targetNode) == false) {
+                if (node.canContainData() && node.getName().equals(targetNode) == false) {
                     final TransportService sourceTransportService = internalCluster().getInstance(TransportService.class, node.getName());
                     targetTransportService.addSendBehavior(sourceTransportService, sendBehavior);
                 }
