@@ -16,11 +16,8 @@ import org.opensearch.action.DocWriteRequest;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.VersionType;
@@ -52,7 +49,8 @@ public class MessageProcessorRunnable implements Runnable {
     private static final int WAIT_BEFORE_RETRY_DURATION_MS = 5000;
 
     private volatile IngestionErrorStrategy errorStrategy;
-    private final BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
+    private volatile boolean closed = false;
+    private final BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
     private final MessageProcessor messageProcessor;
     private final CounterMetric stats = new CounterMetric();
 
@@ -63,7 +61,7 @@ public class MessageProcessorRunnable implements Runnable {
      * @param engine the ingestion engine
      */
     public MessageProcessorRunnable(
-        BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
+        BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
         IngestionEngine engine,
         IngestionErrorStrategy errorStrategy
     ) {
@@ -76,7 +74,7 @@ public class MessageProcessorRunnable implements Runnable {
      * @param messageProcessor the message processor
      */
     MessageProcessorRunnable(
-        BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
+        BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
         MessageProcessor messageProcessor,
         IngestionErrorStrategy errorStrategy
     ) {
@@ -109,14 +107,11 @@ public class MessageProcessorRunnable implements Runnable {
          * Process the message and create an engine operation. It also records the offset in the document as (1) a point
          * field used for range search, (2) a stored field for retrieval.
          *
-         * @param message the message to process
-         * @param pointer the pointer to the message
+         * @param updateMessage the update message to process
          */
-        protected void process(Message message, IngestionShardPointer pointer) {
-            byte[] payload = (byte[]) message.getPayload();
-
+        protected void process(ShardUpdateMessage updateMessage) {
             try {
-                Engine.Operation operation = getOperation(payload, pointer);
+                Engine.Operation operation = getOperation(updateMessage);
                 switch (operation.operationType()) {
                     case INDEX:
                         engine.index((Engine.Index) operation);
@@ -128,21 +123,28 @@ public class MessageProcessorRunnable implements Runnable {
                         throw new IllegalArgumentException("Invalid operation: " + operation);
                 }
             } catch (IOException e) {
-                logger.error("Failed to process operation from message {} at pointer {}: {}", message, pointer, e);
+                logger.error(
+                    "Failed to process operation from message {} at pointer {}: {}",
+                    updateMessage.originalMessage(),
+                    updateMessage.pointer(),
+                    e
+                );
                 throw new RuntimeException(e);
             }
         }
 
         /**
          * Visible for testing. Get the engine operation from the message.
-         * @param payload the payload of the message
-         * @param pointer the pointer to the message
+         * @param updateMessage an update message containing payload and pointer for the update
          * @return the engine operation
          */
-        protected Engine.Operation getOperation(byte[] payload, IngestionShardPointer pointer) throws IOException {
-            BytesReference payloadBR = new BytesArray(payload);
-            Map<String, Object> payloadMap = XContentHelper.convertToMap(payloadBR, false, MediaTypeRegistry.xContentType(payloadBR)).v2();
+        protected Engine.Operation getOperation(ShardUpdateMessage updateMessage) throws IOException {
+            Map<String, Object> payloadMap = updateMessage.parsedPayloadMap();
+            if (payloadMap == null) {
+                payloadMap = IngestionUtils.getParsedPayloadMap((byte[]) updateMessage.originalMessage().getPayload());
+            }
 
+            IngestionShardPointer pointer = updateMessage.pointer();
             String id = (String) payloadMap.getOrDefault(ID, "null");
             if (payloadMap.containsKey(OP_TYPE) && !(payloadMap.get(OP_TYPE) instanceof String)) {
                 // TODO: add metric
@@ -219,7 +221,7 @@ public class MessageProcessorRunnable implements Runnable {
         return BytesReference.bytes(XContentFactory.jsonBuilder().map((Map) object));
     }
 
-    BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> getBlockingQueue() {
+    BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> getBlockingQueue() {
         return blockingQueue;
     }
 
@@ -229,27 +231,27 @@ public class MessageProcessorRunnable implements Runnable {
      */
     @Override
     public void run() {
-        IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> readResult = null;
+        ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message> updateMessage = null;
 
-        while (!(Thread.currentThread().isInterrupted())) {
+        while (Thread.currentThread().isInterrupted() == false && closed == false) {
             try {
-                if (readResult == null) {
-                    readResult = blockingQueue.poll(1000, TimeUnit.MILLISECONDS);
+                if (updateMessage == null) {
+                    updateMessage = blockingQueue.poll(1000, TimeUnit.MILLISECONDS);
                 }
             } catch (InterruptedException e) {
                 // TODO: add metric
                 logger.debug("MessageProcessorRunnable poll interruptedException", e);
                 Thread.currentThread().interrupt(); // Restore interrupt status
             }
-            if (readResult != null) {
+            if (updateMessage != null) {
                 try {
                     stats.inc();
-                    messageProcessor.process(readResult.getMessage(), readResult.getPointer());
-                    readResult = null;
+                    messageProcessor.process(updateMessage);
+                    updateMessage = null;
                 } catch (Exception e) {
                     errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.PROCESSING);
                     if (errorStrategy.shouldIgnoreError(e, IngestionErrorStrategy.ErrorStage.PROCESSING)) {
-                        readResult = null;
+                        updateMessage = null;
                     } else {
                         waitBeforeRetry();
                     }
@@ -277,5 +279,9 @@ public class MessageProcessorRunnable implements Runnable {
 
     public void setErrorStrategy(IngestionErrorStrategy errorStrategy) {
         this.errorStrategy = errorStrategy;
+    }
+
+    public void close() {
+        closed = true;
     }
 }

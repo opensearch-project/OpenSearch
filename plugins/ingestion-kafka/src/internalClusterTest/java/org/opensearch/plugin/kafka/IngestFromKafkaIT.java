@@ -135,4 +135,39 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         ensureGreen(indexName);
         client().admin().indices().close(Requests.closeIndexRequest(indexName)).get();
     }
+
+    public void testKafkaIngestionWithMultipleProcessorThreads() {
+        for (int i = 1; i <= 100; i++) {
+            produceData(String.valueOf(i), "name" + i, "25");
+        }
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.num_processor_threads", 3)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(21);
+        await().atMost(60, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(100L));
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            assertNotNull(stats);
+            assertThat(stats.getMessageProcessorStats().getTotalProcessedCount(), is(100L));
+            assertThat(stats.getConsumerStats().getTotalPolledCount(), is(100L));
+        });
+
+        // todo: add validation to verify updates go into same partition once upsert is supported
+    }
 }

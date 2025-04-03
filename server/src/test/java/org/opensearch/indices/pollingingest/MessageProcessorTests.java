@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.pollingingest;
 
+import org.opensearch.index.Message;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.IngestionEngine;
@@ -55,7 +56,9 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         when(documentMapper.parse(any())).thenReturn(parsedDocument);
         when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
 
-        Engine.Operation operation = processor.getOperation(payload, pointer);
+        Engine.Operation operation = processor.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload))
+        );
 
         assertTrue(operation instanceof Engine.Index);
         ArgumentCaptor<SourceToParse> captor = ArgumentCaptor.forClass(SourceToParse.class);
@@ -68,7 +71,9 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         byte[] payload = "{\"_id\":\"1\",\"_op_type\":\"delete\"}".getBytes(StandardCharsets.UTF_8);
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
-        Engine.Operation operation = processor.getOperation(payload, pointer);
+        Engine.Operation operation = processor.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload))
+        );
 
         assertTrue(operation instanceof Engine.Delete);
         Engine.Delete deleteOperation = (Engine.Delete) operation;
@@ -79,13 +84,17 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         byte[] payload = "{\"_id\":\"1\"}".getBytes(StandardCharsets.UTF_8);
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
-        Engine.Operation operation = processor.getOperation(payload, pointer);
+        Engine.Operation operation = processor.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload))
+        );
         assertNull(operation);
 
         // source has wrong type
         payload = "{\"_id\":\"1\", \"_source\":1}".getBytes(StandardCharsets.UTF_8);
 
-        operation = processor.getOperation(payload, pointer);
+        operation = processor.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload))
+        );
         assertNull(operation);
     }
 
@@ -93,7 +102,9 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         byte[] payload = "{\"_id\":\"1\", \"_op_tpe\":\"update\"}".getBytes(StandardCharsets.UTF_8);
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
-        Engine.Operation operation = processor.getOperation(payload, pointer);
+        Engine.Operation operation = processor.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload))
+        );
         assertNull(operation);
     }
 }

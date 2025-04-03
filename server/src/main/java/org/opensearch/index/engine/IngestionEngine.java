@@ -117,7 +117,8 @@ public class IngestionEngine extends InternalEngine {
             resetState,
             resetValue,
             ingestionErrorStrategy,
-            initialPollerState
+            initialPollerState,
+            ingestionSource.getNumMessageProcessorThreads()
         );
         streamPoller.start();
     }
