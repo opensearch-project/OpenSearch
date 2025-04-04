@@ -9,14 +9,13 @@
 package org.opensearch.rule.utils;
 
 import org.opensearch.autotagging.Rule;
-import org.opensearch.rule.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Locale;
 
-import static org.opensearch.rule.RuleTestUtils.DESCRIPTION_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.DESCRIPTION_ONE;
 
 public class IndexStoredRuleParserTests extends OpenSearchTestCase {
     public static final String VALID_JSON = String.format(Locale.ROOT, """

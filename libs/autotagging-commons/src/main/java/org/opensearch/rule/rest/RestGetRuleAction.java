@@ -90,7 +90,7 @@ public abstract class RestGetRuleAction extends BaseRestHandler {
     /**
      * Abstract method for subclasses to provide specific ActionType Instance
      */
-    protected abstract <T extends ActionType<? extends GetRuleResponse>> T retrieveGetRuleActionInstance();
+    protected abstract <T extends ActionType<GetRuleResponse>> T retrieveGetRuleActionInstance();
 
     /**
      * Abstract method for subclasses to construct a {@link GetRuleRequest}. This method allows subclasses
