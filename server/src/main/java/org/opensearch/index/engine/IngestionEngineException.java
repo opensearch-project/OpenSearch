@@ -11,6 +11,7 @@ package org.opensearch.index.engine;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchWrapperException;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -20,11 +21,16 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class IngestionEngineException extends OpenSearchException implements OpenSearchWrapperException {
-    public IngestionEngineException(Throwable cause) {
-        super(cause);
+    public IngestionEngineException(String message) {
+        super(message);
     }
 
     public IngestionEngineException(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

@@ -145,9 +145,7 @@ public class IngestionEngine extends InternalEngine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
-        throw new IngestionEngineException(
-            new UnsupportedOperationException("push-based indexing is not supported in ingestion engine, use streaming source instead")
-        );
+        throw new IngestionEngineException("push-based indexing is not supported in ingestion engine, use streaming source instead");
     }
 
     /**
@@ -180,9 +178,7 @@ public class IngestionEngine extends InternalEngine {
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
-        throw new IngestionEngineException(
-            new UnsupportedOperationException("push-based deletion is not supported in ingestion engine, use streaming source instead")
-        );
+        throw new IngestionEngineException("push-based deletion is not supported in ingestion engine, use streaming source instead");
     }
 
     @Override

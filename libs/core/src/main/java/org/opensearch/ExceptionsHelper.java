@@ -104,8 +104,6 @@ public final class ExceptionsHelper {
                 return RestStatus.TOO_MANY_REQUESTS;
             } else if (t instanceof NotXContentException) {
                 return RestStatus.BAD_REQUEST;
-            } else if (t instanceof UnsupportedOperationException) {
-                return RestStatus.BAD_REQUEST;
             }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;
