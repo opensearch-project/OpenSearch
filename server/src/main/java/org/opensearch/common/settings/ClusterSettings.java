@@ -820,7 +820,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ),
                 OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
                     CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-                )
+                ),
+
+                // Setting related to refresh optimisations
+                IndicesService.CLUSTER_REFRESH_FIXED_INTERVAL_SCHEDULE_ENABLED_SETTING
             )
         )
     );
