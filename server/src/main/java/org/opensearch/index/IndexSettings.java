@@ -1096,7 +1096,7 @@ public final class IndexSettings {
         );
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
-            tieredMergePolicyProvider::setMaxMergesAtOnce
+            this::updateMaxMergesAtOnce
         );
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
@@ -1248,6 +1248,30 @@ public final class IndexSettings {
 
     private void setRefreshInterval(TimeValue timeValue) {
         this.refreshInterval = timeValue;
+    }
+
+    /**
+     * Update the default maxMergesAtOnce
+     * 1. sets the new default in {@code TieredMergePolicyProvide}
+     * 2. sets the maxMergesAtOnce on the actual TieredMergePolicy used by the engine if no index level override exists
+     */
+    void setDefaultMaxMergesAtOnce(int newDefaultMaxMergesAtOnce) {
+        tieredMergePolicyProvider.setDefaultMaxMergesAtOnce(newDefaultMaxMergesAtOnce);
+        if (TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.exists(getSettings()) == false) {
+            tieredMergePolicyProvider.setMaxMergesAtOnceToDefault();
+        }
+    }
+
+    /**
+     * Updates the maxMergesAtOnce for actual TieredMergePolicy used by the engine.
+     * Sets it to default maxMergesAtOnce if index level settings is being removed
+     */
+    void updateMaxMergesAtOnce(int newMaxMergesAtOnce) {
+        if (TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.exists(getSettings()) == false) {
+            tieredMergePolicyProvider.setMaxMergesAtOnce(newMaxMergesAtOnce);
+        } else {
+            tieredMergePolicyProvider.setMaxMergesAtOnceToDefault();
+        }
     }
 
     /**
