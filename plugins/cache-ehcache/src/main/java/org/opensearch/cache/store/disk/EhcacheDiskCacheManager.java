@@ -177,7 +177,18 @@ public class EhcacheDiskCacheManager {
         PersistentCacheManager cacheManager = cacheManagerMap.get(cacheType).v1();
         try {
             lock.lock();
-            cacheManager.removeCache(diskCacheAlias);
+            try {
+                cacheManager.removeCache(diskCacheAlias);
+            } catch (Exception ex) {
+                logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close cache: " + diskCacheAlias), ex);
+            }
+            // Check again in case a different thread removed it.
+            if (cacheManagerMap.get(cacheType) == null) {
+                logger.warn(
+                    () -> new ParameterizedMessage("Trying to close cache for: {} but cache manager does not " + "exist", cacheType)
+                );
+                return;
+            }
             int referenceCount = cacheManagerMap.get(cacheType).v2().decrementAndGet();
             // All caches have been closed associated with this cache manager, lets close this as well.
             if (referenceCount == 0) {
@@ -203,8 +214,6 @@ public class EhcacheDiskCacheManager {
                 }
                 cacheManagerMap.remove(cacheType);
             }
-        } catch (Exception ex) {
-            logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close cache: " + diskCacheAlias), ex);
         } finally {
             lock.unlock();
         }
