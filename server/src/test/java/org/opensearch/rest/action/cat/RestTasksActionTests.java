@@ -77,7 +77,21 @@ public class RestTasksActionTests extends OpenSearchTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                listener.onResponse((Response) new ListTasksResponse(emptyList(), emptyList(), emptyList()));
+                final TaskInfo taskInfo = new TaskInfo(
+                    new TaskId("test-node-id", randomLong()),
+                    "test_type",
+                    "test_action",
+                    "test_description",
+                    null,
+                    randomLong(),
+                    randomLong(),
+                    false,
+                    false,
+                    TaskId.EMPTY_TASK_ID,
+                    Map.of("foo", "bar"),
+                    randomResourceStats(randomBoolean())
+                );
+                listener.onResponse((Response) new ListTasksResponse(List.of(taskInfo), emptyList(), emptyList()));
             }
         };
     }
