@@ -9,20 +9,23 @@
 package org.opensearch.rule.utils;
 
 import org.opensearch.autotagging.Attribute;
+import org.opensearch.autotagging.Rule;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.rule.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
-import static org.opensearch.rule.RuleTestUtils.ATTRIBUTE_MAP;
-import static org.opensearch.rule.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
-import static org.opensearch.rule.RuleTestUtils.ATTRIBUTE_VALUE_TWO;
-import static org.opensearch.rule.RuleTestUtils._ID_ONE;
-import static org.opensearch.rule.RuleTestUtils.ruleOne;
+import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_MAP;
+import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_TWO;
+import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexStoredRuleUtilsTests extends OpenSearchTestCase {
     public void testBuildGetRuleQuery_WithId() {
@@ -46,18 +49,21 @@ public class IndexStoredRuleUtilsTests extends OpenSearchTestCase {
     }
 
     public void testGetDuplicateRuleId_Found() {
-        String duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(ATTRIBUTE_MAP, Map.of(_ID_ONE, ruleOne));
-        assertEquals(_ID_ONE, duplicateRuleId);
+        Optional<String> duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(ruleOne, Map.of(_ID_ONE, ruleOne));
+        assertFalse(duplicateRuleId.isEmpty());
+        assertEquals(_ID_ONE, duplicateRuleId.get());
     }
 
     public void testGetDuplicateRuleId_NotFound() {
+        Rule rule = mock(Rule.class);
         Map<Attribute, Set<String>> map = Map.of(
             RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE,
             Set.of(ATTRIBUTE_VALUE_ONE),
             RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO,
             Set.of(ATTRIBUTE_VALUE_TWO)
         );
-        String duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(map, Map.of(_ID_ONE, ruleOne));
-        assertNull(duplicateRuleId);
+        when(rule.getAttributeMap()).thenReturn(map);
+        Optional<String> duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(rule, Map.of(_ID_ONE, ruleOne));
+        assertTrue(duplicateRuleId.isEmpty());
     }
 }

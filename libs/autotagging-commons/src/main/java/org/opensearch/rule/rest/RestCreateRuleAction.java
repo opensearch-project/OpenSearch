@@ -10,7 +10,6 @@ package org.opensearch.rule.rest;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.autotagging.FeatureType;
-import org.opensearch.autotagging.Rule;
 import org.opensearch.autotagging.Rule.Builder;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
@@ -33,24 +32,42 @@ import java.util.List;
  * Rest action to create a Rule
  * @opensearch.experimental
  */
-public abstract class RestCreateRuleAction extends BaseRestHandler {
+public class RestCreateRuleAction extends BaseRestHandler {
+    private final String name;
+    private final List<Route> routes;
+    private final FeatureType featureType;
+    private final ActionType<CreateRuleResponse> createRuleAction;
+
     /**
-     * constructor for RestCreateRuleAction
+     * constructor for RestUpdateRuleAction
+     * @param name - RestUpdateRuleAction name
+     * @param routes the list of REST routes this action handles
+     * @param featureType the feature type associated with the rule
+     * @param createRuleAction the action to execute for updating a rule
      */
-    public RestCreateRuleAction() {}
+    public RestCreateRuleAction(String name, List<Route> routes, FeatureType featureType, ActionType<CreateRuleResponse> createRuleAction) {
+        this.name = name;
+        this.routes = routes;
+        this.featureType = featureType;
+        this.createRuleAction = createRuleAction;
+    }
 
     @Override
-    public abstract String getName();
+    public String getName() {
+        return name;
+    }
 
     @Override
-    public abstract List<Route> routes();
+    public List<Route> routes() {
+        return routes;
+    }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            Builder builder = Builder.fromXContent(parser, retrieveFeatureTypeInstance());
-            CreateRuleRequest createRuleRequest = buildCreateRuleRequest(builder.updatedAt(Instant.now().toString()).build());
-            return channel -> client.execute(retrieveCreateRuleActionInstance(), createRuleRequest, createRuleResponse(channel));
+            Builder builder = Builder.fromXContent(parser, featureType);
+            CreateRuleRequest createRuleRequest = new CreateRuleRequest(builder.updatedAt(Instant.now().toString()).build());
+            return channel -> client.execute(createRuleAction, createRuleRequest, createRuleResponse(channel));
         }
     }
 
@@ -62,21 +79,4 @@ public abstract class RestCreateRuleAction extends BaseRestHandler {
             }
         };
     }
-
-    /**
-     * Abstract method for subclasses to provide specific ActionType Instance
-     */
-    protected abstract <T extends ActionType<? extends CreateRuleResponse>> T retrieveCreateRuleActionInstance();
-
-    /**
-     * Abstract method for subclasses to provide specific FeatureType Instance
-     */
-    protected abstract FeatureType retrieveFeatureTypeInstance();
-
-    /**
-     * Abstract method for subclasses to construct a {@link CreateRuleRequest}. This method allows subclasses
-     * to define their own request-building logic depending on their specific needs.
-     * @param rule - the rule to create
-     */
-    protected abstract CreateRuleRequest buildCreateRuleRequest(Rule rule);
 }

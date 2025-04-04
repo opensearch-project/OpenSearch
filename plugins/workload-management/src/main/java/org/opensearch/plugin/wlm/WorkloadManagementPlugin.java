@@ -36,6 +36,7 @@ import org.opensearch.plugin.wlm.rest.RestCreateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestDeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
+import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 import org.opensearch.plugin.wlm.rule.action.CreateWlmRuleAction;
 import org.opensearch.plugin.wlm.rule.action.GetRuleAction;
 import org.opensearch.plugin.wlm.rule.action.TransportCreateWlmRuleAction;
@@ -49,6 +50,7 @@ import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rule.rest.RestCreateRuleAction;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -58,6 +60,9 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.opensearch.rest.RestRequest.Method.POST;
+import static org.opensearch.rest.RestRequest.Method.PUT;
 
 import static org.opensearch.plugin.wlm.rule.service.RulePersistenceService.RULES_INDEX;
 
@@ -72,7 +77,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     /**
      * The maximum number of rules allowed per GET request.
      */
-    public static final int MAX_RULES_PER_GET_REQUEST = 50;
+    public static final int MAX_RULES_PER_PAGE = 50;
 
     /**
      * Default constructor
@@ -94,13 +99,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         return List.of(
-            new IndexStoredRulePersistenceService(
-                INDEX_NAME,
-                clusterService,
-                client,
-                QueryGroupFeatureType.INSTANCE,
-                MAX_RULES_PER_GET_REQUEST
-            )
+            new IndexStoredRulePersistenceService(INDEX_NAME, clusterService, client, QueryGroupFeatureType.INSTANCE, MAX_RULES_PER_PAGE)
         );
     }
 
@@ -136,8 +135,12 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new RestGetWorkloadGroupAction(),
             new RestDeleteWorkloadGroupAction(),
             new RestUpdateWorkloadGroupAction(),
-            new RestGetRuleAction(),
-            new RestCreateWlmRuleAction()
+            new RestCreateRuleAction(
+                "create_rule",
+                List.of(new RestHandler.Route(POST, "_wlm/rule/"), new RestHandler.Route(PUT, "_wlm/rule/")),
+                QueryGroupFeatureType.INSTANCE,
+                CreateWlmRuleAction.INSTANCE
+            )
         );
     }
 
