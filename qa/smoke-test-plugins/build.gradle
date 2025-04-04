@@ -29,7 +29,6 @@
  */
 
 import org.opensearch.gradle.MavenFilteringHack
-import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'

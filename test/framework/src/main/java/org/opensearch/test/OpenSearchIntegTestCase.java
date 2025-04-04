@@ -2404,10 +2404,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_DATA_PATH);
     }
 
-    public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
-    }
-
     /**
      * On Debian 8 the "memory" subsystem is not mounted by default
      * when cgroups are enabled, and this confuses many versions of

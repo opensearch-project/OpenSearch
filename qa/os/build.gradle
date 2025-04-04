@@ -49,6 +49,7 @@ dependencies {
 
   api project(':libs:opensearch-common')
   api project(':libs:opensearch-core')
+  api project(':libs:opensearch-ssl-config')
 
   testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
