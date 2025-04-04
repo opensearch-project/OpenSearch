@@ -11,8 +11,8 @@ package org.opensearch.javaagent;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnixDomainSocketAddress;
 import java.nio.channels.SocketChannel;
 
@@ -35,8 +35,7 @@ public class SocketChannelInterceptorTests extends AgentTestCase {
         try (SocketChannel channel = SocketChannel.open()) {
             InetAddress[] addresses = InetAddress.getAllByName("localhost");
             for (InetAddress address : addresses) {
-                assertThrows(SecurityException.class, 
-                    () -> channel.connect(new InetSocketAddress(address, 9200)));
+                assertThrows(SecurityException.class, () -> channel.connect(new InetSocketAddress(address, 9200)));
             }
         }
     }
