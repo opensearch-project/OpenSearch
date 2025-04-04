@@ -10,21 +10,15 @@ package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.security.Policy;
 import java.util.Set;
 
-public class SystemExitInterceptorTests {
+public abstract class AgentTestCase {
     @SuppressWarnings("removal")
     @BeforeClass
     public static void setUp() {
         AgentPolicy.setPolicy(new Policy() {
-        }, Set.of(), new String[] { "worker.org.gradle.process.internal.worker.GradleWorkerMain" });
-    }
-
-    @Test(expected = SecurityException.class)
-    public void testSystemExitIsForbidden() {
-        System.exit(0);
+        }, Set.of(), (caller, chain) -> caller.getName().equalsIgnoreCase("worker.org.gradle.process.internal.worker.GradleWorkerMain"));
     }
 }

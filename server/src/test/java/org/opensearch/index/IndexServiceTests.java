@@ -636,6 +636,106 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1000, updatedTask.getInterval().millis());
     }
 
+    public void testBaseAsyncTaskWithFixedIntervalDisabled() throws Exception {
+        IndexService indexService = createIndex("test", Settings.EMPTY);
+        CountDownLatch latch = new CountDownLatch(1);
+        try (
+            IndexService.BaseAsyncTask task = new IndexService.BaseAsyncTask(
+                indexService,
+                TimeValue.timeValueSeconds(5),
+                () -> Boolean.FALSE
+            ) {
+                @Override
+                protected void runInternal() {
+                    try {
+                        Thread.sleep(2000);
+                        latch.countDown();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+        ) {
+            // With refresh fixed interval disabled, the sleep duration is always the refresh interval
+            long sleepDuration = task.getSleepDuration().seconds();
+            assertEquals(5, sleepDuration);
+            task.run();
+            latch.await();
+            sleepDuration = task.getSleepDuration().seconds();
+            assertEquals(0, latch.getCount());
+            indexService.close("test", false);
+            assertEquals(5, sleepDuration);
+        }
+    }
+
+    public void testBaseAsyncTaskWithFixedIntervalEnabled() throws Exception {
+        IndexService indexService = createIndex("test", Settings.EMPTY);
+        CountDownLatch latch = new CountDownLatch(1);
+        try (
+            IndexService.BaseAsyncTask task = new IndexService.BaseAsyncTask(
+                indexService,
+                TimeValue.timeValueSeconds(5),
+                () -> Boolean.TRUE
+            ) {
+                @Override
+                protected void runInternal() {
+                    try {
+                        Thread.sleep(2000);
+                        latch.countDown();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+        ) {
+            // In zero state, we have a random sleep duration
+            long sleepDurationMs = task.getSleepDuration().millis();
+            assertTrue(sleepDurationMs > 0);
+            task.run();
+            latch.await();
+            // Since we have refresh taking up 2s, then the next refresh should have sleep duration of 3s. Here we check
+            // the sleep duration to be non-zero since the sleep duration is calculated dynamically.
+            sleepDurationMs = task.getSleepDuration().millis();
+            assertTrue(sleepDurationMs > 0);
+            assertEquals(0, latch.getCount());
+            indexService.close("test", false);
+            assertBusy(() -> { assertEquals(TimeValue.ZERO, task.getSleepDuration()); });
+        }
+    }
+
+    public void testBaseAsyncTaskWithFixedIntervalEnabledAndLongerRefresh() throws Exception {
+        IndexService indexService = createIndex("test", Settings.EMPTY);
+        CountDownLatch latch = new CountDownLatch(1);
+        try (
+            IndexService.BaseAsyncTask task = new IndexService.BaseAsyncTask(
+                indexService,
+                TimeValue.timeValueSeconds(1),
+                () -> Boolean.TRUE
+            ) {
+                @Override
+                protected void runInternal() {
+                    try {
+                        Thread.sleep(2000);
+                        latch.countDown();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+        ) {
+            // In zero state, we have a random sleep duration
+            long sleepDurationMs = task.getSleepDuration().millis();
+            assertTrue(sleepDurationMs > 0);
+            task.run();
+            latch.await();
+            indexService.close("test", false);
+            // Since we have refresh taking up 2s and refresh interval as 1s, then the next refresh should happen immediately.
+            sleepDurationMs = task.getSleepDuration().millis();
+            assertEquals(0, sleepDurationMs);
+            assertEquals(0, latch.getCount());
+        }
+    }
+
     @Override
     protected Settings featureFlagSettings() {
         return Settings.builder()

@@ -630,6 +630,7 @@ public final class IndexModule {
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings
     ) throws IOException {
@@ -653,6 +654,7 @@ public final class IndexModule {
             remoteDirectoryFactory,
             translogFactorySupplier,
             clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
             recoverySettings,
             remoteStoreSettings,
             (s) -> {},
@@ -680,6 +682,7 @@ public final class IndexModule {
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
         Consumer<IndexShard> replicator,
@@ -741,6 +744,7 @@ public final class IndexModule {
                 recoveryStateFactory,
                 translogFactorySupplier,
                 clusterDefaultRefreshIntervalSupplier,
+                fixedRefreshIntervalSchedulingEnabled,
                 recoverySettings,
                 remoteStoreSettings,
                 fileCache,

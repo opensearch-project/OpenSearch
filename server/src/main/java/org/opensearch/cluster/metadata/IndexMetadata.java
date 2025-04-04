@@ -492,7 +492,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
+    public static final String SETTING_AUTO_EXPAND_SEARCH_REPLICAS = "index.auto_expand_search_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
+    public static final Setting<AutoExpandSearchReplicas> INDEX_AUTO_EXPAND_SEARCH_REPLICAS_SETTING = AutoExpandSearchReplicas.SETTING;
 
     /**
      * Blocks the API.
