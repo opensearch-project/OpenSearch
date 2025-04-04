@@ -14,6 +14,7 @@ import java.lang.instrument.Instrumentation;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Map;
 
 import net.bytebuddy.ByteBuddy;
@@ -38,18 +39,14 @@ public class Agent {
     /**
      * List of methods that are intercepted
      */
-    public static final String[] INTERCEPTED_METHODS = {
-        "delete",
-        "deleteIfExists",
-        "createFile",
-        "createDirectories",
-        "createLink",
-        "move",
-        "copy",
-        "newByteChannel",
-        "open",
-        "write",
-        "read" };
+    public static final String[] INTERCEPTED_METHODS = new ArrayList<String>() {
+        {
+            addAll(FileInterceptor.MUTATING_OPERATIONS);
+            addAll(FileInterceptor.DELETE_OPERATIONS);
+            add("read");
+            add("open");
+        }
+    }.toArray(String[]::new);
 
     /**
      * Premain
