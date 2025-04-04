@@ -2264,7 +2264,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if (this.shardLevelRefreshEnabled != newShardLevelRefreshVal) {
             boolean prevShardLevelRefreshVal = this.shardLevelRefreshEnabled;
             this.shardLevelRefreshEnabled = newShardLevelRefreshVal;
-            // The refresh mode has changed from index level to shard level
+            // The refresh mode has changed from index level to shard level and vice versa
             logger.info("refresh tasks rescheduled oldVal={} newVal={}", prevShardLevelRefreshVal, newShardLevelRefreshVal);
             for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
                 IndexService indexService = entry.getValue();

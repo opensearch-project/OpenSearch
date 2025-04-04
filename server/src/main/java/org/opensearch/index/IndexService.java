@@ -1626,7 +1626,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (this.shardLevelRefreshEnabled != newShardLevelRefreshVal) {
                 boolean prevShardLevelRefreshVal = this.shardLevelRefreshEnabled;
                 this.shardLevelRefreshEnabled = newShardLevelRefreshVal;
-                // The refresh mode has changed from index level to shard level
+                // The refresh mode has changed from index level to shard level and vice versa
                 logger.info("refresh tasks rescheduled oldVal={} newVal={}", prevShardLevelRefreshVal, newShardLevelRefreshVal);
                 if (newShardLevelRefreshVal) {
                     try {
