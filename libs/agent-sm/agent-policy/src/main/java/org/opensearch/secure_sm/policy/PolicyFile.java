@@ -116,7 +116,7 @@ public class PolicyFile extends java.security.Policy {
         Enumeration<PermissionEntry> enum_ = grantEntry.permissionElements();
         while (enum_.hasMoreElements()) {
             PermissionEntry pe = enum_.nextElement();
-            expandPermissionName(pe);
+            // expandPermissionName(pe);
             try {
                 Optional<Permission> perm = getInstance(pe.permission, pe.name, pe.action);
                 if (perm.isPresent()) {
