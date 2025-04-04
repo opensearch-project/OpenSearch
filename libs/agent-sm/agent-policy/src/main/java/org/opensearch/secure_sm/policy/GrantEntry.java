@@ -8,9 +8,8 @@
 package org.opensearch.secure_sm.policy;
 
 import java.io.PrintWriter;
-import java.util.Collections;
-import java.util.Enumeration;
 import java.util.LinkedList;
+import java.util.List;
 
 public class GrantEntry {
     public String codeBase;
@@ -20,8 +19,8 @@ public class GrantEntry {
         permissionEntries.add(entry);
     }
 
-    public Enumeration<PermissionEntry> permissionElements() {
-        return Collections.enumeration(permissionEntries);
+    public List<PermissionEntry> permissionElements() {
+        return permissionEntries;
     }
 
     public void write(PrintWriter out) {

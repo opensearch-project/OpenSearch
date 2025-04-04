@@ -15,7 +15,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StreamTokenizer;
-import java.util.Enumeration;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Vector;
 
@@ -187,8 +188,8 @@ public class PolicyParser {
         grantEntries.addElement(grantEntry);
     }
 
-    public Enumeration<GrantEntry> grantElements() {
-        return grantEntries.elements();
+    public List<GrantEntry> grantElements() {
+        return Collections.unmodifiableList(grantEntries);
     }
 
     public static class ParsingException extends Exception {

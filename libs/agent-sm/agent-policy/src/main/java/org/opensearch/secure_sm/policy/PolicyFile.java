@@ -29,7 +29,6 @@ import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Optional;
@@ -77,7 +76,7 @@ public class PolicyFile extends java.security.Policy {
             PolicyParser policyParser = new PolicyParser();
             policyParser.read(reader);
 
-            for (GrantEntry grantEntry : Collections.list(policyParser.grantElements())) {
+            for (GrantEntry grantEntry : policyParser.grantElements()) {
                 addGrantEntry(grantEntry, newInfo);
             }
 
@@ -113,9 +112,8 @@ public class PolicyFile extends java.security.Policy {
         }
 
         PolicyEntry entry = new PolicyEntry(codesource);
-        Enumeration<PermissionEntry> enum_ = grantEntry.permissionElements();
-        while (enum_.hasMoreElements()) {
-            PermissionEntry pe = enum_.nextElement();
+        List<PermissionEntry> permissionList = grantEntry.permissionElements();
+        for (PermissionEntry pe : permissionList) {
             expandPermissionName(pe);
             try {
                 Optional<Permission> perm = getInstance(pe.permission, pe.name, pe.action);
@@ -123,14 +121,12 @@ public class PolicyFile extends java.security.Policy {
                     entry.add(perm.get());
                 }
             } catch (ClassNotFoundException e) {
-
                 // these were mostly custom permission classes added for security
                 // manager. Since security manager is deprecated, we can skip these
                 // permissions classes.
                 if (PERM_CLASSES_TO_SKIP.contains(pe.permission)) {
                     continue; // skip this permission
                 }
-
                 throw new PolicyInitializationException("Permission class not found: " + pe.permission, e);
             }
         }
