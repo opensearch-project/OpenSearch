@@ -356,7 +356,7 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
             }
 
             private int collect(int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
-                MatchedRange range = new MatchedRange(ranges, lowBound, value);
+                MatchedRange range = new MatchedRange(ranges, lowBound, value, maxTo);
                 for (int i = range.startLo; i <= range.endHi; ++i) {
                     if (ranges[i].matches(value)) {
                         collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
@@ -442,7 +442,7 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
                         dimensionValue = dimensionLongValue;
                     }
 
-                    MatchedRange matchedRange = new MatchedRange(ranges, 0, dimensionValue);
+                    MatchedRange matchedRange = new MatchedRange(ranges, 0, dimensionValue, maxTo);
                     if (matchedRange.startLo > matchedRange.endHi) {
                         continue; // No matching range
                     }
@@ -499,14 +499,14 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
         return rangeFactory.create(name, buckets, format, keyed, metadata());
     }
 
-    class MatchedRange {
+    static class MatchedRange {
         int startLo, endHi;
 
-        MatchedRange(RangeAggregator.Range[] ranges, int lowBound, double value) {
-            computeMatchingRange(ranges, lowBound, value);
+        MatchedRange(RangeAggregator.Range[] ranges, int lowBound, double value, double[] maxTo) {
+            computeMatchingRange(ranges, lowBound, value, maxTo);
         }
 
-        private void computeMatchingRange(RangeAggregator.Range[] ranges, int lowBound, double value) {
+        private void computeMatchingRange(RangeAggregator.Range[] ranges, int lowBound, double value, double[] maxTo) {
             int lo = lowBound, hi = ranges.length - 1;
             int mid = (lo + hi) >>> 1;
 
