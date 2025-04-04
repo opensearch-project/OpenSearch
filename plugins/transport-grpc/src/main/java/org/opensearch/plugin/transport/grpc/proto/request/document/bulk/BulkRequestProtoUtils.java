@@ -18,8 +18,6 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.transport.client.Requests;
 import org.opensearch.transport.client.node.NodeClient;
 
-import java.io.IOException;
-
 /**
  * Handler for bulk requests in gRPC.
  */
@@ -40,9 +38,8 @@ public class BulkRequestProtoUtils {
      *
      * @param request the request to execute
      * @return a future of the bulk action that was executed
-     * @throws IOException if an I/O exception occurred parsing the request and preparing for execution
      */
-    public static org.opensearch.action.bulk.BulkRequest prepareRequest(BulkRequest request) throws IOException {
+    public static org.opensearch.action.bulk.BulkRequest prepareRequest(BulkRequest request) {
         org.opensearch.action.bulk.BulkRequest bulkRequest = Requests.bulkRequest();
 
         String defaultIndex = request.hasIndex() ? request.getIndex() : null;
@@ -90,7 +87,7 @@ public class BulkRequestProtoUtils {
      * @param request The bulk request containing the refresh policy
      * @return The refresh policy as a string, or null if not specified
      */
-    protected static String getRefreshPolicy(org.opensearch.protobufs.BulkRequest request) {
+    public static String getRefreshPolicy(org.opensearch.protobufs.BulkRequest request) {
         if (!request.hasRefresh()) {
             return null;
         }

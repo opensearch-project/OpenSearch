@@ -66,7 +66,7 @@ public class GetResultProtoUtils {
      * @param builder The builder to add the GetResult data to
      * @return The updated builder with the GetResult data
      */
-    protected static InlineGetDictUserDefined.Builder toProtoEmbedded(GetResult getResult, InlineGetDictUserDefined.Builder builder) {
+    public static InlineGetDictUserDefined.Builder toProtoEmbedded(GetResult getResult, InlineGetDictUserDefined.Builder builder) {
         // Set sequence number and primary term if available
         if (getResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             builder.setSeqNo(getResult.getSeqNo());

@@ -33,7 +33,7 @@ public class ActiveShardCountProtoUtils {
      * @param request The protobuf request containing the active shard count
      * @return The modified bulk request
      */
-    protected static org.opensearch.action.bulk.BulkRequest getActiveShardCount(
+    public static org.opensearch.action.bulk.BulkRequest getActiveShardCount(
         org.opensearch.action.bulk.BulkRequest bulkRequest,
         BulkRequest request
     ) {

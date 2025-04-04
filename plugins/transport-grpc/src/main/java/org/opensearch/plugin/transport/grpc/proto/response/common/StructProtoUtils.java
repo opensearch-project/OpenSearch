@@ -37,8 +37,8 @@ public class StructProtoUtils {
             // Null
             valueBuilder.setNullValue(NullValue.NULL_VALUE);
         } else if (javaObject instanceof Number) {
-            // Number
-            valueBuilder.setNumberValue((double) javaObject);
+            // Number - use doubleValue() to handle all numeric types
+            valueBuilder.setNumberValue(((Number) javaObject).doubleValue());
         } else if (javaObject instanceof String) {
             // String
             valueBuilder.setStringValue((String) javaObject);
@@ -51,6 +51,7 @@ public class StructProtoUtils {
             for (Object listEntry : (List) javaObject) {
                 listBuilder.addValues(toProto(listEntry));
             }
+            valueBuilder.setListValue(listBuilder.build());
         } else if (javaObject instanceof Map) {
             // Map
 

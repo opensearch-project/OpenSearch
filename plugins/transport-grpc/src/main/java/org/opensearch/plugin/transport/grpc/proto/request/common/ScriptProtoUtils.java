@@ -73,13 +73,12 @@ public class ScriptProtoUtils {
 
         Map<String, String> options = inlineScript.getOptionsMap();
         if (options.size() > 1 || options.size() == 1 && options.get(CONTENT_TYPE_OPTION) == null) {
-            options.remove(CONTENT_TYPE_OPTION);
             throw new IllegalArgumentException("illegal compiler options [" + options + "] specified");
         }
 
         Map<String, Object> params = inlineScript.hasParams()
-            ? Collections.emptyMap()
-            : ObjectMapProtoUtils.fromProto(inlineScript.getParams());
+            ? ObjectMapProtoUtils.fromProto(inlineScript.getParams())
+            : Collections.emptyMap();
 
         return new Script(type, lang, idOrCode, options, params);
     }
@@ -93,8 +92,8 @@ public class ScriptProtoUtils {
         String idOrCode = storedScriptId.getId();
         Map<String, String> options = null;
         Map<String, Object> params = storedScriptId.hasParams()
-            ? Collections.emptyMap()
-            : ObjectMapProtoUtils.fromProto(storedScriptId.getParams());
+            ? ObjectMapProtoUtils.fromProto(storedScriptId.getParams())
+            : Collections.emptyMap();
 
         return new Script(type, lang, idOrCode, options, params);
     }

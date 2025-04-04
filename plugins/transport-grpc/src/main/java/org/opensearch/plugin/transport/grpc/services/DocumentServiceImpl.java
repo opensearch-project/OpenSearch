@@ -10,7 +10,6 @@ package org.opensearch.plugin.transport.grpc.services;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.plugin.transport.grpc.common.ExceptionHandler;
 import org.opensearch.plugin.transport.grpc.listeners.BulkRequestActionListener;
 import org.opensearch.plugin.transport.grpc.proto.request.document.bulk.BulkRequestProtoUtils;
 import org.opensearch.protobufs.services.DocumentServiceGrpc;
@@ -46,10 +45,9 @@ public class DocumentServiceImpl extends DocumentServiceGrpc.DocumentServiceImpl
             org.opensearch.action.bulk.BulkRequest bulkRequest = BulkRequestProtoUtils.prepareRequest(request);
             BulkRequestActionListener listener = new BulkRequestActionListener(responseObserver);
             client.bulk(bulkRequest, listener);
-        } catch (Throwable e) {
-            Throwable t = ExceptionHandler.annotateException(e);
-            logger.error("DocumentServiceImpl failed to process bulk request, request=" + request + ", error=" + t.getMessage());
-            responseObserver.onError(t);
+        } catch (RuntimeException e) {
+            logger.error("DocumentServiceImpl failed to process bulk request, request=" + request + ", error=" + e.getMessage());
+            responseObserver.onError(e);
         }
     }
 }

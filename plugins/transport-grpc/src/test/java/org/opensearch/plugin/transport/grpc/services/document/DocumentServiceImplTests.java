@@ -19,7 +19,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -66,7 +65,7 @@ public class DocumentServiceImplTests extends OpenSearchTestCase {
         service.bulk(request, responseObserver);
 
         // Verify that the error was sent
-        verify(responseObserver).onError(any(StatusRuntimeException.class));
+        verify(responseObserver).onError(any(RuntimeException.class));
     }
 
     private BulkRequest createTestBulkRequest() {

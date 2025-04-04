@@ -14,6 +14,7 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -32,13 +33,13 @@ import org.opensearch.script.Script;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
 /**
  * Parses bulk requests.
- * Similar to {@link BulkRequestParser#parse(BytesReference, String, String, FetchSourceContext, String, Boolean, boolean, MediaType, Consumer, Consumer, Consumer)}.
  *
  */
 public class BulkRequestParserProtoUtils {
@@ -52,6 +53,32 @@ public class BulkRequestParserProtoUtils {
     }
 
     /**
+     * Same as { BulkRequest#valueOrDefault(String, String)
+     * @param value
+     * @param globalDefault
+     * @return
+     */
+    private static String valueOrDefault(String value, String globalDefault) {
+        if (Strings.isNullOrEmpty(value) && Strings.isNullOrEmpty(globalDefault) == false) {
+            return globalDefault;
+        }
+        return value;
+    }
+
+    /**
+     * Same as { BulkRequest#valueOrDefault(Boolean, Boolean)}
+     * @param value
+     * @param globalDefault
+     * @return
+     */
+    private static Boolean valueOrDefault(Boolean value, Boolean globalDefault) {
+        if (Objects.isNull(value) && !Objects.isNull(globalDefault)) {
+            return globalDefault;
+        }
+        return value;
+    }
+
+    /**
      * Similar to {@link BulkRequestParser#parse(BytesReference, String, String, FetchSourceContext, String, Boolean, boolean, MediaType, Consumer, Consumer, Consumer)}, except that it takes into account global values.
      *
      * @param request
@@ -62,7 +89,7 @@ public class BulkRequestParserProtoUtils {
      * @param defaultRequireAlias
      * @return
      */
-    protected static DocWriteRequest<?>[] getDocWriteRequests(
+    public static DocWriteRequest<?>[] getDocWriteRequests(
         BulkRequest request,
         String defaultIndex,
         String defaultRouting,
@@ -81,8 +108,7 @@ public class BulkRequestParserProtoUtils {
             // Set default values, taking into account global values, similar to BulkRequest#add(BytesReference, ...., )
             String index = defaultIndex;
             String id = null;
-            String routing = defaultRouting;
-            // String routing = getRouting(defaultRouting);
+            String routing = valueOrDefault(defaultRouting, request.getRouting());
             FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
             IndexOperation.OpType opType = null;
             long version = Versions.MATCH_ANY;
@@ -90,10 +116,8 @@ public class BulkRequestParserProtoUtils {
             long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
             long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
             int retryOnConflict = 0;
-            String pipeline = defaultPipeline;
-            // String pipeline = getPipeline(defaultPipeline);
-            boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
-            // Boolean requireAlias = getRequireAlias(defaultRequireAlias);
+            String pipeline = valueOrDefault(defaultPipeline, request.getPipeline());
+            Boolean requireAlias = valueOrDefault(defaultRequireAlias, request.getRequireAlias());
 
             // Parse the operation type: create, index, update, delete, or none provided (which is invalid).
             switch (bulkRequestBodyEntry.getOperationContainerCase()) {
@@ -184,7 +208,7 @@ public class BulkRequestParserProtoUtils {
      * @param requireAlias Whether the index must be an alias
      * @return The constructed IndexRequest
      */
-    protected static IndexRequest buildCreateRequest(
+    public static IndexRequest buildCreateRequest(
         CreateOperation createOperation,
         byte[] document,
         String index,
@@ -249,7 +273,7 @@ public class BulkRequestParserProtoUtils {
      * @param requireAlias Whether the index must be an alias
      * @return The constructed IndexRequest
      */
-    protected static IndexRequest buildIndexRequest(
+    public static IndexRequest buildIndexRequest(
         IndexOperation indexOperation,
         byte[] document,
         IndexOperation.OpType opType,
@@ -329,7 +353,7 @@ public class BulkRequestParserProtoUtils {
      * @param requireAlias Whether the index must be an alias
      * @return The constructed UpdateRequest
      */
-    protected static UpdateRequest buildUpdateRequest(
+    public static UpdateRequest buildUpdateRequest(
         UpdateOperation updateOperation,
         byte[] document,
         BulkRequestBody bulkRequestBody,
@@ -387,7 +411,7 @@ public class BulkRequestParserProtoUtils {
      * @param updateOperation The update operation protobuf message
      * @return The populated UpdateRequest
      */
-    protected static UpdateRequest fromProto(
+    public static UpdateRequest fromProto(
         UpdateRequest updateRequest,
         byte[] document,
         BulkRequestBody bulkRequestBody,
@@ -448,7 +472,7 @@ public class BulkRequestParserProtoUtils {
      * @param ifPrimaryTerm The default primary term for optimistic concurrency control
      * @return The constructed DeleteRequest
      */
-    protected static DeleteRequest buildDeleteRequest(
+    public static DeleteRequest buildDeleteRequest(
         DeleteOperation deleteOperation,
         String index,
         String id,

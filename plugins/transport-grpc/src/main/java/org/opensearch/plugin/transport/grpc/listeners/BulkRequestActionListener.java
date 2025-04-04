@@ -12,8 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.transport.grpc.common.ExceptionHandler;
 import org.opensearch.plugin.transport.grpc.proto.response.document.bulk.BulkResponseProtoUtils;
+
+import java.io.IOException;
 
 import io.grpc.stub.StreamObserver;
 
@@ -47,9 +48,8 @@ public class BulkRequestActionListener implements ActionListener<BulkResponse> {
             org.opensearch.protobufs.BulkResponse protoResponse = BulkResponseProtoUtils.toProto(response);
             responseObserver.onNext(protoResponse);
             responseObserver.onCompleted();
-        } catch (Exception e) {
-            Throwable t = ExceptionHandler.annotateException(e);
-            responseObserver.onError(t);
+        } catch (RuntimeException | IOException e) {
+            responseObserver.onError(e);
         }
     }
 
@@ -61,8 +61,7 @@ public class BulkRequestActionListener implements ActionListener<BulkResponse> {
      */
     @Override
     public void onFailure(Exception e) {
-        Throwable t = ExceptionHandler.annotateException(e);
-        logger.error("BulkRequestActionListener failed to process bulk request:" + t.getMessage());
-        responseObserver.onError(t);
+        logger.error("BulkRequestActionListener failed to process bulk request:" + e.getMessage());
+        responseObserver.onError(e);
     }
 }

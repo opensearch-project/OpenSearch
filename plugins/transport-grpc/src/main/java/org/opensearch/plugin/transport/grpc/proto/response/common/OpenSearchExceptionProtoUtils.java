@@ -111,7 +111,7 @@ public class OpenSearchExceptionProtoUtils {
      * @return A Protocol Buffer ErrorCause representation
      * @throws IOException if there's an error during conversion
      */
-    protected static ErrorCause innerToProto(
+    public static ErrorCause innerToProto(
         Throwable throwable,
         String type,
         String message,
@@ -181,7 +181,7 @@ public class OpenSearchExceptionProtoUtils {
      * @return A map entry containing the key and its corresponding StringOrStringArray value, or null if values is null or empty
      * @throws IOException if there's an error during conversion
      */
-    protected static Map.Entry<String, StringOrStringArray> headerToProto(String key, List<String> values) throws IOException {
+    public static Map.Entry<String, StringOrStringArray> headerToProto(String key, List<String> values) throws IOException {
         if (values != null && values.isEmpty() == false) {
             if (values.size() == 1) {
                 return new AbstractMap.SimpleEntry<String, StringOrStringArray>(
@@ -212,7 +212,7 @@ public class OpenSearchExceptionProtoUtils {
      * @return A map entry containing the key and its corresponding ObjectMap.Value, or null if values is null or empty
      * @throws IOException if there's an error during conversion
      */
-    protected static Map.Entry<String, ObjectMap.Value> headerToValueProto(String key, List<String> values) throws IOException {
+    public static Map.Entry<String, ObjectMap.Value> headerToValueProto(String key, List<String> values) throws IOException {
         if (values != null && values.isEmpty() == false) {
             if (values.size() == 1) {
                 return new AbstractMap.SimpleEntry<String, ObjectMap.Value>(
@@ -240,7 +240,7 @@ public class OpenSearchExceptionProtoUtils {
      * @param exception The OpenSearchException to convert metadata from
      * @return A map containing the exception's metadata as ObjectMap.Value objects
      */
-    protected static Map<String, ObjectMap.Value> metadataToProto(OpenSearchException exception) {
+    public static Map<String, ObjectMap.Value> metadataToProto(OpenSearchException exception) {
         if (exception instanceof CircuitBreakingException) {
             return CircuitBreakingExceptionProtoUtils.metadataToProto((CircuitBreakingException) exception);
         } else if (exception instanceof FailedNodeException) {

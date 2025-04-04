@@ -9,12 +9,32 @@
 package org.opensearch.plugin.transport.grpc.proto.response.common;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.action.FailedNodeException;
+import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.common.breaker.ResponseLimitBreachedException;
+import org.opensearch.common.breaker.ResponseLimitSettings;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.protobufs.ErrorCause;
+import org.opensearch.protobufs.ObjectMap;
+import org.opensearch.protobufs.StringOrStringArray;
+import org.opensearch.script.ScriptException;
+import org.opensearch.search.SearchParseException;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
+    private static final String TEST_NODE_ID = "test_node_id";
 
     public void testToProtoWithOpenSearchException() throws IOException {
         // Create an OpenSearchException
@@ -139,5 +159,278 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Should have the correct type", "runtime_exception", errorCause.getType());
         assertEquals("Should have the correct reason", "Test exception", errorCause.getReason());
         assertTrue("Should have a stack trace", errorCause.getStackTrace().length() > 0);
+    }
+
+    public void testHeaderToProtoWithSingleValue() throws IOException {
+        // Create a header with a single value
+        String key = "test-header";
+        List<String> values = Collections.singletonList("test-value");
+
+        // Convert to Protocol Buffer
+        Map.Entry<String, StringOrStringArray> entry = OpenSearchExceptionProtoUtils.headerToProto(key, values);
+
+        // Verify the conversion
+        assertNotNull("Entry should not be null", entry);
+        assertEquals("Key should match", key, entry.getKey());
+        assertTrue("Should be a string value", entry.getValue().hasStringValue());
+        assertEquals("Value should match", "test-value", entry.getValue().getStringValue());
+        assertFalse("Should not have a string array", entry.getValue().hasStringArray());
+    }
+
+    public void testHeaderToProtoWithMultipleValues() throws IOException {
+        // Create a header with multiple values
+        String key = "test-header";
+        List<String> values = Arrays.asList("value1", "value2", "value3");
+
+        // Convert to Protocol Buffer
+        Map.Entry<String, StringOrStringArray> entry = OpenSearchExceptionProtoUtils.headerToProto(key, values);
+
+        // Verify the conversion
+        assertNotNull("Entry should not be null", entry);
+        assertEquals("Key should match", key, entry.getKey());
+        assertFalse("Should not be a string value", entry.getValue().hasStringValue());
+        assertTrue("Should have a string array", entry.getValue().hasStringArray());
+        assertEquals("Array should have correct size", 3, entry.getValue().getStringArray().getStringArrayCount());
+        assertEquals("First value should match", "value1", entry.getValue().getStringArray().getStringArray(0));
+        assertEquals("Second value should match", "value2", entry.getValue().getStringArray().getStringArray(1));
+        assertEquals("Third value should match", "value3", entry.getValue().getStringArray().getStringArray(2));
+    }
+
+    public void testHeaderToProtoWithEmptyValues() throws IOException {
+        // Create a header with empty values
+        String key = "test-header";
+        List<String> values = Collections.emptyList();
+
+        // Convert to Protocol Buffer
+        Map.Entry<String, StringOrStringArray> entry = OpenSearchExceptionProtoUtils.headerToProto(key, values);
+
+        // Verify the conversion
+        assertNull("Entry should be null for empty values", entry);
+    }
+
+    public void testHeaderToProtoWithNullValues() throws IOException {
+        // Create a header with null values
+        String key = "test-header";
+        List<String> values = null;
+
+        // Convert to Protocol Buffer
+        Map.Entry<String, StringOrStringArray> entry = OpenSearchExceptionProtoUtils.headerToProto(key, values);
+
+        // Verify the conversion
+        assertNull("Entry should be null for null values", entry);
+    }
+
+    public void testHeaderToValueProtoWithSingleValue() throws IOException {
+        // Create a header with a single value
+        String key = "test-header";
+        List<String> values = Collections.singletonList("test-value");
+
+        // Convert to Protocol Buffer
+        Map.Entry<String, ObjectMap.Value> entry = OpenSearchExceptionProtoUtils.headerToValueProto(key, values);
+
+        // Verify the conversion
+        assertNotNull("Entry should not be null", entry);
+        assertEquals("Key should match", key, entry.getKey());
+        assertTrue("Should be a string value", entry.getValue().hasString());
+        assertEquals("Value should match", "test-value", entry.getValue().getString());
+        assertFalse("Should not have a list value", entry.getValue().hasListValue());
+    }
+
+    public void testHeaderToValueProtoWithMultipleValues() throws IOException {
+        // Create a header with multiple values
+        String key = "test-header";
+        List<String> values = Arrays.asList("value1", "value2", "value3");
+
+        // Convert to Protocol Buffer
+        Map.Entry<String, ObjectMap.Value> entry = OpenSearchExceptionProtoUtils.headerToValueProto(key, values);
+
+        // Verify the conversion
+        assertNotNull("Entry should not be null", entry);
+        assertEquals("Key should match", key, entry.getKey());
+        assertFalse("Should not be a string value", entry.getValue().hasString());
+        assertTrue("Should have a list value", entry.getValue().hasListValue());
+        assertEquals("List should have correct size", 3, entry.getValue().getListValue().getValueCount());
+        assertEquals("First value should match", "value1", entry.getValue().getListValue().getValue(0).getString());
+        assertEquals("Second value should match", "value2", entry.getValue().getListValue().getValue(1).getString());
+        assertEquals("Third value should match", "value3", entry.getValue().getListValue().getValue(2).getString());
+    }
+
+    public void testHeaderToValueProtoWithEmptyValues() throws IOException {
+        // Create a header with empty values
+        String key = "test-header";
+        List<String> values = Collections.emptyList();
+
+        // Convert to Protocol Buffer
+        Map.Entry<String, ObjectMap.Value> entry = OpenSearchExceptionProtoUtils.headerToValueProto(key, values);
+
+        // Verify the conversion
+        assertNull("Entry should be null for empty values", entry);
+    }
+
+    public void testHeaderToValueProtoWithNullValues() throws IOException {
+        // Create a header with null values
+        String key = "test-header";
+        List<String> values = null;
+
+        // Convert to Protocol Buffer
+        Map.Entry<String, ObjectMap.Value> entry = OpenSearchExceptionProtoUtils.headerToValueProto(key, values);
+
+        // Verify the conversion
+        assertNull("Entry should be null for null values", entry);
+    }
+
+    public void testMetadataToProtoWithCircuitBreakingException() {
+        // Create a CircuitBreakingException with bytes wanted and bytes limit
+        CircuitBreakingException exception = new CircuitBreakingException("Test circuit breaking", 1000L, 500L, null);
+
+        // Convert to Protocol Buffer
+        Map<String, ObjectMap.Value> metadata = OpenSearchExceptionProtoUtils.metadataToProto(exception);
+
+        // Verify the conversion
+        assertNotNull("Metadata should not be null", metadata);
+        assertTrue("Should have bytes_wanted field", metadata.containsKey("bytes_wanted"));
+        assertEquals("bytes_wanted should match", 1000L, metadata.get("bytes_wanted").getInt64());
+        assertTrue("Should have bytes_limit field", metadata.containsKey("bytes_limit"));
+        assertEquals("bytes_limit should match", 500L, metadata.get("bytes_limit").getInt64());
+        // Note: Durability is not in the constructor in newer versions
+    }
+
+    public void testMetadataToProtoWithFailedNodeException() {
+        // Create a FailedNodeException
+        FailedNodeException exception = new FailedNodeException(TEST_NODE_ID, "Test failed node", new IOException("IO error"));
+
+        // Convert to Protocol Buffer
+        Map<String, ObjectMap.Value> metadata = OpenSearchExceptionProtoUtils.metadataToProto(exception);
+
+        // Verify the conversion
+        assertNotNull("Metadata should not be null", metadata);
+        assertTrue("Should have node_id field", metadata.containsKey("node_id"));
+        assertEquals("node_id should match", TEST_NODE_ID, metadata.get("node_id").getString());
+    }
+
+    public void testMetadataToProtoWithParsingException() {
+        // Create a ParsingException with line and column numbers
+        // Using a mock since we can't directly set line and column numbers
+        ParsingException exception = mock(ParsingException.class);
+        when(exception.getMessage()).thenReturn("Test parsing exception");
+        when(exception.getLineNumber()).thenReturn(10);
+        when(exception.getColumnNumber()).thenReturn(20);
+
+        // Convert to Protocol Buffer
+        Map<String, ObjectMap.Value> metadata = OpenSearchExceptionProtoUtils.metadataToProto(exception);
+
+        // Verify the conversion
+        assertNotNull("Metadata should not be null", metadata);
+        assertTrue("Should have line field", metadata.containsKey("line"));
+        assertEquals("line should match", 10, metadata.get("line").getInt32());
+        assertTrue("Should have col field", metadata.containsKey("col"));
+        assertEquals("col should match", 20, metadata.get("col").getInt32());
+    }
+
+    public void testMetadataToProtoWithResponseLimitBreachedException() {
+        // Create a ResponseLimitBreachedException
+        ResponseLimitBreachedException exception = new ResponseLimitBreachedException(
+            "Test response limit",
+            1000,
+            ResponseLimitSettings.LimitEntity.INDICES
+        );
+
+        // Convert to Protocol Buffer
+        Map<String, ObjectMap.Value> metadata = OpenSearchExceptionProtoUtils.metadataToProto(exception);
+
+        // Verify the conversion
+        assertNotNull("Metadata should not be null", metadata);
+        assertTrue("Should have response_limit field", metadata.containsKey("response_limit"));
+        assertEquals("response_limit should match", 1000L, metadata.get("response_limit").getInt32());
+        assertTrue("Should have limit_entity field", metadata.containsKey("limit_entity"));
+        assertEquals("limit_entity should match", "INDICES", metadata.get("limit_entity").getString());
+    }
+
+    public void testMetadataToProtoWithScriptException() {
+        // Create a ScriptException
+        ScriptException exception = new ScriptException(
+            "Test script exception",
+            new Exception("Script error"),
+            Arrays.asList("line1", "line2"),
+            "test_script",
+            "painless"
+        );
+
+        // Convert to Protocol Buffer
+        Map<String, ObjectMap.Value> metadata = OpenSearchExceptionProtoUtils.metadataToProto(exception);
+
+        // Verify the conversion
+        assertNotNull("Metadata should not be null", metadata);
+        assertTrue("Should have script_stack field", metadata.containsKey("script_stack"));
+        assertTrue("Should have script field", metadata.containsKey("script"));
+        assertEquals("script should match", "test_script", metadata.get("script").getString());
+        assertTrue("Should have lang field", metadata.containsKey("lang"));
+        assertEquals("lang should match", "painless", metadata.get("lang").getString());
+    }
+
+    public void testMetadataToProtoWithSearchParseException() {
+        // Create a SearchParseException with line and column numbers
+        // Using a mock since we can't directly set line and column numbers
+        SearchParseException exception = mock(SearchParseException.class);
+        when(exception.getMessage()).thenReturn("Test search parse exception");
+        when(exception.getLineNumber()).thenReturn(10);
+        when(exception.getColumnNumber()).thenReturn(20);
+
+        // Convert to Protocol Buffer
+        Map<String, ObjectMap.Value> metadata = OpenSearchExceptionProtoUtils.metadataToProto(exception);
+
+        // Verify the conversion
+        assertNotNull("Metadata should not be null", metadata);
+        assertTrue("Should have line field", metadata.containsKey("line"));
+        assertEquals("line should match", 10, metadata.get("line").getInt32());
+        assertTrue("Should have col field", metadata.containsKey("col"));
+        assertEquals("col should match", 20, metadata.get("col").getInt32());
+    }
+
+    public void testMetadataToProtoWithSearchPhaseExecutionException() {
+        // Create a SearchPhaseExecutionException
+        SearchPhaseExecutionException exception = new SearchPhaseExecutionException(
+            "test_phase",
+            "Test search phase execution",
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        // Convert to Protocol Buffer
+        Map<String, ObjectMap.Value> metadata = OpenSearchExceptionProtoUtils.metadataToProto(exception);
+
+        // Verify the conversion
+        assertNotNull("Metadata should not be null", metadata);
+        assertTrue("Should have phase field", metadata.containsKey("phase"));
+        assertEquals("phase should match", "test_phase", metadata.get("phase").getString());
+        assertTrue("Should have grouped field", metadata.containsKey("grouped"));
+        assertTrue("grouped should be true", metadata.get("grouped").getBool());
+    }
+
+    public void testMetadataToProtoWithTooManyBucketsException() {
+        // Create a TooManyBucketsException
+        MultiBucketConsumerService.TooManyBucketsException exception = new MultiBucketConsumerService.TooManyBucketsException(
+            "Test too many buckets",
+            1000
+        );
+
+        // Convert to Protocol Buffer
+        Map<String, ObjectMap.Value> metadata = OpenSearchExceptionProtoUtils.metadataToProto(exception);
+
+        // Verify the conversion
+        assertNotNull("Metadata should not be null", metadata);
+        assertTrue("Should have max_buckets field", metadata.containsKey("max_buckets"));
+        assertEquals("max_buckets should match", 1000, metadata.get("max_buckets").getInt32());
+    }
+
+    public void testMetadataToProtoWithGenericOpenSearchException() {
+        // Create a generic OpenSearchException
+        OpenSearchException exception = new OpenSearchException("Test generic exception");
+
+        // Convert to Protocol Buffer
+        Map<String, ObjectMap.Value> metadata = OpenSearchExceptionProtoUtils.metadataToProto(exception);
+
+        // Verify the conversion
+        assertNotNull("Metadata should not be null", metadata);
+        assertTrue("Metadata should be empty for generic exception", metadata.isEmpty());
     }
 }
