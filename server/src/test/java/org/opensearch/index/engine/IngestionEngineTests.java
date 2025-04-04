@@ -131,8 +131,8 @@ public class IngestionEngineTests extends EngineTestCase {
     }
 
     public void testPushAPIFailures() {
-        assertThrows(IngestionEngineException.class, () -> ingestionEngine.index(Mockito.any()));
-        assertThrows(IngestionEngineException.class, () -> ingestionEngine.delete(Mockito.any()));
+        assertThrows(IngestionEngineException.class, () -> ingestionEngine.index(Mockito.any(Engine.Index.class)));
+        assertThrows(IngestionEngineException.class, () -> ingestionEngine.delete(Mockito.any(Engine.Index.class)));
     }
 
     public void testCreationFailure() throws IOException {
