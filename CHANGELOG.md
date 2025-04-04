@@ -21,10 +21,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support AutoExpand for SearchReplica ([#17741](https://github.com/opensearch-project/OpenSearch/pull/17741))
 - Implement fixed interval refresh task scheduling ([#17777](https://github.com/opensearch-project/OpenSearch/pull/17777))
 - [Tiered caching] Create a single cache manager for all the disk caches. ([#17513](https://github.com/opensearch-project/OpenSearch/pull/17513))
+- Add GRPC DocumentService and Bulk endpoint ([#17727](https://github.com/opensearch-project/OpenSearch/pull/17727))
 
 ### Changed
 - Migrate BC libs to their FIPS counterparts ([#14912](https://github.com/opensearch-project/OpenSearch/pull/14912))
 - Increase the floor segment size to 16MB ([#17699](https://github.com/opensearch-project/OpenSearch/pull/17699))
+- Introduce 512 byte limit to search and ingest pipeline IDs ([#17786](https://github.com/opensearch-project/OpenSearch/pull/17786))
 
 ### Dependencies
 - Bump `com.nimbusds:nimbus-jose-jwt` from 9.41.1 to 10.0.2 ([#17607](https://github.com/opensearch-project/OpenSearch/pull/17607), [#17669](https://github.com/opensearch-project/OpenSearch/pull/17669))
@@ -41,6 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula.ospackage-base` from 11.11.1 to 11.11.2 ([#17734](https://github.com/opensearch-project/OpenSearch/pull/17734))
 - Bump `com.nimbusds:oauth2-oidc-sdk` from 11.21 to 11.23.1 ([#17729](https://github.com/opensearch-project/OpenSearch/pull/17729))
 - Bump `com.google.api.grpc:proto-google-common-protos` from 2.52.0 to 2.54.1 ([#17733](https://github.com/opensearch-project/OpenSearch/pull/17733))
+- Bump `ch.qos.logback:logback-classic` from 1.5.17 to 1.5.18 ([#17730](https://github.com/opensearch-project/OpenSearch/pull/17730))
+- Bump `reactor_netty` from 1.1.26 to 1.2.3 ([#17322](https://github.com/opensearch-project/OpenSearch/pull/17322), [#17377](https://github.com/opensearch-project/OpenSearch/pull/17377))
 
 ### Changed
 
