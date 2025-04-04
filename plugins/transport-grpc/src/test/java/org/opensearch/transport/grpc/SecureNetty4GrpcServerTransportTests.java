@@ -24,7 +24,7 @@ import io.grpc.BindableService;
 import io.grpc.StatusRuntimeException;
 import io.grpc.health.v1.HealthCheckResponse;
 
-import static org.opensearch.transport.grpc.SecureSettingsHelpers.FailurefromException;
+import static org.opensearch.transport.grpc.SecureSettingsHelpers.ConnectExceptions.BAD_CERT;
 import static org.opensearch.transport.grpc.SecureSettingsHelpers.getServerClientAuthNone;
 import static org.opensearch.transport.grpc.SecureSettingsHelpers.getServerClientAuthOptional;
 import static org.opensearch.transport.grpc.SecureSettingsHelpers.getServerClientAuthRequired;
@@ -140,7 +140,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             try {
                 hasNoCertClient.checkHealth();
             } catch (Exception e) {
-                assertEquals(FailurefromException(e), SecureSettingsHelpers.ConnectExceptions.CERT_REQUIRED);
+                assertEquals(SecureSettingsHelpers.ConnectExceptions.get(e), BAD_CERT);
             }
             hasNoCertClient.close();
 
@@ -150,7 +150,7 @@ public class SecureNetty4GrpcServerTransportTests extends OpenSearchTestCase {
             hasTrustedCertClient.close();
 
             transport.stop();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             throw new RuntimeException(e);
         }
     }

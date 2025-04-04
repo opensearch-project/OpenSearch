@@ -12,7 +12,6 @@ import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
@@ -26,13 +25,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-import io.grpc.StatusRuntimeException;
 import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-
-import static org.opensearch.transport.grpc.SecureSettingsHelpers.ConnectExceptions.BAD_CERT;
-import static org.opensearch.transport.grpc.SecureSettingsHelpers.ConnectExceptions.CERT_REQUIRED;
-import static org.opensearch.transport.grpc.SecureSettingsHelpers.ConnectExceptions.UNAVAILABLE;
 
 public class SecureSettingsHelpers {
     private static final String PROVIDER = "JDK"; // only guaranteed provider
@@ -48,36 +42,42 @@ public class SecureSettingsHelpers {
 
     /**
      * Exception messages for various types of TLS client/server connection failure.
+     * We would like to check to ensure a connection fails in the way we expect.
+     * However, depending on the default JDK provider exceptions may differ slightly,
+     * so we allow a couple different error messages for each possible error.
      */
     protected enum ConnectExceptions {
-        NONE("Connection succeeded"),
-        UNAVAILABLE("Network closed for unknown reason"),
-        BAD_CERT("bad_certificate"),
-        CERT_REQUIRED("certificate_required");
+        NONE(List.of("Connection succeeded")),
+        UNAVAILABLE(List.of("Network closed for unknown reason")),
+        BAD_CERT(List.of("bad_certificate", "certificate_required"));
 
-        String exceptionMsg = null;
+        List<String> msgList = null;
 
-        ConnectExceptions(String exceptionMsg) {
-            this.exceptionMsg = exceptionMsg;
+        ConnectExceptions(List<String> exceptionMsg) {
+            this.msgList = exceptionMsg;
         }
-    }
 
-    static ConnectExceptions FailurefromException(Exception e) throws Exception {
-        if (e instanceof SSLException || e instanceof StatusRuntimeException) {
-            if (e.getMessage() != null && e.getMessage().contains(BAD_CERT.exceptionMsg)) {
+        private static boolean containsSubstring(List<String> substrings, String str) {
+            for (String sub : substrings) {
+                if (str.contains(sub)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        static ConnectExceptions get(Throwable e) {
+            if (e.getMessage() != null && containsSubstring(UNAVAILABLE.msgList, e.getMessage())) {
+                return UNAVAILABLE;
+            }
+            if (e.getMessage() != null && containsSubstring(BAD_CERT.msgList, e.getMessage())) {
                 return BAD_CERT;
             }
-            if (e.getCause() != null && e.getCause().getMessage().contains(BAD_CERT.exceptionMsg)) {
-                return BAD_CERT;
+            if (e.getCause() != null) {
+                return get(e.getCause());
             }
-            if (e.getCause() != null && e.getCause().getMessage().contains(CERT_REQUIRED.exceptionMsg)) {
-                return CERT_REQUIRED;
-            }
+            throw new RuntimeException("Unexpected exception", e);
         }
-        if (e.getMessage() != null && e.getMessage().contains(UNAVAILABLE.exceptionMsg)) {
-            return UNAVAILABLE;
-        }
-        throw e;
     }
 
     static KeyManagerFactory getTestKeyManagerFactory(String keystorePath) {

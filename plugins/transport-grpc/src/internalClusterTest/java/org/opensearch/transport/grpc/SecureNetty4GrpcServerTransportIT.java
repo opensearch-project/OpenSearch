@@ -29,7 +29,6 @@ import java.util.Optional;
 import io.grpc.health.v1.HealthCheckResponse;
 
 import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
-import static org.opensearch.transport.grpc.SecureSettingsHelpers.FailurefromException;
 import static org.opensearch.transport.grpc.SecureSettingsHelpers.getServerClientAuthNone;
 import static org.opensearch.transport.grpc.SecureSettingsHelpers.getServerClientAuthOptional;
 import static org.opensearch.transport.grpc.SecureSettingsHelpers.getServerClientAuthRequired;
@@ -80,7 +79,7 @@ public abstract class SecureNetty4GrpcServerTransportIT extends OpenSearchIntegT
         return List.of(GrpcPlugin.class, MockSecurityPlugin.class);
     }
 
-    private SecureSettingsHelpers.ConnectExceptions tryConnectClient(NettyGrpcClient client) throws Exception {
+    private SecureSettingsHelpers.ConnectExceptions tryConnectClient(NettyGrpcClient client) {
         try {
             HealthCheckResponse.ServingStatus status = client.checkHealth();
             if (status == HealthCheckResponse.ServingStatus.SERVING) {
@@ -89,7 +88,7 @@ public abstract class SecureNetty4GrpcServerTransportIT extends OpenSearchIntegT
                 throw new RuntimeException("Illegal state - unexpected server status: " + status.toString());
             }
         } catch (Exception e) {
-            return FailurefromException(e);
+            return SecureSettingsHelpers.ConnectExceptions.get(e);
         }
     }
 
