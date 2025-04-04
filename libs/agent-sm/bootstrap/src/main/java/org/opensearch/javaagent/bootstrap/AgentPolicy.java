@@ -13,6 +13,7 @@ import java.lang.StackWalker.StackFrame;
 import java.security.Permission;
 import java.security.Policy;
 import java.security.ProtectionDomain;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -29,12 +30,12 @@ public class AgentPolicy {
     private static final Logger LOGGER = Logger.getLogger(AgentPolicy.class.getName());
     private static volatile Policy policy;
     private static volatile Set<String> trustedHosts;
-    private static volatile BiFunction<Class<?>, Stream<Class<?>>, Boolean> classesThatCanExit;
+    private static volatile BiFunction<Class<?>, Collection<Class<?>>, Boolean> classesThatCanExit;
 
     /**
      * None of the classes is allowed to call {@link System#exit} or {@link Runtime#halt}
      */
-    public static final class NoneCanExit implements BiFunction<Class<?>, Stream<Class<?>>, Boolean> {
+    public static final class NoneCanExit implements BiFunction<Class<?>, Collection<Class<?>>, Boolean> {
         /**
          * NoneCanExit
          */
@@ -47,7 +48,7 @@ public class AgentPolicy {
          * @return is class allowed to call {@link System#exit}, {@link Runtime#halt} or not
          */
         @Override
-        public Boolean apply(Class<?> caller, Stream<Class<?>> chain) {
+        public Boolean apply(Class<?> caller, Collection<Class<?>> chain) {
             return true;
         }
     }
@@ -86,7 +87,7 @@ public class AgentPolicy {
     /**
      * Any caller in the chain is allowed to call {@link System#exit} or {@link Runtime#halt}
      */
-    public static final class AnyCanExit implements BiFunction<Class<?>, Stream<Class<?>>, Boolean> {
+    public static final class AnyCanExit implements BiFunction<Class<?>, Collection<Class<?>>, Boolean> {
         private final String[] classesThatCanExit;
 
         /**
@@ -104,15 +105,15 @@ public class AgentPolicy {
          * @return is class allowed to call {@link System#exit}, {@link Runtime#halt} or not
          */
         @Override
-        public Boolean apply(Class<?> caller, Stream<Class<?>> chain) {
-            return chain.anyMatch(clazz -> {
+        public Boolean apply(Class<?> caller, Collection<Class<?>> chain) {
+            for (final Class<?> clazz : chain) {
                 for (final String classThatCanExit : classesThatCanExit) {
                     if (clazz.getName().matches(classThatCanExit)) {
                         return true;
                     }
                 }
-                return false;
-            });
+            }
+            return false;
         }
     }
 
@@ -135,7 +136,7 @@ public class AgentPolicy {
     public static void setPolicy(
         Policy policy,
         final Set<String> trustedHosts,
-        final BiFunction<Class<?>, Stream<Class<?>>, Boolean> classesThatCanExit
+        final BiFunction<Class<?>, Collection<Class<?>>, Boolean> classesThatCanExit
     ) {
         if (AgentPolicy.policy == null) {
             AgentPolicy.policy = policy;
@@ -187,7 +188,7 @@ public class AgentPolicy {
      * @param chain chain of call classes
      * @return is class allowed to call {@link System#exit}, {@link Runtime#halt} or not
      */
-    public static boolean isChainThatCanExit(Class<?> caller, Stream<Class<?>> chain) {
+    public static boolean isChainThatCanExit(Class<?> caller, Collection<Class<?>> chain) {
         return classesThatCanExit.apply(caller, chain);
     }
 }
