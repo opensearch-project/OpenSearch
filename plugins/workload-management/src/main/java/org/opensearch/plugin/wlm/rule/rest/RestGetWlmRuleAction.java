@@ -53,7 +53,7 @@ public class RestGetWlmRuleAction extends RestGetRuleAction {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected <T extends ActionType<? extends GetRuleResponse>> T retrieveGetRuleActionInstance() {
+    protected <T extends ActionType<GetRuleResponse>> T retrieveGetRuleActionInstance() {
         return (T) GetWlmRuleAction.INSTANCE;
     }
 
