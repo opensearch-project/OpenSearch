@@ -128,16 +128,13 @@ public class NettyGrpcClient implements AutoCloseable {
             NettyChannelBuilder channelBuilder = NettyChannelBuilder.forAddress(addr.getAddress(), addr.getPort())
                 .proxyDetector(NOOP_PROXY_DETECTOR);
 
-            if (clientAuth) {
+            if (clientAuth || insecure) {
                 SslContextBuilder builder = SslContextBuilder.forClient();
                 builder.sslProvider(SslProvider.JDK);
                 builder.applicationProtocolConfig(CLIENT_ALPN);
-                builder.keyManager(getTestKeyManagerFactory(CLIENT_KEYSTORE));
-                builder.trustManager(InsecureTrustManagerFactory.INSTANCE);
-                channelBuilder.sslContext(builder.build());
-            } else if (insecure) {
-                SslContextBuilder builder = SslContextBuilder.forClient();
-                builder.applicationProtocolConfig(CLIENT_ALPN);
+                if (clientAuth) {
+                    builder.keyManager(getTestKeyManagerFactory(CLIENT_KEYSTORE));
+                }
                 builder.trustManager(InsecureTrustManagerFactory.INSTANCE);
                 channelBuilder.sslContext(builder.build());
             } else {
