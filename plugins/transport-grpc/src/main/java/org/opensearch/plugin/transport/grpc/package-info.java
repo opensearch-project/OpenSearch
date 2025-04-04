@@ -10,4 +10,4 @@
  * gRPC transport implementation for OpenSearch.
  * Provides network communication using the gRPC protocol.
  */
-package org.opensearch.transport.grpc;
+package org.opensearch.plugin.transport.grpc;

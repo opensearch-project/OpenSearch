@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.transport.grpc;
+package org.opensearch.plugin.transport.grpc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -156,6 +156,10 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         return this.boundAddress;
     }
 
+    /**
+     * Starts the gRPC server transport.
+     * Initializes the event loop group and binds the server to the configured addresses.
+     */
     @Override
     protected void doStart() {
         boolean success = false;
@@ -171,6 +175,10 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         }
     }
 
+    /**
+     * Stops the gRPC server transport.
+     * Shuts down all running servers and the event loop group.
+     */
     @Override
     protected void doStop() {
         for (Server server : servers) {
@@ -196,6 +204,10 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         }
     }
 
+    /**
+     * Closes the gRPC server transport.
+     * Performs any necessary cleanup after stopping the transport.
+     */
     @Override
     protected void doClose() {
 
