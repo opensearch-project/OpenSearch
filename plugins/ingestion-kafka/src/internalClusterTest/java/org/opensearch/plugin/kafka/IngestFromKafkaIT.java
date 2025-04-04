@@ -139,7 +139,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
     }
 
     public void testKafkaIngestionWithMultipleProcessorThreads() throws Exception {
-        for (int i = 1; i <= 100; i++) {
+        for (int i = 1; i <= 2000; i++) {
             produceData(String.valueOf(i), "name" + i, "25");
         }
         createIndexWithDefaultSettings(indexName, 1, 0, 3);
@@ -147,12 +147,12 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         waitForState(() -> {
             refresh(indexName);
             SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
-            assertThat(response.getHits().getTotalHits().value(), is(100L));
+            assertThat(response.getHits().getTotalHits().value(), is(2000L));
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
             assertNotNull(stats);
-            assertThat(stats.getMessageProcessorStats().getTotalProcessedCount(), is(100L));
-            assertThat(stats.getConsumerStats().getTotalPolledCount(), is(100L));
+            assertThat(stats.getMessageProcessorStats().getTotalProcessedCount(), is(2000L));
+            assertThat(stats.getConsumerStats().getTotalPolledCount(), is(2000L));
             return true;
         });
     }

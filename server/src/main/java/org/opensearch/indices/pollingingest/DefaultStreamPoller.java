@@ -144,6 +144,8 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         logger.info("Starting poller for shard {}", consumer.getShardId());
 
+        IngestionShardPointer lastProcessedPointer = null;
+        boolean encounteredError = false;
         while (true) {
             try {
                 if (closed) {
@@ -190,15 +192,18 @@ public class DefaultStreamPoller implements StreamPoller {
                 }
 
                 state = State.POLLING;
-
                 List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results;
 
-                if (includeBatchStartPointer) {
+                // todo: handle multi-writer scenarios to provide atleast once semantics
+                if (encounteredError && lastProcessedPointer != null) {
+                    results = consumer.readNext(lastProcessedPointer, false, MAX_POLL_SIZE, POLL_TIMEOUT);
+                } else if (includeBatchStartPointer) {
                     results = consumer.readNext(batchStartPointer, true, MAX_POLL_SIZE, POLL_TIMEOUT);
                 } else {
                     results = consumer.readNext(MAX_POLL_SIZE, POLL_TIMEOUT);
                 }
 
+                encounteredError = false;
                 if (results.isEmpty()) {
                     // no new records
                     continue;
@@ -206,13 +211,8 @@ public class DefaultStreamPoller implements StreamPoller {
 
                 state = State.PROCESSING;
                 // process the records
-                boolean firstInBatch = true;
                 for (IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> result : results) {
-                    if (firstInBatch) {
-                        // update the batch start pointer to the next batch
-                        batchStartPointer = result.getPointer();
-                        firstInBatch = false;
-                    }
+                    lastProcessedPointer = result.getPointer();
 
                     // check if the message is already processed
                     if (isProcessed(result.getPointer())) {
@@ -231,6 +231,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 // for future reads, we do not need to include the batch start pointer, and read from the last successful pointer.
                 includeBatchStartPointer = false;
             } catch (Throwable e) {
+                encounteredError = true;
                 logger.error("Error in polling the shard {}: {}", consumer.getShardId(), e);
                 errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.POLLING);
 
