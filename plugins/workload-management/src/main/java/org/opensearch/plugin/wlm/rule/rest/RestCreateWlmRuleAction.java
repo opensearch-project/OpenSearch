@@ -47,7 +47,7 @@ public class RestCreateWlmRuleAction extends RestCreateRuleAction {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected <T extends ActionType<? extends CreateRuleResponse>> T retrieveCreateRuleActionInstance() {
+    protected <T extends ActionType<CreateRuleResponse>> T retrieveCreateRuleActionInstance() {
         return (T) CreateWlmRuleAction.INSTANCE;
     }
 

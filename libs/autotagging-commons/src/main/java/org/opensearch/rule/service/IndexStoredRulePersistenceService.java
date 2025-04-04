@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -57,7 +58,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final ClusterService clusterService;
     private final Client client;
     private final FeatureType featureType;
-    private final int maxRulesPerGetRequest;
+    private final int maxRulesPerPage;
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
     private static final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
 
@@ -68,20 +69,20 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param clusterService - The clusterService used in IndexStoredRulePersistenceService.
      * @param client - The OpenSearch client used to interact with the OpenSearch cluster.
      * @param featureType - The feature type associated with the stored rules.
-     * @param maxRulesPerGetRequest - The maximum number of rules that can be returned in a single get request.
+     * @param maxRulesPerPage - The maximum number of rules that can be returned in a single get request.
      */
     public IndexStoredRulePersistenceService(
         String indexName,
         ClusterService clusterService,
         Client client,
         FeatureType featureType,
-        int maxRulesPerGetRequest
+        int maxRulesPerPage
     ) {
         this.indexName = indexName;
         this.clusterService = clusterService;
         this.client = client;
         this.featureType = featureType;
-        this.maxRulesPerGetRequest = maxRulesPerGetRequest;
+        this.maxRulesPerPage = maxRulesPerPage;
     }
 
     /**
@@ -124,16 +125,19 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
             getRuleFromIndex(null, rule.getAttributeMap(), null, new ActionListener<>() {
                 @Override
                 public void onResponse(GetRuleResponse getRuleResponse) {
-                    String duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(rule.getAttributeMap(), getRuleResponse.getRules());
-                    if (duplicateRuleId != null) {
+                    Optional<String> duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(
+                        rule.getAttributeMap(),
+                        getRuleResponse.getRules()
+                    );
+                    duplicateRuleId.map(id -> {
                         listener.onFailure(
-                            new IllegalArgumentException(
-                                "A rule that has the same attribute values already exists under rule id " + duplicateRuleId
-                            )
+                            new IllegalArgumentException("A rule that has the same attribute values already exists under rule id " + id)
                         );
-                        return;
-                    }
-                    persistRule(rule, listener);
+                        return null;
+                    }).orElseGet(() -> {
+                        persistRule(rule, listener);
+                        return null;
+                    });
                 }
 
                 @Override
@@ -161,7 +165,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                 listener.onFailure(e);
             }));
         } catch (IOException e) {
-            logger.error("Error saving rule to index: {}", indexName, e);
+            logger.error("Error saving rule to index: {}", indexName);
             listener.onFailure(new RuntimeException("Failed to save rule to index."));
         }
     }
@@ -187,7 +191,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof ResourceAlreadyExistsException) {
-                        logger.info("Index {} already exists", indexName);
+                        logger.trace("Index {} already exists", indexName);
                         listener.onResponse(true);
                     } else {
                         logger.error("Failed to create index {}: {}", indexName, e.getMessage());
@@ -217,7 +221,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         // actions within this block are trusted and executed with system-level privileges.
         try (ThreadContext.StoredContext context = getContext()) {
             BoolQueryBuilder boolQuery = IndexStoredRuleUtils.buildGetRuleQuery(id, attributeFilters, featureType);
-            SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(boolQuery).setSize(maxRulesPerGetRequest);
+            SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(boolQuery).setSize(maxRulesPerPage);
             if (searchAfter != null) {
                 searchRequest.addSort(_ID_STRING, SortOrder.ASC).searchAfter(new Object[] { searchAfter });
             }

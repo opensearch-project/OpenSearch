@@ -20,9 +20,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.rule.RuleTestUtils._ID_ONE;
-import static org.opensearch.rule.RuleTestUtils.assertEqualRules;
-import static org.opensearch.rule.RuleTestUtils.ruleOne;
+import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRules;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
 import static org.mockito.Mockito.mock;
 
 public class CreateRuleResponseTests extends OpenSearchTestCase {
@@ -53,7 +53,7 @@ public class CreateRuleResponseTests extends OpenSearchTestCase {
             + "  \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n"
             + "  \"description\" : \"description_1\",\n"
             + "  \"mock_attribute_one\" : [\n"
-            + "    \"pattern_1\"\n"
+            + "    \"mock_attribute_one\"\n"
             + "  ],\n"
             + "  \"mock_feature_type\" : \"feature_value_one\",\n"
             + "  \"updated_at\" : \"2024-01-26T08:58:57.558Z\"\n"

@@ -26,9 +26,9 @@ import java.util.HashMap;
 
 import org.mockito.ArgumentCaptor;
 
-import static org.opensearch.rule.RuleTestUtils.TEST_INDEX_NAME;
-import static org.opensearch.rule.RuleTestUtils.ruleOne;
-import static org.opensearch.rule.RuleTestUtils.setUpIndexStoredRulePersistenceService;
+import static org.opensearch.rule.utils.RuleTestUtils.TEST_INDEX_NAME;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
+import static org.opensearch.rule.utils.RuleTestUtils.setUpIndexStoredRulePersistenceService;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
