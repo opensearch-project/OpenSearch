@@ -13,6 +13,9 @@ dependencies {
   implementation project(":libs:agent-sm:bootstrap")
   implementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 var bootClasspath = configurations.bootstrap.incoming.artifactView { }.files
@@ -35,8 +38,8 @@ compileJava {
   options.compilerArgs -= '-Werror'
 }
 
-test.enabled = false
 testingConventions.enabled = false
+tasks.named('forbiddenApisTest').configure { onlyIf { false } }
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
@@ -61,4 +64,13 @@ thirdPartyAudit {
 
 tasks.named('validateNebulaPom') {
   dependsOn prepareAgent
+}
+
+tasks.test {
+  dependsOn prepareAgent
+  jvmArgs += ["-javaagent:" + project.jar.archiveFile.get()]
+}
+
+tasks.check {
+  dependsOn test
 }

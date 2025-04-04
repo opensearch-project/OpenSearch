@@ -293,6 +293,15 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionAction;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionAction;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateAction;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
@@ -2144,6 +2153,42 @@ public abstract class AbstractClient implements Client {
         /** Create a view */
         public ActionFuture<GetViewAction.Response> updateView(CreateViewAction.Request request) {
             return execute(UpdateViewAction.INSTANCE, request);
+        }
+
+        /** Pause ingestion */
+        @Override
+        public ActionFuture<PauseIngestionResponse> pauseIngestion(final PauseIngestionRequest request) {
+            return execute(PauseIngestionAction.INSTANCE, request);
+        }
+
+        /** Pause ingestion */
+        @Override
+        public void pauseIngestion(final PauseIngestionRequest request, final ActionListener<PauseIngestionResponse> listener) {
+            execute(PauseIngestionAction.INSTANCE, request, listener);
+        }
+
+        /** Resume ingestion */
+        @Override
+        public ActionFuture<ResumeIngestionResponse> resumeIngestion(final ResumeIngestionRequest request) {
+            return execute(ResumeIngestionAction.INSTANCE, request);
+        }
+
+        /** Resume ingestion */
+        @Override
+        public void resumeIngestion(final ResumeIngestionRequest request, final ActionListener<ResumeIngestionResponse> listener) {
+            execute(ResumeIngestionAction.INSTANCE, request, listener);
+        }
+
+        /** Get ingestion state */
+        @Override
+        public ActionFuture<GetIngestionStateResponse> getIngestionState(final GetIngestionStateRequest request) {
+            return execute(GetIngestionStateAction.INSTANCE, request);
+        }
+
+        /** Get ingestion state */
+        @Override
+        public void getIngestionState(final GetIngestionStateRequest request, final ActionListener<GetIngestionStateResponse> listener) {
+            execute(GetIngestionStateAction.INSTANCE, request, listener);
         }
     }
 

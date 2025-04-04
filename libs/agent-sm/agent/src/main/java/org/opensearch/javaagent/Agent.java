@@ -64,8 +64,10 @@ public class Agent {
         ClassInjector.UsingUnsafe.ofBootLoader()
             .inject(
                 Map.of(
-                    new TypeDescription.ForLoadedType(StackCallerChainExtractor.class),
-                    ClassFileLocator.ForClassLoader.read(StackCallerChainExtractor.class),
+                    new TypeDescription.ForLoadedType(StackCallerProtectionDomainChainExtractor.class),
+                    ClassFileLocator.ForClassLoader.read(StackCallerProtectionDomainChainExtractor.class),
+                    new TypeDescription.ForLoadedType(StackCallerClassChainExtractor.class),
+                    ClassFileLocator.ForClassLoader.read(StackCallerClassChainExtractor.class),
                     new TypeDescription.ForLoadedType(AgentPolicy.class),
                     ClassFileLocator.ForClassLoader.read(AgentPolicy.class)
                 )
@@ -77,7 +79,19 @@ public class Agent {
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
             .ignore(ElementMatchers.none())
             .type(systemType)
-            .transform(transformer);
+            .transform(transformer)
+            .type(ElementMatchers.is(java.lang.System.class))
+            .transform(
+                (b, typeDescription, classLoader, module, pd) -> b.visit(
+                    Advice.to(SystemExitInterceptor.class).on(ElementMatchers.named("exit"))
+                )
+            )
+            .type(ElementMatchers.is(java.lang.Runtime.class))
+            .transform(
+                (b, typeDescription, classLoader, module, pd) -> b.visit(
+                    Advice.to(RuntimeHaltInterceptor.class).on(ElementMatchers.named("halt"))
+                )
+            );
 
         return agentBuilder;
     }

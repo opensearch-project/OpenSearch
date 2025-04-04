@@ -52,7 +52,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -123,10 +122,8 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
     private static final AtomicInteger nodeIdGenerator = new AtomicInteger();
 
     protected DiscoveryNode createNode(Version version, DiscoveryNodeRole... mustHaveRoles) {
-        Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
-        Collections.addAll(roles, mustHaveRoles);
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, version);
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), Set.of(mustHaveRoles), version);
     }
 
     protected DiscoveryNode createNode(DiscoveryNodeRole... mustHaveRoles) {

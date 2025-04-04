@@ -233,7 +233,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
         // balance the shard, if a better node can be found
         final String idxName = shard.getIndexName();
-        final float currentWeight = weight.weight(this, currentNode, idxName);
+        final float currentWeight = weight.weightWithRebalanceConstraints(this, currentNode, idxName);
         final AllocationDeciders deciders = allocation.deciders();
         Decision.Type rebalanceDecisionType = Decision.Type.NO;
         BalancedShardsAllocator.ModelNode assignedNode = null;

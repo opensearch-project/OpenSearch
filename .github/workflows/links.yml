@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: lychee Link Checker
         id: lychee
-        uses: lycheeverse/lychee-action@v2.3.0
+        uses: lycheeverse/lychee-action@v2.4.0
         with:
           args: --accept=200,403,429 --exclude-mail **/*.html **/*.md **/*.txt **/*.json --exclude-file .lychee.excludes
           fail: true
