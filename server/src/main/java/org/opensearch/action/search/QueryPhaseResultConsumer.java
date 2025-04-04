@@ -59,7 +59,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 /**
  * A {@link ArraySearchPhaseResults} implementation that incrementally reduces aggregation results
@@ -103,14 +102,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         NamedWriteableRegistry namedWriteableRegistry,
         int expectedResultSize,
         Consumer<Exception> onPartialMergeFailure,
-        Supplier<Boolean> isTaskCancelled
+        BooleanSupplier isTaskCancelled
     ) {
         super(expectedResultSize);
         this.executor = executor;
         this.circuitBreaker = circuitBreaker;
         this.controller = controller;
         this.progressListener = progressListener;
-        this.aggReduceContextBuilder = controller.getReduceContext(request);
+        this.aggReduceContextBuilder = controller.getReduceContext(request, isTaskCancelled);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.topNSize = SearchPhaseController.getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();

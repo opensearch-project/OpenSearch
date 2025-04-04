@@ -213,6 +213,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             multiBucketConsumer.accept(size);
         }
 
+        public boolean isTaskCancelled() {
+            return isTaskCancelled.getAsBoolean();
+        }
+
     }
 
     protected final String name;

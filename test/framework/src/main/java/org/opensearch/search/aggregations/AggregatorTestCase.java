@@ -728,7 +728,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
                 root.context().bigArrays(),
                 getMockScriptService(),
-                () -> PipelineAggregator.PipelineTree.EMPTY
+                () -> PipelineAggregator.PipelineTree.EMPTY,
+                () -> false
             );
             A reduced = (A) aggs.get(0).reduce(toReduce, context);
             aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
@@ -744,7 +745,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             root.context().bigArrays(),
             getMockScriptService(),
             reduceBucketConsumer,
-            pipelines
+            pipelines,
+            () -> false
         );
 
         @SuppressWarnings("unchecked")
@@ -818,7 +820,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             countingAggregator.context().bigArrays(),
             getMockScriptService(),
             reduceBucketConsumer,
-            pipelines
+            pipelines,
+            () -> false
         );
 
         @SuppressWarnings("unchecked")

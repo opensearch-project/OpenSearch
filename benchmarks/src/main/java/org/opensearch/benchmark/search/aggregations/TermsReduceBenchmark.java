@@ -84,6 +84,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 import static java.util.Collections.emptyList;
 
@@ -96,12 +97,13 @@ import static java.util.Collections.emptyList;
 public class TermsReduceBenchmark {
     private final SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    private final BooleanSupplier isTaskCancelled = () -> false;
     private final SearchPhaseController controller = new SearchPhaseController(
         namedWriteableRegistry,
         req -> new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY);
+                return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY, isTaskCancelled);
             }
 
             @Override
@@ -114,7 +116,8 @@ public class TermsReduceBenchmark {
                     null,
                     null,
                     bucketConsumer,
-                    PipelineAggregator.PipelineTree.EMPTY
+                    PipelineAggregator.PipelineTree.EMPTY,
+                    isTaskCancelled
                 );
             }
         }
@@ -229,7 +232,8 @@ public class TermsReduceBenchmark {
             SearchProgressListener.NOOP,
             namedWriteableRegistry,
             shards.size(),
-            exc -> {}
+            exc -> {},
+            isTaskCancelled
         );
         CountDownLatch latch = new CountDownLatch(shards.size());
         for (int i = 0; i < shards.size(); i++) {

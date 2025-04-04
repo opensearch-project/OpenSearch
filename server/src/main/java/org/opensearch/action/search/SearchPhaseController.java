@@ -78,10 +78,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -93,11 +93,11 @@ public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final BiFunction<SearchSourceBuilder, BooleanSupplier, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
 
     public SearchPhaseController(
         NamedWriteableRegistry namedWriteableRegistry,
-        Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder
+        BiFunction<SearchSourceBuilder, BooleanSupplier, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder
     ) {
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
@@ -745,8 +745,8 @@ public final class SearchPhaseController {
         }
     }
 
-    InternalAggregation.ReduceContextBuilder getReduceContext(SearchRequest request) {
-        return requestToAggReduceContextBuilder.apply(request.source());
+    InternalAggregation.ReduceContextBuilder getReduceContext(SearchRequest request, BooleanSupplier isTaskCancelled) {
+        return requestToAggReduceContextBuilder.apply(request.source(), isTaskCancelled);
     }
 
     /**
@@ -759,7 +759,7 @@ public final class SearchPhaseController {
         SearchRequest request,
         int numShards,
         Consumer<Exception> onPartialMergeFailure,
-        Supplier<Boolean> isCancelled
+        BooleanSupplier isCancelled
     ) {
         return new QueryPhaseResultConsumer(
             request,

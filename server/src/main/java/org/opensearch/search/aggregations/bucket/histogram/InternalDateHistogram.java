@@ -36,6 +36,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.Rounding;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregations;
@@ -323,6 +324,10 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     }
 
     private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        if (reduceContext.isTaskCancelled()) {
+            throw new TaskCancelledException("task is cancelled, stopping aggregations");
+        }
+
         final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<IteratorAndCurrent<Bucket>>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {

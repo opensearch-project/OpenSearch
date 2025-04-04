@@ -36,6 +36,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.SiblingPipelineAggregator;
@@ -132,6 +133,9 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */
     public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
+        if (context.isTaskCancelled()) {
+            throw new TaskCancelledException("task is cancelled, stopping aggregations");
+        }
         InternalAggregations reduced = reduce(aggregationsList, context);
         if (reduced == null) {
             return null;
@@ -162,6 +166,10 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
         if (aggregationsList.isEmpty()) {
             return null;
+        }
+
+        if (context.isTaskCancelled()) {
+            throw new TaskCancelledException("task is cancelled, stopping aggregations");
         }
 
         // first we collect all aggregations of the same type and list them together
