@@ -823,7 +823,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ),
 
                 // Setting related to refresh optimisations
-                IndicesService.CLUSTER_REFRESH_FIXED_INTERVAL_SCHEDULE_ENABLED_SETTING
+                IndicesService.CLUSTER_REFRESH_FIXED_INTERVAL_SCHEDULE_ENABLED_SETTING,
+                IndicesService.CLUSTER_REFRESH_SHARD_LEVEL_ENABLED_SETTING
             )
         )
     );

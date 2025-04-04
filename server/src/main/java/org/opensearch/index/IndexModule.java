@@ -631,6 +631,7 @@ public final class IndexModule {
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings
     ) throws IOException {
@@ -655,6 +656,7 @@ public final class IndexModule {
             translogFactorySupplier,
             clusterDefaultRefreshIntervalSupplier,
             fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
             recoverySettings,
             remoteStoreSettings,
             (s) -> {},
@@ -683,6 +685,7 @@ public final class IndexModule {
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
         Consumer<IndexShard> replicator,
@@ -745,6 +748,7 @@ public final class IndexModule {
                 translogFactorySupplier,
                 clusterDefaultRefreshIntervalSupplier,
                 fixedRefreshIntervalSchedulingEnabled,
+                shardLevelRefreshEnabled.get(),
                 recoverySettings,
                 remoteStoreSettings,
                 fileCache,
