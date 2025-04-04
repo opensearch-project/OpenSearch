@@ -57,7 +57,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
 
         Engine.Operation operation = processor.getOperation(
-            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload))
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), 0)
         );
 
         assertTrue(operation instanceof Engine.Index);
@@ -72,7 +72,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
         Engine.Operation operation = processor.getOperation(
-            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload))
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), 0)
         );
 
         assertTrue(operation instanceof Engine.Delete);
@@ -85,7 +85,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
         Engine.Operation operation = processor.getOperation(
-            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload))
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), 0)
         );
         assertNull(operation);
 
@@ -93,7 +93,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         payload = "{\"_id\":\"1\", \"_source\":1}".getBytes(StandardCharsets.UTF_8);
 
         operation = processor.getOperation(
-            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload))
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), 0)
         );
         assertNull(operation);
     }
@@ -103,7 +103,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
         Engine.Operation operation = processor.getOperation(
-            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload))
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), 0)
         );
         assertNull(operation);
     }
