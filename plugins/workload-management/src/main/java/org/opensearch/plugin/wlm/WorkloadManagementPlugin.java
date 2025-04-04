@@ -68,7 +68,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     /**
      * The maximum number of rules allowed per GET request.
      */
-    public static final int MAX_RULES_PER_GET_REQUEST = 50;
+    public static final int MAX_RULES_PER_PAGE = 50;
 
     /**
      * Default constructor
@@ -89,9 +89,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        return List.of(
-            new IndexStoredRulePersistenceService(INDEX_NAME, client, QueryGroupFeatureType.INSTANCE, MAX_RULES_PER_GET_REQUEST)
-        );
+        return List.of(new IndexStoredRulePersistenceService(INDEX_NAME, client, QueryGroupFeatureType.INSTANCE, MAX_RULES_PER_PAGE));
     }
 
     @Override

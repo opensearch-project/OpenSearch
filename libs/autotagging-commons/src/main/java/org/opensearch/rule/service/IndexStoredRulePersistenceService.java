@@ -47,7 +47,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final String indexName;
     private final Client client;
     private final FeatureType featureType;
-    private final int maxRulesPerGetRequest;
+    private final int maxRulesPerPage;
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
 
     /**
@@ -56,13 +56,13 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param indexName - The name of the OpenSearch index where the rules are stored.
      * @param client - The OpenSearch client used to interact with the OpenSearch cluster.
      * @param featureType - The feature type associated with the stored rules.
-     * @param maxRulesPerGetRequest - The maximum number of rules that can be returned in a single get request.
+     * @param maxRulesPerPage - The maximum number of rules that can be returned in a single get request.
      */
-    public IndexStoredRulePersistenceService(String indexName, Client client, FeatureType featureType, int maxRulesPerGetRequest) {
+    public IndexStoredRulePersistenceService(String indexName, Client client, FeatureType featureType, int maxRulesPerPage) {
         this.indexName = indexName;
         this.client = client;
         this.featureType = featureType;
-        this.maxRulesPerGetRequest = maxRulesPerGetRequest;
+        this.maxRulesPerPage = maxRulesPerPage;
     }
 
     /**
@@ -93,7 +93,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         // actions within this block are trusted and executed with system-level privileges.
         try (ThreadContext.StoredContext context = getContext()) {
             BoolQueryBuilder boolQuery = IndexStoredRuleUtils.buildGetRuleQuery(id, attributeFilters, featureType);
-            SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(boolQuery).setSize(maxRulesPerGetRequest);
+            SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(boolQuery).setSize(maxRulesPerPage);
             if (searchAfter != null) {
                 searchRequest.addSort(_ID_STRING, SortOrder.ASC).searchAfter(new Object[] { searchAfter });
             }

@@ -10,16 +10,16 @@ package org.opensearch.rule.action;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.rule.RuleTestUtils;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
 
-import static org.opensearch.rule.RuleTestUtils.ATTRIBUTE_MAP;
-import static org.opensearch.rule.RuleTestUtils.MockRuleFeatureType;
-import static org.opensearch.rule.RuleTestUtils.SEARCH_AFTER;
-import static org.opensearch.rule.RuleTestUtils._ID_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_MAP;
+import static org.opensearch.rule.utils.RuleTestUtils.MockRuleFeatureType;
+import static org.opensearch.rule.utils.RuleTestUtils.SEARCH_AFTER;
+import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 
 public class GetRuleRequestTests extends OpenSearchTestCase {
 

@@ -10,14 +10,13 @@ package org.opensearch.rule.utils;
 
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.rule.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
 
-import static org.opensearch.rule.RuleTestUtils.ATTRIBUTE_MAP;
-import static org.opensearch.rule.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
-import static org.opensearch.rule.RuleTestUtils._ID_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_MAP;
+import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 
 public class IndexStoredRuleUtilsTests extends OpenSearchTestCase {
     public void testBuildGetRuleQuery_WithId() {
