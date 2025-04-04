@@ -787,11 +787,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
-     * Defines the number of processor threads that will write to the lucene index.
+     * Defines the number of processor threads that will write to the lucene index. This setting is currently disabled
+     * and will be allowed once the feature is ready. A default value of 1 will be used.
      */
     public static final String SETTING_INGESTION_SOURCE_NUM_PROCESSOR_THREADS = "index.ingestion_source.num_processor_threads";
     public static final Setting<Integer> INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING = Setting.intSetting(
         SETTING_INGESTION_SOURCE_NUM_PROCESSOR_THREADS,
+        1,
         1,
         1,
         Setting.Property.IndexScope,

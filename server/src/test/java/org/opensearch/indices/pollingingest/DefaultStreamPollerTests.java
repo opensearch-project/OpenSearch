@@ -372,6 +372,37 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         assertEquals(DefaultStreamPoller.State.POLLING, poller.getState());
     }
 
+    public void testInitialConsumerReadTransientError() throws TimeoutException, InterruptedException {
+        messages.add("{\"_id\":\"3\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
+        messages.add("{\"_id\":\"4\",\"_source\":{\"name\":\"alice\", \"age\": 21}}".getBytes(StandardCharsets.UTF_8));
+
+        DropIngestionErrorStrategy mockErrorStrategy = spy(new DropIngestionErrorStrategy("ingestion_source"));
+        processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(5), processor, mockErrorStrategy);
+        PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
+        FakeIngestionSource.FakeIngestionConsumer consumerSpy = spy(fakeConsumer);
+
+        // fail consumer's first poll attempt
+        doThrow(new RuntimeException("failed to poll messages")).doCallRealMethod()
+            .when(consumerSpy)
+            .readNext(any(), anyBoolean(), anyLong(), anyInt());
+
+        poller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            persistedPointers,
+            consumerSpy,
+            blockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            mockErrorStrategy,
+            StreamPoller.State.NONE
+        );
+        poller.start();
+        Thread.sleep(sleepTime);
+
+        verify(mockErrorStrategy, times(1)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.POLLING));
+        assertEquals(4, blockingQueueContainer.getTotalProcessedCount());
+    }
+
     public void testUpdateErrorStrategy() {
         assertTrue(poller.getErrorStrategy() instanceof DropIngestionErrorStrategy);
         assertTrue(processorRunnable.getErrorStrategy() instanceof DropIngestionErrorStrategy);

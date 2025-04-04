@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 import static org.awaitility.Awaitility.await;
 
 /**
- * Integration test for Kafka ingestion.
+ * Integration test for Kafka ingestion
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
@@ -138,30 +138,11 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         client().admin().indices().close(Requests.closeIndexRequest(indexName)).get();
     }
 
-    public void testKafkaIngestionWithMultipleProcessorThreads() throws Exception {
-        for (int i = 1; i <= 2000; i++) {
-            produceData(String.valueOf(i), "name" + i, "25");
-        }
-        createIndexWithDefaultSettings(indexName, 1, 0, 3);
-        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(21);
-        waitForState(() -> {
-            refresh(indexName);
-            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
-            assertThat(response.getHits().getTotalHits().value(), is(2000L));
-            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
-                .getPollingIngestStats();
-            assertNotNull(stats);
-            assertThat(stats.getMessageProcessorStats().getTotalProcessedCount(), is(2000L));
-            assertThat(stats.getConsumerStats().getTotalPolledCount(), is(2000L));
-            return true;
-        });
-    }
-
     public void testUpdateAndDelete() throws Exception {
         // Step 1: Produce message and wait for it to be searchable
 
         produceData("1", "name", "25", defaultMessageTimestamp, "index");
-        createIndexWithDefaultSettings(indexName, 1, 0, 3);
+        createIndexWithDefaultSettings(1, 0);
         ensureGreen(indexName);
         waitForState(() -> {
             BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));

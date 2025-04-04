@@ -232,7 +232,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 includeBatchStartPointer = false;
             } catch (Throwable e) {
                 encounteredError = true;
-                logger.error("Error in polling the shard {}: {}", consumer.getShardId(), e);
+                logger.error("Error in polling the shard {}, lastProcessedPointer {}: {}", consumer.getShardId(), lastProcessedPointer, e);
                 errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.POLLING);
 
                 if (!errorStrategy.shouldIgnoreError(e, IngestionErrorStrategy.ErrorStage.POLLING)) {
