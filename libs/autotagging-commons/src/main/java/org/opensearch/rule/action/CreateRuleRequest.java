@@ -18,6 +18,14 @@ import java.io.IOException;
 
 /**
  * A request for create Rule
+ * Example request:
+ * Note that the endpoint below is for wlm rules specifically and serves only as an example
+ * curl -XPUT "localhost:9200/_wlm/rule/" -H 'Content-Type: application/json' -d '
+ * {
+ *      "description": "description1",
+ *      "index_pattern": ["log*", "event*"],
+ *      "query_group": "poOiU851RwyLYvV5lbvv5w"
+ * }'
  * @opensearch.experimental
  */
 public class CreateRuleRequest extends ActionRequest {

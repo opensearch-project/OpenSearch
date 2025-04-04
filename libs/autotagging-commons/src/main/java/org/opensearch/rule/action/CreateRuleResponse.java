@@ -12,7 +12,6 @@ import org.opensearch.autotagging.Rule;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -24,23 +23,28 @@ import static org.opensearch.autotagging.Rule._ID_STRING;
 
 /**
  * Response for the create API for Rule
+ * Example response:
+ * {
+ *    "_id":"wi6VApYBoX5wstmtU_8l",
+ *    "description":"description1",
+ *    "index_pattern":["log*", "uvent*"],
+ *    "query_group":"poOiU851RwyLYvV5lbvv5w",
+ *    "updated_at":"2025-04-04T20:54:22.406Z"
+ * }
  * @opensearch.experimental
  */
 public class CreateRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final String _id;
     private final Rule rule;
-    private final RestStatus restStatus;
 
     /**
      * contructor for CreateRuleResponse
      * @param id - the id for the rule created
      * @param rule - the rule created
-     * @param restStatus - the status of CreateRuleResponse
      */
-    public CreateRuleResponse(String id, final Rule rule, RestStatus restStatus) {
+    public CreateRuleResponse(String id, final Rule rule) {
         this._id = id;
         this.rule = rule;
-        this.restStatus = restStatus;
     }
 
     /**
@@ -50,14 +54,12 @@ public class CreateRuleResponse extends ActionResponse implements ToXContent, To
     public CreateRuleResponse(StreamInput in) throws IOException {
         _id = in.readString();
         rule = new Rule(in);
-        restStatus = RestStatus.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(_id);
         rule.writeTo(out);
-        RestStatus.writeTo(out, restStatus);
     }
 
     @Override
@@ -70,12 +72,5 @@ public class CreateRuleResponse extends ActionResponse implements ToXContent, To
      */
     public Rule getRule() {
         return rule;
-    }
-
-    /**
-     * restStatus getter
-     */
-    public RestStatus getRestStatus() {
-        return restStatus;
     }
 }

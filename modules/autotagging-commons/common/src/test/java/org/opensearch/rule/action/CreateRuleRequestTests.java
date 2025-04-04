@@ -14,8 +14,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.rule.RuleTestUtils.assertEqualRule;
-import static org.opensearch.rule.RuleTestUtils.ruleOne;
+import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRule;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
 
 public class CreateRuleRequestTests extends OpenSearchTestCase {
 

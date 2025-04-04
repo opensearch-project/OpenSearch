@@ -28,7 +28,7 @@ public class IndexStoredRuleParser {
     /**
      * constructor for IndexStoredRuleParser
      */
-    public IndexStoredRuleParser() {}
+    private IndexStoredRuleParser() {}
 
     private static final Logger logger = LogManager.getLogger(IndexStoredRuleParser.class);
 

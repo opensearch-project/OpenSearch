@@ -15,6 +15,7 @@ import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.autotagging.Rule._ID_STRING;
@@ -28,7 +29,7 @@ public class IndexStoredRuleUtils {
     /**
      * constructor for IndexStoredRuleUtils
      */
-    public IndexStoredRuleUtils() {}
+    private IndexStoredRuleUtils() {}
 
     /**
      * Builds a Boolean query to retrieve a rule by its ID or attribute filters.
@@ -57,18 +58,30 @@ public class IndexStoredRuleUtils {
     }
 
     /**
-     * Checks if a rule with the same attribute map already exists in the provided rule map and return its id.
-     * @param attributeMapToValidate The attribute map to be validated against existing rules.
-     * @param ruleMap A map of existing rules where the key is the rule ID and the value is the Rule object.
+     * Checks if a duplicate rule exists based on the attribute map.
+     * A rule is considered a duplicate when the attribute value already exists in the index, and the number of
+     * attributes in the new rule is equal to the number of attributes in an existing rule.
+     *
+     * For example, if an existing rule has:
+     *   attribute1 = ['a'] and attribute2 = ['c']
+     * And we are creating a new rule with:
+     *   attribute1 = ['a']
+     * Then it's not a duplicate because the existing rule has attribute2 and is more granular
+     *
+     * @param rule The rule to be validated against ruleMap.
+     * @param ruleMap This map entries are Rules that contain the attribute values from rule, meaning they
+     *                have a partial or complete overlap with the new rule being created.
      */
-    public static String getDuplicateRuleId(Map<Attribute, Set<String>> attributeMapToValidate, Map<String, Rule> ruleMap) {
+    public static Optional<String> getDuplicateRuleId(Rule rule, Map<String, Rule> ruleMap) {
+        Map<Attribute, Set<String>> attributeMapToValidate = rule.getAttributeMap();
         for (Map.Entry<String, Rule> entry : ruleMap.entrySet()) {
             String ruleId = entry.getKey();
             Rule currRule = entry.getValue();
+            // Compare the size of the attribute maps to ensure we only check for duplicates with the same number of attributes.
             if (attributeMapToValidate.size() == currRule.getAttributeMap().size()) {
-                return ruleId;
+                return Optional.of(ruleId);
             }
         }
-        return null;
+        return Optional.empty();
     }
 }
