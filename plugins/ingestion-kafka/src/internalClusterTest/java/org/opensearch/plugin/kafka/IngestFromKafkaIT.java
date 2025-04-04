@@ -15,7 +15,9 @@ import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -73,8 +75,8 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
     }
 
     public void testKafkaIngestion_RewindByTimeStamp() {
-        produceData("1", "name1", "24", 1739459500000L);
-        produceData("2", "name2", "20", 1739459800000L);
+        produceData("1", "name1", "24", 1739459500000L, "index");
+        produceData("2", "name2", "20", 1739459800000L, "index");
 
         // create an index with ingestion source from kafka
         createIndex(
@@ -136,28 +138,13 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         client().admin().indices().close(Requests.closeIndexRequest(indexName)).get();
     }
 
-    public void testKafkaIngestionWithMultipleProcessorThreads() {
+    public void testKafkaIngestionWithMultipleProcessorThreads() throws Exception {
         for (int i = 1; i <= 100; i++) {
             produceData(String.valueOf(i), "name" + i, "25");
         }
-
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("ingestion_source.type", "kafka")
-                .put("ingestion_source.pointer.init.reset", "earliest")
-                .put("ingestion_source.param.topic", topicName)
-                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
-                .put("index.replication.type", "SEGMENT")
-                .put("ingestion_source.num_processor_threads", 3)
-                .build(),
-            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
-        );
-
+        createIndexWithDefaultSettings(indexName, 1, 0, 3);
         RangeQueryBuilder query = new RangeQueryBuilder("age").gte(21);
-        await().atMost(60, TimeUnit.SECONDS).untilAsserted(() -> {
+        waitForState(() -> {
             refresh(indexName);
             SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(100L));
@@ -166,8 +153,39 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             assertNotNull(stats);
             assertThat(stats.getMessageProcessorStats().getTotalProcessedCount(), is(100L));
             assertThat(stats.getConsumerStats().getTotalPolledCount(), is(100L));
+            return true;
+        });
+    }
+
+    public void testUpdateAndDelete() throws Exception {
+        // Step 1: Produce message and wait for it to be searchable
+
+        produceData("1", "name", "25", defaultMessageTimestamp, "index");
+        createIndexWithDefaultSettings(indexName, 1, 0, 3);
+        ensureGreen(indexName);
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 25 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
         });
 
-        // todo: add validation to verify updates go into same partition once upsert is supported
+        // Step 2: Update age field from 25 to 30 and validate
+
+        produceData("1", "name", "30", defaultMessageTimestamp, "index");
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 30 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
+        });
+
+        // Step 3: Delete the document and validate
+        produceData("1", "name", "30", defaultMessageTimestamp, "delete");
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            return response.getHits().getTotalHits().value() == 0;
+        });
     }
 }

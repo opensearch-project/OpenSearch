@@ -83,9 +83,9 @@ public class PartitionedBlockingQueueContainer {
     }
 
     /**
-     * Initialize a single partition for the provided messageProcessorRunnable.
+     * Initialize a single partition for the provided messageProcessorRunnable. This method is for testing purpose only.
      */
-    public PartitionedBlockingQueueContainer(MessageProcessorRunnable messageProcessorRunnable, int shardId) {
+    PartitionedBlockingQueueContainer(MessageProcessorRunnable messageProcessorRunnable, int shardId) {
         partitionToQueueMap = new ConcurrentHashMap<>();
         partitionToMessageProcessorMap = new ConcurrentHashMap<>();
         partitionToProcessorExecutorMap = new ConcurrentHashMap<>();
