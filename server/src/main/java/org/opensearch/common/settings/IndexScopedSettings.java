@@ -98,6 +98,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
                 IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
+                IndexMetadata.INDEX_AUTO_EXPAND_SEARCH_REPLICAS_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,

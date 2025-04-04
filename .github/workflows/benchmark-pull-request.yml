@@ -167,7 +167,7 @@ jobs:
       - name: Trigger jenkins workflow to run gradle check
         run: |
           cat $GITHUB_ENV
-          bash opensearch-build/scripts/benchmark/benchmark-pull-request.sh ${{ secrets.JENKINS_PR_BENCHMARK_GENERIC_WEBHOOK_TOKEN }}
+          bash opensearch-build/scripts/benchmark/benchmark-pull-request.sh -t ${{ secrets.JENKINS_PR_BENCHMARK_GENERIC_WEBHOOK_TOKEN }} -u ${{ secrets.JENKINS_GITHUB_USER}} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN}}
       - name: Update PR with Job Url
         uses: actions/github-script@v7
         with:
