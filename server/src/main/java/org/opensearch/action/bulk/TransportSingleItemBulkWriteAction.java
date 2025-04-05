@@ -50,7 +50,6 @@ import org.opensearch.transport.TransportService;
  *
  * @opensearch.internal
  */
-@Deprecated
 public abstract class TransportSingleItemBulkWriteAction<
     Request extends ReplicatedWriteRequest<Request>,
     Response extends ReplicationResponse & WriteResponse> extends HandledTransportAction<Request, Response> {
