@@ -15,7 +15,9 @@ import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -32,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 import static org.awaitility.Awaitility.await;
 
 /**
- * Integration test for Kafka ingestion.
+ * Integration test for Kafka ingestion
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
@@ -73,8 +75,8 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
     }
 
     public void testKafkaIngestion_RewindByTimeStamp() {
-        produceData("1", "name1", "24", 1739459500000L);
-        produceData("2", "name2", "20", 1739459800000L);
+        produceData("1", "name1", "24", 1739459500000L, "index");
+        produceData("2", "name2", "20", 1739459800000L, "index");
 
         // create an index with ingestion source from kafka
         createIndex(
@@ -134,5 +136,37 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         createIndexWithDefaultSettings(1, 0);
         ensureGreen(indexName);
         client().admin().indices().close(Requests.closeIndexRequest(indexName)).get();
+    }
+
+    public void testUpdateAndDelete() throws Exception {
+        // Step 1: Produce message and wait for it to be searchable
+
+        produceData("1", "name", "25", defaultMessageTimestamp, "index");
+        createIndexWithDefaultSettings(1, 0);
+        ensureGreen(indexName);
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 25 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
+        });
+
+        // Step 2: Update age field from 25 to 30 and validate
+
+        produceData("1", "name", "30", defaultMessageTimestamp, "index");
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 30 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
+        });
+
+        // Step 3: Delete the document and validate
+        produceData("1", "name", "30", defaultMessageTimestamp, "delete");
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            return response.getHits().getTotalHits().value() == 0;
+        });
     }
 }

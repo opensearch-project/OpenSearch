@@ -23,18 +23,21 @@ public class IngestionSource {
     private String type;
     private PointerInitReset pointerInitReset;
     private IngestionErrorStrategy.ErrorStrategy errorStrategy;
+    private int numMessageProcessorThreads;
     private Map<String, Object> params;
 
     public IngestionSource(
         String type,
         PointerInitReset pointerInitReset,
         IngestionErrorStrategy.ErrorStrategy errorStrategy,
+        int numMessageProcessorThreads,
         Map<String, Object> params
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
         this.params = params;
         this.errorStrategy = errorStrategy;
+        this.numMessageProcessorThreads = numMessageProcessorThreads;
     }
 
     public String getType() {
@@ -53,6 +56,10 @@ public class IngestionSource {
         return params;
     }
 
+    public int getNumMessageProcessorThreads() {
+        return numMessageProcessorThreads;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -61,12 +68,13 @@ public class IngestionSource {
         return Objects.equals(type, ingestionSource.type)
             && Objects.equals(pointerInitReset, ingestionSource.pointerInitReset)
             && Objects.equals(errorStrategy, ingestionSource.errorStrategy)
-            && Objects.equals(params, ingestionSource.params);
+            && Objects.equals(params, ingestionSource.params)
+            && Objects.equals(numMessageProcessorThreads, ingestionSource.numMessageProcessorThreads);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, pointerInitReset, params, errorStrategy);
+        return Objects.hash(type, pointerInitReset, params, errorStrategy, numMessageProcessorThreads);
     }
 
     @Override
@@ -80,6 +88,9 @@ public class IngestionSource {
             + '\''
             + ",error_strategy='"
             + errorStrategy
+            + '\''
+            + ",numMessageProcessorThreads='"
+            + numMessageProcessorThreads
             + '\''
             + ", params="
             + params
