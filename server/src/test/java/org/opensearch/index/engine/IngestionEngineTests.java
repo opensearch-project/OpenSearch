@@ -35,6 +35,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.mockito.Mockito;
+
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -126,6 +128,11 @@ public class IngestionEngineTests extends EngineTestCase {
         ingestionEngine.close();
         ingestionEngine = buildIngestionEngine(new AtomicLong(0), ingestionEngineStore, indexSettings);
         waitForResults(ingestionEngine, 4);
+    }
+
+    public void testPushAPIFailures() {
+        assertThrows(IngestionEngineException.class, () -> ingestionEngine.index(Mockito.any(Engine.Index.class)));
+        assertThrows(IngestionEngineException.class, () -> ingestionEngine.delete(Mockito.any(Engine.Delete.class)));
     }
 
     public void testCreationFailure() throws IOException {
