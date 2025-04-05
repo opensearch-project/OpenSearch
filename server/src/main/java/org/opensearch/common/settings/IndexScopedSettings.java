@@ -109,6 +109,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_BLOCKS_METADATA_SETTING,
                 IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING,
                 IndexMetadata.INDEX_PRIORITY_SETTING,
+                IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING,
                 IndexMetadata.INDEX_DATA_PATH_SETTING,
                 IndexMetadata.INDEX_FORMAT_SETTING,
                 IndexMetadata.INDEX_HIDDEN_SETTING,
