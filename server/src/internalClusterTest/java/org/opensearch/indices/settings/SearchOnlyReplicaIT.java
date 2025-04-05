@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.settings;
 
+import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.ClusterState;
@@ -30,6 +31,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.core.IsEqual.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
@@ -234,6 +237,80 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         String nodeId = response.getHits().getAt(0).getShard().getNodeId();
         IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
         assertEquals(nodeId, indexShardRoutingTable.searchOnlyReplicas().get(0).currentNodeId());
+    }
+
+    public void testSearchReplicaRoutingPreferenceWhenSearchReplicaUnassigned() {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createIndex(TEST_INDEX, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1).build());
+        ensureYellow(TEST_INDEX);
+        client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        // By default cluster.routing.search_only.strict is set as true
+        // When cluster.routing.search_only.strict is set as true, and no assigned search replica is available,
+        // search request will fail since it will route only to search replica but it's not available
+        Throwable throwable = assertThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch(TEST_INDEX).setPreference(null).setQuery(QueryBuilders.matchAllQuery()).get()
+        );
+
+        assertEquals("all shards failed", throwable.getMessage());
+
+        // Set cluster.routing.search_only.strict as false
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.search_only.strict", false))
+            .get();
+
+        // When cluster.routing.search_only.strict is set as false, and no assigned search replica is available;
+        // search request will fall back to querying writers
+        SearchResponse response = client().prepareSearch(TEST_INDEX).setPreference(null).setQuery(QueryBuilders.matchAllQuery()).get();
+
+        String nodeId = response.getHits().getAt(0).getShard().getNodeId();
+        IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
+        assertEquals(nodeId, indexShardRoutingTable.primaryShard().currentNodeId());
+    }
+
+    public void testSearchReplicaRoutingPreferenceWhenSearchReplicaAssigned() {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createIndex(TEST_INDEX, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1).build());
+        ensureYellow(TEST_INDEX);
+        client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        internalCluster().startSearchOnlyNode();
+        ensureGreen(TEST_INDEX);
+
+        // By default cluster.routing.search_only.strict is set as true
+        // When cluster.routing.search_only.strict is set as true, and assigned search replica is available;
+        // search request will succeed
+        SearchResponse response = client().prepareSearch(TEST_INDEX).setPreference(null).setQuery(QueryBuilders.matchAllQuery()).get();
+
+        String nodeId = response.getHits().getAt(0).getShard().getNodeId();
+        IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
+        assertEquals(nodeId, indexShardRoutingTable.searchOnlyReplicas().get(0).currentNodeId());
+
+        // Set cluster.routing.search_only.strict as false
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.search_only.strict", false))
+            .get();
+
+        // When cluster.routing.search_only.strict is set as false, and assigned search replica is available;
+        // search request can land on either writer or reader
+        response = client().prepareSearch(TEST_INDEX).setPreference(null).setQuery(QueryBuilders.matchAllQuery()).get();
+
+        nodeId = response.getHits().getAt(0).getShard().getNodeId();
+        indexShardRoutingTable = getIndexShardRoutingTable();
+        assertThat(
+            nodeId,
+            anyOf(
+                equalTo(indexShardRoutingTable.primaryShard().currentNodeId()),
+                equalTo(indexShardRoutingTable.searchOnlyReplicas().get(0).currentNodeId())
+            )
+        );
     }
 
     public void testUnableToAllocateSearchReplicaWontBlockRegularReplicaAllocation() {
