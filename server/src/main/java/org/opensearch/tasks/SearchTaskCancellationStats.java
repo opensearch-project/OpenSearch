@@ -13,15 +13,15 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import java.io.IOException;
 
 /**
- * Holds monitoring service stats specific to search shard task.
+ * Holds monitoring service stats specific to search task.
  */
-public class SearchShardTaskCancellationStats extends BaseSearchTaskCancellationStats {
+public class SearchTaskCancellationStats extends BaseSearchTaskCancellationStats {
 
-    public SearchShardTaskCancellationStats(long currentTaskCount, long totalTaskCount) {
+    public SearchTaskCancellationStats(long currentTaskCount, long totalTaskCount) {
         super(currentTaskCount, totalTaskCount);
     }
 
-    public SearchShardTaskCancellationStats(StreamInput in) throws IOException {
+    public SearchTaskCancellationStats(StreamInput in) throws IOException {
         super(in);
     }
 }
