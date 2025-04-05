@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-grant {
-  permission java.net.SocketPermission "*", "connect,resolve";
-  permission java.net.NetPermission "accessUnixDomainSocket";
-};
+/**
+ * Java Agent Policy
+ */
+package org.opensearch;
