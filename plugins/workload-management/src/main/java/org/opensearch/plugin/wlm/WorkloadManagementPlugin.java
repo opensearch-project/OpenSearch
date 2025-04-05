@@ -36,7 +36,9 @@ import org.opensearch.plugin.wlm.rest.RestCreateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestDeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
+import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 import org.opensearch.plugin.wlm.rule.action.GetRuleAction;
+import org.opensearch.plugin.wlm.rule.action.GetWlmRuleAction;
 import org.opensearch.plugin.wlm.rule.action.TransportGetRuleAction;
 import org.opensearch.plugin.wlm.rule.rest.RestGetRuleAction;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
@@ -46,6 +48,7 @@ import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rule.rest.RestGetRuleAction;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -55,6 +58,8 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Plugin class for WorkloadManagement
@@ -122,7 +127,12 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new RestGetWorkloadGroupAction(),
             new RestDeleteWorkloadGroupAction(),
             new RestUpdateWorkloadGroupAction(),
-            new RestGetRuleAction()
+            new RestGetRuleAction(
+                "get_rule",
+                List.of(new RestHandler.Route(GET, "_wlm/rule/"), new RestHandler.Route(GET, "_wlm/rule/{_id}")),
+                QueryGroupFeatureType.INSTANCE,
+                GetWlmRuleAction.INSTANCE
+            )
         );
     }
 

@@ -16,12 +16,15 @@ import org.opensearch.index.query.QueryBuilders;
 import java.util.Map;
 import java.util.Set;
 
+import jdk.jfr.Experimental;
+
 import static org.opensearch.autotagging.Rule._ID_STRING;
 
 /**
  * Utility class that provides methods for the lifecycle of rules.
  * @opensearch.experimental
  */
+@Experimental
 public class IndexStoredRuleUtils {
 
     /**

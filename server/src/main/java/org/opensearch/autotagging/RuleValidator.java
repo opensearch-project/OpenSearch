@@ -80,6 +80,10 @@ public class RuleValidator {
         return str == null || str.isEmpty();
     }
 
+    public static boolean isEmpty(String str) {
+        return str != null && str.isEmpty();
+    }
+
     private List<String> validateFeatureType() {
         if (featureType == null) {
             return List.of("Couldn't identify which feature the rule belongs to. Rule feature can't be null.");

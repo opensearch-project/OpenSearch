@@ -12,6 +12,7 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.FeatureType;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -19,6 +20,10 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import static org.opensearch.autotagging.Rule._ID_STRING;
+import static org.opensearch.autotagging.RuleValidator.isEmpty;
+import static org.opensearch.rule.rest.RestGetRuleAction.SEARCH_AFTER_STRING;
 
 /**
  * A request for get Rule
@@ -29,6 +34,7 @@ import java.util.Set;
  * curl -X GET "localhost:9200/_wlm/rule?index_pattern=a,b" - get all rules containing attribute index_pattern as a or b
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class GetRuleRequest extends ActionRequest {
     private final String id;
     private final Map<Attribute, Set<String>> attributeFilters;
@@ -63,6 +69,12 @@ public class GetRuleRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
+        if (isEmpty(id)) {
+            throw new IllegalArgumentException(_ID_STRING + " cannot be empty.");
+        }
+        if (isEmpty(searchAfter)) {
+            throw new IllegalArgumentException(SEARCH_AFTER_STRING + " cannot be empty.");
+        }
         return null;
     }
 
