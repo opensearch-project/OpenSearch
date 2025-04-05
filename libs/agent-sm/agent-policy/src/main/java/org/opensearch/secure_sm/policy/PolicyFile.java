@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.PropertyPermission;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @SuppressWarnings("removal")
 public class PolicyFile extends java.security.Policy {
@@ -46,6 +47,18 @@ public class PolicyFile extends java.security.Policy {
         "javax.security.auth.AuthPermission",
         "javax.security.auth.kerberos.ServicePermission"
     );
+
+    public static final Set<Class<?>> KNOWN_PERM_CLASSES = Set.of(
+        SocketPermission.class,
+        FilePermission.class,
+        AllPermission.class,
+        RuntimePermission.class,
+        PropertyPermission.class,
+        NetPermission.class,
+        SecurityPermission.class
+    );
+
+    private static final Set<String> PERM_CLASSES_TO_ALLOW = KNOWN_PERM_CLASSES.stream().map(Class::getName).collect(Collectors.toSet());
 
     private static final int DEFAULT_CACHE_SIZE = 1;
     private volatile PolicyInfo policyInfo;
@@ -124,9 +137,10 @@ public class PolicyFile extends java.security.Policy {
                 // these were mostly custom permission classes added for security
                 // manager. Since security manager is deprecated, we can skip these
                 // permissions classes.
-                if (PERM_CLASSES_TO_SKIP.contains(pe.permission)) {
-                    continue; // skip this permission
+                if (!PERM_CLASSES_TO_ALLOW.contains(pe.permission)) {
+                    continue;
                 }
+
                 throw new PolicyInitializationException("Permission class not found: " + pe.permission, e);
             }
         }
