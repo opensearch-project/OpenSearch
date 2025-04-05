@@ -12,25 +12,34 @@
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description = 'Arrow flight based Stream implementation'
+  description = 'Arrow flight based transport and stream implementation. It also provides Arrow vector and memory dependencies as' +
+    'an extended-plugin at runtime; consumers should take a compile time dependency and not runtime on this project.\'\n'
   classname = 'org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin'
 }
 
 dependencies {
-  implementation project(':libs:opensearch-arrow-spi')
+  // all transitive dependencies exported to use arrow-vector and arrow-memory-core
+  api "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
+  api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  api "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "org.apache.arrow:arrow-vector:${versions.arrow}"
+  api "org.apache.arrow:arrow-format:${versions.arrow}"
+
   compileOnly 'org.checkerframework:checker-qual:3.44.0'
+  api "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
 
-  implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-format:${versions.arrow}"
+  // arrow flight dependencies.
   implementation "org.apache.arrow:flight-core:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
 
-  runtimeOnly "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
-  runtimeOnly "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
-
-  implementation "io.netty:netty-buffer:${versions.netty}"
-  implementation "io.netty:netty-common:${versions.netty}"
-
+  // since netty-common will be added by opensearch-arrow-core at runtime, so declaring them as compileOnly
+  // compileOnly "io.netty:netty-common:${versions.netty}"
   implementation "io.netty:netty-codec:${versions.netty}"
   implementation "io.netty:netty-codec-http:${versions.netty}"
   implementation "io.netty:netty-codec-http2:${versions.netty}"
@@ -41,28 +50,21 @@ dependencies {
   implementation "io.netty:netty-transport-classes-epoll:${versions.netty}"
   implementation "io.netty:netty-tcnative-classes:2.0.66.Final"
 
-  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
-
   implementation "io.grpc:grpc-api:${versions.grpc}"
   runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
   implementation "io.grpc:grpc-stub:${versions.grpc}"
   implementation "io.grpc:grpc-netty:${versions.grpc}"
+  implementation "com.google.errorprone:error_prone_annotations:2.31.0"
 
   runtimeOnly group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.2'
-  compileOnly 'org.immutables:value:2.10.1'
   annotationProcessor 'org.immutables:value:2.10.1'
 
   runtimeOnly 'io.perfmark:perfmark-api:0.27.0'
   runtimeOnly 'org.apache.parquet:parquet-arrow:1.13.1'
   runtimeOnly "io.grpc:grpc-protobuf-lite:${versions.grpc}"
   runtimeOnly "io.grpc:grpc-protobuf:${versions.grpc}"
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
   runtimeOnly "com.google.guava:failureaccess:1.0.1"
-  compileOnly "com.google.errorprone:error_prone_annotations:2.31.0"
   runtimeOnly('com.google.guava:guava:33.3.1-jre') {
     attributes {
       attribute(Attribute.of('org.gradle.jvm.environment', String), 'standard-jvm')
@@ -88,6 +90,7 @@ internalClusterTest {
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
 }
 
 spotless {
@@ -120,6 +123,19 @@ tasks.named('forbiddenApisMain').configure {
 
 tasks.named('thirdPartyAudit').configure {
   ignoreMissingClasses(
+    'org.apache.commons.logging.Log',
+    'org.apache.commons.logging.LogFactory',
+
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder',
+
+    // from Log4j (deliberate, Netty will fallback to Log4j 2)
+    'org.apache.log4j.Level',
+    'org.apache.log4j.Logger',
+
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
     'com.google.gson.stream.JsonReader',
     'com.google.gson.stream.JsonToken',
     'org.apache.parquet.schema.GroupType',
@@ -157,18 +173,6 @@ tasks.named('thirdPartyAudit').configure {
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
     // classes are missing
-
-    // from io.netty.logging.CommonsLoggerFactory (netty)
-    'org.apache.commons.logging.Log',
-    'org.apache.commons.logging.LogFactory',
-
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
-
-    // from Log4j (deliberate, Netty will fallback to Log4j 2)
-    'org.apache.log4j.Level',
-    'org.apache.log4j.Logger',
 
     // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
     'org.bouncycastle.cert.X509v3CertificateBuilder',
@@ -223,9 +227,6 @@ tasks.named('thirdPartyAudit').configure {
     'org.conscrypt.BufferAllocator',
     'org.conscrypt.Conscrypt',
     'org.conscrypt.HandshakeListener',
-
-    'reactor.blockhound.BlockHound$Builder',
-    'reactor.blockhound.integration.BlockHoundIntegration',
 
     'com.google.protobuf.util.Timestamps'
   )
@@ -288,7 +289,7 @@ tasks.named('thirdPartyAudit').configure {
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
-     'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
@@ -296,6 +297,5 @@ tasks.named('thirdPartyAudit').configure {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
     'org.apache.arrow.memory.util.MemoryUtil',
     'org.apache.arrow.memory.util.MemoryUtil$1'
-
   )
 }
