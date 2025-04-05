@@ -10,6 +10,7 @@ package org.opensearch.plugin.wlm.rule.rest;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.autotagging.Attribute;
+import org.opensearch.autotagging.FeatureType;
 import org.opensearch.plugin.wlm.rule.QueryGroupAttribute;
 import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 import org.opensearch.plugin.wlm.rule.action.GetWlmRuleAction;
@@ -47,7 +48,7 @@ public class RestGetWlmRuleAction extends RestGetRuleAction {
     }
 
     @Override
-    protected Attribute getAttributeFromName(String name) {
+    public Attribute getAttributeFromName(String name) {
         return QueryGroupAttribute.fromName(name);
     }
 
@@ -55,6 +56,11 @@ public class RestGetWlmRuleAction extends RestGetRuleAction {
     @SuppressWarnings("unchecked")
     protected <T extends ActionType<GetRuleResponse>> T retrieveGetRuleActionInstance() {
         return (T) GetWlmRuleAction.INSTANCE;
+    }
+
+    @Override
+    protected FeatureType retrieveFeatureTypeInstance() {
+        return QueryGroupFeatureType.INSTANCE;
     }
 
     @Override

@@ -119,7 +119,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         Map<String, Rule> ruleMap = hits.stream()
             .collect(Collectors.toMap(SearchHit::getId, hit -> IndexStoredRuleParser.parseRule(hit.getSourceAsString(), featureType)));
         String nextSearchAfter = hits.isEmpty() ? null : hits.get(hits.size() - 1).getId();
-        listener.onResponse(new GetRuleResponse(ruleMap, nextSearchAfter, RestStatus.OK));
+        listener.onResponse(new GetRuleResponse(ruleMap, nextSearchAfter));
     }
 
     private ThreadContext.StoredContext getContext() {

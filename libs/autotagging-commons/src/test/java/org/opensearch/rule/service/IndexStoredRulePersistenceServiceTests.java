@@ -55,7 +55,6 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         verify(listener).onResponse(responseCaptor.capture());
         GetRuleResponse response = responseCaptor.getValue();
         assertEquals(response.getRules().size(), 1);
-        assertEquals(RestStatus.OK, response.getRestStatus());
     }
 
     public void testGetRuleByIdNotFound() {

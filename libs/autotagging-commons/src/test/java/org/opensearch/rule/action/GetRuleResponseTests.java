@@ -36,7 +36,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
     public void testSerializationSingleRule() throws IOException {
         Map<String, Rule> map = new HashMap<>();
         map.put(_ID_ONE, ruleOne);
-        GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), null, RestStatus.OK);
+        GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), null);
         assertEquals(response.getRules(), map);
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -44,7 +44,6 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
         StreamInput streamInput = out.bytes().streamInput();
 
         GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
-        assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEqualRules(response.getRules(), otherResponse.getRules(), false);
     }
 
@@ -52,7 +51,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleResponse when the result contains multiple rules
      */
     public void testSerializationMultipleRule() throws IOException {
-        GetRuleResponse response = new GetRuleResponse(ruleMap(), SEARCH_AFTER, RestStatus.OK);
+        GetRuleResponse response = new GetRuleResponse(ruleMap(), SEARCH_AFTER);
         assertEquals(response.getRules(), ruleMap());
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -60,7 +59,6 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
         StreamInput streamInput = out.bytes().streamInput();
 
         GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
-        assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEquals(2, otherResponse.getRules().size());
         assertEqualRules(response.getRules(), otherResponse.getRules(), false);
     }
@@ -70,7 +68,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      */
     public void testSerializationNull() throws IOException {
         Map<String, Rule> map = new HashMap<>();
-        GetRuleResponse response = new GetRuleResponse(map, SEARCH_AFTER, RestStatus.OK);
+        GetRuleResponse response = new GetRuleResponse(map, SEARCH_AFTER);
         assertEquals(response.getRules(), map);
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -78,7 +76,6 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
         StreamInput streamInput = out.bytes().streamInput();
 
         GetRuleResponse otherResponse = new GetRuleResponse(streamInput);
-        assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEquals(0, otherResponse.getRules().size());
     }
 
@@ -88,7 +85,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
     public void testToXContentGetSingleRule() throws IOException {
         Map<String, Rule> map = new HashMap<>();
         map.put(_ID_ONE, ruleOne);
-        GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), SEARCH_AFTER, RestStatus.OK);
+        GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), SEARCH_AFTER);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
@@ -115,7 +112,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      */
     public void testToXContentGetZeroRule() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        GetRuleResponse otherResponse = new GetRuleResponse(new HashMap<>(), null, RestStatus.OK);
+        GetRuleResponse otherResponse = new GetRuleResponse(new HashMap<>(), null);
         String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n" + "  \"rules\" : [ ]\n" + "}";
         assertEquals(expected, actual);

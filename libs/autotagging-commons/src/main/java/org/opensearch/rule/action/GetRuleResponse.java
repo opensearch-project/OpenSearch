@@ -9,6 +9,7 @@
 package org.opensearch.rule.action;
 
 import org.opensearch.autotagging.Rule;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -40,21 +41,19 @@ import static org.opensearch.autotagging.Rule._ID_STRING;
  * }
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class GetRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final Map<String, Rule> rules;
     private final String searchAfter;
-    private final RestStatus restStatus;
 
     /**
      * Constructor for GetRuleResponse
      * @param rules - Rules get from the request
      * @param searchAfter - The sort value used for pagination.
-     * @param restStatus - Status of the GetRuleResponse
      */
-    public GetRuleResponse(final Map<String, Rule> rules, String searchAfter, RestStatus restStatus) {
+    public GetRuleResponse(final Map<String, Rule> rules, String searchAfter) {
         this.rules = rules;
         this.searchAfter = searchAfter;
-        this.restStatus = restStatus;
     }
 
     /**
@@ -62,14 +61,13 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
      * @param in - The {@link StreamInput} instance to read from.
      */
     public GetRuleResponse(StreamInput in) throws IOException {
-        this(in.readMap(StreamInput::readString, Rule::new), in.readOptionalString(), RestStatus.readFrom(in));
+        this(in.readMap(StreamInput::readString, Rule::new), in.readOptionalString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(rules, StreamOutput::writeString, (outStream, rule) -> rule.writeTo(outStream));
         out.writeOptionalString(searchAfter);
-        RestStatus.writeTo(out, restStatus);
     }
 
     @Override
@@ -92,12 +90,5 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
      */
     public Map<String, Rule> getRules() {
         return rules;
-    }
-
-    /**
-     * restStatus getter
-     */
-    public RestStatus getRestStatus() {
-        return restStatus;
     }
 }

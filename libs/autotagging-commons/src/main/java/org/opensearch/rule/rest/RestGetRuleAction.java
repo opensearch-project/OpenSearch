@@ -10,6 +10,8 @@ package org.opensearch.rule.rest;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.autotagging.Attribute;
+import org.opensearch.autotagging.FeatureType;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.rest.BaseRestHandler;
@@ -36,6 +38,7 @@ import static org.opensearch.autotagging.Rule._ID_STRING;
  * Rest action to get a Rule
  * @opensearch.experimental
  */
+@ExperimentalApi
 public abstract class RestGetRuleAction extends BaseRestHandler {
     /**
      * field name used for pagination
@@ -60,8 +63,7 @@ public abstract class RestGetRuleAction extends BaseRestHandler {
             if (attributeName.equals(_ID_STRING) || attributeName.equals(SEARCH_AFTER_STRING)) {
                 continue;
             }
-            String[] valuesArray = request.param(attributeName).split(",");
-            attributeFilters.put(getAttributeFromName(attributeName), new HashSet<>(Arrays.asList(valuesArray)));
+            attributeFilters.put(getAttributeFromName(attributeName), parseAttributeValues(request.param(attributeName), attributeName));
         }
         final GetRuleRequest getRuleRequest = buildGetRuleRequest(
             request.param(_ID_STRING),
@@ -69,6 +71,25 @@ public abstract class RestGetRuleAction extends BaseRestHandler {
             request.param(SEARCH_AFTER_STRING)
         );
         return channel -> client.execute(retrieveGetRuleActionInstance(), getRuleRequest, getRuleResponse(channel));
+    }
+
+    /**
+     * Parses a comma-separated string of attribute values and validates each value.
+     * @param attributeValues - the comma-separated string representing attributeValues
+     * @param attributeName - attribute name
+     */
+    public HashSet<String> parseAttributeValues(String attributeValues, String attributeName) {
+        String[] valuesArray = attributeValues.split(",");
+        int maxNumberOfValuesPerAttribute = retrieveFeatureTypeInstance().getMaxNumberOfValuesPerAttribute();
+        if (valuesArray.length > maxNumberOfValuesPerAttribute) {
+            throw new IllegalArgumentException("The attribute value length for " + attributeName + " exceeds the maximum allowed of " + maxNumberOfValuesPerAttribute);
+        }
+        for (String value : valuesArray) {
+            if (value == null || value.trim().isEmpty() || value.length() > retrieveFeatureTypeInstance().getMaxCharLengthPerAttributeValue()) {
+                throw new IllegalArgumentException("Invalid attribute value for: " + attributeName + " : String cannot be empty or over ");
+            }
+        }
+        return new HashSet<>(Arrays.asList(valuesArray));
     }
 
     private RestResponseListener<GetRuleResponse> getRuleResponse(final RestChannel channel) {
@@ -85,12 +106,17 @@ public abstract class RestGetRuleAction extends BaseRestHandler {
      * to the attribute name.
      * @param name - The name of the attribute to retrieve.
      */
-    protected abstract Attribute getAttributeFromName(String name);
+    public abstract Attribute getAttributeFromName(String name);
 
     /**
      * Abstract method for subclasses to provide specific ActionType Instance
      */
     protected abstract <T extends ActionType<GetRuleResponse>> T retrieveGetRuleActionInstance();
+
+    /**
+     * Abstract method for subclasses to provide specific FeatureType Instance
+     */
+    protected abstract FeatureType retrieveFeatureTypeInstance();
 
     /**
      * Abstract method for subclasses to construct a {@link GetRuleRequest}. This method allows subclasses
