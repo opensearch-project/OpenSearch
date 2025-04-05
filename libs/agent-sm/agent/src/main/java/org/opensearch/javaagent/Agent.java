@@ -82,11 +82,7 @@ public class Agent {
         );
 
         final AgentBuilder.Transformer fileTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
-            Advice.withCustomMapping()
-                .bind(FileInterceptor.Mutations.class, "copy,createDirectories,createFile,createLink,move,newByteChannel,write")
-                .bind(FileInterceptor.Deletions.class, "delete,deleteIfExists")
-                .to(FileInterceptor.class)
-                .on(ElementMatchers.namedOneOf(INTERCEPTED_METHODS).or(ElementMatchers.isAbstract()))
+            Advice.to(FileInterceptor.class).on(ElementMatchers.namedOneOf(INTERCEPTED_METHODS).or(ElementMatchers.isAbstract()))
         );
 
         ClassInjector.UsingUnsafe.ofBootLoader()
