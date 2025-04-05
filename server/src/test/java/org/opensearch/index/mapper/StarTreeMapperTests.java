@@ -43,6 +43,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.opensearch.index.compositeindex.CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
@@ -53,15 +54,16 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
  * Tests for {@link StarTreeMapper}.
  */
 public class StarTreeMapperTests extends MapperTestCase {
+    FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
 
     @Before
     public void setup() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
+        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
     }
 
     @After
     public void teardown() {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        ffLock.close();
     }
 
     @Override

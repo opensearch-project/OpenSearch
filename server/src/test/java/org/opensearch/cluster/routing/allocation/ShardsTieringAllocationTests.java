@@ -15,23 +15,17 @@ import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
-import org.opensearch.test.FeatureFlagSetter;
-import org.junit.Before;
 
 import static org.opensearch.cluster.routing.RoutingPool.LOCAL_ONLY;
 import static org.opensearch.cluster.routing.RoutingPool.REMOTE_CAPABLE;
 import static org.opensearch.cluster.routing.RoutingPool.getIndexPool;
+import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG;
 import static org.opensearch.index.IndexModule.INDEX_STORE_LOCALITY_SETTING;
 
 public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase {
 
-    @Before
-    public void setup() {
-        FeatureFlagSetter.set(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG);
-    }
-
+    @LockFeatureFlag(WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
     public void testShardsInLocalPool() {
         int localOnlyNodes = 5;
         int remoteCapableNodes = 3;
@@ -52,6 +46,7 @@ public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase 
         }
     }
 
+    @LockFeatureFlag(WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
     public void testShardsInRemotePool() {
         int localOnlyNodes = 7;
         int remoteCapableNodes = 3;
@@ -72,6 +67,7 @@ public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase 
         }
     }
 
+    @LockFeatureFlag(WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
     public void testShardsWithTiering() {
         int localOnlyNodes = 15;
         int remoteCapableNodes = 13;
@@ -104,6 +100,7 @@ public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase 
         }
     }
 
+    @LockFeatureFlag(WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
     public void testShardPoolForPartialIndices() {
         String index = "test-index";
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
@@ -118,6 +115,7 @@ public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase 
         assertEquals(REMOTE_CAPABLE, indexPool);
     }
 
+    @LockFeatureFlag(WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
     public void testShardPoolForFullIndices() {
         String index = "test-index";
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
