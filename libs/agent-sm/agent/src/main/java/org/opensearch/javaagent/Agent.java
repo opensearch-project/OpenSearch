@@ -14,7 +14,6 @@ import java.lang.instrument.Instrumentation;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.Map;
 
 import net.bytebuddy.ByteBuddy;
@@ -39,14 +38,18 @@ public class Agent {
     /**
      * List of methods that are intercepted
      */
-    public static final String[] INTERCEPTED_METHODS = new ArrayList<String>() {
-        {
-            addAll(FileInterceptor.MUTATING_OPERATIONS);
-            addAll(FileInterceptor.DELETE_OPERATIONS);
-            add("read");
-            add("open");
-        }
-    }.toArray(String[]::new);
+    public static final String[] INTERCEPTED_METHODS = {
+        "write",
+        "createFile",
+        "createDirectories",
+        "createLink",
+        "copy",
+        "move",
+        "newByteChannel",
+        "delete",
+        "deleteIfExists",
+        "read",
+        "open" };
 
     /**
      * Premain
@@ -79,7 +82,11 @@ public class Agent {
         );
 
         final AgentBuilder.Transformer fileTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
-            Advice.to(FileInterceptor.class).on(ElementMatchers.namedOneOf(INTERCEPTED_METHODS).or(ElementMatchers.isAbstract()))
+            Advice.withCustomMapping()
+                .bind(FileInterceptor.Mutations.class, "copy,createDirectories,createFile,createLink,move,newByteChannel,write")
+                .bind(FileInterceptor.Deletions.class, "delete,deleteIfExists")
+                .to(FileInterceptor.class)
+                .on(ElementMatchers.namedOneOf(INTERCEPTED_METHODS).or(ElementMatchers.isAbstract()))
         );
 
         ClassInjector.UsingUnsafe.ofBootLoader()
@@ -90,9 +97,7 @@ public class Agent {
                     new TypeDescription.ForLoadedType(StackCallerClassChainExtractor.class),
                     ClassFileLocator.ForClassLoader.read(StackCallerClassChainExtractor.class),
                     new TypeDescription.ForLoadedType(AgentPolicy.class),
-                    ClassFileLocator.ForClassLoader.read(AgentPolicy.class),
-                    new TypeDescription.ForLoadedType(FileInterceptor.class),
-                    ClassFileLocator.ForClassLoader.read(FileInterceptor.class)
+                    ClassFileLocator.ForClassLoader.read(AgentPolicy.class)
                 )
             );
 

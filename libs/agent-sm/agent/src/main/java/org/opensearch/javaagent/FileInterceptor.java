@@ -11,13 +11,17 @@ package org.opensearch.javaagent;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.io.FilePermission;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collection;
-import java.util.Set;
 
 import net.bytebuddy.asm.Advice;
 
@@ -25,28 +29,22 @@ import net.bytebuddy.asm.Advice;
  * FileInterceptor
  */
 public class FileInterceptor {
+    @Documented
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.PARAMETER)
+    public @interface Mutations {
+    }
+
+    @Documented
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.PARAMETER)
+    public @interface Deletions {
+    }
+
     /**
      * FileInterceptor
      */
     public FileInterceptor() {}
-
-    // Byte-buddy needs it to be public to be able to access this field
-    /**
-     * Set of File Operations that are checked for isMutating flag
-     */
-    public static final Set<String> MUTATING_OPERATIONS = Set.of(
-        "write",
-        "createFile",
-        "createDirectories",
-        "createLink",
-        "copy",
-        "move",
-        "newByteChannel"
-    );
-    /**
-     * Set of File Operations that are checked for isDelete flag
-     */
-    public static final Set<String> DELETE_OPERATIONS = Set.of("delete", "deleteIfExists");
 
     /**
      * Intercepts file operations
@@ -56,8 +54,13 @@ public class FileInterceptor {
      * @throws Exception exceptions
      */
     @Advice.OnMethodEnter
-    @SuppressWarnings("removal")
-    public static void intercept(@Advice.AllArguments Object[] args, @Advice.Origin Method method) throws Exception {
+    @SuppressWarnings({ "removal", "deprecation" })
+    public static void intercept(
+        @Advice.AllArguments Object[] args,
+        @Advice.Origin Method method,
+        @Mutations String mutations,
+        @Deletions String deletions
+    ) throws Exception {
         final Policy policy = AgentPolicy.getPolicy();
         if (policy == null) {
             return; /* noop */
@@ -77,8 +80,8 @@ public class FileInterceptor {
         final StackWalker walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
         final Collection<ProtectionDomain> callers = walker.walk(StackCallerProtectionDomainChainExtractor.INSTANCE);
 
-        boolean isMutating = MUTATING_OPERATIONS.contains(method.getName());
-        boolean isDelete = DELETE_OPERATIONS.contains(method.getName());
+        final boolean isMutating = mutations.matches(".*\\b" + method.getName() + "\\b.*");
+        final boolean isDelete = deletions.matches(".*\\b" + method.getName() + "\\b.*");
 
         // Check each permission separately
         for (final ProtectionDomain domain : callers) {
