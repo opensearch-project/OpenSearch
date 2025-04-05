@@ -111,6 +111,7 @@ public interface StreamProducer<VectorRoot, Allocator> extends Closeable {
     /**
      * BatchedJob interface for producing stream data in batches.
      */
+    @ExperimentalApi
     interface BatchedJob<VectorRoot> {
 
         /**
@@ -144,6 +145,7 @@ public interface StreamProducer<VectorRoot, Allocator> extends Closeable {
      * Functional interface for managing stream consumption signals.
      */
     @FunctionalInterface
+    @ExperimentalApi
     interface FlushSignal {
         /**
          * Blocks until the current batch has been consumed or timeout occurs.
