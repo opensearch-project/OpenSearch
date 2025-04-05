@@ -187,6 +187,36 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     }
 
     /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Considerations:
+     *    1. When using doc values, for multi value field, result would be in sorted order
+     *    2. For "half_float", there might be precision loss, when using doc values(stored as HalfFloatPoint) as
+     *       compared to stored field(stored as float)
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
+            @Override
+            public Object convert(Object value) {
+                Long val = (Long) value;
+                if (val == null) {
+                    return null;
+                }
+                return mappedFieldType.valueForDisplay(type.toDoubleValue(val));
+            }
+        }, new StoredFieldFetcher(mappedFieldType, simpleName()));
+    }
+
+    @Override
+    protected void canDeriveSourceInternal() {
+        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [ " + name() + "] with stored and docValues disabled");
+        }
+    }
+
+    /**
      * Type of number
      *
      * @opensearch.internal
@@ -966,6 +996,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             Number valueForSearch(String value) {
                 return Integer.parseInt(value);
             }
+
+            @Override
+            Number valueForSearch(Number value) {
+                return value.intValue();
+            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -1097,6 +1132,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             Number valueForSearch(String value) {
                 return Long.parseLong(value);
+            }
+
+            @Override
+            Number valueForSearch(Number value) {
+                return value.longValue();
             }
         },
         UNSIGNED_LONG("unsigned_long", NumericType.UNSIGNED_LONG) {
