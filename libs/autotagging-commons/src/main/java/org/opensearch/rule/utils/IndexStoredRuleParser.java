@@ -19,10 +19,13 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import jdk.jfr.Experimental;
+
 /**
  * Utility class for parsing index stored rules into Rule objects.
  * @opensearch.experimental
  */
+@Experimental
 public class IndexStoredRuleParser {
 
     /**
@@ -44,8 +47,8 @@ public class IndexStoredRuleParser {
         ) {
             return Rule.Builder.fromXContent(parser, featureType).build();
         } catch (IOException e) {
-            logger.info("Issue met when parsing rule {}: {}", source, e.getMessage());
-            throw new RuntimeException("Cannot parse rule from index: " + source);
+            logger.info("Issue met when parsing rule : {}", e.getMessage());
+            throw new RuntimeException("Cannot parse rule from index.");
         }
     }
 }

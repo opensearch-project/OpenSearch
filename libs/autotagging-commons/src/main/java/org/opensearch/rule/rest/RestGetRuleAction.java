@@ -10,6 +10,8 @@ package org.opensearch.rule.rest;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.autotagging.Attribute;
+import org.opensearch.autotagging.FeatureType;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.rest.BaseRestHandler;
@@ -36,22 +38,40 @@ import static org.opensearch.autotagging.Rule._ID_STRING;
  * Rest action to get a Rule
  * @opensearch.experimental
  */
-public abstract class RestGetRuleAction extends BaseRestHandler {
+@ExperimentalApi
+public class RestGetRuleAction extends BaseRestHandler {
+    private final String name;
+    private final List<Route> routes;
+    private final FeatureType featureType;
+    private final ActionType<GetRuleResponse> getRuleAction;
     /**
      * field name used for pagination
      */
     public static final String SEARCH_AFTER_STRING = "search_after";
 
     /**
-     * Constructor for RestGetRuleAction
+     * constructor for RestGetRuleAction
+     * @param name - RestGetRuleAction name
+     * @param routes the list of REST routes this action handles
+     * @param featureType the feature type associated with the rule
+     * @param getRuleAction the action to execute for getting a rule
      */
-    public RestGetRuleAction() {}
+    public RestGetRuleAction(String name, List<Route> routes, FeatureType featureType, ActionType<GetRuleResponse> getRuleAction) {
+        this.name = name;
+        this.routes = routes;
+        this.featureType = featureType;
+        this.getRuleAction = getRuleAction;
+    }
 
     @Override
-    public abstract String getName();
+    public String getName() {
+        return name;
+    }
 
     @Override
-    public abstract List<Route> routes();
+    public List<Route> routes() {
+        return routes;
+    }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
@@ -60,15 +80,46 @@ public abstract class RestGetRuleAction extends BaseRestHandler {
             if (attributeName.equals(_ID_STRING) || attributeName.equals(SEARCH_AFTER_STRING)) {
                 continue;
             }
-            String[] valuesArray = request.param(attributeName).split(",");
-            attributeFilters.put(getAttributeFromName(attributeName), new HashSet<>(Arrays.asList(valuesArray)));
+            Attribute attribute = featureType.getAttributeFromName(attributeName);
+            if (attribute == null) {
+                throw new IllegalArgumentException(attributeName + " is not a valid attribute under feature type " + featureType.getName());
+            }
+            attributeFilters.put(attribute, parseAttributeValues(request.param(attributeName), attributeName));
         }
-        final GetRuleRequest getRuleRequest = buildGetRuleRequest(
+        final GetRuleRequest getRuleRequest = new GetRuleRequest(
             request.param(_ID_STRING),
             attributeFilters,
-            request.param(SEARCH_AFTER_STRING)
+            request.param(SEARCH_AFTER_STRING),
+            featureType
         );
-        return channel -> client.execute(retrieveGetRuleActionInstance(), getRuleRequest, getRuleResponse(channel));
+        return channel -> client.execute(getRuleAction, getRuleRequest, getRuleResponse(channel));
+    }
+
+    /**
+     * Parses a comma-separated string of attribute values and validates each value.
+     * @param attributeValues - the comma-separated string representing attributeValues
+     * @param attributeName - attribute name
+     */
+    private HashSet<String> parseAttributeValues(String attributeValues, String attributeName) {
+        String[] valuesArray = attributeValues.split(",");
+        int maxNumberOfValuesPerAttribute = featureType.getMaxNumberOfValuesPerAttribute();
+        if (valuesArray.length > maxNumberOfValuesPerAttribute) {
+            throw new IllegalArgumentException(
+                "The attribute value length for " + attributeName + " exceeds the maximum allowed of " + maxNumberOfValuesPerAttribute
+            );
+        }
+        for (String value : valuesArray) {
+            if (value == null || value.trim().isEmpty() || value.length() > featureType.getMaxCharLengthPerAttributeValue()) {
+                throw new IllegalArgumentException(
+                    "Invalid attribute value for: "
+                        + attributeName
+                        + " : String cannot be empty or over "
+                        + featureType.getMaxCharLengthPerAttributeValue()
+                        + " characters."
+                );
+            }
+        }
+        return new HashSet<>(Arrays.asList(valuesArray));
     }
 
     private RestResponseListener<GetRuleResponse> getRuleResponse(final RestChannel channel) {
@@ -79,26 +130,4 @@ public abstract class RestGetRuleAction extends BaseRestHandler {
             }
         };
     }
-
-    /**
-     * Abstract method for subclasses to retrieve the Attribute corresponding
-     * to the attribute name.
-     * @param name - The name of the attribute to retrieve.
-     */
-    protected abstract Attribute getAttributeFromName(String name);
-
-    /**
-     * Abstract method for subclasses to provide specific ActionType Instance
-     */
-    protected abstract <T extends ActionType<GetRuleResponse>> T retrieveGetRuleActionInstance();
-
-    /**
-     * Abstract method for subclasses to construct a {@link GetRuleRequest}. This method allows subclasses
-     * to define their own request-building logic depending on their specific needs.
-     *
-     * @param id - The ID of the rule to retrieve.
-     * @param attributeFilters - A map of {@link Attribute} keys to sets of string values for filtering.
-     * @param searchAfter - The pagination value to fetch the next set of results.
-     */
-    protected abstract GetRuleRequest buildGetRuleRequest(String id, Map<Attribute, Set<String>> attributeFilters, String searchAfter);
 }

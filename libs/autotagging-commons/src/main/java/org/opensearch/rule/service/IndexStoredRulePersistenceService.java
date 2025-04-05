@@ -18,7 +18,6 @@ import org.opensearch.autotagging.FeatureType;
 import org.opensearch.autotagging.Rule;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
@@ -82,7 +81,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param searchAfter - The sort values from the last document of the previous page, used for pagination
      * @param listener - ActionListener for GetRuleResponse
      */
-    public void getRuleFromIndex(
+    private void getRuleFromIndex(
         String id,
         Map<Attribute, Set<String>> attributeFilters,
         String searchAfter,
@@ -109,17 +108,17 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param searchResponse - Response received from index
      * @param listener - ActionListener for GetRuleResponse
      */
-    void handleGetRuleResponse(String id, SearchResponse searchResponse, ActionListener<GetRuleResponse> listener) {
+    private void handleGetRuleResponse(String id, SearchResponse searchResponse, ActionListener<GetRuleResponse> listener) {
         List<SearchHit> hits = Arrays.asList(searchResponse.getHits().getHits());
         if (id != null && hits.isEmpty()) {
             logger.error("Rule with ID " + id + " not found.");
-            listener.onFailure(new ResourceNotFoundException("Rule with ID " + id + " doesn't exist in the .rules index."));
+            listener.onFailure(new ResourceNotFoundException("Rule with ID " + id + " not found."));
             return;
         }
         Map<String, Rule> ruleMap = hits.stream()
             .collect(Collectors.toMap(SearchHit::getId, hit -> IndexStoredRuleParser.parseRule(hit.getSourceAsString(), featureType)));
         String nextSearchAfter = hits.isEmpty() ? null : hits.get(hits.size() - 1).getId();
-        listener.onResponse(new GetRuleResponse(ruleMap, nextSearchAfter, RestStatus.OK));
+        listener.onResponse(new GetRuleResponse(ruleMap, nextSearchAfter));
     }
 
     private ThreadContext.StoredContext getContext() {
