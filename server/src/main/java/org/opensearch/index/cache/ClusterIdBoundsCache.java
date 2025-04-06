@@ -87,7 +87,7 @@ public final class ClusterIdBoundsCache extends AbstractIndexComponent
         loadedBounds.invalidateAll();
     }
 
-    private void getClustersBounds(final LeafReaderContext context) throws ExecutionException, IOException {
+    private void getClustersBounds(final LeafReaderContext context) throws IOException {
         final IndexReader.CacheHelper cacheHelper = FilterLeafReader.unwrap(context.reader()).getCoreCacheHelper();
         if (cacheHelper == null) {
             throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
@@ -136,6 +136,7 @@ public final class ClusterIdBoundsCache extends AbstractIndexComponent
     /**
      * Value for cluster bounds cache
      */
+    @ExperimentalApi
     public static final class Value {
         final DocBounds bounds;
         final ShardId shardId;
@@ -149,6 +150,7 @@ public final class ClusterIdBoundsCache extends AbstractIndexComponent
     /**
      * Document bounds for a cluster
      */
+    @ExperimentalApi
     public static final class DocBounds implements Accountable {
         int lowerBound; // inclusive
         int upperBound; // exclusive
