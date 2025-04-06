@@ -17,6 +17,8 @@ import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.NetPermission;
 import java.net.SocketPermission;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -339,8 +341,7 @@ public class PolicyFile extends java.security.Policy {
         }
     }
 
-    @SuppressWarnings("deprecation")
-    private static URL newURL(String spec) throws MalformedURLException {
-        return new URL(spec);
+    private static URL newURL(String spec) throws MalformedURLException, URISyntaxException {
+        return new URI(spec).toURL();
     }
 }
