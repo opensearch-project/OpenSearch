@@ -739,6 +739,10 @@ public class QueryShardContext extends BaseQueryRewriteContext {
         return bitsetFilterCache;
     }
 
+    public ClusterIdBoundsCache getClusterIdBoundsCache() {
+        return clusterIdBoundsCache;
+    }
+
     public AggregationUsageService getUsageService() {
         return valuesSourceRegistry.getUsageService();
     }
