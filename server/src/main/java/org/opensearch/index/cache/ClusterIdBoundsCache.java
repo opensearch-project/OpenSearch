@@ -15,6 +15,8 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.cache.RemovalListener;
@@ -44,6 +46,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
  * This cache stores pre-computed document ranges for each cluster ID to optimize
  * cluster-based document retrieval.
  */
+@ExperimentalApi
 public final class ClusterIdBoundsCache extends AbstractIndexComponent
     implements IndexReader.ClosedListener, RemovalListener<IndexReader.CacheKey, Map<Long, ClusterIdBoundsCache.Value>>, Closeable {
 
