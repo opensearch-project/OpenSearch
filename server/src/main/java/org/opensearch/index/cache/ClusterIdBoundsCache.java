@@ -208,7 +208,7 @@ public final class ClusterIdBoundsCache extends AbstractIndexComponent
         }
     }
 
-    Cache<IndexReader.CacheKey, Map<Long, Value>> getLoadedBounds() {
+    public Cache<IndexReader.CacheKey, Map<Long, Value>> getLoadedBounds() {
         return loadedBounds;
     }
 
