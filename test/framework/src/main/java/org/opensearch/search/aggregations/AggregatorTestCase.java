@@ -571,6 +571,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             indexSettings,
             bigArrays,
             null,
+            null,
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService,
             null,
