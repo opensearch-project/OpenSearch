@@ -13,18 +13,29 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.FeatureType;
 import org.opensearch.autotagging.RuleValidator;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
  * A request for update Rule
+ * Example request:
+ * Note that the endpoint "localhost:9200/_wlm/rule" serves only as an example endpoint here
+ * curl -XPUT "localhost:9200/_wlm/rule/{rule_id}" -H 'Content-Type: application/json' -d '
+ * {
+ *     "description": "description",
+ *      "index_pattern": ["log*", "event*"],
+ *      "query_group": "dev_query_group_id_2"
+ * }'
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class UpdateRuleRequest extends ActionRequest {
     private final String _id;
     private final String description;
@@ -70,7 +81,12 @@ public class UpdateRuleRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         RuleValidator validator = new RuleValidator(description, attributeMap, featureValue, null, featureType);
-        validator.validateUpdatingRuleParams();
+        List<String> errors = validator.validateUpdatingRuleParams();
+        if (!errors.isEmpty()) {
+            ActionRequestValidationException validationException = new ActionRequestValidationException();
+            validationException.addValidationErrors(errors);
+            return validationException;
+        }
         return null;
     }
 
