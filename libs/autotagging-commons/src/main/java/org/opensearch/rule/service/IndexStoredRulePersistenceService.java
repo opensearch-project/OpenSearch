@@ -11,7 +11,6 @@ package org.opensearch.rule.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.update.UpdateRequest;
@@ -25,7 +24,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.query.BoolQueryBuilder;
-import org.opensearch.rule.action.CreateRuleResponse;
 import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.rule.action.UpdateRuleRequest;
 import org.opensearch.rule.action.UpdateRuleResponse;
@@ -104,9 +102,9 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                         request,
                         featureType
                     );
-                    checkDuplicateRule(updatedRule, new ActionListener<>() {
+                    validateNoDuplicateRule(updatedRule, new ActionListener<>() {
                         @Override
-                        public void onResponse(CreateRuleResponse createRuleResponse) {
+                        public void onResponse(Void unused) {
                             persistUpdatedRule(ruleId, updatedRule, listener);
                         }
 
@@ -126,33 +124,21 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     }
 
     /**
-     * Check if there's an existing Rule with the same attributes.
-     * For example, if there's an existing Rule with the attribute index_pattern: ["a", "b", "c"],
-     * then we cannot create another Rule with only one attribute index_pattern: ["b"], because the value "b"
-     * already exists under another Rule. Note that the conflict exists only when we have the exact same attribute
-     * names in the two rules (That is, a Rule with attribute "index_pattern" won't create a conflict with another
-     * Rule that has "index_pattern" and some other attributes).
-     * @param rule - The rule to update.
-     * @param listener - ActionListener for CreateRuleResponse
+     * Validates that no duplicate rule exists with the same attribute map.
+     * If a conflict is found, fails the listener
+     * @param rule - the rule we check duplicate against
+     * @param listener - listener for validateNoDuplicateRule response
      */
-    public void checkDuplicateRule(Rule rule, ActionListener<CreateRuleResponse> listener) {
+    private void validateNoDuplicateRule(Rule rule, ActionListener<Void> listener) {
         try (ThreadContext.StoredContext ctx = getContext()) {
             getRuleFromIndex(null, rule.getAttributeMap(), null, new ActionListener<>() {
                 @Override
                 public void onResponse(GetRuleResponse getRuleResponse) {
-                    Optional<String> duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(
-                        rule.getAttributeMap(),
-                        getRuleResponse.getRules()
+                    Optional<String> duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(rule, getRuleResponse.getRules());
+                    duplicateRuleId.ifPresentOrElse(
+                        id -> listener.onFailure(new IllegalArgumentException("Rule already exists under rule id " + id)),
+                        () -> listener.onResponse(null)
                     );
-                    duplicateRuleId.map(id -> {
-                        listener.onFailure(
-                            new IllegalArgumentException("A rule that has the same attribute values already exists under rule id " + id)
-                        );
-                        return null;
-                    }).orElseGet(() -> {
-                        persistRule(rule, listener);
-                        return null;
-                    });
                 }
 
                 @Override
@@ -169,42 +155,21 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param updatedRule - the rule we update to
      * @param listener - ActionListener for UpdateRuleResponse
      */
-    public void persistUpdatedRule(String ruleId, Rule updatedRule, ActionListener<UpdateRuleResponse> listener) {
+    private void persistUpdatedRule(String ruleId, Rule updatedRule, ActionListener<UpdateRuleResponse> listener) {
         try (ThreadContext.StoredContext context = getContext()) {
             UpdateRequest updateRequest = new UpdateRequest(indexName, ruleId).doc(
                 updatedRule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
             );
-            client.update(updateRequest, ActionListener.wrap(updateResponse -> {
-                listener.onResponse(new UpdateRuleResponse(ruleId, updatedRule, RestStatus.OK));
-            }, e -> {
-                logger.warn("Failed to update Rule object due to error: {}", e.getMessage());
-                listener.onFailure(e);
-            }));
+            client.update(
+                updateRequest,
+                ActionListener.wrap(updateResponse -> { listener.onResponse(new UpdateRuleResponse(ruleId, updatedRule)); }, e -> {
+                    logger.error("Failed to update Rule object due to error: {}", e.getMessage());
+                    listener.onFailure(e);
+                })
+            );
         } catch (IOException e) {
             logger.error("Error updating rule in index: {}", indexName);
             listener.onFailure(new RuntimeException("Failed to update rule to index."));
-        }
-    }
-
-    /**
-     * Persist the rule in the index
-     * @param rule - The rule to update.
-     * @param listener - ActionListener for CreateRuleResponse
-     */
-    public void persistRule(Rule rule, ActionListener<CreateRuleResponse> listener) {
-        try (ThreadContext.StoredContext ctx = getContext()) {
-            IndexRequest indexRequest = new IndexRequest(indexName).source(
-                rule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
-            );
-            client.index(indexRequest, ActionListener.wrap(indexResponse -> {
-                listener.onResponse(new CreateRuleResponse(indexResponse.getId(), rule, RestStatus.OK));
-            }, e -> {
-                logger.warn("Failed to save Rule object due to error: {}", e.getMessage());
-                listener.onFailure(e);
-            }));
-        } catch (IOException e) {
-            logger.error("Error saving rule to index: {}", indexName);
-            listener.onFailure(new RuntimeException("Failed to save rule to index."));
         }
     }
 
@@ -216,7 +181,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param searchAfter - The sort values from the last document of the previous page, used for pagination
      * @param listener - ActionListener for GetRuleResponse
      */
-    public void getRuleFromIndex(
+    private void getRuleFromIndex(
         String id,
         Map<Attribute, Set<String>> attributeFilters,
         String searchAfter,
@@ -243,7 +208,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param searchResponse - Response received from index
      * @param listener - ActionListener for GetRuleResponse
      */
-    void handleGetRuleResponse(String id, SearchResponse searchResponse, ActionListener<GetRuleResponse> listener) {
+    private void handleGetRuleResponse(String id, SearchResponse searchResponse, ActionListener<GetRuleResponse> listener) {
         List<SearchHit> hits = Arrays.asList(searchResponse.getHits().getHits());
         if (id != null && hits.isEmpty()) {
             logger.error("Rule with ID " + id + " not found.");

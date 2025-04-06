@@ -54,19 +54,21 @@ public class IndexStoredRuleUtilsTests extends OpenSearchTestCase {
     }
 
     public void testGetDuplicateRuleId_Found() {
-        Optional<String> duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(ATTRIBUTE_MAP, Map.of(_ID_ONE, ruleOne));
+        Optional<String> duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(ruleOne, Map.of(_ID_ONE, ruleOne));
         assertFalse(duplicateRuleId.isEmpty());
         assertEquals(_ID_ONE, duplicateRuleId.get());
     }
 
     public void testGetDuplicateRuleId_NotFound() {
+        Rule rule = mock(Rule.class);
         Map<Attribute, Set<String>> map = Map.of(
             RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE,
             Set.of(ATTRIBUTE_VALUE_ONE),
             RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO,
             Set.of(ATTRIBUTE_VALUE_TWO)
         );
-        Optional<String> duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(map, Map.of(_ID_ONE, ruleOne));
+        when(rule.getAttributeMap()).thenReturn(map);
+        Optional<String> duplicateRuleId = IndexStoredRuleUtils.getDuplicateRuleId(rule, Map.of(_ID_ONE, ruleOne));
         assertTrue(duplicateRuleId.isEmpty());
     }
 

@@ -12,7 +12,6 @@ import org.opensearch.autotagging.Rule;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -30,12 +29,11 @@ public class UpdateRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify serialization and deserialization of UpdateRuleResponse
      */
     public void testSerialization() throws IOException {
-        UpdateRuleResponse response = new UpdateRuleResponse(_ID_ONE, ruleOne, RestStatus.OK);
+        UpdateRuleResponse response = new UpdateRuleResponse(_ID_ONE, ruleOne);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
         UpdateRuleResponse otherResponse = new UpdateRuleResponse(streamInput);
-        assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         Rule responseRule = response.getRule();
         Rule otherResponseRule = otherResponse.getRule();
         assertEqualRule(responseRule, otherResponseRule, true);
@@ -46,7 +44,7 @@ public class UpdateRuleResponseTests extends OpenSearchTestCase {
      */
     public void testToXContentUpdateRule() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        UpdateRuleResponse response = new UpdateRuleResponse(_ID_ONE, ruleOne, RestStatus.OK);
+        UpdateRuleResponse response = new UpdateRuleResponse(_ID_ONE, ruleOne);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
             + "  \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n"
