@@ -64,6 +64,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.cache.ClusterIdBoundsCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
@@ -372,6 +373,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
         private final SimilarityService similarityService;
         private final MapperService mapperService;
         private final BitsetFilterCache bitsetFilterCache;
+        private final ClusterIdBoundsCache clusterIdBoundsCache;
         private final ScriptService scriptService;
         private final Client client;
         private final long nowInMillis;
@@ -435,6 +437,17 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 mapperService
             );
             bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
+                @Override
+                public void onCache(ShardId shardId, Accountable accountable) {
+
+                }
+
+                @Override
+                public void onRemoval(ShardId shardId, Accountable accountable) {
+
+                }
+            });
+            clusterIdBoundsCache = new ClusterIdBoundsCache(idxSettings, new ClusterIdBoundsCache.Listener() {
                 @Override
                 public void onCache(ShardId shardId, Accountable accountable) {
 
@@ -520,6 +533,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 idxSettings,
                 BigArrays.NON_RECYCLING_INSTANCE,
                 bitsetFilterCache,
+                clusterIdBoundsCache,
                 indexFieldDataService::getForField,
                 mapperService,
                 similarityService,
