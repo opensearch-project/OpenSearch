@@ -40,13 +40,13 @@ import org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService
 import org.opensearch.plugin.wlm.rule.QueryGroupFeatureType;
 import org.opensearch.plugin.wlm.rule.action.TransportUpdateWlmRuleAction;
 import org.opensearch.plugin.wlm.rule.action.UpdateWlmRuleAction;
-import org.opensearch.plugin.wlm.rule.rest.RestUpdateWlmRuleAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rule.rest.RestUpdateRuleAction;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -56,6 +56,9 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.opensearch.rest.RestRequest.Method.POST;
+import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
  * Plugin class for WorkloadManagement
@@ -125,7 +128,12 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new RestGetQueryGroupAction(),
             new RestDeleteQueryGroupAction(),
             new RestUpdateQueryGroupAction(),
-            new RestUpdateWlmRuleAction()
+            new RestUpdateRuleAction(
+                "update_rule",
+                List.of(new RestHandler.Route(POST, "_wlm/rule/{_id}"), new RestHandler.Route(PUT, "_wlm/rule/{_id}")),
+                QueryGroupFeatureType.INSTANCE,
+                UpdateWlmRuleAction.INSTANCE
+            )
         );
     }
 
