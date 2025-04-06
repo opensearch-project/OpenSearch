@@ -38,7 +38,7 @@ public class Agent {
     /**
      * List of methods that are intercepted
      */
-    public static final String[] INTERCEPTED_METHODS = {
+    private static final String[] INTERCEPTED_METHODS = {
         "write",
         "createFile",
         "createDirectories",
