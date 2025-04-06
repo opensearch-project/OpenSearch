@@ -638,7 +638,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         final Store store = storeProvider.apply(indexSettings);
         boolean success = false;
         try {
-            IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
+            IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null, null);
             MapperService mapperService = MapperTestUtils.newMapperService(
                 xContentRegistry(),
                 createTempDir(),
