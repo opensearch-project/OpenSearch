@@ -53,29 +53,25 @@ public class RuleValidator {
         errorMessages.addAll(validateFeatureType());
         errorMessages.addAll(validateUpdatedAtEpoch());
         errorMessages.addAll(validateAttributeMap());
-        handleErrorMessages(errorMessages);
-    }
-
-    public void validateUpdatingRuleParams() {
-        List<String> errorMessages = new ArrayList<>();
-        if (isEmpty(description)) {
-            errorMessages.add("Rule description can't be empty");
-        }
-        if (isEmpty(featureValue)) {
-            errorMessages.add("Rule featureValue can't be empty");
-        }
-        if (attributeMap != null && !attributeMap.isEmpty()) {
-            validateAttributeMap();
-        }
-        handleErrorMessages(errorMessages);
-    }
-
-    private void handleErrorMessages(List<String> errorMessages) {
         if (!errorMessages.isEmpty()) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(errorMessages);
             throw new IllegalArgumentException(validationException);
         }
+    }
+
+    public List<String> validateUpdatingRuleParams() {
+        List<String> errorMessages = new ArrayList<>();
+        if (isInvalidUpdatedValue(description)) {
+            errorMessages.add("Rule description can't be empty");
+        }
+        if (isInvalidUpdatedValue(featureValue)) {
+            errorMessages.add("Rule featureValue can't be empty");
+        }
+        if (attributeMap != null && !attributeMap.isEmpty()) {
+            validateAttributeMap();
+        }
+        return errorMessages;
     }
 
     private List<String> validateStringFields() {
@@ -98,7 +94,7 @@ public class RuleValidator {
         return str == null || str.isEmpty();
     }
 
-    private boolean isEmpty(String str) {
+    private boolean isInvalidUpdatedValue(String str) {
         return str != null && str.isEmpty();
     }
 

@@ -31,7 +31,7 @@ public class IndexStoredRuleUtils {
     /**
      * constructor for IndexStoredRuleUtils
      */
-    public IndexStoredRuleUtils() {}
+    private IndexStoredRuleUtils() {}
 
     /**
      * Builds a Boolean query to retrieve a rule by its ID or attribute filters.
@@ -68,10 +68,14 @@ public class IndexStoredRuleUtils {
      *   attribute1 = ['a'] and attribute2 = ['c']
      * And we are creating a new rule with:
      *   attribute1 = ['a']
-     * @param attributeMapToValidate The attribute map to be validated against existing rules.
-     * @param ruleMap A map of existing rules where the key is the rule ID and the value is the Rule object.
+     * Then it's not a duplicate because the existing rule has attribute2 and is more granular
+     *
+     * @param rule The rule to be validated against ruleMap.
+     * @param ruleMap This map entries are Rules that contain the attribute values from rule, meaning they
+     *                have a partial or complete overlap with the new rule being created.
      */
-    public static Optional<String> getDuplicateRuleId(Map<Attribute, Set<String>> attributeMapToValidate, Map<String, Rule> ruleMap) {
+    public static Optional<String> getDuplicateRuleId(Rule rule, Map<String, Rule> ruleMap) {
+        Map<Attribute, Set<String>> attributeMapToValidate = rule.getAttributeMap();
         for (Map.Entry<String, Rule> entry : ruleMap.entrySet()) {
             String ruleId = entry.getKey();
             Rule currRule = entry.getValue();

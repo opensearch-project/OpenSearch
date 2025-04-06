@@ -9,9 +9,9 @@
 package org.opensearch.rule.rest;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.FeatureType;
 import org.opensearch.autotagging.Rule.Builder;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
@@ -27,8 +27,6 @@ import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import static org.opensearch.autotagging.Rule._ID_STRING;
 
@@ -36,29 +34,49 @@ import static org.opensearch.autotagging.Rule._ID_STRING;
  * Rest action to update a Rule
  * @opensearch.experimental
  */
-public abstract class RestUpdateRuleAction extends BaseRestHandler {
+@ExperimentalApi
+public class RestUpdateRuleAction extends BaseRestHandler {
+    private final String name;
+    private final List<Route> routes;
+    private final FeatureType featureType;
+    private final ActionType<UpdateRuleResponse> updateRuleAction;
+
     /**
      * constructor for RestUpdateRuleAction
+     * @param name - RestUpdateRuleAction name
+     * @param routes the list of REST routes this action handles
+     * @param featureType the feature type associated with the rule
+     * @param updateRuleAction the action to execute for updating a rule
      */
-    public RestUpdateRuleAction() {}
+    public RestUpdateRuleAction(String name, List<Route> routes, FeatureType featureType, ActionType<UpdateRuleResponse> updateRuleAction) {
+        this.name = name;
+        this.routes = routes;
+        this.featureType = featureType;
+        this.updateRuleAction = updateRuleAction;
+    }
 
     @Override
-    public abstract String getName();
+    public String getName() {
+        return name;
+    }
 
     @Override
-    public abstract List<Route> routes();
+    public List<Route> routes() {
+        return routes;
+    }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            Builder builder = Builder.fromXContent(parser, retrieveFeatureTypeInstance());
-            UpdateRuleRequest updateRuleRequest = buildUpdateRuleRequest(
+            Builder builder = Builder.fromXContent(parser, featureType);
+            UpdateRuleRequest updateRuleRequest = new UpdateRuleRequest(
                 request.param(_ID_STRING),
                 builder.getDescription(),
                 builder.getAttributeMap(),
-                builder.getFeatureValue()
+                builder.getFeatureValue(),
+                featureType
             );
-            return channel -> client.execute(retrieveUpdateRuleActionInstance(), updateRuleRequest, updateRuleResponse(channel));
+            return channel -> client.execute(updateRuleAction, updateRuleRequest, updateRuleResponse(channel));
         }
     }
 
@@ -70,28 +88,4 @@ public abstract class RestUpdateRuleAction extends BaseRestHandler {
             }
         };
     }
-
-    /**
-     * Abstract method for subclasses to provide specific ActionType Instance
-     */
-    protected abstract <T extends ActionType<UpdateRuleResponse>> T retrieveUpdateRuleActionInstance();
-
-    /**
-     * Abstract method for subclasses to provide specific FeatureType Instance
-     */
-    protected abstract FeatureType retrieveFeatureTypeInstance();
-
-    /**
-     * Abstract method for subclasses to provide implementation to updateRuleRequest
-     * @param id - rule id to update
-     * @param description - rule description to update
-     * @param attributeMap - rule attributes to update
-     * @param featureValue - rule feature value to update
-     */
-    protected abstract UpdateRuleRequest buildUpdateRuleRequest(
-        String id,
-        String description,
-        Map<Attribute, Set<String>> attributeMap,
-        String featureValue
-    );
 }

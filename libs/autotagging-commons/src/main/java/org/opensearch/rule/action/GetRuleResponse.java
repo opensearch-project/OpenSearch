@@ -9,6 +9,7 @@
 package org.opensearch.rule.action;
 
 import org.opensearch.autotagging.Rule;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -40,6 +41,7 @@ import static org.opensearch.autotagging.Rule._ID_STRING;
  * }
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class GetRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final Map<String, Rule> rules;
     private final String searchAfter;
