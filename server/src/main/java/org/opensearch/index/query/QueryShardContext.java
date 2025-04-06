@@ -54,6 +54,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.cache.ClusterIdBoundsCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.ContentPath;
@@ -109,6 +110,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
     private final MapperService mapperService;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
+    private final ClusterIdBoundsCache clusterIdBoundsCache;
     private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
     private final IndexSearcher searcher;
@@ -136,6 +138,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
         IndexSettings indexSettings,
         BigArrays bigArrays,
         BitsetFilterCache bitsetFilterCache,
+        ClusterIdBoundsCache clusterIdBoundsCache,
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
         SimilarityService similarityService,
@@ -155,6 +158,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
             indexSettings,
             bigArrays,
             bitsetFilterCache,
+            clusterIdBoundsCache,
             indexFieldDataLookup,
             mapperService,
             similarityService,
@@ -177,6 +181,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
         IndexSettings indexSettings,
         BigArrays bigArrays,
         BitsetFilterCache bitsetFilterCache,
+        ClusterIdBoundsCache clusterIdBoundsCache,
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
         SimilarityService similarityService,
@@ -197,6 +202,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
             indexSettings,
             bigArrays,
             bitsetFilterCache,
+            clusterIdBoundsCache,
             indexFieldDataLookup,
             mapperService,
             similarityService,
@@ -223,6 +229,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
         IndexSettings indexSettings,
         BigArrays bigArrays,
         BitsetFilterCache bitsetFilterCache,
+        ClusterIdBoundsCache clusterIdBoundsCache,
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
         SimilarityService similarityService,
@@ -244,6 +251,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
             indexSettings,
             bigArrays,
             bitsetFilterCache,
+            clusterIdBoundsCache,
             indexFieldDataLookup,
             mapperService,
             similarityService,
@@ -271,6 +279,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
             source.indexSettings,
             source.bigArrays,
             source.bitsetFilterCache,
+            source.clusterIdBoundsCache,
             source.indexFieldDataService,
             source.mapperService,
             source.similarityService,
@@ -294,6 +303,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
         IndexSettings indexSettings,
         BigArrays bigArrays,
         BitsetFilterCache bitsetFilterCache,
+        ClusterIdBoundsCache clusterIdBoundsCache,
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
         SimilarityService similarityService,
@@ -316,6 +326,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
         this.mapperService = mapperService;
         this.bigArrays = bigArrays;
         this.bitsetFilterCache = bitsetFilterCache;
+        this.clusterIdBoundsCache = clusterIdBoundsCache;
         this.indexFieldDataService = indexFieldDataLookup;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.nestedScope = new NestedScope(indexSettings);

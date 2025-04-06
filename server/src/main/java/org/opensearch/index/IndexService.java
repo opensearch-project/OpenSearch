@@ -282,8 +282,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexFieldData.setListener(new FieldDataCacheListener(this));
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.clusterIdBoundsCache = new ClusterIdBoundsCache(indexSettings, new ClusterIdBoundsCacheListener(this));
+            this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache, clusterIdBoundsCache);
             this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool), clusterIdBoundsCache.createListener(threadPool));
-            this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         } else {
             assert indexAnalyzers == null;
             this.mapperService = null;
@@ -912,6 +912,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexSettings,
             bigArrays,
             indexCache.bitsetFilterCache(),
+            indexCache.clusterIdBoundsCache(),
             indexFieldData::getForField,
             mapperService(),
             similarityService(),

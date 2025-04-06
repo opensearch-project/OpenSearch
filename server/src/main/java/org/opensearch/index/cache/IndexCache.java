@@ -52,11 +52,13 @@ public class IndexCache extends AbstractIndexComponent implements Closeable {
 
     private final QueryCache queryCache;
     private final BitsetFilterCache bitsetFilterCache;
+    private final ClusterIdBoundsCache clusterIdBoundsCache;
 
-    public IndexCache(IndexSettings indexSettings, QueryCache queryCache, BitsetFilterCache bitsetFilterCache) {
+    public IndexCache(IndexSettings indexSettings, QueryCache queryCache, BitsetFilterCache bitsetFilterCache, ClusterIdBoundsCache clusterIdBoundsCache) {
         super(indexSettings);
         this.queryCache = queryCache;
         this.bitsetFilterCache = bitsetFilterCache;
+        this.clusterIdBoundsCache = clusterIdBoundsCache;
     }
 
     public QueryCache query() {
@@ -68,6 +70,10 @@ public class IndexCache extends AbstractIndexComponent implements Closeable {
      */
     public BitsetFilterCache bitsetFilterCache() {
         return bitsetFilterCache;
+    }
+
+    public ClusterIdBoundsCache clusterIdBoundsCache() {
+        return clusterIdBoundsCache;
     }
 
     @Override
