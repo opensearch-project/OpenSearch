@@ -20,8 +20,11 @@ base {
   archivesName = 'opensearch-agent-policy'
 }
 
-disableTasks('forbiddenApisMain')
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
 
 dependencies {
-  testImplementation(project(":test:framework"))
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
