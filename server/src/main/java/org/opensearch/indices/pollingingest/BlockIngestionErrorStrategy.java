@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class BlockIngestionErrorStrategy implements IngestionErrorStrategy {
     private static final Logger logger = LogManager.getLogger(BlockIngestionErrorStrategy.class);
+    private static final String NAME = "BLOCK";
     private final String ingestionSource;
 
     public BlockIngestionErrorStrategy(String ingestionSource) {
@@ -32,5 +33,10 @@ public class BlockIngestionErrorStrategy implements IngestionErrorStrategy {
     @Override
     public boolean shouldIgnoreError(Throwable e, ErrorStage stage) {
         return false;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
     }
 }

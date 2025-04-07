@@ -59,7 +59,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Function;
@@ -103,6 +102,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private int relocatingShards = 0;
 
     private final Map<String, Set<String>> nodesPerAttributeNames;
+    private final Map<String, Set<String>> searchNodesPerAttributeNames;
     private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
     private final Map<String, Recoveries> initialReplicaRecoveries = new HashMap<>();
     private final Map<String, Recoveries> initialPrimaryRecoveries = new HashMap<>();
@@ -116,6 +116,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
         this.nodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
+        this.searchNodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
 
         // fill in the nodeToShards with the "live" nodes
         for (final DiscoveryNode cursor : clusterState.nodes().getDataNodes().values()) {
@@ -127,7 +128,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // also fill replicaSet information
         for (final IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (IndexShardRoutingTable indexShard : indexRoutingTable) {
-                assert indexShard.primary != null;
+                IndexMetadata idxMetadata = metadata.index(indexShard.shardId().getIndex());
+                boolean isSearchOnlyClusterBlockEnabled = false;
+                if (idxMetadata != null) {
+                    isSearchOnlyClusterBlockEnabled = idxMetadata.getSettings()
+                        .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+                }
+                if (isSearchOnlyClusterBlockEnabled == false) {
+                    assert indexShard.primary != null : "Primary shard routing can't be null for non-search-only indices";
+                }
                 for (ShardRouting shard : indexShard) {
                     // to get all the shards belonging to an index, including the replicas,
                     // we define a replica set and keep track of it. A replica set is identified
@@ -183,8 +192,18 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         final int howMany = increment ? 1 : -1;
         assert routing.initializing() : "routing must be initializing: " + routing;
+
+        IndexMetadata idxMetadata = metadata.index(routing.index());
+        boolean isSearchOnlyClusterBlockEnabled = false;
+        if (idxMetadata != null) {
+            isSearchOnlyClusterBlockEnabled = idxMetadata.getSettings()
+                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+        }
+
         // TODO: check primary == null || primary.active() after all tests properly add ReplicaAfterPrimaryActiveAllocationDecider
-        assert primary == null || primary.assignedToNode() : "shard is initializing but its primary is not assigned to a node";
+        if (isSearchOnlyClusterBlockEnabled == false) {
+            assert primary == null || primary.assignedToNode() : "shard is initializing but its primary is not assigned to a node";
+        }
 
         // Primary shard routing, excluding the relocating primaries.
         if (routing.primary() && (primary == null || primary == routing)) {
@@ -297,10 +316,28 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.values().stream();
     }
 
+    /**
+     * Retrieves all unique values for a specific awareness attribute across all nodes
+     * Eg: "zone" : ["zone1", "zone2", "zone3"]
+     * @param attributeName The name of the awareness attribute to collect values for
+     * @return A set of unique attribute values for the specified attribute
+     */
     public Set<String> nodesPerAttributesCounts(String attributeName) {
+        return nodesPerAttributesCounts(attributeName, routingNode -> true);
+    }
+
+    /**
+     * Retrieves all unique values for a specific awareness attribute across filtered nodes
+     * Eg: "zone" : ["zone1", "zone2", "zone3"]
+     * @param attributeName The name of the awareness attribute to collect values for
+     * @param routingNodeFilter filters the routing nodes based on given condition
+     * @return A set of unique attribute values for the specified attribute
+     */
+    public Set<String> nodesPerAttributesCounts(String attributeName, Predicate<RoutingNode> routingNodeFilter) {
+
         return nodesPerAttributeNames.computeIfAbsent(
             attributeName,
-            ignored -> stream().map(r -> r.node().getAttributes().get(attributeName)).filter(Objects::nonNull).collect(Collectors.toSet())
+            ignored -> stream().filter(routingNodeFilter).map(r -> r.node().getAttributes().get(attributeName)).collect(Collectors.toSet())
         );
     }
 

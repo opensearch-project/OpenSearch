@@ -35,6 +35,7 @@ package org.opensearch.ingest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
@@ -86,6 +87,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -107,6 +109,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static final String NOOP_PIPELINE_NAME = "_none";
 
     public static final String INGEST_ORIGIN = "ingest";
+    private static final int MAX_PIPELINE_ID_BYTES = 512;
 
     /**
      * Defines the limit for the number of processors which can run on a given document during ingestion.
@@ -510,6 +513,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     void validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request) throws Exception {
         if (ingestInfos.isEmpty()) {
             throw new IllegalStateException("Ingest info is empty");
+        }
+
+        int pipelineIdLength = UnicodeUtil.calcUTF16toUTF8Length(request.getId(), 0, request.getId().length());
+
+        if (pipelineIdLength > MAX_PIPELINE_ID_BYTES) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Pipeline id [%s] exceeds maximum length of %d UTF-8 bytes (actual: %d bytes)",
+                    request.getId(),
+                    MAX_PIPELINE_ID_BYTES,
+                    pipelineIdLength
+                )
+            );
         }
 
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();

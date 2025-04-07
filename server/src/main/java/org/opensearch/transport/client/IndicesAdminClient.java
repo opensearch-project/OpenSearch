@@ -92,6 +92,7 @@ import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
+import org.opensearch.action.admin.indices.scale.searchonly.ScaleIndexRequestBuilder;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
@@ -109,6 +110,12 @@ import org.opensearch.action.admin.indices.shrink.ResizeResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
@@ -865,4 +872,31 @@ public interface IndicesAdminClient extends OpenSearchClient {
 
     /** Update a view */
     ActionFuture<GetViewAction.Response> updateView(CreateViewAction.Request request);
+
+    /** Pause ingestion */
+    ActionFuture<PauseIngestionResponse> pauseIngestion(PauseIngestionRequest request);
+
+    /** Pause ingestion */
+    void pauseIngestion(PauseIngestionRequest request, ActionListener<PauseIngestionResponse> listener);
+
+    /** Resume ingestion */
+    ActionFuture<ResumeIngestionResponse> resumeIngestion(ResumeIngestionRequest request);
+
+    /** Resume ingestion */
+    void resumeIngestion(ResumeIngestionRequest request, ActionListener<ResumeIngestionResponse> listener);
+
+    /** Get ingestion state */
+    ActionFuture<GetIngestionStateResponse> getIngestionState(GetIngestionStateRequest request);
+
+    /** Get ingestion state */
+    void getIngestionState(GetIngestionStateRequest request, ActionListener<GetIngestionStateResponse> listener);
+
+    /**
+     * Prepares a request to scale an index between normal and search-only modes.
+     *
+     * @param index      The name of the index to scale
+     * @param searchOnly Whether to scale to search-only mode (true) or back to normal mode (false)
+     * @return The request builder configured with the specified scaling direction
+     */
+    ScaleIndexRequestBuilder prepareScaleSearchOnly(String index, boolean searchOnly);
 }

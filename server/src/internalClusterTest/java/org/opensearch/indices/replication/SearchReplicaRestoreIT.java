@@ -8,7 +8,11 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
@@ -72,7 +76,9 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1).build()
         );
         ensureYellowAndNoInitializingShards(RESTORED_INDEX_NAME);
-        internalCluster().startDataOnlyNode();
+
+        internalCluster().startSearchOnlyNode();
+
         ensureGreen(RESTORED_INDEX_NAME);
         assertEquals(1, getNumberOfSearchReplicas(RESTORED_INDEX_NAME));
 
@@ -80,7 +86,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         assertHitCount(resp, DOC_COUNT);
     }
 
-    public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnDocRep() throws Exception {
+    public void testSearchReplicaRestore_WhenSnapshotOnSegRepWithSearchReplica_RestoreOnDocRep() {
         bootstrapIndexWithSearchReplicas();
         createRepoAndSnapshot(REPOSITORY_NAME, FS_REPOSITORY_TYPE, SNAPSHOT_NAME, INDEX_NAME);
 
@@ -97,8 +103,26 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         assertTrue(exception.getMessage().contains(getSnapshotExceptionMessage(ReplicationType.SEGMENT, ReplicationType.DOCUMENT)));
     }
 
+    public void testRemoteStoreRestoreFailsForSearchOnlyIndex() throws Exception {
+        bootstrapIndexWithSearchReplicas();
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(INDEX_NAME, true).get());
+
+        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(INDEX_NAME).get();
+        assertEquals("true", settingsResponse.getSetting(INDEX_NAME, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey()));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            PlainActionFuture<RestoreRemoteStoreResponse> future = PlainActionFuture.newFuture();
+            client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), future);
+            future.actionGet();
+        });
+
+        assertTrue(
+            exception.getMessage().contains("Cannot use _remotestore/_restore on search_only mode enabled index [" + INDEX_NAME + "].")
+        );
+    }
+
     private void bootstrapIndexWithOutSearchReplicas(ReplicationType replicationType) throws InterruptedException {
-        startCluster(2);
+        internalCluster().startNodes(2);
 
         Settings settings = Settings.builder()
             .put(super.indexSettings())
@@ -114,8 +138,9 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         ensureGreen(INDEX_NAME);
     }
 
-    private void bootstrapIndexWithSearchReplicas() throws InterruptedException {
-        startCluster(3);
+    private void bootstrapIndexWithSearchReplicas() {
+        internalCluster().startNodes(2);
+        internalCluster().startSearchOnlyNode();
 
         Settings settings = Settings.builder()
             .put(super.indexSettings())
@@ -126,16 +151,12 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             .build();
 
         createIndex(INDEX_NAME, settings);
+
         ensureGreen(INDEX_NAME);
         for (int i = 0; i < DOC_COUNT; i++) {
             client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
         }
         flushAndRefresh(INDEX_NAME);
-    }
-
-    private void startCluster(int numOfNodes) {
-        internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNodes(numOfNodes);
     }
 
     private void createRepoAndSnapshot(String repositoryName, String repositoryType, String snapshotName, String indexName) {

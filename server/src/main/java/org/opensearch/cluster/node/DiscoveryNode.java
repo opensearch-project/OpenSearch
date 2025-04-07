@@ -489,6 +489,15 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     }
 
     /**
+     * Returns whether the node is dedicated to host search replicas.
+     *
+     * @return true if the node contains a search role, false otherwise
+     */
+    public boolean isSearchNode() {
+        return roles.contains(DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
+    /**
      * Returns whether the node is a remote store node.
      *
      * @return true if the node contains remote store node attributes, false otherwise
