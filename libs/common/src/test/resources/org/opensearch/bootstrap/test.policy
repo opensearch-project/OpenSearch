@@ -8,4 +8,5 @@
 
 grant {
   permission java.io.FilePermission "${user.home}/-", "read,write,delete";
+  permission java.io.FilePermission "${java.io.tmpdir}/-", "read,write,delete";
 };
