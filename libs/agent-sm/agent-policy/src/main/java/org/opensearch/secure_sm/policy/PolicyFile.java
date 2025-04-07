@@ -17,6 +17,8 @@ import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.NetPermission;
 import java.net.SocketPermission;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -31,9 +33,12 @@ import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.PropertyPermission;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 @SuppressWarnings("removal")
 public class PolicyFile extends java.security.Policy {
@@ -47,7 +52,6 @@ public class PolicyFile extends java.security.Policy {
         "javax.security.auth.kerberos.ServicePermission"
     );
 
-    private static final int DEFAULT_CACHE_SIZE = 1;
     private volatile PolicyInfo policyInfo;
     private URL url;
 
@@ -61,8 +65,7 @@ public class PolicyFile extends java.security.Policy {
     }
 
     private void init(URL url) throws PolicyInitializationException {
-        int numCaches = DEFAULT_CACHE_SIZE;
-        PolicyInfo newInfo = new PolicyInfo(numCaches);
+        PolicyInfo newInfo = new PolicyInfo();
         initPolicyFile(newInfo, url);
         policyInfo = newInfo;
     }
@@ -81,7 +84,7 @@ public class PolicyFile extends java.security.Policy {
             }
 
         } catch (Exception e) {
-            throw new PolicyInitializationException("Failed to load policy from: " + policy, e);
+            throw new PolicyInitializationException("Failed to load policy from : " + policy, e);
         }
     }
 
@@ -191,7 +194,11 @@ public class PolicyFile extends java.security.Policy {
 
     @Override
     public boolean implies(ProtectionDomain pd, Permission p) {
-        PermissionCollection pc = getPermissions(pd);
+        if (pd == null || p == null) {
+            return false;
+        }
+
+        PermissionCollection pc = policyInfo.getOrCompute(pd, () -> getPermissions(pd));
         return pc != null && pc.implies(p);
     }
 
@@ -335,14 +342,20 @@ public class PolicyFile extends java.security.Policy {
 
     private static class PolicyInfo {
         final List<PolicyEntry> policyEntries;
+        public final Map<ProtectionDomain, PermissionCollection> pdMapping;
 
-        PolicyInfo(int numCaches) {
+        PolicyInfo() {
             policyEntries = new ArrayList<>();
+            pdMapping = new ConcurrentHashMap<>();
         }
+
+        public PermissionCollection getOrCompute(ProtectionDomain pd, Supplier<PermissionCollection> computeFn) {
+            return pdMapping.computeIfAbsent(pd, k -> computeFn.get());
+        }
+
     }
 
-    @SuppressWarnings("deprecation")
-    private static URL newURL(String spec) throws MalformedURLException {
-        return new URL(spec);
+    private static URL newURL(String spec) throws MalformedURLException, URISyntaxException {
+        return new URI(spec).toURL();
     }
 }
