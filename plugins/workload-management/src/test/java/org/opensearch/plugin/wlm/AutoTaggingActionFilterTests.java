@@ -52,7 +52,7 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
     }
 
     public void testOrder() {
-        assertEquals(101, autoTaggingActionFilter.order());
+        assertEquals(Integer.MAX_VALUE, autoTaggingActionFilter.order());
     }
 
     public void testApplyForValidRequest() {
