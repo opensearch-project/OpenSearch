@@ -35,11 +35,11 @@ public class TokenStream {
 
     boolean isEOF() throws IOException {
         Token t = peek();
-        return t.type == StreamTokenizer.TT_EOF;
+        return t.type() == StreamTokenizer.TT_EOF;
     }
 
     int line() throws IOException {
-        return peek().line;
+        return peek().line();
     }
 
     private Token nextToken() throws IOException {

@@ -49,40 +49,29 @@ public class PolicyFile extends java.security.Policy {
         "javax.security.auth.kerberos.ServicePermission"
     );
 
-    private volatile PolicyInfo policyInfo;
-    private URL url;
+    private final PolicyInfo policyInfo;
+    private final URL url;
 
     public PolicyFile(URL url) {
         this.url = url;
         try {
-            init(url);
+            policyInfo = init(url);
         } catch (PolicyInitializationException e) {
             throw new RuntimeException("Failed to initialize policy file", e);
         }
     }
 
-    private void init(URL url) throws PolicyInitializationException {
-        PolicyInfo newInfo = new PolicyInfo();
-        initPolicyFile(newInfo, url);
-        policyInfo = newInfo;
-    }
-
-    private void initPolicyFile(final PolicyInfo newInfo, final URL url) throws PolicyInitializationException {
-        init(url, newInfo);
-    }
-
-    private void init(URL policy, PolicyInfo newInfo) throws PolicyInitializationException {
+    private PolicyInfo init(URL policy) throws PolicyInitializationException {
+        PolicyInfo info = new PolicyInfo();
         try (InputStreamReader reader = new InputStreamReader(getInputStream(policy), StandardCharsets.UTF_8)) {
-            PolicyParser policyParser = new PolicyParser();
-            policyParser.read(reader);
-
-            for (GrantEntry grantEntry : policyParser.grantElements()) {
-                addGrantEntry(grantEntry, newInfo);
+            List<GrantEntry> grantEntries = PolicyParser.read(reader);
+            for (GrantEntry grantEntry : grantEntries) {
+                addGrantEntry(grantEntry, info);
             }
-
         } catch (Exception e) {
             throw new PolicyInitializationException("Failed to load policy from: " + policy, e);
         }
+        return info;
     }
 
     public static InputStream getInputStream(URL url) throws IOException {
@@ -95,10 +84,10 @@ public class PolicyFile extends java.security.Policy {
         }
     }
 
-    private CodeSource getCodeSource(GrantEntry grantEntry, PolicyInfo newInfo) throws PolicyInitializationException {
+    private CodeSource getCodeSource(GrantEntry grantEntry) throws PolicyInitializationException {
         try {
             Certificate[] certs = null;
-            URL location = (grantEntry.codeBase != null) ? newURL(grantEntry.codeBase) : null;
+            URL location = (grantEntry.codeBase() != null) ? newURL(grantEntry.codeBase()) : null;
             return canonicalizeCodebase(new CodeSource(location, certs));
         } catch (Exception e) {
             throw new PolicyInitializationException("Failed to get CodeSource", e);
@@ -106,51 +95,51 @@ public class PolicyFile extends java.security.Policy {
     }
 
     private void addGrantEntry(GrantEntry grantEntry, PolicyInfo newInfo) throws PolicyInitializationException {
-        CodeSource codesource = getCodeSource(grantEntry, newInfo);
+        CodeSource codesource = getCodeSource(grantEntry);
         if (codesource == null) {
-            throw new PolicyInitializationException("Null CodeSource for: " + grantEntry.codeBase);
+            throw new PolicyInitializationException("Null CodeSource for: " + grantEntry.codeBase());
         }
 
-        PolicyEntry entry = new PolicyEntry(codesource);
-        List<PermissionEntry> permissionList = grantEntry.permissionElements();
+        List<Permission> permissions = new ArrayList<>();
+        List<PermissionEntry> permissionList = grantEntry.permissionEntries();
         for (PermissionEntry pe : permissionList) {
-            expandPermissionName(pe);
+            final PermissionEntry expandedEntry = expandPermissionName(pe);
             try {
-                Optional<Permission> perm = getInstance(pe.permission, pe.name, pe.action);
+                Optional<Permission> perm = getInstance(expandedEntry.permission(), expandedEntry.name(), expandedEntry.action());
                 if (perm.isPresent()) {
-                    entry.add(perm.get());
+                    permissions.add(perm.get());
                 }
             } catch (ClassNotFoundException e) {
                 // these were mostly custom permission classes added for security
                 // manager. Since security manager is deprecated, we can skip these
                 // permissions classes.
-                if (PERM_CLASSES_TO_SKIP.contains(pe.permission)) {
+                if (PERM_CLASSES_TO_SKIP.contains(pe.permission())) {
                     continue; // skip this permission
                 }
-                throw new PolicyInitializationException("Permission class not found: " + pe.permission, e);
+                throw new PolicyInitializationException("Permission class not found: " + pe.permission(), e);
             }
         }
-        newInfo.policyEntries.add(entry);
+        newInfo.policyEntries.add(new PolicyEntry(codesource, permissions));
     }
 
-    private void expandPermissionName(PermissionEntry pe) {
-        if (pe.name == null || !pe.name.contains("${{")) {
-            return;
+    private static PermissionEntry expandPermissionName(PermissionEntry pe) {
+        if (pe.name() == null || !pe.name().contains("${{")) {
+            return pe;
         }
 
         int startIndex = 0;
         int b, e;
         StringBuilder sb = new StringBuilder();
 
-        while ((b = pe.name.indexOf("${{", startIndex)) != -1 && (e = pe.name.indexOf("}}", b)) != -1) {
-            sb.append(pe.name, startIndex, b);
-            String value = pe.name.substring(b + 3, e);
+        while ((b = pe.name().indexOf("${{", startIndex)) != -1 && (e = pe.name().indexOf("}}", b)) != -1) {
+            sb.append(pe.name(), startIndex, b);
+            String value = pe.name().substring(b + 3, e);
             sb.append("${{").append(value).append("}}");
             startIndex = e + 2;
         }
 
-        sb.append(pe.name.substring(startIndex));
-        pe.name = sb.toString();
+        sb.append(pe.name().substring(startIndex));
+        return new PermissionEntry(pe.permission(), sb.toString(), pe.action());
     }
 
     private static final Optional<Permission> getInstance(String type, String name, String actions) throws ClassNotFoundException {
@@ -233,7 +222,7 @@ public class PolicyFile extends java.security.Policy {
         }
 
         for (PolicyEntry entry : policyInfo.policyEntries) {
-            if (entry.getCodeSource().implies(canonicalCodeSource)) {
+            if (entry.codeSource().implies(canonicalCodeSource)) {
                 for (Permission permission : entry.permissions) {
                     perms.add(permission);
                 }
@@ -250,7 +239,7 @@ public class PolicyFile extends java.security.Policy {
         CodeSource canonicalCodeSource = canonicalizeCodebase(cs);
 
         for (PolicyEntry entry : policyInfo.policyEntries) {
-            if (entry.getCodeSource().implies(canonicalCodeSource)) {
+            if (entry.codeSource().implies(canonicalCodeSource)) {
                 for (Permission permission : entry.permissions) {
                     perms.add(permission);
                 }
@@ -304,27 +293,11 @@ public class PolicyFile extends java.security.Policy {
         }
     }
 
-    private static class PolicyEntry {
-        private final CodeSource codesource;
-        final List<Permission> permissions;
-
-        PolicyEntry(CodeSource cs) {
-            this.codesource = cs;
-            this.permissions = new ArrayList<>();
-        }
-
-        void add(Permission p) {
-            permissions.add(p);
-        }
-
-        CodeSource getCodeSource() {
-            return codesource;
-        }
-
+    private record PolicyEntry(CodeSource codeSource, List<Permission> permissions) {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append("{").append(getCodeSource()).append("\n");
+            sb.append("{").append(codeSource).append("\n");
             for (Permission p : permissions) {
                 sb.append("  ").append(p).append("\n");
             }

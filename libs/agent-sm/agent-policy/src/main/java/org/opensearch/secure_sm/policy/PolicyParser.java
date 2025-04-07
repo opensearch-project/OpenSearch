@@ -16,46 +16,41 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StreamTokenizer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 public class PolicyParser {
 
-    private final List<GrantEntry> grantEntries = Collections.synchronizedList(new ArrayList<>());
+    private PolicyParser() {}
 
-    private TokenStream tokenStream;
-
-    public PolicyParser() {}
-
-    public void read(Reader policy) throws ParsingException, IOException {
+    public static List<GrantEntry> read(Reader policy) throws ParsingException, IOException {
+        final List<GrantEntry> grantEntries = new ArrayList<>();
         if (!(policy instanceof BufferedReader)) {
             policy = new BufferedReader(policy);
         }
-
-        tokenStream = new TokenStream(policy);
-
+        TokenStream tokenStream = new TokenStream(policy);
         while (!tokenStream.isEOF()) {
-            if (peek("grant")) {
-                parseGrantEntry().ifPresent(this::addGrantEntry);
+            if (peek(tokenStream, "grant")) {
+                parseGrantEntry(tokenStream).ifPresent(grantEntries::add);
             }
         }
+        return grantEntries;
     }
 
-    private boolean pollOnMatch(String expect) throws ParsingException, IOException {
-        if (peek(expect)) {
-            poll(expect);
+    private static boolean pollOnMatch(TokenStream tokenStream, String expect) throws ParsingException, IOException {
+        if (peek(tokenStream, expect)) {
+            poll(tokenStream, expect);
             return true;
         }
         return false;
     }
 
-    private boolean peek(String expected) throws IOException {
+    private static boolean peek(TokenStream tokenStream, String expected) throws IOException {
         Token token = tokenStream.peek();
-        return expected.equalsIgnoreCase(token.text);
+        return expected.equalsIgnoreCase(token.text());
     }
 
-    private String poll(String expected) throws IOException, ParsingException {
+    private static String poll(TokenStream tokenStream, String expected) throws IOException, ParsingException {
         Token token = tokenStream.consume();
 
         // Match exact keyword or symbol
@@ -67,77 +62,78 @@ public class PolicyParser {
             || expected.equalsIgnoreCase(";")
             || expected.equalsIgnoreCase(",")) {
 
-            if (!expected.equalsIgnoreCase(token.text)) {
-                throw new ParsingException(token.line, expected, token.text);
+            if (!expected.equalsIgnoreCase(token.text())) {
+                throw new ParsingException(token.line(), expected, token.text());
             }
-            return token.text;
+            return token.text();
         }
 
-        if (token.type == StreamTokenizer.TT_WORD || token.type == '"' || token.type == '\'') {
-            return token.text;
+        if (token.type() == StreamTokenizer.TT_WORD || token.type() == '"' || token.type() == '\'') {
+            return token.text();
         }
 
-        throw new ParsingException(token.line, expected, token.text);
+        throw new ParsingException(token.line(), expected, token.text());
     }
 
-    private Optional<GrantEntry> parseGrantEntry() throws ParsingException, IOException {
-        GrantEntry grantEntry = new GrantEntry();
-        poll("grant");
+    private static Optional<GrantEntry> parseGrantEntry(TokenStream tokenStream) throws ParsingException, IOException {
+        String codeBase = null;
+        List<PermissionEntry> permissionEntries = new ArrayList<>();
 
-        while (!peek("{")) {
-            if (pollOnMatch("Codebase")) {
-                if (grantEntry.codeBase != null) {
+        poll(tokenStream, "grant");
+
+        while (!peek(tokenStream, "{")) {
+            if (pollOnMatch(tokenStream, "Codebase")) {
+                if (codeBase != null) {
                     throw new ParsingException(tokenStream.line(), "Multiple Codebase expressions");
                 }
 
-                String rawCodebase = poll(tokenStream.peek().text);
+                String rawCodebase = poll(tokenStream, tokenStream.peek().text());
                 try {
-                    grantEntry.codeBase = PropertyExpander.expand(rawCodebase, true).replace(File.separatorChar, '/');
+                    codeBase = PropertyExpander.expand(rawCodebase, true).replace(File.separatorChar, '/');
                 } catch (ExpandException e) {
                     // skip this grant as expansion failed due to missing expansion property.
-                    skipCurrentGrantBlock();
+                    skipCurrentGrantBlock(tokenStream);
 
                     return Optional.empty();
                 }
-                pollOnMatch(",");
+                pollOnMatch(tokenStream, ",");
             } else {
                 throw new ParsingException(tokenStream.line(), "Expected codeBase");
             }
         }
 
-        poll("{");
+        poll(tokenStream, "{");
 
-        while (!peek("}")) {
-            if (peek("Permission")) {
-                PermissionEntry permissionEntry = parsePermissionEntry();
-                grantEntry.add(permissionEntry);
-                poll(";");
+        while (!peek(tokenStream, "}")) {
+            if (peek(tokenStream, "Permission")) {
+                permissionEntries.add(parsePermissionEntry(tokenStream));
+                poll(tokenStream, ";");
             } else {
                 throw new ParsingException(tokenStream.line(), "Expected permission entry");
             }
         }
 
-        poll("}");
+        poll(tokenStream, "}");
 
-        if (peek(";")) {
-            poll(";");
+        if (peek(tokenStream, ";")) {
+            poll(tokenStream, ";");
         }
 
-        if (grantEntry.codeBase != null) {
-            grantEntry.codeBase = grantEntry.codeBase.replace(File.separatorChar, '/');
+        if (codeBase != null) {
+            codeBase = codeBase.replace(File.separatorChar, '/');
         }
 
-        return Optional.of(grantEntry);
+        return Optional.of(new GrantEntry(codeBase, permissionEntries));
     }
 
-    private void skipCurrentGrantBlock() throws IOException, ParsingException {
+    private static void skipCurrentGrantBlock(TokenStream tokenStream) throws IOException, ParsingException {
         // Consume until we find a matching closing '}'
         int braceDepth = 0;
 
         // Go until we find the initial '{'
         while (!tokenStream.isEOF()) {
             Token token = tokenStream.peek();
-            if ("{".equals(token.text)) {
+            if ("{".equals(token.text())) {
                 braceDepth++;
                 tokenStream.consume();
                 break;
@@ -148,49 +144,43 @@ public class PolicyParser {
         // Now consume until matching '}'
         while (braceDepth > 0 && !tokenStream.isEOF()) {
             Token token = tokenStream.consume();
-            if ("{".equals(token.text)) {
+            if ("{".equals(token.text())) {
                 braceDepth++;
-            } else if ("}".equals(token.text)) {
+            } else if ("}".equals(token.text())) {
                 braceDepth--;
             }
         }
 
         // Consume optional trailing semicolon
-        if (peek(";")) {
-            poll(";");
+        if (peek(tokenStream, ";")) {
+            poll(tokenStream, ";");
         }
     }
 
-    private PermissionEntry parsePermissionEntry() throws ParsingException, IOException {
-        PermissionEntry permissionEntry = new PermissionEntry();
-        poll("Permission");
-        permissionEntry.permission = poll(tokenStream.peek().text);
+    private static PermissionEntry parsePermissionEntry(TokenStream tokenStream) throws ParsingException, IOException {
+        String name = null;
+        String action = null;
+
+        poll(tokenStream, "Permission");
+        final String permission = poll(tokenStream, tokenStream.peek().text());
 
         if (isQuotedToken(tokenStream.peek())) {
-            permissionEntry.name = poll(tokenStream.peek().text);
+            name = poll(tokenStream, tokenStream.peek().text());
         }
 
-        if (peek(",")) {
-            poll(",");
+        if (peek(tokenStream, ",")) {
+            poll(tokenStream, ",");
         }
 
         if (isQuotedToken(tokenStream.peek())) {
-            permissionEntry.action = poll(tokenStream.peek().text);
+            action = poll(tokenStream, tokenStream.peek().text());
         }
 
-        return permissionEntry;
+        return new PermissionEntry(permission, name, action);
     }
 
-    private boolean isQuotedToken(Token token) {
-        return token.type == '"' || token.type == '\'';
-    }
-
-    public void addGrantEntry(GrantEntry grantEntry) {
-        grantEntries.add(grantEntry);
-    }
-
-    public List<GrantEntry> grantElements() {
-        return Collections.unmodifiableList(grantEntries);
+    private static boolean isQuotedToken(Token token) {
+        return token.type() == '"' || token.type() == '\'';
     }
 
     public static class ParsingException extends Exception {

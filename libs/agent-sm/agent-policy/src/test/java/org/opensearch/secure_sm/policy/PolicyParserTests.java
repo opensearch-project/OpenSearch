@@ -28,37 +28,34 @@ public class PolicyParserTests extends OpenSearchTestCase {
 
     public void testPolicy() throws IOException, PolicyParser.ParsingException {
         try (Reader reader = new StringReader(POLICY)) {
-            final PolicyParser policyParser = new PolicyParser();
-            policyParser.read(reader);
-
-            final List<GrantEntry> grantEntries = policyParser.grantElements();
+            final List<GrantEntry> grantEntries = PolicyParser.read(reader);
             assertEquals(2, grantEntries.size());
 
             final GrantEntry grantEntry1 = grantEntries.get(0);
             final GrantEntry grantEntry2 = grantEntries.get(1);
 
-            assertEquals("TestCodeBase", grantEntry1.codeBase);
+            assertEquals("TestCodeBase", grantEntry1.codeBase());
 
-            List<PermissionEntry> permissions1 = grantEntry1.permissionElements();
+            List<PermissionEntry> permissions1 = grantEntry1.permissionEntries();
             assertEquals(1, permissions1.size());
 
             PermissionEntry firstPerm1 = permissions1.get(0);
-            assertEquals("java.net.NetPermission", firstPerm1.permission);
-            assertEquals("accessUnixDomainSocket", firstPerm1.name);
+            assertEquals("java.net.NetPermission", firstPerm1.permission());
+            assertEquals("accessUnixDomainSocket", firstPerm1.name());
 
-            assertNull(grantEntry2.codeBase);
+            assertNull(grantEntry2.codeBase());
 
-            List<PermissionEntry> permissions2 = grantEntry2.permissionElements();
+            List<PermissionEntry> permissions2 = grantEntry2.permissionEntries();
             assertEquals(2, permissions2.size());
 
             PermissionEntry firstPerm2 = permissions2.get(0);
-            assertEquals("java.net.NetPermission", firstPerm2.permission);
-            assertEquals("accessUnixDomainSocket", firstPerm2.name);
+            assertEquals("java.net.NetPermission", firstPerm2.permission());
+            assertEquals("accessUnixDomainSocket", firstPerm2.name());
 
             PermissionEntry secondPerm2 = permissions2.get(1);
-            assertEquals("java.net.SocketPermission", secondPerm2.permission);
-            assertEquals("*", secondPerm2.name);
-            assertEquals("accept,connect", secondPerm2.action);
+            assertEquals("java.net.SocketPermission", secondPerm2.permission());
+            assertEquals("*", secondPerm2.name());
+            assertEquals("accept,connect", secondPerm2.action());
         }
     }
 }

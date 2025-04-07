@@ -8,14 +8,5 @@
 
 package org.opensearch.secure_sm.policy;
 
-public class Token {
-    int type;
-    String text;
-    int line;
-
-    Token(int type, String text, int line) {
-        this.type = type;
-        this.text = text;
-        this.line = line;
-    }
+public record Token(int type, String text, int line) {
 }

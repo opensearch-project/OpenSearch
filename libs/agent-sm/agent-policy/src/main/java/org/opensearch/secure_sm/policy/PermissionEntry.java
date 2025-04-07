@@ -7,25 +7,5 @@
  */
 package org.opensearch.secure_sm.policy;
 
-import java.util.Objects;
-
-public class PermissionEntry {
-    public String permission;
-    public String name;
-    public String action;
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(permission, name, action);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) return true;
-
-        return obj instanceof PermissionEntry that
-            && Objects.equals(this.permission, that.permission)
-            && Objects.equals(this.name, that.name)
-            && Objects.equals(this.action, that.action);
-    }
+public record PermissionEntry(String permission, String name, String action) {
 }
