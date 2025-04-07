@@ -21,3 +21,8 @@ base {
 }
 
 disableTasks('forbiddenApisMain')
+
+dependencies {
+  testImplementation libs.junit
+  testImplementation libs.hamcrest
+}
