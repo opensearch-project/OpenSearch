@@ -268,6 +268,7 @@ import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
+import org.opensearch.action.admin.indices.scale.searchonly.ScaleIndexRequestBuilder;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -2148,6 +2149,10 @@ public abstract class AbstractClient implements Client {
         /** Create a view */
         public void updateView(CreateViewAction.Request request, ActionListener<GetViewAction.Response> listener) {
             execute(UpdateViewAction.INSTANCE, request, listener);
+        }
+
+        public ScaleIndexRequestBuilder prepareScaleSearchOnly(String index, boolean searchOnly) {
+            return new ScaleIndexRequestBuilder(this, searchOnly, index);
         }
 
         /** Create a view */
