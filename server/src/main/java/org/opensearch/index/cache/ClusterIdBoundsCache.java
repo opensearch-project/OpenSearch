@@ -16,7 +16,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.cache.RemovalListener;
@@ -36,7 +35,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
@@ -138,8 +136,8 @@ public final class ClusterIdBoundsCache extends AbstractIndexComponent
      */
     @ExperimentalApi
     public static final class Value {
-        final DocBounds bounds;
-        final ShardId shardId;
+        public final DocBounds bounds;
+        public final ShardId shardId;
 
         public Value(DocBounds bounds, ShardId shardId) {
             this.bounds = bounds;
@@ -152,8 +150,8 @@ public final class ClusterIdBoundsCache extends AbstractIndexComponent
      */
     @ExperimentalApi
     public static final class DocBounds implements Accountable {
-        int lowerBound; // inclusive
-        int upperBound; // exclusive
+        public int lowerBound; // inclusive
+        public int upperBound; // exclusive
 
         public DocBounds(int lowerBound, int upperBound) {
             this.lowerBound = lowerBound;
