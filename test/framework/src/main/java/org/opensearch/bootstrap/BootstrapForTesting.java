@@ -154,7 +154,10 @@ public class BootstrapForTesting {
                 // TODO: cut over all tests to bind to ephemeral ports
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
-                perms.add(new FilePermission("/etc/os-release/", "read,write"));
+                if(System.getenv("JENKINS_URL")!=null){
+                    perms.add(new FilePermission("/etc/os-release/", "read,write,delete"));
+                    perms.add(new FilePermission("/proc/-", "read,write,delete"));
+                }
 
                 // read test-framework permissions
                 Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
