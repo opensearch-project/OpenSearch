@@ -8,5 +8,6 @@
 
 grant {
   permission java.io.FilePermission "${user.home}/-", "read,write,delete";
-  permission java.io.FilePermission "${java.io.tmpdir}/-", "read,write,delete";
+  permission java.io.FilePermission "/etc/os-release", "read,write,delete";
+  permission java.io.FilePermission "/var/jenkins/workspace/-", "read,write,delete";
 };
