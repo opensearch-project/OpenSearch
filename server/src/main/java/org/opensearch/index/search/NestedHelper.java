@@ -46,6 +46,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 /** Utility class to filter parent and children clauses when building nested
  * queries.
@@ -85,6 +86,8 @@ public final class NestedHelper {
             return mightMatchNestedDocs(((PointRangeQuery) query).getField());
         } else if (query instanceof IndexOrDocValuesQuery) {
             return mightMatchNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery());
+        } else if (query instanceof ApproximateScoreQuery) {
+            return mightMatchNestedDocs(((ApproximateScoreQuery) query).getOriginalQuery());
         } else if (query instanceof BooleanQuery) {
             final BooleanQuery bq = (BooleanQuery) query;
             final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
@@ -155,6 +158,8 @@ public final class NestedHelper {
             return mightMatchNonNestedDocs(((PointRangeQuery) query).getField(), nestedPath);
         } else if (query instanceof IndexOrDocValuesQuery) {
             return mightMatchNonNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery(), nestedPath);
+        } else if (query instanceof ApproximateScoreQuery) {
+            return mightMatchNonNestedDocs(((ApproximateScoreQuery) query).getOriginalQuery(), nestedPath);
         } else if (query instanceof BooleanQuery) {
             final BooleanQuery bq = (BooleanQuery) query;
             final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
