@@ -12,8 +12,10 @@ import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.io.FilePermission;
 import java.lang.reflect.Method;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collection;
@@ -59,12 +61,20 @@ public class FileInterceptor {
         final Collection<ProtectionDomain> callers = walker.walk(StackCallerProtectionDomainChainExtractor.INSTANCE);
 
         final String name = method.getName();
-        final boolean isMutating = name.equals("copy")
-            || name.equals("move")
-            || name.equals("write")
-            || name.equals("newByteChannel")
-            || name.startsWith("create");
+        boolean isMutating = name.equals("copy") || name.equals("move") || name.equals("write") || name.startsWith("create");
         final boolean isDelete = isMutating == false ? name.startsWith("delete") : false;
+
+        if (isMutating == false && isDelete == false && name.equals("newByteChannel") == true) {
+            if (args.length > 1 && args[1] instanceof OpenOption[] opts) {
+                for (final OpenOption opt : opts) {
+                    if (opt != StandardOpenOption.READ) {
+                        isMutating = true;
+                        break;
+                    }
+                }
+
+            }
+        }
 
         // Check each permission separately
         for (final ProtectionDomain domain : callers) {
