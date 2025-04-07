@@ -42,6 +42,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
+import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -1986,6 +1987,21 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return getRewriteContext(nowInMillis, false);
+    }
+
+    /**
+     * Returns a target index services {@link IndexService} with the given {@link IndicesRequest} request
+     */
+    public List<IndexService> getTargetIndexServiceList(IndicesRequest searchRequest) {
+        final Index[] targetIndices = indexNameExpressionResolver.concreteIndices(clusterService().state(), searchRequest);
+        final List<IndexService> targetIndicesList = new ArrayList<>();
+        for (Index index : targetIndices) {
+            final IndexService indexService = indexServiceSafe(index);
+            if (indexService != null) {
+                targetIndicesList.add(indexService);
+            }
+        }
+        return targetIndicesList;
     }
 
     /**
