@@ -61,6 +61,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Permissions;
+import java.io.FilePermission;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
