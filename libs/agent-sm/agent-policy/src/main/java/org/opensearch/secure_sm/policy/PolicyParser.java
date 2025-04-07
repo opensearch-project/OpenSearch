@@ -15,14 +15,15 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StreamTokenizer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.Vector;
 
 public class PolicyParser {
 
-    private final Vector<GrantEntry> grantEntries = new Vector<>();
+    private final List<GrantEntry> grantEntries = Collections.synchronizedList(new ArrayList<>());
+
     private TokenStream tokenStream;
 
     public PolicyParser() {}
@@ -185,7 +186,7 @@ public class PolicyParser {
     }
 
     public void addGrantEntry(GrantEntry grantEntry) {
-        grantEntries.addElement(grantEntry);
+        grantEntries.add(grantEntry);
     }
 
     public List<GrantEntry> grantElements() {

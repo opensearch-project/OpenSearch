@@ -7,7 +7,6 @@
  */
 package org.opensearch.secure_sm.policy;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 public class PermissionEntry {
@@ -28,21 +27,5 @@ public class PermissionEntry {
             && Objects.equals(this.permission, that.permission)
             && Objects.equals(this.name, that.name)
             && Objects.equals(this.action, that.action);
-    }
-
-    public void write(PrintWriter out) {
-        out.print("permission ");
-        out.print(permission);
-        if (name != null) {
-            out.print(" \"");
-            out.print(name.replaceAll("\\\\", "\\\\\\\\").replaceAll("\"", "\\\\\\\""));
-            out.print('"');
-        }
-        if (action != null) {
-            out.print(", \"");
-            out.print(action);
-            out.print('"');
-        }
-        out.println(";");
     }
 }
