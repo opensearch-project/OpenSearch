@@ -96,7 +96,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
     private static final String INDEX_METADATA_KEY = "opensearch.index";
     private static final String INDEX_METADATA_KEY_UUID = "opensearch.index_uuid";
     private static final String SHARD_METADATA_KEY = "opensearch.shard";
-    private static final String OPENSEARCH_PREFIX_KEY = "opensearch.";
+    public static final String OPENSEARCH_PREFIX_KEY = "opensearch.";
 
     private static final String TYPE = "type";
     private static final String REASON = "reason";
@@ -248,7 +248,10 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
         return metadata.get(key);
     }
 
-    protected Map<String, List<String>> getMetadata() {
+    /**
+     * Returns the map of metadata keys and values.
+     */
+    public Map<String, List<String>> getMetadata() {
         return metadata;
     }
 
@@ -288,7 +291,10 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
         return headers.get(key);
     }
 
-    protected Map<String, List<String>> getHeaders() {
+    /**
+     * Returns the map of header keys and values.
+     */
+    public Map<String, List<String>> getHeaders() {
         return headers;
     }
 
