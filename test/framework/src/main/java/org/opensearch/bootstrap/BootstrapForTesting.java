@@ -155,8 +155,7 @@ public class BootstrapForTesting {
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
                 if(System.getenv("JENKINS_URL")!=null){
-                    perms.add(new FilePermission("/etc/os-release/", "read,write,delete"));
-                    perms.add(new FilePermission("/proc/-", "read,write,delete"));
+                    perms.add(new FilePermission("<<ALL_FILES>>", "read,write,delete"));
                 }
 
                 // read test-framework permissions
