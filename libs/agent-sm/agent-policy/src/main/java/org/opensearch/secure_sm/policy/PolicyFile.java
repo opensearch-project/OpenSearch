@@ -31,11 +31,15 @@ import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.PropertyPermission;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 @SuppressWarnings("removal")
 public class PolicyFile extends java.security.Policy {
@@ -180,7 +184,11 @@ public class PolicyFile extends java.security.Policy {
 
     @Override
     public boolean implies(ProtectionDomain pd, Permission p) {
-        PermissionCollection pc = getPermissions(pd);
+        if (pd == null || p == null) {
+            return false;
+        }
+
+        PermissionCollection pc = policyInfo.getOrCompute(pd, () -> getPermissions(pd));
         return pc != null && pc.implies(p);
     }
 
@@ -308,10 +316,17 @@ public class PolicyFile extends java.security.Policy {
 
     private static class PolicyInfo {
         final List<PolicyEntry> policyEntries;
+        private final Map<ProtectionDomain, PermissionCollection> pdMapping;
 
         PolicyInfo() {
-            policyEntries = new ArrayList<>();
+            policyEntries = Collections.synchronizedList(new ArrayList<PolicyEntry>());
+            pdMapping = new ConcurrentHashMap<>();
         }
+
+        public PermissionCollection getOrCompute(ProtectionDomain pd, Supplier<PermissionCollection> computeFn) {
+            return pdMapping.computeIfAbsent(pd, k -> computeFn.get());
+        }
+
     }
 
     private static URL newURL(String spec) throws MalformedURLException, URISyntaxException {
