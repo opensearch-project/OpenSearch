@@ -153,6 +153,8 @@ public class BootstrapForTesting {
                 // TODO: cut over all tests to bind to ephemeral ports
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
+                perms.add(new FilePermission("/etc/os-release/", "read,write"));
+
                 // read test-framework permissions
                 Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
                 // when testing server, the main opensearch code is not yet in a jar, so we need to manually add it
