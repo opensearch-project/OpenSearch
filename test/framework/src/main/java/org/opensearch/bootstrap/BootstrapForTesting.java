@@ -46,6 +46,7 @@ import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.mockito.plugin.PriviledgedMockMaker;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.secure_sm.SecureSM;
@@ -60,6 +61,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Permissions;
+import java.io.FilePermission;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
@@ -152,6 +154,10 @@ public class BootstrapForTesting {
                 // TODO: cut over all tests to bind to ephemeral ports
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
+                if(System.getenv("JENKINS_URL")!=null){
+                    perms.add(new FilePermission("<<ALL_FILES>>", "read,write,delete"));
+                }
+
                 // read test-framework permissions
                 Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
                 // when testing server, the main opensearch code is not yet in a jar, so we need to manually add it
@@ -168,7 +174,7 @@ public class BootstrapForTesting {
                 final Optional<Policy> testPolicy = Optional.ofNullable(Bootstrap.class.getResource("test.policy"))
                     .map(policy -> Security.readPolicy(policy, codebases));
                 final Policy opensearchPolicy = new OpenSearchPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
-                Policy.setPolicy(new Policy() {
+                AgentPolicy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
                         // implements union
@@ -176,10 +182,13 @@ public class BootstrapForTesting {
                             || testFramework.implies(domain, permission)
                             || testPolicy.map(policy -> policy.implies(domain, permission)).orElse(false /* no policy */);
                     }
-                });
+                }, getTrustedHosts(), new AgentPolicy.AnyCanExit(SecureSM.TEST_RUNNER_PACKAGES));
                 // Create access control context for mocking
                 PriviledgedMockMaker.createAccessControlContext();
-                System.setSecurityManager(SecureSM.createTestSecureSM(getTrustedHosts()));
+
+                if (!AgentAttach.agentIsAttached()) {
+                    throw new RuntimeException("the security agent is not attached");
+                }
                 Security.selfTest();
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.
