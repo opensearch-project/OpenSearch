@@ -21,7 +21,3 @@ base {
 }
 
 disableTasks('forbiddenApisMain')
-
-dependencies {
-  testImplementation(project(":test:framework"))
-}
