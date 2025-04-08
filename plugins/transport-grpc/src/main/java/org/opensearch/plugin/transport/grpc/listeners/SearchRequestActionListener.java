@@ -24,7 +24,7 @@ import io.grpc.stub.StreamObserver;
 public class SearchRequestActionListener implements ActionListener<SearchResponse> {
     private static final Logger logger = LogManager.getLogger(SearchRequestActionListener.class);
 
-    private StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver;
+    private final StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver;
 
     /**
      * Constructs a new SearchRequestActionListener.
