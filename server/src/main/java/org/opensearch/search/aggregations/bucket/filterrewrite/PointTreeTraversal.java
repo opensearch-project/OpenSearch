@@ -84,7 +84,9 @@ final class PointTreeTraversal {
             logger.debug("Early terminate since no more range to collect");
         }
         collector.finalizePreviousRange();
-        collector.finalizeDocIdSetBuildersResult();
+        if (collector.hasSubAgg()) {
+            collector.finalizeDocIdSetBuildersResult();
+        }
         return collector.getResult();
     }
 
@@ -97,8 +99,9 @@ final class PointTreeTraversal {
                 collector.countNode((int) pointTree.size());
                 if (collector.hasSubAgg()) {
                     pointTree.visitDocIDs(visitor);
+                } else {
+                    collector.visitInner();
                 }
-                collector.visitInner();
                 break;
             case CELL_CROSSES_QUERY:
                 if (pointTree.moveToChild()) {
@@ -120,7 +123,9 @@ final class PointTreeTraversal {
 
             @Override
             public void grow(int count) {
-                collector.grow(count);
+                if (collector.hasSubAgg()) {
+                    collector.grow(count);
+                }
             }
 
             @Override
@@ -137,7 +142,9 @@ final class PointTreeTraversal {
             public void visit(int docID, byte[] packedValue) throws IOException {
                 visitPoints(packedValue, () -> {
                     collector.count();
-                    collector.collectDocId(docID);
+                    if (collector.hasSubAgg()) {
+                        collector.collectDocId(docID);
+                    }
                 });
             }
 
@@ -147,7 +154,9 @@ final class PointTreeTraversal {
                     // note: iterator can only iterate once
                     for (int doc = iterator.nextDoc(); doc != NO_MORE_DOCS; doc = iterator.nextDoc()) {
                         collector.count();
-                        collector.collectDocId(doc);
+                        if (collector.hasSubAgg()) {
+                            collector.collectDocId(doc);
+                        }
                     }
                 });
             }

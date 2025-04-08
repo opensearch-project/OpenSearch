@@ -37,17 +37,17 @@ public class SimpleRangeCollector extends AbstractRangeCollector {
 
     @Override
     public void grow(int count) {
-        // No-op for simple collector
+        throw new UnsupportedOperationException("grow should be unreachable");
     }
 
     @Override
     public void collectDocId(int docId) {
-        // No-op for simple collector
+        throw new UnsupportedOperationException("collectDocId should be unreachable");
     }
 
     @Override
     public void collectDocIdSet(DocIdSetIterator iter) throws IOException {
-        // No-op for simple collector
+        throw new UnsupportedOperationException("collectDocIdSet should be unreachable");
     }
 
     @Override
@@ -60,6 +60,6 @@ public class SimpleRangeCollector extends AbstractRangeCollector {
 
     @Override
     public void finalizeDocIdSetBuildersResult() {
-        // No-op for simple collector
+        throw new UnsupportedOperationException("finalizeDocIdSetBuildersResult should be unreachable");
     }
 }

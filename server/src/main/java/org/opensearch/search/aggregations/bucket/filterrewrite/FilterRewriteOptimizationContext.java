@@ -105,7 +105,7 @@ public final class FilterRewriteOptimizationContext {
      * Usage: invoked at segment level — in getLeafCollector of aggregator
      *
      * @param incrementDocCount consume the doc_count results for certain ordinal
-     * @param segmentMatchAll   if your optimization can prepareFromSegment, you should pass in this flag to decide whether to prepareFromSegment
+     * @param segmentMatchAll   we can always tryOptimize for match all scenario
      */
     public boolean tryOptimize(
         final LeafReaderContext leafCtx,
