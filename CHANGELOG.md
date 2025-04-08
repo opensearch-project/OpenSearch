@@ -30,7 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 - Migrate BC libs to their FIPS counterparts ([#14912](https://github.com/opensearch-project/OpenSearch/pull/14912))
 - Increase the floor segment size to 16MB ([#17699](https://github.com/opensearch-project/OpenSearch/pull/17699))
-- Optimize composite aggregation performance for single-valued fields by eliminating iterative ordinal processing ([#17740](https://github.com/opensearch-project/OpenSearch/pull/17740))
+- Unwrap singleton DocValues in global ordinal value source of composite histogram aggregation ([#17740](https://github.com/opensearch-project/OpenSearch/pull/17740))
 - Introduce 512 byte limit to search and ingest pipeline IDs ([#17786](https://github.com/opensearch-project/OpenSearch/pull/17786))
 
 ### Dependencies
