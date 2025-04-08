@@ -179,12 +179,11 @@ public final class ActiveShardCount implements Writeable {
             }
             assert indexRoutingTable != null;
 
-            boolean isSearchOnlyClusterBlockEnabled = indexMetadata.getSettings()
-                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
-
-            if (isSearchOnlyClusterBlockEnabled == false && indexRoutingTable.allPrimaryShardsActive() == false) {
-                // all primary shards aren't active yet
-                return false;
+            if (indexRoutingTable.allPrimaryShardsActive() == false) {
+                if (indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false) == false) {
+                    // all primary shards aren't active yet
+                    return false;
+                }
             }
             ActiveShardCount waitForActiveShards = this;
             if (waitForActiveShards == ActiveShardCount.DEFAULT) {
