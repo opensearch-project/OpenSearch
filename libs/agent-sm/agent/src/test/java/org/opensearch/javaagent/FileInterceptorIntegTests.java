@@ -145,7 +145,10 @@ public class FileInterceptorIntegTests {
 
             // Test copy operation
             Files.copy(sourcePath, targetPath);
-            assertThrows(SecurityException.class, () -> Files.copy(sourcePath, tmpDir.getRoot().resolve("test-target-" + randomAlphaOfLength(8) + ".txt")));
+            assertThrows(
+                SecurityException.class,
+                () -> Files.copy(sourcePath, tmpDir.getRoot().resolve("test-target-" + randomAlphaOfLength(8) + ".txt"))
+            );
 
             // Verify copy
             assertTrue("Target file should exist", Files.exists(targetPath));
