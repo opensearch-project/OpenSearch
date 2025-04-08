@@ -36,6 +36,7 @@ import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -193,7 +194,9 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("runtime.java", Integer.toString(Runtime.version().version().get(0)));
-            appendOpt(OpenSearchTestCase.FIPS_SYSPROP, System.getProperty(OpenSearchTestCase.FIPS_SYSPROP));
+            if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
+                appendProperties("org.bouncycastle.fips.approved_only");
+            }
             return this;
         }
 
