@@ -198,6 +198,9 @@ public class IngestionEngine extends InternalEngine {
         throw new IngestionEngineException("push-based deletion is not supported in ingestion engine, use streaming source instead");
     }
 
+    /**
+     * Processes delete operations. This is used internally by the stream poller only.
+     */
     public DeleteResult deleteInternal(Delete delete) throws IOException {
         assert Objects.equals(delete.uid().field(), IdFieldMapper.NAME) : delete.uid().field();
         ensureOpen();
