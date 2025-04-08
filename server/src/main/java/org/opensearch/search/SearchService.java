@@ -53,6 +53,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -309,6 +310,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     );
 
     // value 0 means rewrite filters optimization in aggregations will be disabled
+    @ExperimentalApi
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
         "search.max_aggregation_rewrite_filters",
         3000,
@@ -318,6 +320,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     );
 
     // only do optimization when there's enough docs per range at segment level and sub agg exists
+    @ExperimentalApi
     public static final Setting<Integer> AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD = Setting.intSetting(
         "search.aggregation_rewrite_filters.segment_level_threshold",
         1000,

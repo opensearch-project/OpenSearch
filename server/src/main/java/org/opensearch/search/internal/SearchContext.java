@@ -38,6 +38,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -522,6 +523,7 @@ public abstract class SearchContext implements Releasable {
         return 0;
     }
 
+    @ExperimentalApi
     public int filterRewriteSegmentThreshold() {
         return 0;
     }
