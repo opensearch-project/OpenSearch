@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.StreamPoller;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -20,12 +21,12 @@ import java.util.Objects;
  */
 @ExperimentalApi
 public class IngestionSource {
-    private String type;
-    private PointerInitReset pointerInitReset;
-    private IngestionErrorStrategy.ErrorStrategy errorStrategy;
-    private Map<String, Object> params;
+    private final String type;
+    private final PointerInitReset pointerInitReset;
+    private final IngestionErrorStrategy.ErrorStrategy errorStrategy;
+    private final Map<String, Object> params;
 
-    public IngestionSource(
+    private IngestionSource(
         String type,
         PointerInitReset pointerInitReset,
         IngestionErrorStrategy.ErrorStrategy errorStrategy,
@@ -124,5 +125,54 @@ public class IngestionSource {
         public String toString() {
             return "PointerInitReset{" + "type='" + type + '\'' + ", value=" + value + '}';
         }
+    }
+
+    /**
+     * Builder for {@link IngestionSource}.
+     *
+     */
+    @ExperimentalApi
+    public static class Builder {
+        private String type;
+        private PointerInitReset pointerInitReset;
+        private IngestionErrorStrategy.ErrorStrategy errorStrategy;
+        private Map<String, Object> params;
+
+        public Builder(String type) {
+            this.type = type;
+            this.params = new HashMap<>();
+        }
+
+        public Builder(IngestionSource ingestionSource) {
+            this.type = ingestionSource.type;
+            this.pointerInitReset = ingestionSource.pointerInitReset;
+            this.errorStrategy = ingestionSource.errorStrategy;
+            this.params = ingestionSource.params;
+        }
+
+        public Builder setPointerInitReset(PointerInitReset pointerInitReset) {
+            this.pointerInitReset = pointerInitReset;
+            return this;
+        }
+
+        public Builder setErrorStrategy(IngestionErrorStrategy.ErrorStrategy errorStrategy) {
+            this.errorStrategy = errorStrategy;
+            return this;
+        }
+
+        public Builder setParams(Map<String, Object> params) {
+            this.params = params;
+            return this;
+        }
+
+        public Builder addParam(String key, Object value) {
+            this.params.put(key, value);
+            return this;
+        }
+
+        public IngestionSource build() {
+            return new IngestionSource(type, pointerInitReset, errorStrategy, params);
+        }
+
     }
 }
