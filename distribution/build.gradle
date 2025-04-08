@@ -156,6 +156,18 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
       exclude '*/config/log4j2.properties'
       exclude 'config/log4j2.properties'
 
+      // prevents jarHell by excluding any known BCFIPS jars from module, since they already exists in general lib folder
+      if ( BuildParams.inFipsJvm ) {
+        exclude { details ->
+          def fileName = details.file.name
+          return fileName.startsWith("bc-fips") ||
+                  fileName.startsWith("bctls-fips") ||
+                  fileName.startsWith("bcutil-fips") ||
+                  fileName.startsWith("bcpkix-fips") ||
+                  fileName.startsWith("bcpg-fips")
+        }
+      }
+
       eachFile { details ->
         String name = module.plugins.hasPlugin('opensearch.opensearchplugin') ? module.opensearchplugin.name : module.opensearch_meta_plugin.name
         // Copy all non config/bin files
@@ -312,7 +324,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsUpgradeCli'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsUpgradeCli', 'bcFips'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -334,6 +346,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsUpgradeCli project(path: ':distribution:tools:upgrade-cli')
+
+    bcFips libs.bundles.bouncycastle
   }
 
   project.ext {
@@ -345,6 +359,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
+        if ( BuildParams.inFipsJvm ) {
+          from(configurations.bcFips)
+        }
         into('tools/plugin-cli') {
           from(configurations.libsPluginCli)
         }

@@ -35,7 +35,11 @@ package org.opensearch.common;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.security.GeneralSecurityException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Collections;
 import java.util.List;
@@ -126,18 +130,45 @@ public final class Randomness {
     }
 
     /**
-     * Provides a secure source of randomness.
-     * <p>
-     * This acts exactly similar to {@link #get()}, but returning a new {@link SecureRandom}.
+     * Returns a {@link SecureRandom} via
+     * {@code
+     * FipsDRBG.SHA512_HMAC.fromEntropySource(new BasicEntropySourceProvider(entropySource, true)).build(null, true)
+     * }
+     * if BCFIPS is on classpath and the application is running in FIPS JVM,
+     * otherwise it returns a non-approved {@link SecureRandom}.
      */
     public static SecureRandom createSecure() {
-        if (currentMethod != null && getRandomMethod != null) {
-            // tests, so just use a seed from the non secure random
-            byte[] seed = new byte[16];
-            get().nextBytes(seed);
-            return new SecureRandom(seed);
-        } else {
-            return new SecureRandom();
+        try {
+            Class<?> registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
+            Method isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
+            boolean approvedOnly = (Boolean) isApprovedOnlyMethod.invoke(null);
+
+            if (approvedOnly) {
+                SecureRandom entropySource = SecureRandom.getInstance("DEFAULT", "BCFIPS");
+
+                Class<?> entropyProviderClass = Class.forName("org.bouncycastle.crypto.util.BasicEntropySourceProvider");
+                Constructor<?> entropyConstructor = entropyProviderClass.getConstructor(SecureRandom.class, boolean.class);
+                Object entropyProvider = entropyConstructor.newInstance(entropySource, true);
+
+                Class<?> fipsDrbgClass = Class.forName("org.bouncycastle.crypto.fips.FipsDRBG");
+                Field sha512HmacField = fipsDrbgClass.getField("SHA512_HMAC");
+                Object sha512Hmac = sha512HmacField.get(null);
+
+                Method fromEntropySourceMethod = sha512Hmac.getClass().getMethod("fromEntropySource", entropyProviderClass);
+                Object builder = fromEntropySourceMethod.invoke(sha512Hmac, entropyProvider);
+
+                Method buildMethod = builder.getClass().getMethod("build", Object.class, boolean.class);
+                Object drbgInstance = buildMethod.invoke(builder, null, true);
+
+                return (SecureRandom) drbgInstance;
+            }
+            return SecureRandom.getInstanceStrong();
+        } catch (ReflectiveOperationException | GeneralSecurityException e) {
+            try {
+                return SecureRandom.getInstanceStrong();
+            } catch (NoSuchAlgorithmException ex) {
+                throw new SecurityException("Failed to instantiate SecureRandom: " + e.getMessage(), e);
+            }
         }
     }
 
