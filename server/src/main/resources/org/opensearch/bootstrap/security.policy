@@ -93,6 +93,30 @@ grant codeBase "${codebase.reactor-core}" {
   permission java.net.SocketPermission "*", "connect,resolve";
 };
 
+grant codeBase "${codebase.opensearch-cli}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
+grant codeBase "${codebase.opensearch-core}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
+grant codeBase "${codebase.jackson-core}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
+grant codeBase "${codebase.opensearch-common}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
+grant codeBase "${codebase.opensearch-x-content}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
+grant codeBase "${codebase.opensearch}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
 //// Everything else:
 
 grant {
