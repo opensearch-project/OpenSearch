@@ -20,8 +20,9 @@ base {
   archivesName = 'opensearch-agent-policy'
 }
 
-disableTasks('forbiddenApisMain')
+disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'testingConventions')
 
 dependencies {
-  testImplementation(project(":test:framework"))
+  testImplementation libs.junit
+  testImplementation libs.hamcrest
 }
