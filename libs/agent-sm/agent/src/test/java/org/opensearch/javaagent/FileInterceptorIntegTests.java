@@ -29,6 +29,7 @@ import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 @SuppressWarnings("removal")
@@ -144,6 +145,10 @@ public class FileInterceptorIntegTests {
 
             // Test copy operation
             Files.copy(sourcePath, targetPath);
+            assertThrows(
+                SecurityException.class,
+                () -> Files.copy(sourcePath, tmpDir.getRoot().resolve("test-target-" + randomAlphaOfLength(8) + ".txt"))
+            );
 
             // Verify copy
             assertTrue("Target file should exist", Files.exists(targetPath));
