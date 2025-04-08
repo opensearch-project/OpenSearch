@@ -41,7 +41,9 @@ public class EhcacheDiskCacheSettings {
     );
 
     /**
-     *  Ehcache disk write maximum threads for its pool.
+     *  Ehcache disk write maximum threads for its pool. The default value is 1.5 * CPU_CORES ie equal to number of
+     *  search threads. Disk operations are typically I/O bound rather than CPU bound, so setting it greater than the
+     *  number of cpu cores should ideally be fine.
      *
      *  Setting pattern: {cache_type}.ehcache_disk.max_threads
      */
@@ -51,7 +53,7 @@ public class EhcacheDiskCacheSettings {
             key,
             ThreadPool.searchThreadPoolSize(Runtime.getRuntime().availableProcessors()),
             1,
-            Runtime.getRuntime().availableProcessors() * 100, // The max one can configure this in setting is 100 times
+            Runtime.getRuntime().availableProcessors() * 10, // The max one can configure this in setting is 10 times
             // CPU cores. Ideally won't be required, but in case one way use it.
             NodeScope
         )
