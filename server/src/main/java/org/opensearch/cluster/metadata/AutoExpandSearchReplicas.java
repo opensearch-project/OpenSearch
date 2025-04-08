@@ -37,7 +37,7 @@ public final class AutoExpandSearchReplicas {
     private static final AutoExpandSearchReplicas FALSE_INSTANCE = new AutoExpandSearchReplicas(0, 0, false);
 
     public static final Setting<AutoExpandSearchReplicas> SETTING = new Setting<>(
-        IndexMetadata.INDEX_AUTO_EXPAND_READ_REPLICAS,
+        IndexMetadata.SETTING_AUTO_EXPAND_READ_REPLICAS,
         "false",
         AutoExpandSearchReplicas::parse,
         Property.Dynamic,
@@ -53,7 +53,7 @@ public final class AutoExpandSearchReplicas {
         final int dash = value.indexOf('-');
         if (-1 == dash) {
             throw new IllegalArgumentException(
-                "failed to parse [" + IndexMetadata.INDEX_AUTO_EXPAND_READ_REPLICAS + "] from value: [" + value + "] at index " + dash
+                "failed to parse [" + IndexMetadata.SETTING_AUTO_EXPAND_READ_REPLICAS + "] from value: [" + value + "] at index " + dash
             );
         }
         final String sMin = value.substring(0, dash);
@@ -61,7 +61,7 @@ public final class AutoExpandSearchReplicas {
             min = Integer.parseInt(sMin);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(
-                "failed to parse [" + IndexMetadata.INDEX_AUTO_EXPAND_READ_REPLICAS + "] from value: [" + value + "] at index " + dash,
+                "failed to parse [" + IndexMetadata.SETTING_AUTO_EXPAND_READ_REPLICAS + "] from value: [" + value + "] at index " + dash,
                 e
             );
         }
@@ -74,7 +74,7 @@ public final class AutoExpandSearchReplicas {
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException(
                     "failed to parse ["
-                        + IndexMetadata.INDEX_AUTO_EXPAND_READ_REPLICAS
+                        + IndexMetadata.SETTING_AUTO_EXPAND_READ_REPLICAS
                         + "] from value: ["
                         + value
                         + "] at index "
@@ -94,7 +94,7 @@ public final class AutoExpandSearchReplicas {
         if (minReplicas > maxReplicas) {
             throw new IllegalArgumentException(
                 "["
-                    + IndexMetadata.INDEX_AUTO_EXPAND_READ_REPLICAS
+                    + IndexMetadata.SETTING_AUTO_EXPAND_READ_REPLICAS
                     + "] minSearchReplicas must be =< maxSearchReplicas but wasn't "
                     + minReplicas
                     + " > "
