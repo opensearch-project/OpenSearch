@@ -77,8 +77,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_READ_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus.DECIDERS_NO;
 import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
@@ -478,8 +478,7 @@ public class AllocationServiceTests extends OpenSearchTestCase {
             .put(
                 IndexMetadata.builder(indexName)
                     .settings(
-                        settings(Version.CURRENT).put(SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                            .put(SETTING_AUTO_EXPAND_READ_REPLICAS, "0-all")
+                        settings(Version.CURRENT).put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").put(SETTING_AUTO_EXPAND_READ_REPLICAS, "0-all")
                     )
                     .numberOfShards(1)
                     .numberOfReplicas(1)

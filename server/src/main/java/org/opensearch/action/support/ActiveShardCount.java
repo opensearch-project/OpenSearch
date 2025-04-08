@@ -179,8 +179,7 @@ public final class ActiveShardCount implements Writeable {
             }
             assert indexRoutingTable != null;
             if (indexRoutingTable.allPrimaryShardsActive() == false) {
-                if (indexMetadata.getSettings()
-                    .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)) {
+                if (indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)) {
                     // all primary shards aren't active yet
                     return false;
                 }

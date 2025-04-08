@@ -34,8 +34,8 @@ import java.nio.file.Path;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.routing.RecoverySource.Type.EMPTY_STORE;
 import static org.opensearch.cluster.routing.RecoverySource.Type.EXISTING_STORE;
 

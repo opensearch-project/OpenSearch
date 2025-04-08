@@ -44,8 +44,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, Boolean.TRUE).build();
     }
 
-    private final String expectedFailureMessage =
-        "To set index.number_of_read_replicas, index.replication.type must be set to SEGMENT";
+    private final String expectedFailureMessage = "To set index.number_of_read_replicas, index.replication.type must be set to SEGMENT";
 
     @Override
     public Settings indexSettings() {

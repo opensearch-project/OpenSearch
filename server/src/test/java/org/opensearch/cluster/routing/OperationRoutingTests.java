@@ -1180,10 +1180,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 assertEquals("We should have 3 shards returned", shardIterator.size(), 3);
                 int i = 0;
                 for (ShardRouting shardRouting : shardIterator) {
-                    assertTrue(
-                        "Only search replicas should exist with preference READ_REPLICA",
-                        shardIterator.nextOrNull().isSearchOnly()
-                    );
+                    assertTrue("Only search replicas should exist with preference READ_REPLICA", shardIterator.nextOrNull().isSearchOnly());
                     if (i == shardIterator.size()) {
                         assertTrue("Initializing shard should appear last", shardRouting.initializing());
                         assertFalse("Initializing shard should appear last", shardRouting.active());

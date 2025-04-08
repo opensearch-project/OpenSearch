@@ -17,8 +17,8 @@ import org.opensearch.common.settings.Settings;
 
 import java.util.Optional;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_READ_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.hamcrest.Matchers.equalTo;
 
