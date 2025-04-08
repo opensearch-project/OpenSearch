@@ -201,7 +201,7 @@ public final class Checkpoint {
 
     public static Checkpoint read(Path path) throws IOException {
         try (Directory dir = new NIOFSDirectory(path.getParent())) {
-            try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
+            try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.READONCE)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, VERSION_LUCENE_BIG_ENDIAN, CURRENT_VERSION);
