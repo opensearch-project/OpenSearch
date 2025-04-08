@@ -1181,7 +1181,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 int i = 0;
                 for (ShardRouting shardRouting : shardIterator) {
                     assertTrue(
-                        "Only search replicas should exist with preference SEARCH_REPLICA",
+                        "Only search replicas should exist with preference READ_REPLICA",
                         shardIterator.nextOrNull().isSearchOnly()
                     );
                     if (i == shardIterator.size()) {

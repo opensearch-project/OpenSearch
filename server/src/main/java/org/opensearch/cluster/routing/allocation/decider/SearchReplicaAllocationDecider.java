@@ -20,7 +20,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
  */
 public class SearchReplicaAllocationDecider extends AllocationDecider {
 
-    public static final String NAME = "search_replica_allocation";
+    public static final String NAME = "read_replica_allocation";
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

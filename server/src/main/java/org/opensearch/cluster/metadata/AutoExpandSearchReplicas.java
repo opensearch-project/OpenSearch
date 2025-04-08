@@ -24,7 +24,7 @@ import java.util.OptionalInt;
 import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
 
 /**
- * This class acts as a functional wrapper around the {@code index.auto_expand_search_replicas} setting.
+ * This class acts as a functional wrapper around the {@code index.auto_expand_read_replicas} setting.
  * This setting's value expands into a minimum and maximum value, requiring special handling based on the
  * number of search nodes in the cluster. This class handles parsing and simplifies access to these values.
  *
@@ -37,7 +37,7 @@ public final class AutoExpandSearchReplicas {
     private static final AutoExpandSearchReplicas FALSE_INSTANCE = new AutoExpandSearchReplicas(0, 0, false);
 
     public static final Setting<AutoExpandSearchReplicas> SETTING = new Setting<>(
-        IndexMetadata.SETTING_AUTO_EXPAND_SEARCH_REPLICAS,
+        IndexMetadata.INDEX_AUTO_EXPAND_READ_REPLICAS,
         "false",
         AutoExpandSearchReplicas::parse,
         Property.Dynamic,
@@ -53,7 +53,7 @@ public final class AutoExpandSearchReplicas {
         final int dash = value.indexOf('-');
         if (-1 == dash) {
             throw new IllegalArgumentException(
-                "failed to parse [" + IndexMetadata.SETTING_AUTO_EXPAND_SEARCH_REPLICAS + "] from value: [" + value + "] at index " + dash
+                "failed to parse [" + IndexMetadata.INDEX_AUTO_EXPAND_READ_REPLICAS + "] from value: [" + value + "] at index " + dash
             );
         }
         final String sMin = value.substring(0, dash);
@@ -61,7 +61,7 @@ public final class AutoExpandSearchReplicas {
             min = Integer.parseInt(sMin);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(
-                "failed to parse [" + IndexMetadata.SETTING_AUTO_EXPAND_SEARCH_REPLICAS + "] from value: [" + value + "] at index " + dash,
+                "failed to parse [" + IndexMetadata.INDEX_AUTO_EXPAND_READ_REPLICAS + "] from value: [" + value + "] at index " + dash,
                 e
             );
         }
@@ -74,7 +74,7 @@ public final class AutoExpandSearchReplicas {
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException(
                     "failed to parse ["
-                        + IndexMetadata.SETTING_AUTO_EXPAND_SEARCH_REPLICAS
+                        + IndexMetadata.INDEX_AUTO_EXPAND_READ_REPLICAS
                         + "] from value: ["
                         + value
                         + "] at index "
@@ -94,7 +94,7 @@ public final class AutoExpandSearchReplicas {
         if (minReplicas > maxReplicas) {
             throw new IllegalArgumentException(
                 "["
-                    + IndexMetadata.SETTING_AUTO_EXPAND_SEARCH_REPLICAS
+                    + IndexMetadata.INDEX_AUTO_EXPAND_READ_REPLICAS
                     + "] minSearchReplicas must be =< maxSearchReplicas but wasn't "
                     + minReplicas
                     + " > "

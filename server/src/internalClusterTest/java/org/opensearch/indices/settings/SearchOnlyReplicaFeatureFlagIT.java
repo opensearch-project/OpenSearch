@@ -15,7 +15,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
@@ -48,7 +48,7 @@ public class SearchOnlyReplicaFeatureFlagIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareUpdateSettings(TEST_INDEX)
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1))
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, 1))
                 .get();
         });
         assertTrue(settingsException.getMessage().contains("unknown setting"));

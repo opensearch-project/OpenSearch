@@ -500,7 +500,7 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numOfSearchReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, numOfSearchReplicas)
                 .build()
         );
         // create an initial routing table where all search replicas exist and are assigned, they should get included as is in the restored
@@ -569,7 +569,7 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numOfSearchReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, numOfSearchReplicas)
                 .build()
         );
         // create an initial routing table where all search replicas exist and are assigned, they should get included as is in the restored

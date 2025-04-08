@@ -280,7 +280,7 @@ public class OperationRouting {
             if (isReaderWriterSplitEnabled) {
                 if (preference == null || preference.isEmpty()) {
                     if (indexMetadataForShard.getNumberOfSearchOnlyReplicas() > 0 && isStrictSearchOnlyShardRouting) {
-                        preference = Preference.SEARCH_REPLICA.type();
+                        preference = Preference.READ_REPLICA.type();
                     }
                 }
             }
@@ -419,7 +419,7 @@ public class OperationRouting {
                     return indexShard.primaryFirstActiveInitializingShardsIt();
                 case REPLICA_FIRST:
                     return indexShard.replicaFirstActiveInitializingShardsIt();
-                case SEARCH_REPLICA:
+                case READ_REPLICA:
                     return indexShard.searchReplicaActiveInitializingShardIt();
                 case ONLY_LOCAL:
                     return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);

@@ -42,7 +42,7 @@ public class SearchReplicaAllocationIT extends RemoteStoreBaseIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 1)
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build()
         );
@@ -63,7 +63,7 @@ public class SearchReplicaAllocationIT extends RemoteStoreBaseIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 2)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 2)
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build()
         );
@@ -88,7 +88,7 @@ public class SearchReplicaAllocationIT extends RemoteStoreBaseIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 1)
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build()
         );

@@ -30,7 +30,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -64,7 +64,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .build();
 
         createIndex(TEST_INDEX, specificSettings);
@@ -122,7 +122,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             client().admin()
                 .indices()
                 .prepareUpdateSettings(TEST_INDEX)
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 3).build())
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, 3).build())
                 .get()
         );
 
@@ -136,7 +136,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             client().admin()
                 .indices()
                 .prepareUpdateSettings(TEST_INDEX)
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 2).build())
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, 2).build())
                 .get()
         );
 
@@ -226,7 +226,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 2)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .build();
 
         createIndex(TEST_INDEX, specificSettings);
@@ -265,7 +265,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 2)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .build();
 
         createIndex(TEST_INDEX, specificSettings);
@@ -306,7 +306,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_SHARDS, 2)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .build();
 
         createIndex(TEST_INDEX, specificSettings);

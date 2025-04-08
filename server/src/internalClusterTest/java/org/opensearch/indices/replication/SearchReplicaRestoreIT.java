@@ -25,7 +25,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -57,7 +57,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
                 RESTORED_INDEX_NAME,
                 Settings.builder()
                     .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-                    .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                    .put(SETTING_NUMBER_OF_READ_REPLICAS, 1)
                     .build()
             )
         );
@@ -73,7 +73,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             SNAPSHOT_NAME,
             INDEX_NAME,
             RESTORED_INDEX_NAME,
-            Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1).build()
+            Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, 1).build()
         );
         ensureYellowAndNoInitializingShards(RESTORED_INDEX_NAME);
 
@@ -128,7 +128,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             .put(super.indexSettings())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, 0)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, replicationType)
             .build();
 
@@ -146,7 +146,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             .put(super.indexSettings())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
 
@@ -173,11 +173,11 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             + "To restore with [index.replication.type] as ["
             + restoreReplicationType
             + "], "
-            + "[index.number_of_search_only_replicas] must be set to [0]";
+            + "[index.number_of_read_replicas] must be set to [0]";
     }
 
     private int getNumberOfSearchReplicas(String index) {
         Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
-        return Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SEARCH_REPLICAS));
+        return Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_READ_REPLICAS));
     }
 }

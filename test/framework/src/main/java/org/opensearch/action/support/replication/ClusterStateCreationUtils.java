@@ -63,7 +63,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
@@ -359,7 +359,7 @@ public class ClusterStateCreationUtils {
                         .put(SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
                         .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                        .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, numberOfSearchReplicas)
+                        .put(SETTING_NUMBER_OF_READ_REPLICAS, numberOfSearchReplicas)
                         .put(SETTING_CREATION_DATE, System.currentTimeMillis())
                 )
                 .build();

@@ -217,7 +217,7 @@ import java.util.stream.Collectors;
 import reactor.util.annotation.NonNull;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
@@ -2277,7 +2277,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         assertThat(metadata.hasIndex(index), equalTo(true));
         int numShards = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
         int numReplicas = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
-        String numSearchReplicasValue = metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SEARCH_REPLICAS);
+        String numSearchReplicasValue = metadata.index(index).getSettings().get(SETTING_NUMBER_OF_READ_REPLICAS);
         int numSearchReplicas = numSearchReplicasValue != null ? Integer.parseInt(numSearchReplicasValue) : 0;
         return new NumShards(numShards, numReplicas, numSearchReplicas);
     }

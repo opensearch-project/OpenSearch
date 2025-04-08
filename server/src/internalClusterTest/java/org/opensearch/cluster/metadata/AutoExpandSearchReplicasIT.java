@@ -42,7 +42,7 @@ public class AutoExpandSearchReplicasIT extends RemoteStoreBaseIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 1)
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(0))
                 .build()
@@ -55,7 +55,7 @@ public class AutoExpandSearchReplicasIT extends RemoteStoreBaseIntegTestCase {
         client().admin()
             .indices()
             .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put("index.auto_expand_search_replicas", "0-all"))
+            .setSettings(Settings.builder().put("index.auto_expand_read_replicas", "0-all"))
             .get();
 
         // Add 1 more search nodes

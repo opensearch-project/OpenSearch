@@ -18,8 +18,8 @@ import org.opensearch.common.settings.Settings;
 import java.util.Optional;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_SEARCH_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_READ_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
@@ -33,7 +33,7 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "rack_id")
             .put(SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .put(SETTING_AUTO_EXPAND_SEARCH_REPLICAS, "0-1")
+            .put(INDEX_AUTO_EXPAND_READ_REPLICAS, "0-1")
             .build();
         AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
         AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);
@@ -55,7 +55,7 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
             .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
             .put(SETTING_AUTO_EXPAND_REPLICAS, "0-2")
-            .put(SETTING_AUTO_EXPAND_SEARCH_REPLICAS, "0-3")
+            .put(INDEX_AUTO_EXPAND_READ_REPLICAS, "0-3")
             .build();
 
         AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);
@@ -75,7 +75,7 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
             .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
             .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-            .put(SETTING_AUTO_EXPAND_SEARCH_REPLICAS, "0-all")
+            .put(INDEX_AUTO_EXPAND_READ_REPLICAS, "0-all")
             .build();
 
         awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);
@@ -96,7 +96,7 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
             .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
             .put(SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .put(SETTING_AUTO_EXPAND_SEARCH_REPLICAS, "0-1")
+            .put(INDEX_AUTO_EXPAND_READ_REPLICAS, "0-1")
             .build();
 
         awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);
@@ -160,7 +160,7 @@ public class AwarenessReplicaBalanceTests extends OpenSearchAllocationTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone, rack")
             .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
             .put(SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, "0-1")
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, "0-1")
             .build();
 
         AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(settings, EMPTY_CLUSTER_SETTINGS);

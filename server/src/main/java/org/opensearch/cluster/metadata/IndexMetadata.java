@@ -282,9 +282,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * with their primary.  Search replicas require the use of Segment Replication on the index and poll their {@link SegmentReplicationSource} for
      * updates.  //TODO: Once physical isolation is introduced, reference the setting here.
      */
-    public static final String SETTING_NUMBER_OF_SEARCH_REPLICAS = "index.number_of_search_only_replicas";
-    public static final Setting<Integer> INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING = Setting.intSetting(
-        SETTING_NUMBER_OF_SEARCH_REPLICAS,
+    public static final String SETTING_NUMBER_OF_READ_REPLICAS = "index.number_of_read_replicas";
+    public static final Setting<Integer> INDEX_NUMBER_OF_READ_REPLICAS_SETTING = Setting.intSetting(
+        SETTING_NUMBER_OF_READ_REPLICAS,
         0,
         0,
         Property.Dynamic,
@@ -510,9 +510,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
-    public static final String SETTING_AUTO_EXPAND_SEARCH_REPLICAS = "index.auto_expand_search_replicas";
+    public static final String INDEX_AUTO_EXPAND_READ_REPLICAS = "index.auto_expand_read_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
-    public static final Setting<AutoExpandSearchReplicas> INDEX_AUTO_EXPAND_SEARCH_REPLICAS_SETTING = AutoExpandSearchReplicas.SETTING;
+    public static final Setting<AutoExpandSearchReplicas> INDEX_AUTO_EXPAND_READ_REPLICAS_SETTING = AutoExpandSearchReplicas.SETTING;
 
     /**
      * Blocks the API.
@@ -1710,7 +1710,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public Builder numberOfSearchReplicas(int numberOfSearchReplicas) {
-            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SEARCH_REPLICAS, numberOfSearchReplicas).build();
+            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_READ_REPLICAS, numberOfSearchReplicas).build();
             return this;
         }
 
@@ -1919,7 +1919,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 throw new IllegalArgumentException("must specify number of replicas for index [" + index + "]");
             }
             final int numberOfReplicas = INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings);
-            final int numberOfSearchReplicas = INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(settings);
+            final int numberOfSearchReplicas = INDEX_NUMBER_OF_READ_REPLICAS_SETTING.get(settings);
 
             int routingPartitionSize = INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
             if (routingPartitionSize != 1 && routingPartitionSize >= getRoutingNumShards()) {

@@ -76,7 +76,7 @@ public enum Preference {
     /**
      * Route to search replica shards
      */
-    SEARCH_REPLICA("_search_replica"),
+    READ_REPLICA("_read_replica"),
 
     /**
      * Route to the local shard only
@@ -132,8 +132,8 @@ public enum Preference {
                 return ONLY_LOCAL;
             case "_only_nodes":
                 return ONLY_NODES;
-            case "_search_replica":
-                return SEARCH_REPLICA;
+            case "_read_replica":
+                return READ_REPLICA;
             default:
                 throw new IllegalArgumentException("no Preference for [" + preferenceType + "]");
         }

@@ -406,7 +406,7 @@ public class AllocationService {
                 routingTableBuilder.updateNumberOfSearchReplicas(numberOfSearchReplicas, indices);
                 metadataBuilder.updateNumberOfSearchReplicas(numberOfSearchReplicas, indices);
                 updatedIndices.addAll(Set.of(indices));
-                logger.info("updating number_of_search_replicas to [{}] for indices {}", numberOfSearchReplicas, indices);
+                logger.info("updating number_of_read_replicas to [{}] for indices {}", numberOfSearchReplicas, indices);
             }
 
             // update settings version for each updated index

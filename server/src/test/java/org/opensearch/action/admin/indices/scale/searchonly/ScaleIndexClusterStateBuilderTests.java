@@ -33,7 +33,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_SEARCH_ONLY_BL
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
@@ -59,7 +59,7 @@ public class ScaleIndexClusterStateBuilderTests extends OpenSearchTestCase {
             .put(SETTING_INDEX_UUID, randomAlphaOfLength(8))
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)  // Add search replicas
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, 1)  // Add search replicas
             .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)  // Enable segment replication
             .put(SETTING_REMOTE_STORE_ENABLED, true)  // Enable remote store
             .put(SETTING_CREATION_DATE, System.currentTimeMillis())

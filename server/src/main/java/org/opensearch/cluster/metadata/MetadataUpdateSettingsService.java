@@ -77,7 +77,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateOverlap;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
@@ -295,11 +295,11 @@ public class MetadataUpdateSettingsService {
                         }
                     }
 
-                    if (IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(openSettings)) {
+                    if (IndexMetadata.INDEX_NUMBER_OF_READ_REPLICAS_SETTING.exists(openSettings)) {
                         if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
                             validateSearchReplicaCountSettings(normalizedSettings, request.indices(), currentState);
                         }
-                        final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(openSettings);
+                        final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_READ_REPLICAS_SETTING.get(openSettings);
                         if (preserveExisting == false) {
                             for (Index index : request.indices()) {
                                 if (index.getName().charAt(0) != '.') {
@@ -552,14 +552,14 @@ public class MetadataUpdateSettingsService {
      * @param currentState {@link ClusterState} current cluster state
      */
     private void validateSearchReplicaCountSettings(Settings requestSettings, Index[] indices, ClusterState currentState) {
-        final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings);
+        final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_READ_REPLICAS_SETTING.get(requestSettings);
         if (updatedNumberOfSearchReplicas > 0) {
             if (Arrays.stream(indices)
                 .allMatch(
                     index -> currentState.metadata().index(index.getName()).getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)
                 ) == false) {
                 throw new IllegalArgumentException(
-                    "To set " + SETTING_NUMBER_OF_SEARCH_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
+                    "To set " + SETTING_NUMBER_OF_READ_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
                 );
             }
         }

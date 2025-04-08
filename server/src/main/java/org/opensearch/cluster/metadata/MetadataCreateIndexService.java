@@ -140,14 +140,14 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_READ_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
@@ -1100,11 +1100,11 @@ public class MetadataCreateIndexService {
     }
 
     private static void validateSearchOnlyReplicasSettings(Settings indexSettings) {
-        if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(indexSettings) && indexSettings.get(SETTING_NUMBER_OF_SEARCH_REPLICAS) != null) {
-            if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(indexSettings) > 0
+        if (INDEX_NUMBER_OF_READ_REPLICAS_SETTING.exists(indexSettings) && indexSettings.get(SETTING_NUMBER_OF_READ_REPLICAS) != null) {
+            if (INDEX_NUMBER_OF_READ_REPLICAS_SETTING.get(indexSettings) > 0
                 && Boolean.parseBoolean(indexSettings.get(SETTING_REMOTE_STORE_ENABLED)) == false) {
                 throw new IllegalArgumentException(
-                    "To set " + SETTING_NUMBER_OF_SEARCH_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
+                    "To set " + SETTING_NUMBER_OF_READ_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
                 );
             }
         }
@@ -1500,7 +1500,7 @@ public class MetadataCreateIndexService {
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
                 DEFAULT_REPLICA_COUNT_SETTING.get(this.clusterService.state().metadata().settings())
             );
-            int searchReplicaCount = settings.getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
+            int searchReplicaCount = settings.getAsInt(SETTING_NUMBER_OF_READ_REPLICAS, 0);
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
 
             Optional<String> replicaValidationError = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);

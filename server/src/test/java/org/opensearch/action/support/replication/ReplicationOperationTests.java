@@ -95,7 +95,7 @@ import java.util.stream.IntStream;
 import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
 import static org.opensearch.action.support.replication.ReplicationOperation.RetryOnPrimaryException;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -966,7 +966,7 @@ public class ReplicationOperationTests extends OpenSearchTestCase {
             Version.CURRENT
         );
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata);
-        indexMetadataBuilder.settings(Settings.builder().put(indexMetadata.getSettings()).put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1));
+        indexMetadataBuilder.settings(Settings.builder().put(indexMetadata.getSettings()).put(SETTING_NUMBER_OF_READ_REPLICAS, 1));
 
         ShardRouting searchShardRouting = TestShardRouting.newShardRouting(
             shardId,

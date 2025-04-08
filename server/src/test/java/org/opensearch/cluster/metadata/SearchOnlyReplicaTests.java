@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -100,12 +100,12 @@ public class SearchOnlyReplicaTests extends OpenSearchSingleNodeTestCase {
                     .put(SETTING_NUMBER_OF_SHARDS, 1)
                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
-                    .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+                    .put(SETTING_NUMBER_OF_READ_REPLICAS, 1)
                     .build()
             )
         );
         assertEquals(
-            "To set index.number_of_search_only_replicas, index.remote_store.enabled must be set to true",
+            "To set index.number_of_read_replicas, index.remote_store.enabled must be set to true",
             exception.getCause().getMessage()
         );
     }
@@ -115,7 +115,7 @@ public class SearchOnlyReplicaTests extends OpenSearchSingleNodeTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
             .put(INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .build();
         createIndex(INDEX_NAME, settings);
 
@@ -126,7 +126,7 @@ public class SearchOnlyReplicaTests extends OpenSearchSingleNodeTestCase {
 
         // add another replica
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(INDEX_NAME).settings(
-            Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 2).build()
+            Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, 2).build()
         );
         client().admin().indices().updateSettings(updateSettingsRequest).get();
         indexShardRoutingTable = getIndexShardRoutingTable();
@@ -136,7 +136,7 @@ public class SearchOnlyReplicaTests extends OpenSearchSingleNodeTestCase {
 
         // remove all replicas
         updateSettingsRequest = new UpdateSettingsRequest(INDEX_NAME).settings(
-            Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0).build()
+            Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, 0).build()
         );
         client().admin().indices().updateSettings(updateSettingsRequest).get();
         indexShardRoutingTable = getIndexShardRoutingTable();
@@ -170,13 +170,13 @@ public class SearchOnlyReplicaTests extends OpenSearchSingleNodeTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
             .put(INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0)
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, 0)
             .build();
         createIndex(INDEX_NAME, settings);
         Integer maxShardPerNode = ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getDefault(Settings.EMPTY);
 
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(INDEX_NAME).settings(
-            Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, maxShardPerNode * 2).build()
+            Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, maxShardPerNode * 2).build()
         );
 
         // add another replica
@@ -220,7 +220,7 @@ public class SearchOnlyReplicaTests extends OpenSearchSingleNodeTestCase {
             () -> cluster.updateSettings(
                 finalState,
                 new UpdateSettingsRequest(INDEX_NAME).settings(
-                    Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, maxShardPerNode * 2).build()
+                    Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, maxShardPerNode * 2).build()
                 )
             )
         );

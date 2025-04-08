@@ -45,7 +45,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -132,7 +132,7 @@ public class RestoreServiceTests extends OpenSearchTestCase {
         Snapshot snapshot = new Snapshot("testRepo", snapshotId);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         Settings settings = Settings.builder()
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT.toString())
             .build();
         when(indexMetadata.getSettings()).thenReturn(settings);
@@ -149,7 +149,7 @@ public class RestoreServiceTests extends OpenSearchTestCase {
         Snapshot snapshot = new Snapshot("testRepo", snapshotId);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         Settings settings = Settings.builder()
-            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT.toString())
             .build();
         when(indexMetadata.getSettings()).thenReturn(settings);

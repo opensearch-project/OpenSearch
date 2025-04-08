@@ -120,7 +120,7 @@ import static java.util.Collections.unmodifiableSet;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
@@ -1316,7 +1316,7 @@ public class RestoreService implements ClusterStateApplier {
 
     // Visible for testing
     static void validateReplicationTypeRestoreSettings(Snapshot snapshot, String snapshotReplicationType, IndexMetadata updatedMetadata) {
-        int restoreNumberOfSearchReplicas = updatedMetadata.getSettings().getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
+        int restoreNumberOfSearchReplicas = updatedMetadata.getSettings().getAsInt(SETTING_NUMBER_OF_READ_REPLICAS, 0);
 
         if (restoreNumberOfSearchReplicas > 0
             && ReplicationType.DOCUMENT.toString().equals(updatedMetadata.getSettings().get(SETTING_REPLICATION_TYPE))) {
@@ -1334,7 +1334,7 @@ public class RestoreService implements ClusterStateApplier {
                     + " as ["
                     + ReplicationType.DOCUMENT
                     + "], ["
-                    + SETTING_NUMBER_OF_SEARCH_REPLICAS
+                    + SETTING_NUMBER_OF_READ_REPLICAS
                     + "] must be set to [0]"
             );
         }

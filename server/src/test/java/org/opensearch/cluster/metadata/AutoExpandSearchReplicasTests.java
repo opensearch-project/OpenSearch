@@ -25,19 +25,19 @@ public class AutoExpandSearchReplicasTests extends OpenSearchAllocationTestCase 
 
     public void testParseAutoExpandSearchReplicaSettings() {
         AutoExpandSearchReplicas autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(
-            Settings.builder().put("index.auto_expand_search_replicas", "0-5").build()
+            Settings.builder().put("index.auto_expand_read_replicas", "0-5").build()
         );
         assertEquals(0, autoExpandSearchReplicas.getMinSearchReplicas());
         assertEquals(5, autoExpandSearchReplicas.getMaxSearchReplicas());
 
         autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(
-            Settings.builder().put("index.auto_expand_search_replicas", "0-all").build()
+            Settings.builder().put("index.auto_expand_read_replicas", "0-all").build()
         );
         assertEquals(0, autoExpandSearchReplicas.getMinSearchReplicas());
         assertEquals(Integer.MAX_VALUE, autoExpandSearchReplicas.getMaxSearchReplicas());
 
         autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(
-            Settings.builder().put("index.auto_expand_search_replicas", "1-all").build()
+            Settings.builder().put("index.auto_expand_read_replicas", "1-all").build()
         );
         assertEquals(1, autoExpandSearchReplicas.getMinSearchReplicas());
         assertEquals(Integer.MAX_VALUE, autoExpandSearchReplicas.getMaxSearchReplicas());
@@ -45,27 +45,27 @@ public class AutoExpandSearchReplicasTests extends OpenSearchAllocationTestCase 
 
     public void testInvalidValues() {
         Throwable throwable = assertThrows(IllegalArgumentException.class, () -> {
-            AutoExpandSearchReplicas.SETTING.get(Settings.builder().put("index.auto_expand_search_replicas", "boom").build());
+            AutoExpandSearchReplicas.SETTING.get(Settings.builder().put("index.auto_expand_read_replicas", "boom").build());
         });
-        assertEquals("failed to parse [index.auto_expand_search_replicas] from value: [boom] at index -1", throwable.getMessage());
+        assertEquals("failed to parse [index.auto_expand_read_replicas] from value: [boom] at index -1", throwable.getMessage());
 
         throwable = assertThrows(IllegalArgumentException.class, () -> {
-            AutoExpandSearchReplicas.SETTING.get(Settings.builder().put("index.auto_expand_search_replicas", "1-boom").build());
+            AutoExpandSearchReplicas.SETTING.get(Settings.builder().put("index.auto_expand_read_replicas", "1-boom").build());
         });
-        assertEquals("failed to parse [index.auto_expand_search_replicas] from value: [1-boom] at index 1", throwable.getMessage());
+        assertEquals("failed to parse [index.auto_expand_read_replicas] from value: [1-boom] at index 1", throwable.getMessage());
         assertEquals("For input string: \"boom\"", throwable.getCause().getMessage());
 
         throwable = assertThrows(IllegalArgumentException.class, () -> {
-            AutoExpandSearchReplicas.SETTING.get(Settings.builder().put("index.auto_expand_search_replicas", "boom-1").build());
+            AutoExpandSearchReplicas.SETTING.get(Settings.builder().put("index.auto_expand_read_replicas", "boom-1").build());
         });
-        assertEquals("failed to parse [index.auto_expand_search_replicas] from value: [boom-1] at index 4", throwable.getMessage());
+        assertEquals("failed to parse [index.auto_expand_read_replicas] from value: [boom-1] at index 4", throwable.getMessage());
         assertEquals("For input string: \"boom\"", throwable.getCause().getMessage());
 
         throwable = assertThrows(IllegalArgumentException.class, () -> {
-            AutoExpandSearchReplicas.SETTING.get(Settings.builder().put("index.auto_expand_search_replicas", "2-1").build());
+            AutoExpandSearchReplicas.SETTING.get(Settings.builder().put("index.auto_expand_read_replicas", "2-1").build());
         });
         assertEquals(
-            "[index.auto_expand_search_replicas] minSearchReplicas must be =< maxSearchReplicas but wasn't 2 > 1",
+            "[index.auto_expand_read_replicas] minSearchReplicas must be =< maxSearchReplicas but wasn't 2 > 1",
             throwable.getMessage()
         );
     }
@@ -73,32 +73,32 @@ public class AutoExpandSearchReplicasTests extends OpenSearchAllocationTestCase 
     public void testCalculateNumberOfSearchReplicas() {
         // when the number of matching search nodes is lesser than the maximum value of auto-expand
         AutoExpandSearchReplicas autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(
-            Settings.builder().put("index.auto_expand_search_replicas", "0-all").build()
+            Settings.builder().put("index.auto_expand_read_replicas", "0-all").build()
         );
         assertEquals(OptionalInt.of(5), autoExpandSearchReplicas.calculateNumberOfSearchReplicas(5));
 
         // when the number of matching search nodes is equal to the maximum value of auto-expand
         autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(
-            Settings.builder().put("index.auto_expand_search_replicas", "0-5").build()
+            Settings.builder().put("index.auto_expand_read_replicas", "0-5").build()
         );
         assertEquals(OptionalInt.of(5), autoExpandSearchReplicas.calculateNumberOfSearchReplicas(5));
 
         // when the number of matching search nodes is equal to the minimum value of auto-expand
         autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(
-            Settings.builder().put("index.auto_expand_search_replicas", "0-5").build()
+            Settings.builder().put("index.auto_expand_read_replicas", "0-5").build()
         );
         assertEquals(OptionalInt.of(0), autoExpandSearchReplicas.calculateNumberOfSearchReplicas(0));
 
         // when the number of matching search nodes is greater than the maximum value of auto-expand
         autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(
-            Settings.builder().put("index.auto_expand_search_replicas", "0-5").build()
+            Settings.builder().put("index.auto_expand_read_replicas", "0-5").build()
         );
         assertEquals(OptionalInt.of(5), autoExpandSearchReplicas.calculateNumberOfSearchReplicas(8));
 
         // when the number of matching search nodes is lesser than the minimum value of auto-expand,
         // then the number of search replicas remains unchanged
         autoExpandSearchReplicas = AutoExpandSearchReplicas.SETTING.get(
-            Settings.builder().put("index.auto_expand_search_replicas", "2-5").build()
+            Settings.builder().put("index.auto_expand_read_replicas", "2-5").build()
         );
         assertEquals(OptionalInt.empty(), autoExpandSearchReplicas.calculateNumberOfSearchReplicas(1));
     }
@@ -107,7 +107,7 @@ public class AutoExpandSearchReplicasTests extends OpenSearchAllocationTestCase 
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT).put("index.auto_expand_search_replicas", "0-all"))
+                    .settings(settings(Version.CURRENT).put("index.auto_expand_read_replicas", "0-all"))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .numberOfSearchReplicas(1)

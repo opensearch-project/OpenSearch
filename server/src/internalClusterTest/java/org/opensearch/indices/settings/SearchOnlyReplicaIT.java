@@ -27,7 +27,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -45,14 +45,14 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
     }
 
     private final String expectedFailureMessage =
-        "To set index.number_of_search_only_replicas, index.replication.type must be set to SEGMENT";
+        "To set index.number_of_read_replicas, index.replication.type must be set to SEGMENT";
 
     @Override
     public Settings indexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0ms") // so that after we punt a node we can immediately try to
                                                                           // reallocate after node left.
             .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
@@ -69,7 +69,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
             Settings.builder()
                 .put(indexSettings())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, numSearchReplicas)
                 .build()
         );
         ensureYellow(TEST_INDEX);
@@ -102,7 +102,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
             Settings.builder()
                 .put(indexSettings())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, numSearchReplicas)
                 .put("index.refresh_interval", "40ms") // set lower interval so replica attempts replication cycles after primary is
                                                        // removed.
                 .build()
@@ -176,7 +176,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         ensureGreen(TEST_INDEX);
         // assert settings
         Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
-        int numSearchReplicas = Integer.parseInt(metadata.index(TEST_INDEX).getSettings().get(SETTING_NUMBER_OF_SEARCH_REPLICAS));
+        int numSearchReplicas = Integer.parseInt(metadata.index(TEST_INDEX).getSettings().get(SETTING_NUMBER_OF_READ_REPLICAS));
         assertEquals(1, numSearchReplicas);
 
         // assert cluster state & routing table
@@ -188,7 +188,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         client().admin()
             .indices()
             .prepareUpdateSettings(TEST_INDEX)
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 2))
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, 2))
             .get();
 
         ensureGreen(TEST_INDEX);
@@ -198,7 +198,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         client().admin()
             .indices()
             .prepareUpdateSettings(TEST_INDEX)
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0))
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, 0))
             .get();
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(0);
@@ -214,7 +214,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
             Settings.builder()
                 .put(indexSettings())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, numSearchReplicas)
                 .build()
         );
         ensureYellow(TEST_INDEX);
@@ -230,7 +230,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         // set preference to search replica here - we default to this when there are
         // search replicas but tests will randomize this value if unset
         SearchResponse response = client().prepareSearch(TEST_INDEX)
-            .setPreference(Preference.SEARCH_REPLICA.type())
+            .setPreference(Preference.READ_REPLICA.type())
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
 
@@ -324,7 +324,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
             Settings.builder()
                 .put(indexSettings())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, numSearchReplicas)
                 .build()
         );
 
@@ -344,7 +344,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
             Settings.builder()
                 .put(indexSettings())
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, numSearchReplicas)
                 .build()
         );
         ensureYellowAndNoInitializingShards(TEST_INDEX);

@@ -71,7 +71,7 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 2)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 2)
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build()
         );
@@ -128,7 +128,7 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 2)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 2)
                 .build()
         );
 
@@ -283,7 +283,7 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 2)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 2)
                     .build()
             );
         });
@@ -309,7 +309,7 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 3)
+                .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 3)
                 .build()
         );
 
@@ -319,7 +319,7 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
                 client().admin()
                     .indices()
                     .prepareUpdateSettings("test-idx")
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 4).build())
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 4).build())
             );
         });
     }

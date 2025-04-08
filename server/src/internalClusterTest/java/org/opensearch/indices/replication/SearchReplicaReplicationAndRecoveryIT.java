@@ -35,7 +35,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS;
 import static org.opensearch.cluster.routing.RecoverySource.Type.EMPTY_STORE;
 import static org.opensearch.cluster.routing.RecoverySource.Type.EXISTING_STORE;
 
@@ -68,7 +68,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
             .put(super.indexSettings())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .build();
     }
 
@@ -103,7 +103,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
             Settings.builder()
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
-                .put("number_of_search_only_replicas", 1)
+                .put("number_of_read_replicas", 1)
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build()
         );
@@ -192,7 +192,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         client().admin()
             .indices()
             .prepareUpdateSettings(INDEX_NAME)
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0))
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, 0))
             .get();
 
         ensureGreen(INDEX_NAME);
@@ -200,7 +200,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
         client().admin()
             .indices()
             .prepareUpdateSettings(INDEX_NAME)
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1))
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_READ_REPLICAS, 1))
             .get();
         ensureGreen(INDEX_NAME);
         assertDocCounts(10, searchNode);

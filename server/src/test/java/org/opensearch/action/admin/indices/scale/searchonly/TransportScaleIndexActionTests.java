@@ -233,7 +233,7 @@ public class TransportScaleIndexActionTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .build();
 
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
@@ -275,7 +275,7 @@ public class TransportScaleIndexActionTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(indexSettings)
@@ -699,7 +699,7 @@ public class TransportScaleIndexActionTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_READ_REPLICAS, 1)
             .build();
 
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
