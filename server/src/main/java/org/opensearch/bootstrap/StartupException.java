@@ -85,10 +85,10 @@ final class StartupException extends RuntimeException {
             cause = getFirstGuiceCause((CreationException) cause);
         }
 
-        String message = cause.toString();
-        consumer.accept(message);
-
         if (cause != null) {
+            String message = cause.toString();
+            consumer.accept(message);
+
             // walk to the root cause
             while (cause.getCause() != null) {
                 cause = cause.getCause();
