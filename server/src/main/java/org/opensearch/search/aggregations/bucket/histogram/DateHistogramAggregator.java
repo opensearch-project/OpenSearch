@@ -213,7 +213,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     if (singleton.advanceExact(doc)) {
                         long value = singleton.longValue();
-                        collectValue(sub, doc, owningBucketOrd, value);
+                        collectValue(sub, doc, owningBucketOrd, preparedRounding.round(value));
                     }
                 }
             };
@@ -233,7 +233,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                         if (rounded == previousRounded) {
                             continue;
                         }
-                        collectValue(sub, doc, owningBucketOrd, value);
+                        collectValue(sub, doc, owningBucketOrd, rounded);
                         previousRounded = rounded;
                     }
                 }
@@ -241,8 +241,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         };
     }
 
-    private void collectValue(LeafBucketCollector sub, int doc, long owningBucketOrd, long value) throws IOException {
-        long rounded = preparedRounding.round(value);
+    private void collectValue(LeafBucketCollector sub, int doc, long owningBucketOrd, long rounded) throws IOException {
         if (hardBounds == null || hardBounds.contain(rounded)) {
             long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
             if (bucketOrd < 0) { // already seen
