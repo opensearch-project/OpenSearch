@@ -675,7 +675,7 @@ public class MetadataIndexStateService {
             final ActionListener<ReplicationResponse> listener
         ) {
             final ShardId shardId = shardRoutingTable.shardId();
-            if (shardRoutingTable.primaryShard().unassigned()) {
+            if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().unassigned()) {
                 logger.debug("primary shard {} is unassigned, ignoring", shardId);
                 final ReplicationResponse response = new ReplicationResponse();
                 response.setShardInfo(new ReplicationResponse.ShardInfo(shardRoutingTable.size(), shardRoutingTable.size()));
