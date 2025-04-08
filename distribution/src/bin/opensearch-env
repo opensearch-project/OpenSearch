@@ -112,6 +112,15 @@ fi
 # now make OPENSEARCH_PATH_CONF absolute
 OPENSEARCH_PATH_CONF=`cd "$OPENSEARCH_PATH_CONF"; pwd`
 
+# Check if any bc-fips jar exists on classpath
+# run in FIPS JVM if jar is found
+if ls "$OPENSEARCH_HOME/lib" | grep -E -q "bc-fips.*\.jar"; then
+  echo "BouncyCastle FIPS library found, setting FIPS JVM options."
+  export OPENSEARCH_JAVA_OPTS="-Dorg.bouncycastle.fips.approved_only=true \
+    -Djava.security.properties=${OPENSEARCH_PATH_CONF}/fips_java.security \
+    ${OPENSEARCH_JAVA_OPTS}"
+fi
+
 OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}
 OPENSEARCH_BUNDLED_JDK=${opensearch.bundled_jdk}
 

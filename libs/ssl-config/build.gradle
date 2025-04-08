@@ -36,7 +36,7 @@ dependencies {
   api project(':libs:opensearch-common')
   api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   api "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
-  runtimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  api "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
   runtimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   testImplementation(project(":test:framework")) {

@@ -40,6 +40,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.BCPGOutputStream;
 import org.bouncycastle.bcpg.HashAlgorithmTags;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import org.bouncycastle.openpgp.PGPEncryptedData;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPKeyPair;
@@ -110,6 +111,7 @@ import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -137,6 +139,12 @@ import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class InstallPluginCommandTests extends OpenSearchTestCase {
+
+    static {
+        if (Security.getProvider("BCFIPS") == null) {
+            Security.addProvider(new BouncyCastleFipsProvider());
+        }
+    }
 
     private InstallPluginCommand skipJarHellCommand;
     private InstallPluginCommand defaultCommand;

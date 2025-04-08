@@ -43,6 +43,7 @@ dependencies {
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
+  api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
 }
 
 tasks.named('forbiddenApisMain').configure {

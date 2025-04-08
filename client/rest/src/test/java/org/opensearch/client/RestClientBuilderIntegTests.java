@@ -39,6 +39,8 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
+import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -55,6 +57,7 @@ import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.PrivilegedAction;
 import java.security.SecureRandom;
+import java.security.Security;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -67,6 +70,16 @@ import static org.junit.Assert.fail;
 public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     private static HttpsServer httpsServer;
+
+    static {
+        int highestPriority = 1;
+        if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
+            Security.insertProviderAt(new BouncyCastleFipsProvider(), highestPriority++);
+        }
+        if (Security.getProvider(BouncyCastleJsseProvider.PROVIDER_NAME) == null) {
+            Security.insertProviderAt(new BouncyCastleJsseProvider(), highestPriority);
+        }
+    }
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
