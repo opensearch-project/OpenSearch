@@ -114,10 +114,12 @@ if (System.getProperty('idea.active') == 'true') {
  */
 void modifyXml(Object path, Action<? super Node> action) {
   File xmlFile = project.file(path)
-  Node xml = new XmlParser().parse(xmlFile)
-  action.execute(xml)
+  if (xmlFile.exists()) {
+    Node xml = new XmlParser().parse(xmlFile)
+    action.execute(xml)
 
-  xmlFile.withPrintWriter { writer ->
-    new XmlNodePrinter(writer).print(xml)
+    xmlFile.withPrintWriter { writer ->
+      new XmlNodePrinter(writer).print(xml)
+    }
   }
 }

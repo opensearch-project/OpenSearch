@@ -12,7 +12,7 @@ import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.lang.StackWalker.Option;
 import java.security.Policy;
-import java.util.stream.Stream;
+import java.util.Collection;
 
 import net.bytebuddy.asm.Advice;
 
@@ -40,7 +40,7 @@ public class SystemExitInterceptor {
 
         final StackWalker walker = StackWalker.getInstance(Option.RETAIN_CLASS_REFERENCE);
         final Class<?> caller = walker.getCallerClass();
-        final Stream<Class<?>> chain = walker.walk(StackCallerClassChainExtractor.INSTANCE);
+        final Collection<Class<?>> chain = walker.walk(StackCallerClassChainExtractor.INSTANCE);
 
         if (AgentPolicy.isChainThatCanExit(caller, chain) == false) {
             throw new SecurityException("The class " + caller + " is not allowed to call System::exit(" + code + ")");

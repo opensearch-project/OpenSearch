@@ -92,6 +92,7 @@ import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
+import org.opensearch.action.admin.indices.scale.searchonly.ScaleIndexRequestBuilder;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
@@ -889,4 +890,13 @@ public interface IndicesAdminClient extends OpenSearchClient {
 
     /** Get ingestion state */
     void getIngestionState(GetIngestionStateRequest request, ActionListener<GetIngestionStateResponse> listener);
+
+    /**
+     * Prepares a request to scale an index between normal and search-only modes.
+     *
+     * @param index      The name of the index to scale
+     * @param searchOnly Whether to scale to search-only mode (true) or back to normal mode (false)
+     * @return The request builder configured with the specified scaling direction
+     */
+    ScaleIndexRequestBuilder prepareScaleSearchOnly(String index, boolean searchOnly);
 }
