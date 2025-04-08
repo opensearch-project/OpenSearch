@@ -1256,7 +1256,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 assertEquals("We should have all 6 shards returned", shardIterator.size(), 6);
                 for (ShardRouting shardRouting : shardIterator) {
                     assertTrue(
-                        "Any shard can exist with when cluster.routing.search_only.strict is set as false",
+                        "Any shard can exist with when cluster.routing.read_replica.strict is set as false",
                         shardRouting.isSearchOnly() || shardRouting.primary() || shardRouting.isSearchOnly() == false
                     );
                 }
