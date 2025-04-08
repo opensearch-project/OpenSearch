@@ -31,7 +31,6 @@ import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +38,7 @@ import java.util.Optional;
 import java.util.PropertyPermission;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 @SuppressWarnings("removal")
 public class PolicyFile extends java.security.Policy {
@@ -66,16 +65,17 @@ public class PolicyFile extends java.security.Policy {
     }
 
     private PolicyInfo init(URL policy) throws PolicyInitializationException {
-        PolicyInfo info = new PolicyInfo();
+        List<PolicyEntry> entries = new ArrayList<>();
         try (InputStreamReader reader = new InputStreamReader(getInputStream(policy), StandardCharsets.UTF_8)) {
             List<GrantEntry> grantEntries = PolicyParser.read(reader);
             for (GrantEntry grantEntry : grantEntries) {
-                addGrantEntry(grantEntry, info);
+                addGrantEntry(grantEntry, entries);
             }
         } catch (Exception e) {
             throw new PolicyInitializationException("Failed to load policy from: " + policy, e);
         }
-        return info;
+
+        return new PolicyInfo(entries);
     }
 
     public static InputStream getInputStream(URL url) throws IOException {
@@ -98,32 +98,30 @@ public class PolicyFile extends java.security.Policy {
         }
     }
 
-    private void addGrantEntry(GrantEntry grantEntry, PolicyInfo newInfo) throws PolicyInitializationException {
+    private void addGrantEntry(GrantEntry grantEntry, List<PolicyEntry> entries) throws PolicyInitializationException {
         CodeSource codesource = getCodeSource(grantEntry);
         if (codesource == null) {
             throw new PolicyInitializationException("Null CodeSource for: " + grantEntry.codeBase());
         }
 
         List<Permission> permissions = new ArrayList<>();
-        List<PermissionEntry> permissionList = grantEntry.permissionEntries();
-        for (PermissionEntry pe : permissionList) {
+        for (PermissionEntry pe : grantEntry.permissionEntries()) {
             final PermissionEntry expandedEntry = expandPermissionName(pe);
             try {
                 Optional<Permission> perm = getInstance(expandedEntry.permission(), expandedEntry.name(), expandedEntry.action());
-                if (perm.isPresent()) {
-                    permissions.add(perm.get());
-                }
+                perm.ifPresent(permissions::add);
             } catch (ClassNotFoundException e) {
                 // these were mostly custom permission classes added for security
                 // manager. Since security manager is deprecated, we can skip these
                 // permissions classes.
                 if (PERM_CLASSES_TO_SKIP.contains(pe.permission())) {
-                    continue; // skip this permission
+                    continue;
                 }
                 throw new PolicyInitializationException("Permission class not found: " + pe.permission(), e);
             }
         }
-        newInfo.policyEntries.add(new PolicyEntry(codesource, permissions));
+
+        entries.add(new PolicyEntry(codesource, permissions));
     }
 
     private static PermissionEntry expandPermissionName(PermissionEntry pe) {
@@ -188,7 +186,7 @@ public class PolicyFile extends java.security.Policy {
             return false;
         }
 
-        PermissionCollection pc = policyInfo.getOrCompute(pd, () -> getPermissions(pd));
+        PermissionCollection pc = policyInfo.getOrCompute(pd, this::getPermissions);
         return pc != null && pc.implies(p);
     }
 
@@ -315,18 +313,17 @@ public class PolicyFile extends java.security.Policy {
     }
 
     private static class PolicyInfo {
-        final List<PolicyEntry> policyEntries;
+        private final List<PolicyEntry> policyEntries;
         private final Map<ProtectionDomain, PermissionCollection> pdMapping;
 
-        PolicyInfo() {
-            policyEntries = Collections.synchronizedList(new ArrayList<PolicyEntry>());
-            pdMapping = new ConcurrentHashMap<>();
+        PolicyInfo(List<PolicyEntry> entries) {
+            this.policyEntries = List.copyOf(entries);  // an immutable copy for thread safety.
+            this.pdMapping = new ConcurrentHashMap<>();
         }
 
-        public PermissionCollection getOrCompute(ProtectionDomain pd, Supplier<PermissionCollection> computeFn) {
-            return pdMapping.computeIfAbsent(pd, k -> computeFn.get());
+        public PermissionCollection getOrCompute(ProtectionDomain pd, Function<ProtectionDomain, PermissionCollection> computeFn) {
+            return pdMapping.computeIfAbsent(pd, k -> computeFn.apply(k));
         }
-
     }
 
     private static URL newURL(String spec) throws MalformedURLException, URISyntaxException {
