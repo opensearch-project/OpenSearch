@@ -45,6 +45,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.hc.core5.http.Header;
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -116,6 +117,10 @@ public abstract class RestClientTestCase extends RandomizedTest {
         assertTrue("some headers that were sent weren't returned " + expectedHeaders, expectedHeaders.isEmpty());
     }
 
+    protected static boolean inFipsJvm() {
+        return CryptoServicesRegistrar.isInApprovedOnlyMode();
+    }
+
     private static void addValueToListEntry(final Map<String, List<String>> map, final String name, final String value) {
         List<String> values = map.get(name);
         if (values == null) {
@@ -125,7 +130,4 @@ public abstract class RestClientTestCase extends RandomizedTest {
         values.add(value);
     }
 
-    public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
-    }
 }
