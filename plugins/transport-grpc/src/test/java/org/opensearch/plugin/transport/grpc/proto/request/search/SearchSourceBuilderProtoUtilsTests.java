@@ -11,11 +11,19 @@ package org.opensearch.plugin.transport.grpc.proto.request.search;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
+import org.opensearch.protobufs.FieldValue;
+import org.opensearch.protobufs.GeneralNumber;
+import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.MatchAllQuery;
 import org.opensearch.protobufs.NumberMap;
+import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.protobufs.Script;
+import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.SearchRequestBody;
+import org.opensearch.protobufs.SlicedScroll;
 import org.opensearch.protobufs.SortCombinations;
 import org.opensearch.protobufs.TrackHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -377,4 +385,223 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertNotNull("Sorts should not be null", searchSourceBuilder.sorts());
         assertEquals("Should have 1 sort", 1, searchSourceBuilder.sorts().size());
     }
+
+    public void testParseProtoWithPostFilter() throws IOException {
+        // Create a protobuf SearchRequestBody with postFilter
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .setPostFilter(QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build())
+            .build();
+
+        // Create a SearchSourceBuilder to populate
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        // Call the method under test
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+
+        // Verify the result
+        assertNotNull("PostFilter should not be null", searchSourceBuilder.postFilter());
+        assertTrue("PostFilter should be MatchAllQueryBuilder", searchSourceBuilder.postFilter() instanceof MatchAllQueryBuilder);
+    }
+
+    public void testParseProtoWithScriptFields() throws IOException {
+        // Create a protobuf SearchRequestBody with scriptFields
+        Map<String, ScriptField> scriptFieldsMap = new HashMap<>();
+        scriptFieldsMap.put(
+            "script_field_1",
+            ScriptField.newBuilder()
+                .setScript(
+                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
+                )
+                .setIgnoreFailure(true)
+                .build()
+        );
+        scriptFieldsMap.put(
+            "script_field_2",
+            ScriptField.newBuilder()
+                .setScript(
+                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
+                )
+                .build()
+        );
+
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().putAllScriptFields(scriptFieldsMap).build();
+
+        // Create a SearchSourceBuilder to populate
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        // Call the method under test
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+
+        // Verify the result
+        assertNotNull("ScriptFields should not be null", searchSourceBuilder.scriptFields());
+        assertEquals("Should have 2 script fields", 2, searchSourceBuilder.scriptFields().size());
+        assertTrue(
+            "Should contain script_field_1",
+            searchSourceBuilder.scriptFields()
+                .contains(
+                    new SearchSourceBuilder.ScriptField("script_field_1", new org.opensearch.script.Script("doc['field'].value * 2"), true)
+                )
+        );
+        assertTrue(
+            "Should contain script_field_2",
+            searchSourceBuilder.scriptFields()
+                .contains(
+                    new SearchSourceBuilder.ScriptField("script_field_2", new org.opensearch.script.Script("doc['field'].value * 2"), false)
+                )
+        );
+    }
+
+    public void testParseProtoWithSlice() throws IOException {
+        // Create a protobuf SearchRequestBody with slice
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .setSlice(SlicedScroll.newBuilder().setId(5).setMax(10).setField("_id").build())
+            .build();
+
+        // Create a SearchSourceBuilder to populate
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        // Call the method under test
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+
+        // Verify the result
+        assertNotNull("Slice should not be null", searchSourceBuilder.slice());
+        assertEquals("Slice id should match", 5, searchSourceBuilder.slice().getId());
+        assertEquals("Slice max should match", 10, searchSourceBuilder.slice().getMax());
+        assertEquals("Slice field should match", "_id", searchSourceBuilder.slice().getField());
+    }
+
+    public void testParseProtoWithDerivedFields() throws IOException {
+        // Create a protobuf SearchRequestBody with derived fields
+        Map<String, DerivedField> derivedFieldsMap = new HashMap<>();
+        derivedFieldsMap.put(
+            "derived_field_1",
+            DerivedField.newBuilder()
+                .setType("number")
+                .setScript(
+                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
+                )
+                .build()
+        );
+        derivedFieldsMap.put(
+            "derived_field_2",
+            DerivedField.newBuilder()
+                .setType("string")
+                .setScript(
+                    Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build()
+                )
+                .build()
+        );
+
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().putAllDerived(derivedFieldsMap).build();
+
+        // Create a SearchSourceBuilder to populate
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        // Call the method under test
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+
+        // Verify the result
+        assertNotNull("DerivedFields should not be null", searchSourceBuilder.getDerivedFields());
+        assertEquals("Should have 2 derived fields", 2, searchSourceBuilder.getDerivedFields().size());
+        assertTrue(
+            "Should contain derived_field_1",
+            searchSourceBuilder.getDerivedFields()
+                .contains(
+                    new org.opensearch.index.mapper.DerivedField(
+                        "derived_field_1",
+                        "number",
+                        new org.opensearch.script.Script("doc['field'].value * 2")
+                    )
+                )
+        );
+        assertTrue(
+            "Should contain derived_field_2",
+            searchSourceBuilder.getDerivedFields()
+                .contains(
+                    new org.opensearch.index.mapper.DerivedField(
+                        "derived_field_2",
+                        "string",
+                        new org.opensearch.script.Script("doc['field'].value * 2")
+                    )
+                )
+        );
+    }
+
+    public void testParseProtoWithSearchAfter() throws IOException {
+        // Create a protobuf SearchRequestBody with searchAfter
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .addSearchAfter(FieldValue.newBuilder().setStringValue("value1").build())
+            .addSearchAfter(FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setInt64Value(42).build()).build())
+            .build();
+
+        // Create a SearchSourceBuilder to populate
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        // Call the method under test
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest);
+
+        // Verify the result
+        assertNotNull("SearchAfter should not be null", searchSourceBuilder.searchAfter());
+        assertEquals("SearchAfter should have 2 values", 2, searchSourceBuilder.searchAfter().length);
+        assertEquals("First value should match", "value1", searchSourceBuilder.searchAfter()[0]);
+        assertEquals("Second value should match", 42L, searchSourceBuilder.searchAfter()[1]);
+    }
+
+    public void testParseProtoWithExtThrowsUnsupportedOperationException() throws IOException {
+        // Create a protobuf SearchRequestBody with ext
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().setExt(ObjectMap.newBuilder().build()).build();
+
+        // Create a SearchSourceBuilder to populate
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        // Call the method under test, should throw UnsupportedOperationException
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest)
+        );
+
+        assertTrue("Exception message should mention ext param", exception.getMessage().contains("ext param is not supported yet"));
+    }
+
+    public void testScriptFieldProtoUtilsFromProto() throws IOException {
+        // Create a protobuf ScriptField
+        ScriptField scriptFieldProto = ScriptField.newBuilder()
+            .setScript(Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
+            .setIgnoreFailure(true)
+            .build();
+
+        // Call the method under test
+        SearchSourceBuilder.ScriptField scriptField = SearchSourceBuilderProtoUtils.ScriptFieldProtoUtils.fromProto(
+            "test_script_field",
+            scriptFieldProto
+        );
+
+        // Verify the result
+        assertNotNull("ScriptField should not be null", scriptField);
+        assertEquals("Field name should match", "test_script_field", scriptField.fieldName());
+        assertNotNull("Script should not be null", scriptField.script());
+        assertEquals("Script source should match", "doc['field'].value * 2", scriptField.script().getIdOrCode());
+        assertTrue("IgnoreFailure should be true", scriptField.ignoreFailure());
+    }
+
+    public void testScriptFieldProtoUtilsFromProtoWithDefaultIgnoreFailure() throws IOException {
+        // Create a protobuf ScriptField without ignoreFailure
+        ScriptField scriptFieldProto = ScriptField.newBuilder()
+            .setScript(Script.newBuilder().setInlineScript(InlineScript.newBuilder().setSource("doc['field'].value * 2").build()).build())
+            .build();
+
+        // Call the method under test
+        SearchSourceBuilder.ScriptField scriptField = SearchSourceBuilderProtoUtils.ScriptFieldProtoUtils.fromProto(
+            "test_script_field",
+            scriptFieldProto
+        );
+
+        // Verify the result
+        assertNotNull("ScriptField should not be null", scriptField);
+        assertEquals("Field name should match", "test_script_field", scriptField.fieldName());
+        assertNotNull("Script should not be null", scriptField.script());
+        assertEquals("Script source should match", "doc['field'].value * 2", scriptField.script().getIdOrCode());
+        assertFalse("IgnoreFailure should be false by default", scriptField.ignoreFailure());
+    }
+
 }

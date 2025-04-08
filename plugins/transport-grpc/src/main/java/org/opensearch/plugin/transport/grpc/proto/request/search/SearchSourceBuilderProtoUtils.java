@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.opensearch.search.builder.SearchSourceBuilder.TIMEOUT_FIELD;
-import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
@@ -117,7 +116,7 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.query(AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(protoRequest.getQuery()));
         }
         if (protoRequest.hasPostFilter()) {
-            searchSourceBuilder.postFilter(AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(protoRequest.getQuery()));
+            searchSourceBuilder.postFilter(AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(protoRequest.getPostFilter()));
         }
         if (protoRequest.hasSource()) {
             searchSourceBuilder.fetchSource(FetchSourceContextProtoUtils.fromProto(protoRequest.getSource()));
@@ -163,7 +162,7 @@ public class SearchSourceBuilderProtoUtils {
             throw new UnsupportedOperationException("ext param is not supported yet");
         }
         if (protoRequest.hasSlice()) {
-            searchSource().slice(SliceBuilderProtoUtils.fromProto(protoRequest.getSlice()));
+            searchSourceBuilder.slice(SliceBuilderProtoUtils.fromProto(protoRequest.getSlice()));
         }
         if (protoRequest.hasCollapse()) {
             searchSourceBuilder.collapse(CollapseBuilderProtoUtils.fromProto(protoRequest.getCollapse()));

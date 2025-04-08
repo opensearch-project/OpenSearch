@@ -181,4 +181,126 @@ public class TermQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         assertTrue("Exception message should mention can only have 1 element", exception.getMessage().contains("can only have 1 element"));
     }
+
+    public void testFromProtoWithInt32Value() {
+        // Create a protobuf TermQuery with int32 value
+        TermQuery termQuery = TermQuery.newBuilder()
+            .setName("test_query")
+            .setBoost(2.0f)
+            .setValue(FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setInt32Value(42).build()).build())
+            .build();
+
+        // Create a map with field name and TermQuery
+        Map<String, TermQuery> termQueryProto = new HashMap<>();
+        termQueryProto.put("test_field", termQuery);
+
+        // Call the method under test
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+
+        // Verify the result
+        assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
+        assertEquals("Field name should match", "test_field", termQueryBuilder.fieldName());
+        assertEquals("Value should match", 42, termQueryBuilder.value());
+        assertEquals("Boost should match", 2.0f, termQueryBuilder.boost(), 0.0f);
+        assertEquals("Query name should match", "test_query", termQueryBuilder.queryName());
+    }
+
+    public void testFromProtoWithInt64Value() {
+        // Create a protobuf TermQuery with int64 value
+        TermQuery termQuery = TermQuery.newBuilder()
+            .setName("test_query")
+            .setBoost(2.0f)
+            .setValue(
+                FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setInt64Value(9223372036854775807L).build()).build()
+            )
+            .build();
+
+        // Create a map with field name and TermQuery
+        Map<String, TermQuery> termQueryProto = new HashMap<>();
+        termQueryProto.put("test_field", termQuery);
+
+        // Call the method under test
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+
+        // Verify the result
+        assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
+        assertEquals("Field name should match", "test_field", termQueryBuilder.fieldName());
+        assertEquals("Value should match", 9223372036854775807L, termQueryBuilder.value());
+        assertEquals("Boost should match", 2.0f, termQueryBuilder.boost(), 0.0f);
+        assertEquals("Query name should match", "test_query", termQueryBuilder.queryName());
+    }
+
+    public void testFromProtoWithDoubleValue() {
+        // Create a protobuf TermQuery with double value
+        TermQuery termQuery = TermQuery.newBuilder()
+            .setName("test_query")
+            .setBoost(2.0f)
+            .setValue(FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setDoubleValue(3.14159).build()).build())
+            .build();
+
+        // Create a map with field name and TermQuery
+        Map<String, TermQuery> termQueryProto = new HashMap<>();
+        termQueryProto.put("test_field", termQuery);
+
+        // Call the method under test
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+
+        // Verify the result
+        assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
+        assertEquals("Field name should match", "test_field", termQueryBuilder.fieldName());
+        assertEquals("Value should match", 3.14159, termQueryBuilder.value());
+        assertEquals("Boost should match", 2.0f, termQueryBuilder.boost(), 0.0f);
+        assertEquals("Query name should match", "test_query", termQueryBuilder.queryName());
+    }
+
+    public void testFromProtoWithCaseInsensitive() {
+        // Create a protobuf TermQuery with case insensitive flag
+        TermQuery termQuery = TermQuery.newBuilder()
+            .setName("test_query")
+            .setBoost(2.0f)
+            .setValue(FieldValue.newBuilder().setStringValue("test_value").build())
+            .setCaseInsensitive(true)
+            .build();
+
+        // Create a map with field name and TermQuery
+        Map<String, TermQuery> termQueryProto = new HashMap<>();
+        termQueryProto.put("test_field", termQuery);
+
+        // Call the method under test
+        TermQueryBuilder termQueryBuilder = TermQueryBuilderProtoUtils.fromProto(termQueryProto);
+
+        // Verify the result
+        assertNotNull("TermQueryBuilder should not be null", termQueryBuilder);
+        assertEquals("Field name should match", "test_field", termQueryBuilder.fieldName());
+        assertEquals("Value should match", "test_value", termQueryBuilder.value());
+        assertEquals("Boost should match", 2.0f, termQueryBuilder.boost(), 0.0f);
+        assertEquals("Query name should match", "test_query", termQueryBuilder.queryName());
+        assertTrue("Case insensitive should be true", termQueryBuilder.caseInsensitive());
+    }
+
+    public void testFromProtoWithUnsupportedGeneralNumberType() {
+        // Create a protobuf TermQuery with unsupported general number type
+        TermQuery termQuery = TermQuery.newBuilder()
+            .setValue(
+                FieldValue.newBuilder()
+                    .setGeneralNumber(GeneralNumber.newBuilder().build()) // No value set
+                    .build()
+            )
+            .build();
+
+        // Create a map with field name and TermQuery
+        Map<String, TermQuery> termQueryProto = new HashMap<>();
+        termQueryProto.put("test_field", termQuery);
+
+        // Call the method under test, should throw IllegalArgumentException
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> TermQueryBuilderProtoUtils.fromProto(termQueryProto)
+        );
+
+        assertTrue(
+            "Exception message should mention unsupported general number type",
+            exception.getMessage().contains("Unsupported general nunber type")
+        );
+    }
 }

@@ -132,7 +132,7 @@ public class ScriptProtoUtils {
                 return "painless";
             case BUILTIN_SCRIPT_LANGUAGE_UNSPECIFIED:
             default:
-                throw new UnsupportedOperationException("no language was specified");
+                return defaultLang;
         }
     }
 }
