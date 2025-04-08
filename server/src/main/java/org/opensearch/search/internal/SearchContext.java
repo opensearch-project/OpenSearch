@@ -522,6 +522,10 @@ public abstract class SearchContext implements Releasable {
         return 0;
     }
 
+    public int filterRewriteSegmentThreshold() {
+        return 0;
+    }
+
     public int cardinalityAggregationPruningThreshold() {
         return 0;
     }

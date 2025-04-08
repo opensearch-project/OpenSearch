@@ -55,6 +55,8 @@ public final class FilterRewriteOptimizationContext {
     private final AtomicInteger segments = new AtomicInteger();
     private final AtomicInteger optimizedSegments = new AtomicInteger();
 
+    private int segmentThreshold = 0;
+
     public FilterRewriteOptimizationContext(
         AggregatorBridge aggregatorBridge,
         final Object parent,
@@ -89,6 +91,7 @@ public final class FilterRewriteOptimizationContext {
         }
         logger.debug("Fast filter rewriteable: {} for shard {}", canOptimize, shardId);
 
+        segmentThreshold = context.filterRewriteSegmentThreshold();
         return canOptimize;
     }
 
@@ -134,6 +137,11 @@ public final class FilterRewriteOptimizationContext {
 
         Ranges ranges = getRanges(leafCtx, segmentMatchAll);
         if (ranges == null) return false;
+
+        if (hasSubAgg && this.segmentThreshold > leafCtx.reader().maxDoc() / ranges.getSize()) {
+            // comparing with a rough estimate of docs per range in this segment
+            return false;
+        }
 
         Supplier<DocIdSetBuilder> disBuilderSupplier = getDocIdSetBuilderSupplier(leafCtx, values);
         OptimizeResult optimizeResult;
