@@ -156,7 +156,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         shards = new HashMap<>();
         for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
             int shardId = shardRoutingTable.shardId().id();
-            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
+            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable, indexMetadata));
         }
 
         // update the index status
@@ -212,11 +212,13 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         int computeUnassignedShards = 0;
         int computeDelayedUnassignedShards = 0;
 
+        boolean isSearchOnlyClusterBlockEnabled = indexMetadata.getSettings()
+            .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
         boolean isShardLevelHealthRequired = healthLevel == ClusterHealthRequest.Level.SHARDS;
         if (isShardLevelHealthRequired) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 int shardId = indexShardRoutingTable.shardId().id();
-                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, indexShardRoutingTable);
+                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, indexShardRoutingTable, indexMetadata);
                 if (shardHealth.isPrimaryActive()) {
                     computeActivePrimaryShards++;
                 }
@@ -252,15 +254,25 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
                     }
                 }
                 ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
-                if (primaryShard.active()) {
-                    computeActivePrimaryShards++;
+
+                if (primaryShard == null) {
+                    if (isSearchOnlyClusterBlockEnabled) {
+                        computeStatus = getIndexHealthStatus(ClusterHealthStatus.GREEN, computeStatus);
+                    } else {
+                        computeStatus = getIndexHealthStatus(ClusterHealthStatus.RED, computeStatus);
+                    }
+                } else {
+                    if (primaryShard.active()) {
+                        computeActivePrimaryShards++;
+                    }
+                    ClusterHealthStatus shardHealth = ClusterShardHealth.getShardHealth(
+                        primaryShard,
+                        activeShardsPerShardId,
+                        shardRoutingCountPerShardId,
+                        indexMetadata
+                    );
+                    computeStatus = getIndexHealthStatus(shardHealth, computeStatus);
                 }
-                ClusterHealthStatus shardHealth = ClusterShardHealth.getShardHealth(
-                    primaryShard,
-                    activeShardsPerShardId,
-                    shardRoutingCountPerShardId
-                );
-                computeStatus = getIndexHealthStatus(shardHealth, computeStatus);
             }
         }
 

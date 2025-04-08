@@ -43,6 +43,7 @@ tasks.named('forbiddenApisTest').configure { onlyIf { false } }
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
+  onlyIf { false }
 }
 
 task prepareAgent(type: Copy) {
