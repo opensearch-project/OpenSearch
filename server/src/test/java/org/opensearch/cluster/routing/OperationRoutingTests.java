@@ -1196,6 +1196,77 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         }
     }
 
+    public void testSearchReplicaRoutingWhenSearchOnlyStrictSettingIsFalse() throws Exception {
+        final int numShards = 1;
+        final int numReplicas = 2;
+        final int numSearchReplicas = 2;
+        final String indexName = "test";
+        final String[] indexNames = new String[] { indexName };
+
+        ClusterService clusterService = null;
+        ThreadPool threadPool = null;
+
+        try {
+            OperationRouting opRouting = new OperationRouting(
+                Settings.builder().put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, "true").build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            opRouting.setStrictSearchOnlyShardRouting(false);
+
+            ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+                indexNames,
+                numShards,
+                numReplicas,
+                numSearchReplicas
+            );
+            IndexShardRoutingTable indexShardRoutingTable = state.getRoutingTable().index(indexName).getShards().get(0);
+            ShardId shardId = indexShardRoutingTable.searchOnlyReplicas().get(0).shardId();
+
+            threadPool = new TestThreadPool("testSearchReplicaDefaultRouting");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+            // add a search replica in initializing state:
+            DiscoveryNode node = new DiscoveryNode(
+                "node_initializing",
+                OpenSearchTestCase.buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES),
+                Version.CURRENT
+            );
+
+            IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+                .settings(Settings.builder().put(state.metadata().index(indexName).getSettings()).build())
+                .numberOfSearchReplicas(3)
+                .numberOfReplicas(2)
+                .build();
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(indexMetadata, false).generateClusterUuidIfNeeded();
+            IndexRoutingTable.Builder indexShardRoutingBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+            indexShardRoutingBuilder.addIndexShard(indexShardRoutingTable);
+            indexShardRoutingBuilder.addShard(
+                TestShardRouting.newShardRouting(shardId, node.getId(), null, false, true, ShardRoutingState.INITIALIZING, null)
+            );
+            state = ClusterState.builder(state)
+                .routingTable(RoutingTable.builder().add(indexShardRoutingBuilder).build())
+                .metadata(metadataBuilder.build())
+                .build();
+
+            GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, null);
+            assertThat("one group per shard", groupIterator.size(), equalTo(numShards));
+            for (ShardIterator shardIterator : groupIterator) {
+                assertEquals("We should have all 6 shards returned", shardIterator.size(), 6);
+                for (ShardRouting shardRouting : shardIterator) {
+                    assertTrue(
+                        "Any shard can exist with when cluster.routing.search_only.strict is set as false",
+                        shardRouting.isSearchOnly() || shardRouting.primary() || shardRouting.isSearchOnly() == false
+                    );
+                }
+            }
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }
+
     private DiscoveryNode[] setupNodes() {
         // Sets up two data nodes in zone-a and one data node in zone-b
         List<String> zones = Arrays.asList("a", "a", "b");
