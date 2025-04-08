@@ -89,6 +89,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -393,6 +394,39 @@ public class IngestServiceTests extends OpenSearchTestCase {
         );
         IngestInfo ingestInfo = new IngestInfo(Collections.singletonList(new ProcessorInfo("set")));
         ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
+    }
+
+    public void testValidatePipelineId_WithNotValidLength_ShouldThrowException() throws Exception {
+        IngestService ingestService = createWithProcessors();
+
+        String longId = "a".repeat(512) + "a";
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            longId,
+            new BytesArray(
+                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}},"
+                    + "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"
+            ),
+            MediaTypeRegistry.JSON
+        );
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            "_node_id",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+        IngestInfo ingestInfo = new IngestInfo(Collections.singletonList(new ProcessorInfo("set")));
+
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest)
+        );
+        String errorMessage = String.format(
+            Locale.ROOT,
+            "Pipeline id [%s] exceeds maximum length of 512 UTF-8 bytes (actual: 513 bytes)",
+            longId
+        );
+        assertEquals(errorMessage, e.getMessage());
     }
 
     public void testGetProcessorsInPipeline() throws Exception {
