@@ -268,8 +268,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             String str = RandomStrings.randomAsciiOfLength(random, 10);
             array[i] = new BytesRef(str);
         }
-        BytesRefsCollectionBuilder outofOrder = new BytesRefsCollectionBuilder();
-        BytesRefsCollectionBuilder inOrder = new BytesRefsCollectionBuilder();
+        BytesRefsCollectionBuilder outofOrder = new BytesRefsCollectionBuilder(arraySize);
+        BytesRefsCollectionBuilder inOrder = new BytesRefsCollectionBuilder(arraySize);
         Arrays.stream(array).forEach(outofOrder);
         Arrays.stream(array).sorted().forEachOrdered(inOrder);
         Logger logger = LogManager.getLogger(KeywordFieldTypeTests.class);

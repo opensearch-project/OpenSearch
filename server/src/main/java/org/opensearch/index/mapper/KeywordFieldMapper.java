@@ -447,8 +447,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 if (!context.keywordFieldIndexOrDocValuesEnabled()) {
                     return super.termsQuery(values, context);
                 }
-                BytesRefsCollectionBuilder iBytesRefs = new BytesRefsCollectionBuilder();
-                BytesRefsCollectionBuilder dVByteRefs = new BytesRefsCollectionBuilder();
+                BytesRefsCollectionBuilder iBytesRefs = new BytesRefsCollectionBuilder(values.size());
+                BytesRefsCollectionBuilder dVByteRefs = new BytesRefsCollectionBuilder(values.size());
                 for (int i = 0; i < values.size(); i++) {
                     BytesRef idxBytes = indexedValueForSearch(values.get(i));
                     iBytesRefs.accept(idxBytes);
@@ -461,7 +461,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
             // if we only have doc_values enabled, we construct a new query with doc_values re-written
             if (hasDocValues()) {
-                BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder();
+                BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder(values.size());
                 for (int i = 0; i < values.size(); i++) {
                     BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(values.get(i)));
                     bytesCollector.accept(dvBytes);

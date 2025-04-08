@@ -94,7 +94,7 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termsQuery(List<?> values, QueryShardContext context) {
         failIfNotIndexed();
-        BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder();
+        BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder(values.size());
         for (int i = 0; i < values.size(); i++) {
             BytesRef elem = indexedValueForSearch(values.get(i));
             bytesCollector.accept(elem);

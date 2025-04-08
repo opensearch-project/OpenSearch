@@ -47,7 +47,7 @@ public class BytesRefsCollectionBuilderTests extends OpenSearchTestCase {
     }
 
     public void testFrozen() {
-        BytesRefsCollectionBuilder builder = new BytesRefsCollectionBuilder();
+        BytesRefsCollectionBuilder builder = new BytesRefsCollectionBuilder(1);
         String[] seedStrings = generateRandomStringArray(5, 10, false, true);
         Arrays.stream(seedStrings).map(BytesRef::new).forEachOrdered(builder);
         Collection<BytesRef> bytesRefCollection = builder.get();
@@ -58,7 +58,7 @@ public class BytesRefsCollectionBuilderTests extends OpenSearchTestCase {
     }
 
     private static Collection<BytesRef> assertCollectionBuilt(List<BytesRef> sortedBytesRefs) {
-        BytesRefsCollectionBuilder builder = new BytesRefsCollectionBuilder();
+        BytesRefsCollectionBuilder builder = new BytesRefsCollectionBuilder(1);
         sortedBytesRefs.stream().forEachOrdered(builder);
         Collection<BytesRef> bytesRefCollection = builder.get();
         assertEquals(bytesRefCollection.size(), sortedBytesRefs.size());
@@ -70,7 +70,7 @@ public class BytesRefsCollectionBuilderTests extends OpenSearchTestCase {
     }
 
     public void testCoverUnsupported() {
-        BytesRefsCollectionBuilder builder = new BytesRefsCollectionBuilder();
+        BytesRefsCollectionBuilder builder = new BytesRefsCollectionBuilder(1);
         Stream.of("in", "order").map(BytesRef::new).forEachOrdered(builder);
         SortedSet<BytesRef> bytesRefCollection = (SortedSet<BytesRef>) builder.get();
         assertThrows(UnsupportedOperationException.class, () -> bytesRefCollection.subSet(new BytesRef("a"), new BytesRef("z")));

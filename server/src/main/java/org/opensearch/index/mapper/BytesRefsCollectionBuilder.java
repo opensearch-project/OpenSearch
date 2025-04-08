@@ -32,10 +32,14 @@ public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<
     /**
      * Strategy for building BytesRef collection.
      * */
-    protected interface CollectorStrategy extends Function<BytesRef, CollectorStrategy>, Supplier<Collection<BytesRef>> {}
+    protected interface ConsumerStrategy extends Function<BytesRef, ConsumerStrategy>, Supplier<Collection<BytesRef>> {}
 
-    protected final List<BytesRef> terms = new ArrayList<>();
-    protected CollectorStrategy delegate = createStartStrategy();
+    public BytesRefsCollectionBuilder(int sizeExpected) {
+        terms = new ArrayList<>(sizeExpected);
+    }
+
+    protected final List<BytesRef> terms;
+    protected ConsumerStrategy delegate = createStartStrategy();
 
     @Override
     public void accept(BytesRef bytesRef) {
@@ -49,10 +53,10 @@ public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<
         return result;
     }
 
-    protected CollectorStrategy createStartStrategy() {
-        return new CollectorStrategy() {
+    protected ConsumerStrategy createStartStrategy() {
+        return new ConsumerStrategy() {
             @Override
-            public CollectorStrategy apply(BytesRef firstBytes) {
+            public ConsumerStrategy apply(BytesRef firstBytes) {
                 terms.add(firstBytes); // firstly, just store
                 return createSortedStrategy(firstBytes);
             }
@@ -64,18 +68,18 @@ public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<
         };
     }
 
-    protected CollectorStrategy createSortedStrategy(BytesRef firstBytes) {
-        return new CollectorStrategy() {
+    protected ConsumerStrategy createSortedStrategy(BytesRef firstBytes) {
+        return new ConsumerStrategy() {
             BytesRef prev = firstBytes;
 
             @Override
-            public CollectorStrategy apply(BytesRef bytesRef) {
+            public ConsumerStrategy apply(BytesRef bytesRef) {
                 terms.add(bytesRef);
                 if (bytesRef.compareTo(prev) >= 0) { // keep checking sorted
                     prev = bytesRef;
                     return this;
                 } else { // isn't sorted
-                    return createNotSortedStrategy();
+                    return createUnsortedStrategy();
                 }
             }
 
@@ -86,10 +90,10 @@ public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<
         };
     }
 
-    protected CollectorStrategy createNotSortedStrategy() {
-        return new CollectorStrategy() {
+    protected ConsumerStrategy createUnsortedStrategy() {
+        return new ConsumerStrategy() {
             @Override
-            public CollectorStrategy apply(BytesRef bytesRef) { // just storing
+            public ConsumerStrategy apply(BytesRef bytesRef) { // just storing
                 terms.add(bytesRef);
                 return this;
             }
@@ -101,11 +105,11 @@ public class BytesRefsCollectionBuilder implements Consumer<BytesRef>, Supplier<
         };
     }
 
-    protected CollectorStrategy createFrozenStrategy(Collection<BytesRef> result) {
-        return new CollectorStrategy() {
+    protected ConsumerStrategy createFrozenStrategy(Collection<BytesRef> result) {
+        return new ConsumerStrategy() {
 
             @Override
-            public CollectorStrategy apply(BytesRef bytesRef) {
+            public ConsumerStrategy apply(BytesRef bytesRef) {
                 throw new IllegalStateException("already build");
             }
 
