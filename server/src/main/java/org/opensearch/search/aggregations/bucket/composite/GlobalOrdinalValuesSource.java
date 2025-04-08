@@ -177,35 +177,33 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         // unwrapSingleton() returns non-null only if the field is single-valued
         final SortedDocValues singleton = DocValues.unwrapSingleton(dvs);
 
-        // Optimization path: Field is confirmed to be single-valued
+        // Direct ordinal access for single-valued fields
         if (singleton != null) {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    if (singleton.advanceExact(doc)) {  // If document has a value
-                        currentValue = singleton.ordValue();  // Get ordinal directly
-                        next.collect(doc, bucket);         // Collect into bucket
-                    } else if (missingBucket) {           // Handle missing value case
-                        currentValue = -1;                 // Use -1 for missing
+                    if (singleton.advanceExact(doc)) {
+                        currentValue = singleton.ordValue();
+                        next.collect(doc, bucket);
+                    } else if (missingBucket) {
+                        currentValue = -1;
                         next.collect(doc, bucket);
                     }
                 }
             };
         }
 
-        // Non-optimized collector for multi-valued fields
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (dvs.advanceExact(doc)) {           // If document has values
+                if (dvs.advanceExact(doc)) {
                     long ord;
-                    int count = dvs.docValueCount();    // Get number of values
-                    // Loop through all values in the document
+                    int count = dvs.docValueCount();
                     while ((count-- > 0) && (ord = dvs.nextOrd()) != NO_MORE_DOCS) {
-                        currentValue = ord;             // Store current ordinal
-                        next.collect(doc, bucket);      // Collect each value
+                        currentValue = ord;
+                        next.collect(doc, bucket);
                     }
-                } else if (missingBucket) {            // Handle missing values
+                } else if (missingBucket) {
                     currentValue = -1;
                     next.collect(doc, bucket);
                 }
