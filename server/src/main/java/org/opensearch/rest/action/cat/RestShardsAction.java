@@ -341,11 +341,7 @@ public class RestShardsAction extends AbstractListAction {
             if (shard.primary()) {
                 table.addCell("p");
             } else {
-                if (shard.isSearchOnly()) {
-                    table.addCell("s");
-                } else {
-                    table.addCell("r");
-                }
+                table.addCell("r");
             }
             table.addCell(shard.state());
             table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));
