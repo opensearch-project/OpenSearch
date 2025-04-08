@@ -19,6 +19,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugin.transport.grpc.services.DocumentServiceImpl;
+import org.opensearch.plugin.transport.grpc.services.SearchServiceImpl;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -80,7 +81,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin {
         if (client == null) {
             throw new RuntimeException("client cannot be null");
         }
-        List<BindableService> grpcServices = registerGRPCServices(new DocumentServiceImpl(client));
+        List<BindableService> grpcServices = registerGRPCServices(new DocumentServiceImpl(client), new SearchServiceImpl(client));
         return Collections.singletonMap(
             GRPC_TRANSPORT_SETTING_KEY,
             () -> new Netty4GrpcServerTransport(settings, grpcServices, networkService)

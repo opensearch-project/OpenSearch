@@ -104,7 +104,7 @@ public class IndicesOptions implements ToXContentFragment {
             return builder;
         }
 
-        private static void updateSetForValue(EnumSet<WildcardStates> states, String wildcard) {
+        public static void updateSetForValue(EnumSet<WildcardStates> states, String wildcard) {
             switch (wildcard) {
                 case "open":
                     states.add(OPEN);

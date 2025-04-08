@@ -70,6 +70,40 @@ public class FetchSourceContextProtoUtils {
     }
 
     /**
+     * Similar to {@link FetchSourceContext#parseFromRestRequest(RestRequest)}
+     * @param request
+     * @return
+     */
+    public static FetchSourceContext parseFromProtoRequest(org.opensearch.protobufs.SearchRequest request) {
+        Boolean fetchSource = null;
+        String[] sourceExcludes = null;
+        String[] sourceIncludes = null;
+
+        if (request.hasSource()) {
+            SourceConfigParam source = request.getSource();
+
+            if (source.hasBoolValue()) {
+                fetchSource = source.getBoolValue();
+            } else {
+                sourceIncludes = source.getStringArray().getStringArrayList().toArray(new String[0]);
+            }
+        }
+
+        if (request.getSourceIncludesCount() > 0) {
+            sourceIncludes = request.getSourceIncludesList().toArray(new String[0]);
+        }
+
+        if (request.getSourceExcludesCount() > 0) {
+            sourceExcludes = request.getSourceExcludesList().toArray(new String[0]);
+        }
+
+        if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
+            return new FetchSourceContext(fetchSource == null ? true : fetchSource, sourceIncludes, sourceExcludes);
+        }
+        return null;
+    }
+
+    /**
      * Converts a SourceConfig Protocol Buffer to a FetchSourceContext object.
      * Similar to {@link FetchSourceContext#fromXContent(XContentParser)}.
      *
@@ -96,7 +130,8 @@ public class FetchSourceContextProtoUtils {
                     includesList.add(s);
                 }
                 includes = includesList.toArray(new String[0]);
-            } else if (!sourceFilter.getExcludesList().isEmpty()) {
+            }
+            if (!sourceFilter.getExcludesList().isEmpty()) {
                 List<String> excludesList = new ArrayList<>();
                 for (String s : sourceFilter.getExcludesList()) {
                     excludesList.add(s);

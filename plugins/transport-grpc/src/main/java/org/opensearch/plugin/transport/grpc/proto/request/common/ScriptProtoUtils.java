@@ -48,8 +48,12 @@ public class ScriptProtoUtils {
     /**
      * Converts a Script Protocol Buffer to a Script object.
      * Similar to {@link Script#parse(XContentParser, String)}, which internally calls Script#build().
+     *
+     * @param script the Protocol Buffer Script to convert
+     * @param defaultLang the default script language to use if not specified
+     * @return the converted Script object
      */
-    private static Script parseFromProtoRequest(org.opensearch.protobufs.Script script, String defaultLang) {
+    public static Script parseFromProtoRequest(org.opensearch.protobufs.Script script, String defaultLang) {
         Objects.requireNonNull(defaultLang);
 
         if (script.hasInlineScript()) {
@@ -63,8 +67,12 @@ public class ScriptProtoUtils {
 
     /**
      * Parses a protobuf InlineScript to a Script object
+     *
+     * @param inlineScript the Protocol Buffer InlineScript to convert
+     * @param defaultLang the default script language to use if not specified
+     * @return the converted Script object
      */
-    private static Script parseInlineScript(InlineScript inlineScript, String defaultLang) {
+    public static Script parseInlineScript(InlineScript inlineScript, String defaultLang) {
 
         ScriptType type = ScriptType.INLINE;
 
@@ -85,8 +93,11 @@ public class ScriptProtoUtils {
 
     /**
      * Parses a protobuf StoredScriptId to a Script object
+     *
+     * @param storedScriptId the Protocol Buffer StoredScriptId to convert
+     * @return the converted Script object
      */
-    private static Script parseStoredScriptId(StoredScriptId storedScriptId) {
+    public static Script parseStoredScriptId(StoredScriptId storedScriptId) {
         ScriptType type = ScriptType.STORED;
         String lang = null;
         String idOrCode = storedScriptId.getId();
@@ -98,7 +109,15 @@ public class ScriptProtoUtils {
         return new Script(type, lang, idOrCode, options, params);
     }
 
-    private static String parseScriptLanguage(ScriptLanguage language, String defaultLang) {
+    /**
+     * Parses a protobuf ScriptLanguage to a String representation
+     *
+     * @param language the Protocol Buffer ScriptLanguage to convert
+     * @param defaultLang the default script language to use if not specified
+     * @return the string representation of the script language
+     * @throws UnsupportedOperationException if no language was specified
+     */
+    public static String parseScriptLanguage(ScriptLanguage language, String defaultLang) {
         if (language.hasStringValue()) {
             return language.getStringValue();
         }
