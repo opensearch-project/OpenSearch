@@ -5,7 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.plugin.transport.grpc.proto.response.common;
+package org.opensearch.plugin.transport.grpc.proto.response.exceptions.opensearchexception;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
@@ -43,9 +43,7 @@ import static org.opensearch.OpenSearchException.OPENSEARCH_PREFIX_KEY;
 import static org.opensearch.OpenSearchException.getExceptionName;
 
 /**
- * Utility class for converting Exception objects to Protocol Buffers.
- * This class handles the conversion of OpenSearchException and other Throwable instances
- * to their Protocol Buffer representation.
+ * Utility class for converting OpenSearchException objects to Protocol Buffers.
  */
 public class OpenSearchExceptionProtoUtils {
 

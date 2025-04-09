@@ -20,6 +20,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.opensearch.script.Script.DEFAULT_SCRIPT_LANG;
+
 public class ScriptProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithInlineScript() {
@@ -267,7 +269,6 @@ public class ScriptProtoUtilsTests extends OpenSearchTestCase {
             )
             .build();
 
-        // Parse the protobuf Script, should throw UnsupportedOperationException
-        expectThrows(UnsupportedOperationException.class, () -> ScriptProtoUtils.parseFromProtoRequest(protoScript));
+        assertEquals("uses default language", DEFAULT_SCRIPT_LANG, ScriptProtoUtils.parseFromProtoRequest(protoScript).getLang());
     }
 }
