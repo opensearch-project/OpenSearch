@@ -3407,19 +3407,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             } else {
                 final IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-                    final ShardId shardId = indexRoutingTable.shard(i).shardId();
+                    final ShardId shardId;
                     final String shardRepoGeneration;
-
-                    final String inFlightGeneration = inFlightShardStates.generationForShard(index, shardId.id(), shardGenerations);
-                    if (inFlightGeneration == null && isNewIndex) {
-                        assert shardGenerations.getShardGen(index, shardId.getId()) == null : "Found shard generation for new index ["
-                            + index
-                            + "]";
-                        shardRepoGeneration = ShardGenerations.NEW_SHARD_GEN;
-                    } else {
-                        shardRepoGeneration = inFlightGeneration;
-                    }
                     final ShardSnapshotStatus shardSnapshotStatus;
+
                     if (indexRoutingTable == null) {
                         shardSnapshotStatus = new ShardSnapshotStatus(
                             null,
@@ -3428,6 +3419,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             shardRepoGeneration
                         );
                     } else {
+                        shardId = indexRoutingTable.shard(i).shardId();
+                        final String inFlightGeneration = inFlightShardStates.generationForShard(index, shardId.id(), shardGenerations);
+                        if (inFlightGeneration == null && isNewIndex) {
+                            assert shardGenerations.getShardGen(index, shardId.getId()) == null : "Found shard generation for new index ["
+                                + index
+                                + "]";
+                            shardRepoGeneration = ShardGenerations.NEW_SHARD_GEN;
+                        } else {
+                            shardRepoGeneration = inFlightGeneration;
+                        }
                         ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
                         if (readyToExecute == false || inFlightShardStates.isActive(indexName, i)) {
                             shardSnapshotStatus = ShardSnapshotStatus.UNASSIGNED_QUEUED;
