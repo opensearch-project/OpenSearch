@@ -36,6 +36,8 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         assertEquals("1000", source.getPointerInitReset().getValue());
         assertEquals(DROP, source.getErrorStrategy());
         assertEquals(params, source.params());
+        assertEquals(1000, source.getMaxPollSize());
+        assertEquals(1000, source.getPollTimeout());
     }
 
     public void testEquals() {
@@ -44,6 +46,8 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         IngestionSource source1 = new IngestionSource.Builder("type").setParams(params1)
             .setPointerInitReset(pointerInitReset)
             .setErrorStrategy(DROP)
+            .setMaxPollSize(500)
+            .setPollTimeout(500)
             .build();
 
         Map<String, Object> params2 = new HashMap<>();
@@ -51,6 +55,8 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         IngestionSource source2 = new IngestionSource.Builder("type").setParams(params2)
             .setPointerInitReset(pointerInitReset)
             .setErrorStrategy(DROP)
+            .setMaxPollSize(500)
+            .setPollTimeout(500)
             .build();
         assertTrue(source1.equals(source2));
         assertTrue(source2.equals(source1));
@@ -68,6 +74,8 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         IngestionSource source1 = new IngestionSource.Builder("type").setParams(params1)
             .setPointerInitReset(pointerInitReset)
             .setErrorStrategy(DROP)
+            .setMaxPollSize(500)
+            .setPollTimeout(500)
             .build();
 
         Map<String, Object> params2 = new HashMap<>();
@@ -75,6 +83,8 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         IngestionSource source2 = new IngestionSource.Builder("type").setParams(params2)
             .setPointerInitReset(pointerInitReset)
             .setErrorStrategy(DROP)
+            .setMaxPollSize(500)
+            .setPollTimeout(500)
             .build();
         assertEquals(source1.hashCode(), source2.hashCode());
 
@@ -93,7 +103,7 @@ public class IngestionSourceTests extends OpenSearchTestCase {
             .setErrorStrategy(DROP)
             .build();
         String expected =
-            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='REWIND_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}}";
+            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='REWIND_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000}";
         assertEquals(expected, source.toString());
     }
 }
