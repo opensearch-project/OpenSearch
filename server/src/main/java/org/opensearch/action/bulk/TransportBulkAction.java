@@ -54,7 +54,6 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.update.TransportUpdateAction;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -94,6 +93,7 @@ import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -963,8 +963,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             },
             bulkRequestModifier::markItemAsDropped,
-            executorName,
-            original
+            executorName
         );
     }
 

@@ -14,7 +14,6 @@ import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.action.support.clustermanager.term.GetTermVersionAction;
 import org.opensearch.action.support.clustermanager.term.GetTermVersionResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.coordination.ClusterStateTermVersion;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
@@ -36,6 +35,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.Before;
 
 import java.util.Collection;

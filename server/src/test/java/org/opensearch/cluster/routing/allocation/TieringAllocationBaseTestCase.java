@@ -13,6 +13,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexModule;
 
 import static org.opensearch.index.IndexModule.INDEX_STORE_LOCALITY_SETTING;
 import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
@@ -37,6 +38,7 @@ public abstract class TieringAllocationBaseTestCase extends RemoteShardsBalancer
                             .put(settings)
                             .put(settings)
                             .put(INDEX_TIERING_STATE.getKey(), tieringState)
+                            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
                             .put(INDEX_STORE_LOCALITY_SETTING.getKey(), dataLocality)
                     )
             );

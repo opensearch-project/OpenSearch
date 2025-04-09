@@ -33,11 +33,11 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.DocWriteRequest;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequestFilter;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Collections;

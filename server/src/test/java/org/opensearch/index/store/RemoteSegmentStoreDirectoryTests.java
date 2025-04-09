@@ -37,7 +37,7 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
@@ -696,7 +696,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             eq(IOContext.DEFAULT)
         );
         VersionedCodecStreamWrapper<RemoteSegmentMetadata> streamWrapper = new VersionedCodecStreamWrapper<>(
-            new RemoteSegmentMetadataHandler(),
+            new RemoteSegmentMetadataHandlerFactory(),
+            RemoteSegmentMetadata.CURRENT_VERSION,
             RemoteSegmentMetadata.CURRENT_VERSION,
             RemoteSegmentMetadata.METADATA_CODEC
         );
@@ -840,7 +841,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
 
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
-        CodecUtil.writeHeader(indexOutput, RemoteSegmentMetadata.METADATA_CODEC, 2);
+        CodecUtil.writeHeader(indexOutput, RemoteSegmentMetadata.METADATA_CODEC, 3);
         indexOutput.writeMapOfStrings(metadata);
         CodecUtil.writeFooter(indexOutput);
         indexOutput.close();
@@ -1115,7 +1116,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
           If author doesn't want to support old metadata files. Then this can be ignored.
           After taking appropriate action, fix this test by setting the correct version here
          */
-        assertEquals(RemoteSegmentMetadata.CURRENT_VERSION, 1);
+        assertEquals(RemoteSegmentMetadata.CURRENT_VERSION, 2);
     }
 
     private void indexDocs(int startDocId, int numberOfDocs) throws IOException {

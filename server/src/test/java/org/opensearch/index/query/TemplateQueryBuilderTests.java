@@ -8,7 +8,6 @@
 
 package org.opensearch.index.query;
 
-import org.opensearch.client.Client;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
@@ -24,6 +23,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.ArrayList;

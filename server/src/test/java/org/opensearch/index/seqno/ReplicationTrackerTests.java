@@ -1844,7 +1844,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             1,
             1L,
             Codec.getDefault().getName(),
-            Map.of("segment_1", segment_1)
+            Map.of("segment_1", segment_1),
+            0L
         );
         final ReplicationCheckpoint secondCheckpoint = new ReplicationCheckpoint(
             tracker.shardId(),
@@ -1853,7 +1854,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             2,
             51L,
             Codec.getDefault().getName(),
-            Map.of("segment_1", segment_1, "segment_2", segment_2)
+            Map.of("segment_1", segment_1, "segment_2", segment_2),
+            0L
         );
         final ReplicationCheckpoint thirdCheckpoint = new ReplicationCheckpoint(
             tracker.shardId(),
@@ -1862,7 +1864,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             3,
             151L,
             Codec.getDefault().getName(),
-            Map.of("segment_1", segment_1, "segment_2", segment_2, "segment_3", segment_3)
+            Map.of("segment_1", segment_1, "segment_2", segment_2, "segment_3", segment_3),
+            0L
         );
 
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
@@ -1974,7 +1977,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             1,
             5L,
             Codec.getDefault().getName(),
-            Map.of("segment_1", segment_1)
+            Map.of("segment_1", segment_1),
+            0L
         );
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
         tracker.startReplicationLagTimers(initialCheckpoint);
@@ -2033,7 +2037,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             1,
             1L,
             Codec.getDefault().getName(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            0L
         );
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
         tracker.startReplicationLagTimers(initialCheckpoint);

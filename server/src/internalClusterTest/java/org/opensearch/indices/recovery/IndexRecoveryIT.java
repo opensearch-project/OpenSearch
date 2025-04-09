@@ -250,7 +250,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         assertThat(state.getStage(), not(equalTo(Stage.DONE)));
     }
 
-    private void slowDownRecovery(ByteSizeValue shardSize) {
+    public void slowDownRecovery(ByteSizeValue shardSize) {
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
         assertTrue(
             client().admin()
@@ -528,7 +528,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsSource(), equalTo(1));
             indicesService = internalCluster().getInstance(IndicesService.class, nodeB);
             assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsTarget(), equalTo(1));
-        }, TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(500));
+        }, TimeValue.timeValueSeconds(60), TimeValue.timeValueMillis(500));
 
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();

@@ -34,9 +34,9 @@ package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.action.support.clustermanager.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.util.Map;
 

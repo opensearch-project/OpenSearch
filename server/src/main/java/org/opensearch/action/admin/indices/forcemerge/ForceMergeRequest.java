@@ -39,6 +39,8 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.transport.client.IndicesAdminClient;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,8 +53,8 @@ import java.util.Arrays;
  * to force merge down to. Defaults to simply checking if a merge needs
  * to execute, and if so, executes it
  *
- * @see org.opensearch.client.Requests#forceMergeRequest(String...)
- * @see org.opensearch.client.IndicesAdminClient#forceMerge(ForceMergeRequest)
+ * @see Requests#forceMergeRequest(String...)
+ * @see IndicesAdminClient#forceMerge(ForceMergeRequest)
  * @see ForceMergeResponse
  *
  * @opensearch.api

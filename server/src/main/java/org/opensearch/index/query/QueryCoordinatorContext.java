@@ -8,12 +8,12 @@
 
 package org.opensearch.index.query;
 
-import org.opensearch.client.Client;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.search.pipeline.PipelinedRequest;
+import org.opensearch.transport.client.Client;
 
 import java.util.HashMap;
 import java.util.Map;

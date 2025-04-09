@@ -34,8 +34,8 @@ package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport request builder to delete a pipeline

@@ -32,7 +32,6 @@
 
 package org.opensearch.ingest;
 
-import org.opensearch.client.Client;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
@@ -40,6 +39,7 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.Scheduler;
+import org.opensearch.transport.client.Client;
 
 import java.util.Collections;
 import java.util.List;

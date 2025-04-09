@@ -86,6 +86,30 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         queryName = in.readOptionalString();
     }
 
+    /**
+     * Check the input parameters of filter function.
+     * @param filter filter to combine with current query builder
+     * @return true if parameters are valid. Returns false when the filter is null.
+     */
+    public static boolean validateFilterParams(QueryBuilder filter) {
+        return filter != null;
+    }
+
+    /**
+     * Combine filter with current query builder
+     * @param filter filter to combine with current query builder
+     * @return query builder with filter combined
+     */
+    public QueryBuilder filter(QueryBuilder filter) {
+        if (validateFilterParams(filter) == false) {
+            return this;
+        }
+        final BoolQueryBuilder modifiedQB = new BoolQueryBuilder();
+        modifiedQB.must(this);
+        modifiedQB.filter(filter);
+        return modifiedQB;
+    }
+
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(boost);

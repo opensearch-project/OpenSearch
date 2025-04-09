@@ -39,9 +39,9 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.client.Requests.indexRequest;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.transport.client.Requests.indexRequest;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BroadcastActionsIT extends OpenSearchIntegTestCase {

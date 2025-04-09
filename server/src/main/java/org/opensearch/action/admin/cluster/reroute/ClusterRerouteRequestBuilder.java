@@ -33,9 +33,9 @@
 package org.opensearch.action.admin.cluster.reroute;
 
 import org.opensearch.action.support.clustermanager.AcknowledgedRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Builder for a cluster reroute request

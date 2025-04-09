@@ -127,7 +127,7 @@ All distributions built will be under `distributions/archives`.
 #### Generated Code
 
 OpenSearch uses code generators like [Protobuf](https://protobuf.dev/).
-OpenSearch build system already takes a dependency of generating code from protobuf, incase you run into compilation errors, run:
+OpenSearch build system already takes a dependency of generating code from protobuf, if you run into compilation errors, run:
 
 ```
 ./gradlew generateProto
@@ -594,7 +594,8 @@ Rapidly developing new features often benefit from several release cycles before
 uses an Experimental Development process leveraging [Feature Flags](https://featureflags.io/feature-flags/). This allows a feature to be developed using the same process as
 a LTS feature but with additional guard rails and communication mechanisms to signal to the users and development community the feature is not yet stable, may change in a future
 release, or be removed altogether. Any Developer or User APIs implemented along with the experimental feature should be marked with `@ExperimentalApi` (or documented as
-`@opensearch.experimental`) annotation to signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines.
+`@opensearch.experimental`) annotation to signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines. When writing tests for
+functionality gated behind a feature flag please refer to `FeatureFlags.TestUtils` and the `@LockFeatureFlag` annotation.
 
 #### API Compatibility Checks
 

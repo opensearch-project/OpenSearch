@@ -404,19 +404,17 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
 
             for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
                 ReplicationStats replicationStats = nodeStats.getIndices().getSegments().getReplicationStats();
-                // primary node - should hold replication statistics
+                // primary node - do not have any replication statistics
                 if (nodeStats.getNode().getName().equals(primaryNode)) {
+                    assertTrue(replicationStats.getMaxBytesBehind() == 0);
+                    assertTrue(replicationStats.getTotalBytesBehind() == 0);
+                    assertTrue(replicationStats.getMaxReplicationLag() == 0);
+                }
+                // replica nodes - should hold replication statistics
+                if (nodeStats.getNode().getName().equals(replicaNode1) || nodeStats.getNode().getName().equals(replicaNode2)) {
                     assertTrue(replicationStats.getMaxBytesBehind() > 0);
                     assertTrue(replicationStats.getTotalBytesBehind() > 0);
                     assertTrue(replicationStats.getMaxReplicationLag() > 0);
-                    // 2 replicas so total bytes should be double of max
-                    assertEquals(replicationStats.getMaxBytesBehind() * 2, replicationStats.getTotalBytesBehind());
-                }
-                // replica nodes - should hold empty replication statistics
-                if (nodeStats.getNode().getName().equals(replicaNode1) || nodeStats.getNode().getName().equals(replicaNode2)) {
-                    assertEquals(0, replicationStats.getMaxBytesBehind());
-                    assertEquals(0, replicationStats.getTotalBytesBehind());
-                    assertEquals(0, replicationStats.getMaxReplicationLag());
                 }
             }
             // get replication statistics at index level

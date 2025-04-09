@@ -402,6 +402,7 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
                 commonStats,
                 null,
                 null,
+                null,
                 null
             );
             shardStatsList.add(shardStats);

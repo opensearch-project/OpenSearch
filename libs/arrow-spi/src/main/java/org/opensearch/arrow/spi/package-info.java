@@ -7,6 +7,6 @@
  */
 
 /**
- * Contains Apache Arrow related classes and Stream generic interfaces
+ * Contains Stream producer, consumer and manager generic interfaces
  */
 package org.opensearch.arrow.spi;

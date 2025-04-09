@@ -52,6 +52,8 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.Rewriteable;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.AliasFilter;
@@ -101,7 +103,20 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(task, request, listener);
+        // if there's no query we can't rewrite it
+        if (request.query() == null) {
+            super.doExecute(task, request, listener);
+            return;
+        }
+        ActionListener<QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
+            request.query(rewrittenQuery);
+            super.doExecute(task, request, listener);
+        }, listener::onFailure);
+        Rewriteable.rewriteAndFetch(
+            request.query(),
+            searchService.getIndicesService().getRewriteContext(() -> request.nowInMillis),
+            rewriteListener
+        );
     }
 
     @Override

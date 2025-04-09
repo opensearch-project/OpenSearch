@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.indices.forcemerge;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * A request to force merge one or more indices. In order to force merge all

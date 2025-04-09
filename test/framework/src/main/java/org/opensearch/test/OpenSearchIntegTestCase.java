@@ -72,10 +72,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.AdminClient;
-import org.opensearch.client.Client;
-import org.opensearch.client.ClusterAdminClient;
-import org.opensearch.client.Requests;
 import org.opensearch.client.RestClient;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
@@ -177,6 +173,10 @@ import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.AdminClient;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.ClusterAdminClient;
+import org.opensearch.transport.client.Requests;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -217,6 +217,7 @@ import java.util.stream.Collectors;
 import reactor.util.annotation.NonNull;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
@@ -399,11 +400,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     protected static final String REMOTE_BACKED_STORAGE_REPOSITORY_NAME = "test-remote-store-repo";
 
-    private static Boolean prefixModeVerificationEnable;
+    protected static Boolean prefixModeVerificationEnable;
 
-    private static Boolean translogPathFixedPrefix;
+    protected static Boolean translogPathFixedPrefix;
 
-    private static Boolean segmentsPathFixedPrefix;
+    protected static Boolean segmentsPathFixedPrefix;
 
     protected static Boolean snapshotShardPathFixedPrefix;
 
@@ -2276,7 +2277,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         assertThat(metadata.hasIndex(index), equalTo(true));
         int numShards = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
         int numReplicas = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
-        return new NumShards(numShards, numReplicas);
+        String numSearchReplicasValue = metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SEARCH_REPLICAS);
+        int numSearchReplicas = numSearchReplicasValue != null ? Integer.parseInt(numSearchReplicasValue) : 0;
+        return new NumShards(numShards, numReplicas, numSearchReplicas);
     }
 
     /**
@@ -2317,13 +2320,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     protected static class NumShards {
         public final int numPrimaries;
         public final int numReplicas;
+        public final int numSearchReplicas;
         public final int totalNumShards;
         public final int dataCopies;
 
-        private NumShards(int numPrimaries, int numReplicas) {
+        private NumShards(int numPrimaries, int numReplicas, int numSearchReplicas) {
             this.numPrimaries = numPrimaries;
             this.numReplicas = numReplicas;
-            this.dataCopies = numReplicas + 1;
+            this.numSearchReplicas = numSearchReplicas;
+            this.dataCopies = numReplicas + numSearchReplicas + 1;
             this.totalNumShards = numPrimaries * dataCopies;
         }
     }

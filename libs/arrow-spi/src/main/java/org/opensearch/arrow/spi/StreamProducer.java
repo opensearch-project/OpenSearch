@@ -8,8 +8,6 @@
 
 package org.opensearch.arrow.spi;
 
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.tasks.TaskId;
 
@@ -77,7 +75,7 @@ import java.io.Closeable;
  * @see StreamReader
  */
 @ExperimentalApi
-public interface StreamProducer extends Closeable {
+public interface StreamProducer<VectorRoot, Allocator> extends Closeable {
 
     /**
      * Creates a VectorSchemaRoot that defines the schema for this stream. This schema will be used
@@ -86,7 +84,7 @@ public interface StreamProducer extends Closeable {
      * @param allocator The allocator to use for creating vectors
      * @return A new VectorSchemaRoot instance
      */
-    VectorSchemaRoot createRoot(BufferAllocator allocator);
+    VectorRoot createRoot(Allocator allocator);
 
     /**
      * Creates a job that will produce the stream data in batches. The job will populate
@@ -95,7 +93,7 @@ public interface StreamProducer extends Closeable {
      * @param allocator The allocator to use for any additional memory allocations
      * @return A new BatchedJob instance
      */
-    BatchedJob createJob(BufferAllocator allocator);
+    BatchedJob<VectorRoot> createJob(Allocator allocator);
 
     /**
      * Provides an estimate of the total number of rows that will be produced.
@@ -113,7 +111,7 @@ public interface StreamProducer extends Closeable {
     /**
      * BatchedJob interface for producing stream data in batches.
      */
-    interface BatchedJob {
+    interface BatchedJob<VectorRoot> {
 
         /**
          * Executes the batch processing job. Implementations should populate the root with data
@@ -122,7 +120,7 @@ public interface StreamProducer extends Closeable {
          * @param root The VectorSchemaRoot to populate with data
          * @param flushSignal Signal to coordinate with consumers
          */
-        void run(VectorSchemaRoot root, FlushSignal flushSignal);
+        void run(VectorRoot root, FlushSignal flushSignal);
 
         /**
          * Called to signal producer when the job is canceled.

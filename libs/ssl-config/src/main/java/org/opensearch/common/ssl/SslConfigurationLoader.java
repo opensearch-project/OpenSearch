@@ -360,14 +360,11 @@ public abstract class SslConfigurationLoader {
 
     private static List<String> loadDefaultCiphers() {
         final boolean has256BitAES = has256BitAES();
-        final boolean tlsV13Supported = DEFAULT_PROTOCOLS.contains("TLSv1.3");
         List<String> ciphers = new ArrayList<>();
-        if (tlsV13Supported) { // TLSv1.3 cipher has PFS, AEAD, hardware support
-            if (has256BitAES) {
-                ciphers.add("TLS_AES_256_GCM_SHA384");
-            }
-            ciphers.add("TLS_AES_128_GCM_SHA256");
+        if (has256BitAES) {
+            ciphers.add("TLS_AES_256_GCM_SHA384");
         }
+        ciphers.add("TLS_AES_128_GCM_SHA256");
         // use GCM: PFS, AEAD, hardware support
         if (has256BitAES) {
             ciphers.addAll(

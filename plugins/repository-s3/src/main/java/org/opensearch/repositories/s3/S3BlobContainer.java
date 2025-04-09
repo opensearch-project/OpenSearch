@@ -392,7 +392,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             return future.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Future got interrupted", e);
+            throw new IOException("Future got interrupted", e);
         } catch (ExecutionException e) {
             if (e.getCause() instanceof IOException) {
                 throw (IOException) e.getCause();

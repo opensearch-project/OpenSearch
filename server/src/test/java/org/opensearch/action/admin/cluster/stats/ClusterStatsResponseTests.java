@@ -270,6 +270,7 @@ public class ClusterStatsResponseTests extends OpenSearchTestCase {
                 commonStats,
                 null,
                 null,
+                null,
                 null
             );
             shardStatsList.add(shardStats);

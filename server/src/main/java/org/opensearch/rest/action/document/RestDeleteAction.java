@@ -34,12 +34,12 @@ package org.opensearch.rest.action.document;
 
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestStatusToXContentListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;

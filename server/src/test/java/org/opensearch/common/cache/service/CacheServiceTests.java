@@ -17,7 +17,6 @@ import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.CachePlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -30,7 +29,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class CacheServiceTests extends OpenSearchTestCase {
-
     public void testWithCreateCacheForIndicesRequestCacheType() {
         CachePlugin mockPlugin1 = mock(CachePlugin.class);
         ICache.Factory factory1 = mock(ICache.Factory.class);
@@ -50,38 +48,15 @@ public class CacheServiceTests extends OpenSearchTestCase {
         );
         CacheConfig<String, String> config = mock(CacheConfig.class);
         ICache<String, String> mockOnHeapCache = mock(OpenSearchOnHeapCache.class);
-        when(onHeapCacheFactory.create(eq(config), eq(CacheType.INDICES_REQUEST_CACHE), any(Map.class))).thenReturn(mockOnHeapCache);
-
-        ICache<String, String> ircCache = cacheService.createCache(config, CacheType.INDICES_REQUEST_CACHE);
-        assertEquals(mockOnHeapCache, ircCache);
-    }
-
-    public void testWithCreateCacheForIndicesRequestCacheTypeWithFeatureFlagTrue() {
-        CachePlugin mockPlugin1 = mock(CachePlugin.class);
-        ICache.Factory factory1 = mock(ICache.Factory.class);
-        ICache.Factory onHeapCacheFactory = mock(OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.class);
-        Map<String, ICache.Factory> factoryMap = Map.of(
-            "cache1",
-            factory1,
-            OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
-            onHeapCacheFactory
-        );
-        when(mockPlugin1.getCacheFactoryMap()).thenReturn(factoryMap);
-
-        Setting<String> indicesRequestCacheSetting = CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE);
-        CacheService cacheService = new CacheService(
-            factoryMap,
-            Settings.builder().put(indicesRequestCacheSetting.getKey(), "cache1").put(FeatureFlags.PLUGGABLE_CACHE, "true").build()
-        );
-        CacheConfig<String, String> config = mock(CacheConfig.class);
-        ICache<String, String> mockOnHeapCache = mock(OpenSearchOnHeapCache.class);
         when(factory1.create(eq(config), eq(CacheType.INDICES_REQUEST_CACHE), any(Map.class))).thenReturn(mockOnHeapCache);
+        ICache<String, String> otherMockOnHeapCache = mock(OpenSearchOnHeapCache.class);
+        when(onHeapCacheFactory.create(eq(config), eq(CacheType.INDICES_REQUEST_CACHE), any(Map.class))).thenReturn(otherMockOnHeapCache);
 
         ICache<String, String> ircCache = cacheService.createCache(config, CacheType.INDICES_REQUEST_CACHE);
         assertEquals(mockOnHeapCache, ircCache);
     }
 
-    public void testWithCreateCacheForIndicesRequestCacheTypeWithFeatureFlagTrueAndStoreNameIsNull() {
+    public void testWithCreateCacheForIndicesRequestCacheTypeWithStoreNameNull() {
         CachePlugin mockPlugin1 = mock(CachePlugin.class);
         ICache.Factory factory1 = mock(ICache.Factory.class);
         ICache.Factory onHeapCacheFactory = mock(OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.class);
@@ -93,7 +68,7 @@ public class CacheServiceTests extends OpenSearchTestCase {
         );
         when(mockPlugin1.getCacheFactoryMap()).thenReturn(factoryMap);
 
-        CacheService cacheService = new CacheService(factoryMap, Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "true").build());
+        CacheService cacheService = new CacheService(factoryMap, Settings.builder().build());
         CacheConfig<String, String> config = mock(CacheConfig.class);
         ICache<String, String> mockOnHeapCache = mock(OpenSearchOnHeapCache.class);
         when(onHeapCacheFactory.create(eq(config), eq(CacheType.INDICES_REQUEST_CACHE), any(Map.class))).thenReturn(mockOnHeapCache);
@@ -149,6 +124,6 @@ public class CacheServiceTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> cacheService.createCache(config, CacheType.INDICES_REQUEST_CACHE)
         );
-        assertEquals("No store name: [opensearch_onheap] is registered for cache type: INDICES_REQUEST_CACHE", ex.getMessage());
+        assertEquals("No store name: [cache] is registered for cache type: INDICES_REQUEST_CACHE", ex.getMessage());
     }
 }

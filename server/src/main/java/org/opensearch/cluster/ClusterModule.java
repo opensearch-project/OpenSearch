@@ -392,7 +392,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
         if (FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(settings)) {
-            addAllocationDecider(deciders, new SearchReplicaAllocationDecider(settings, clusterSettings));
+            addAllocationDecider(deciders, new SearchReplicaAllocationDecider());
         }
         addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));

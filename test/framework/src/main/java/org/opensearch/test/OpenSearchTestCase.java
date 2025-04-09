@@ -63,8 +63,6 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
-import org.opensearch.client.Client;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
@@ -87,6 +85,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.time.FormatNames;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -137,6 +136,8 @@ import org.opensearch.test.junit.listeners.LoggingListener;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -146,11 +147,18 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -234,6 +242,45 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
     private HeaderWarningAppender headerWarningAppender;
 
+    /**
+     * Define LockFeatureFlag annotation for unit tests.
+     * Enables and make a flag immutable for the duration of the test case.
+     * Flag returned to previous value on test exit.
+     * Usage: LockFeatureFlag("example.featureflag.setting.key.enabled")
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ ElementType.METHOD })
+    public @interface LockFeatureFlag {
+        String value();
+    }
+
+    public static class AnnotatedFeatureFlagRule implements TestRule {
+        /**
+         * Wrap base test case with an
+         * @param base test case to execute.
+         * @param description annotated test description.
+         */
+        @Override
+        public Statement apply(Statement base, Description description) {
+            LockFeatureFlag annotation = description.getAnnotation(LockFeatureFlag.class);
+            if (annotation == null) {
+                return base;
+            }
+            String flagKey = annotation.value();
+            return new Statement() {
+                @Override
+                public void evaluate() throws Throwable {
+                    try (FeatureFlags.TestUtils.FlagWriteLock ignored = new FeatureFlags.TestUtils.FlagWriteLock(flagKey)) {
+                        base.evaluate();
+                    }
+                }
+            };
+        }
+    }
+
+    @Rule
+    public AnnotatedFeatureFlagRule flagLockRule = new AnnotatedFeatureFlagRule();
+
     @AfterClass
     public static void resetPortCounter() {
         portGenerator.set(0);
@@ -242,7 +289,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     @Override
     public void tearDown() throws Exception {
         Schedulers.shutdownNow();
-        FeatureFlagSetter.clear();
         super.tearDown();
     }
 
@@ -1233,7 +1279,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     /**
-     * Returns a {@link java.nio.file.Path} pointing to the class path relative resource given
+     * Returns a {@link Path} pointing to the class path relative resource given
      * as the first argument. In contrast to
      * <code>getClass().getResource(...).getFile()</code> this method will not
      * return URL encoded paths if the parent path contains spaces or other
@@ -1395,7 +1441,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         boolean humanReadable,
         String... exceptFieldNames
     ) throws IOException {
-        BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
+        BytesReference bytes = XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
         try (XContentParser parser = createParser(mediaType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
                 return BytesReference.bytes(builder);
@@ -1687,8 +1733,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
         return new IndexAnalyzers(
             Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Collections.emptyMap(),
-            Collections.emptyMap()
+            emptyMap(),
+            emptyMap()
         );
     }
 
@@ -1768,7 +1814,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return getBasePort() + "-" + (getBasePort() + 99); // upper bound is inclusive
     }
 
-    protected static int getBasePort() {
+    protected static int getBasePort(int start) {
         // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
         // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
@@ -1792,7 +1838,11 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             startAt = (int) Math.floorMod(workerId - 1, 223L) + 1;
         }
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
-        return 10300 + (startAt * 100);
+        return start + (startAt * 100);
+    }
+
+    protected static int getBasePort() {
+        return getBasePort(10300);
     }
 
     protected static InetAddress randomIp(boolean v4) {

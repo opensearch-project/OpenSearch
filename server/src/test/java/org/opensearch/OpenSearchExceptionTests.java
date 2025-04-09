@@ -39,7 +39,6 @@ import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -74,6 +73,7 @@ import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.transport.client.transport.NoNodeAvailableException;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;

@@ -35,7 +35,6 @@ package org.opensearch.action.bulk;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.client.Client;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -48,6 +47,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.io.Closeable;
 import java.util.Objects;
@@ -241,7 +241,7 @@ public class BulkProcessor implements Closeable {
      * @param listener The BulkProcessor listener that gets called on bulk events
      * @return the builder for BulkProcessor
      * @deprecated Use {@link #builder(java.util.function.BiConsumer, org.opensearch.action.bulk.BulkProcessor.Listener)}
-     * with client::bulk as the first argument, or {@link #builder(org.opensearch.client.Client,
+     * with client::bulk as the first argument, or {@link #builder(Client,
      * org.opensearch.action.bulk.BulkProcessor.Listener, org.opensearch.threadpool.Scheduler,
      * org.opensearch.threadpool.Scheduler, java.lang.Runnable)} and manage the flush and retry schedulers explicitly
      */

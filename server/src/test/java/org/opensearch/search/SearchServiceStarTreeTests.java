@@ -15,7 +15,6 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
@@ -47,10 +46,13 @@ import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.startree.DateHistogramAggregatorTests;
+import org.opensearch.search.aggregations.startree.NumericTermsAggregatorTests;
 import org.opensearch.search.aggregations.startree.StarTreeFilterTests;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -66,10 +68,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.medianAbsoluteDeviation;
+import static org.opensearch.search.aggregations.AggregationBuilders.range;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
+import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -88,8 +93,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for non-nested metric aggregations, with/without numeric term query
      */
+    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testQueryParsingForMetricAggregations() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
         setStarTreeIndexSetting("true");
 
         Settings settings = Settings.builder()
@@ -239,8 +244,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for date histogram aggregations, with/without numeric term query
      */
+    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testQueryParsingForDateHistogramAggregations() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
         setStarTreeIndexSetting("true");
 
         Settings settings = Settings.builder()
@@ -488,8 +493,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for date histogram aggregations on star-tree index when @timestamp field does not exist
      */
+    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testInvalidQueryParsingForDateHistogramAggregations() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
         setStarTreeIndexSetting("true");
 
         Settings settings = Settings.builder()
@@ -535,6 +540,293 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .query(new MatchAllQueryBuilder())
             .aggregation(dateHistogramAggregationBuilder);
         assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        setStarTreeIndexSetting(null);
+    }
+
+    /**
+     * Test query parsing for bucket aggregations, with/without numeric term query
+     */
+    @LockFeatureFlag(STAR_TREE_INDEX)
+    public void testQueryParsingForBucketAggregations() throws IOException {
+        setStarTreeIndexSetting("true");
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .build();
+        CreateIndexRequestBuilder builder = client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(settings)
+            .setMapping(NumericTermsAggregatorTests.getExpandedMapping(1, false));
+        createIndex("test", builder);
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+        IndexShard indexShard = indexService.getShard(0);
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+        String KEYWORD_FIELD = "clientip";
+        String NUMERIC_FIELD = "size";
+
+        MaxAggregationBuilder maxAggNoSub = max("max").field(FIELD_NAME);
+        MaxAggregationBuilder sumAggNoSub = max("sum").field(FIELD_NAME);
+        SumAggregationBuilder sumAggSub = sum("sum").field(FIELD_NAME).subAggregation(maxAggNoSub);
+        MedianAbsoluteDeviationAggregationBuilder medianAgg = medianAbsoluteDeviation("median").field(FIELD_NAME);
+
+        QueryBuilder baseQuery;
+        SearchContext searchContext = createSearchContext(indexService);
+        StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
+            1,
+            Collections.emptySet(),
+            StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
+        );
+
+        // Case 1: MatchAllQuery and non-nested metric aggregations is nested within keyword term aggregation, should use star tree
+        TermsAggregationBuilder termsAggregationBuilder = terms("term").field(KEYWORD_FIELD).subAggregation(maxAggNoSub);
+        baseQuery = new MatchAllQueryBuilder();
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(termsAggregationBuilder);
+
+        assertStarTreeContext(
+            request,
+            sourceBuilder,
+            getStarTreeQueryContext(
+                searchContext,
+                starTreeFieldConfiguration,
+                "startree1",
+                -1,
+                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD)),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
+                baseQuery,
+                sourceBuilder,
+                true
+            ),
+            -1
+        );
+
+        // Case 2: MatchAllQuery and non-nested metric aggregations is nested within numeric term aggregation, should use star tree
+        termsAggregationBuilder = terms("term").field(NUMERIC_FIELD).subAggregation(maxAggNoSub);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new MatchAllQueryBuilder()).aggregation(termsAggregationBuilder);
+        assertStarTreeContext(
+            request,
+            sourceBuilder,
+            getStarTreeQueryContext(
+                searchContext,
+                starTreeFieldConfiguration,
+                "startree1",
+                -1,
+                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD)),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
+                baseQuery,
+                sourceBuilder,
+                true
+            ),
+            -1
+        );
+
+        // Case 3: NumericTermsQuery and non-nested metric aggregations is nested within keyword term aggregation, should use star tree
+        termsAggregationBuilder = terms("term").field(KEYWORD_FIELD).subAggregation(maxAggNoSub);
+        baseQuery = new TermQueryBuilder(FIELD_NAME, 1);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(termsAggregationBuilder);
+        assertStarTreeContext(
+            request,
+            sourceBuilder,
+            getStarTreeQueryContext(
+                searchContext,
+                starTreeFieldConfiguration,
+                "startree1",
+                -1,
+                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD), new NumericDimension(FIELD_NAME)),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
+                baseQuery,
+                sourceBuilder,
+                true
+            ),
+            -1
+        );
+
+        // Case 4: NumericTermsQuery and multiple non-nested metric aggregations is within numeric term aggregation, should use star tree
+        termsAggregationBuilder = terms("term").field(NUMERIC_FIELD).subAggregation(maxAggNoSub).subAggregation(sumAggNoSub);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(FIELD_NAME, 1)).aggregation(termsAggregationBuilder);
+
+        assertStarTreeContext(
+            request,
+            sourceBuilder,
+            getStarTreeQueryContext(
+                searchContext,
+                starTreeFieldConfiguration,
+                "startree1",
+                -1,
+                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD), new NumericDimension(FIELD_NAME)),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
+                baseQuery,
+                sourceBuilder,
+                true
+            ),
+            -1
+        );
+
+        // Case 5: Nested metric aggregations is nested within numeric term aggregation, should not use star tree
+        termsAggregationBuilder = terms("term").field(NUMERIC_FIELD).subAggregation(sumAggSub);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(FIELD_NAME, 1)).aggregation(termsAggregationBuilder);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Case 6: Unsupported aggregations is nested within numeric term aggregation, should not use star tree
+        termsAggregationBuilder = terms("term").field(NUMERIC_FIELD).subAggregation(medianAgg);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(FIELD_NAME, 1)).aggregation(termsAggregationBuilder);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        setStarTreeIndexSetting(null);
+    }
+
+    /**
+     * Test query parsing for range aggregations, with/without numeric term query
+     */
+    @LockFeatureFlag(STAR_TREE_INDEX)
+    public void testQueryParsingForRangeAggregations() throws IOException {
+        setStarTreeIndexSetting("true");
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .build();
+        CreateIndexRequestBuilder builder = client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(settings)
+            .setMapping(NumericTermsAggregatorTests.getExpandedMapping(1, false));
+        createIndex("test", builder);
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+        IndexShard indexShard = indexService.getShard(0);
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+        String KEYWORD_FIELD = "clientip";
+        String NUMERIC_FIELD = "size";
+        String NUMERIC_FIELD_NOT_ORDERED_DIMENSION = "rank";
+
+        MaxAggregationBuilder maxAggNoSub = max("max").field(FIELD_NAME);
+        SumAggregationBuilder sumAggSub = sum("sum").field(FIELD_NAME).subAggregation(maxAggNoSub);
+        MedianAbsoluteDeviationAggregationBuilder medianAgg = medianAbsoluteDeviation("median").field(FIELD_NAME);
+
+        QueryBuilder baseQuery;
+        SearchContext searchContext = createSearchContext(indexService);
+        StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
+            1,
+            Collections.emptySet(),
+            StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
+        );
+
+        // Case 1: MatchAllQuery and non-nested metric aggregations is nested within range aggregation, should use star tree
+        RangeAggregationBuilder rangeAggregationBuilder = range("range").field(NUMERIC_FIELD).addRange(0, 10).subAggregation(maxAggNoSub);
+        baseQuery = new MatchAllQueryBuilder();
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(rangeAggregationBuilder);
+
+        assertStarTreeContext(
+            request,
+            sourceBuilder,
+            getStarTreeQueryContext(
+                searchContext,
+                starTreeFieldConfiguration,
+                "startree1",
+                -1,
+                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD)),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
+                baseQuery,
+                sourceBuilder,
+                true
+            ),
+            -1
+        );
+
+        // Case 2: NumericTermsQuery and non-nested metric aggregations is nested within range aggregation, should use star tree
+        rangeAggregationBuilder = range("range").field(NUMERIC_FIELD).addRange(0, 100).subAggregation(maxAggNoSub);
+        baseQuery = new TermQueryBuilder(FIELD_NAME, 1);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(rangeAggregationBuilder);
+
+        assertStarTreeContext(
+            request,
+            sourceBuilder,
+            getStarTreeQueryContext(
+                searchContext,
+                starTreeFieldConfiguration,
+                "startree1",
+                -1,
+                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD), new NumericDimension(FIELD_NAME)),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
+                baseQuery,
+                sourceBuilder,
+                true
+            ),
+            -1
+        );
+
+        // Case 3: Nested metric aggregations within range aggregation, should not use star tree
+        rangeAggregationBuilder = range("range").field(NUMERIC_FIELD).addRange(0, 100).subAggregation(sumAggSub);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(FIELD_NAME, 1)).aggregation(rangeAggregationBuilder);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Case 4: Unsupported aggregations within range aggregation, should not use star tree
+        rangeAggregationBuilder = range("range").field(NUMERIC_FIELD).addRange(0, 100).subAggregation(medianAgg);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(FIELD_NAME, 1)).aggregation(rangeAggregationBuilder);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Case 5: Range Aggregation on field not in ordered dimensions, should not use star tree
+        rangeAggregationBuilder = range("range").field(NUMERIC_FIELD_NOT_ORDERED_DIMENSION).addRange(0, 100).subAggregation(medianAgg);
+        baseQuery = new MatchAllQueryBuilder();
+        sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(rangeAggregationBuilder);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Case 6: Range Aggregation on non-numeric field, should not use star tree
+        rangeAggregationBuilder = range("range").field(TIMESTAMP_FIELD).addRange(0, 100).subAggregation(maxAggNoSub);
+        baseQuery = new MatchAllQueryBuilder();
+        sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(rangeAggregationBuilder);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Case 7: Valid range aggregation and valid metric aggregation, should use star tree & cache
+        rangeAggregationBuilder = range("range").field(NUMERIC_FIELD).addRange(0, 100).subAggregation(maxAggNoSub);
+        baseQuery = new MatchAllQueryBuilder();
+        sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(rangeAggregationBuilder).aggregation(maxAggNoSub);
+        assertStarTreeContext(
+            request,
+            sourceBuilder,
+            getStarTreeQueryContext(
+                searchContext,
+                starTreeFieldConfiguration,
+                "startree1",
+                1,
+                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD)),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
+                baseQuery,
+                sourceBuilder,
+                true
+            ),
+            0
+        );
 
         setStarTreeIndexSetting(null);
     }

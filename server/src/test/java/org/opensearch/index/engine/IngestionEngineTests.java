@@ -35,9 +35,12 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.mockito.Mockito;
+
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 public class IngestionEngineTests extends EngineTestCase {
 
@@ -46,6 +49,7 @@ public class IngestionEngineTests extends EngineTestCase {
     private IngestionEngine ingestionEngine;
     // the messages of the stream to ingest from
     private List<byte[]> messages;
+    private EngineConfig engineConfig;
 
     @Override
     @Before
@@ -86,6 +90,7 @@ public class IngestionEngineTests extends EngineTestCase {
             ingestionEngineStore.close();
         }
         super.tearDown();
+        engineConfig = null;
     }
 
     public void testCreateEngine() throws IOException {
@@ -95,8 +100,9 @@ public class IngestionEngineTests extends EngineTestCase {
         ingestionEngine.flush(false, true);
         Map<String, String> commitData = ingestionEngine.commitDataAsMap();
         // verify the commit data
-        Assert.assertEquals(1, commitData.size());
-        Assert.assertEquals("2", commitData.get(StreamPoller.BATCH_START));
+        Assert.assertEquals(7, commitData.size());
+        // the commiit data is the start of the current batch
+        Assert.assertEquals("0", commitData.get(StreamPoller.BATCH_START));
 
         // verify the stored offsets
         var offset = new FakeIngestionSource.FakeIngestionShardPointer(0);
@@ -120,21 +126,26 @@ public class IngestionEngineTests extends EngineTestCase {
         publishData("{\"_id\":\"3\",\"_source\":{\"name\":\"john\", \"age\": 30}}");
         publishData("{\"_id\":\"4\",\"_source\":{\"name\":\"jane\", \"age\": 25}}");
         ingestionEngine.close();
-        ingestionEngine = buildIngestionEngine(new AtomicLong(2), ingestionEngineStore, indexSettings);
+        ingestionEngine = buildIngestionEngine(new AtomicLong(0), ingestionEngineStore, indexSettings);
         waitForResults(ingestionEngine, 4);
     }
 
+    public void testPushAPIFailures() {
+        Engine.Index indexMock = Mockito.mock(Engine.Index.class);
+        assertThrows(IngestionEngineException.class, () -> ingestionEngine.index(indexMock));
+        Engine.Delete deleteMock = Mockito.mock(Engine.Delete.class);
+        assertThrows(IngestionEngineException.class, () -> ingestionEngine.delete(deleteMock));
+    }
+
     public void testCreationFailure() throws IOException {
-        // Simulate an error scenario
-        Store mockStore = mock(Store.class);
-        doThrow(new IOException("Simulated IOException")).when(mockStore).readLastCommittedSegmentsInfo();
-
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-
         FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
+        Store mockStore = spy(store);
+        doThrow(new IOException("Simulated IOException")).when(mockStore).trimUnsafeCommits(any());
+
         EngineConfig engineConfig = config(
             indexSettings,
-            store,
+            mockStore,
             createTempDir(),
             NoMergePolicy.INSTANCE,
             null,
@@ -156,7 +167,9 @@ public class IngestionEngineTests extends EngineTestCase {
 
     private IngestionEngine buildIngestionEngine(AtomicLong globalCheckpoint, Store store, IndexSettings settings) throws IOException {
         FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
-        EngineConfig engineConfig = config(settings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+        if (engineConfig == null) {
+            engineConfig = config(settings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+        }
         // overwrite the config with ingestion engine settings
         String mapping = "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}";
         MapperService mapperService = createMapperService(mapping);

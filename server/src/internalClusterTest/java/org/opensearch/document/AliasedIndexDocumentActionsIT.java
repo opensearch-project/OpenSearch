@@ -34,7 +34,7 @@ package org.opensearch.document;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 
-import static org.opensearch.client.Requests.createIndexRequest;
+import static org.opensearch.transport.client.Requests.createIndexRequest;
 
 public class AliasedIndexDocumentActionsIT extends DocumentActionsIT {
 

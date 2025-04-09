@@ -38,27 +38,23 @@ import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.AccessController;
-import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.PrivilegedAction;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
-import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.SecureRandom;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -75,7 +71,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext()));
+        httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext(true)));
         httpsServer.createContext("/", new ResponseHandler());
         httpsServer.start();
     }
@@ -103,11 +99,11 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
                     client.performRequest(new Request("GET", "/"));
                     fail("connection should have been rejected due to SSL handshake");
                 } catch (Exception e) {
-                    assertThat(e, instanceOf(SSLHandshakeException.class));
+                    assertThat(e.getCause(), instanceOf(SSLException.class));
                 }
             }
 
-            SSLContext.setDefault(getSslContext());
+            SSLContext.setDefault(getSslContext(false));
             try (RestClient client = buildRestClient()) {
                 Response response = client.performRequest(new Request("GET", "/"));
                 assertEquals(200, response.getStatusLine().getStatusCode());
@@ -122,34 +118,37 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         return RestClient.builder(new HttpHost("https", address.getHostString(), address.getPort())).build();
     }
 
-    private static SSLContext getSslContext() throws Exception {
-        SSLContext sslContext = SSLContext.getInstance(getProtocol());
+    private static SSLContext getSslContext(boolean server) throws Exception {
+        SSLContext sslContext;
+        char[] password = "password".toCharArray();
+        SecureRandom secureRandom = SecureRandom.getInstance("DEFAULT", "BCFIPS");
+        String fileExtension = ".jks";
+
         try (
-            InputStream certFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test.crt");
-            InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore.jks")
+            InputStream trustStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore" + fileExtension);
+            InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/testks" + fileExtension)
         ) {
-            // Build a keystore of default type programmatically since we can't use JKS keystores to
-            // init a KeyManagerFactory in FIPS 140 JVMs.
-            KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-            keyStore.load(null, "password".toCharArray());
-            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(
-                Files.readAllBytes(Paths.get(RestClientBuilderIntegTests.class.getResource("/test.der").toURI()))
-            );
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            keyStore.setKeyEntry(
-                "mykey",
-                keyFactory.generatePrivate(privateKeySpec),
-                "password".toCharArray(),
-                new Certificate[] { certFactory.generateCertificate(certFile) }
-            );
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            kmf.init(keyStore, "password".toCharArray());
+            KeyStore keyStore = KeyStore.getInstance("JKS");
+            keyStore.load(keyStoreFile, password);
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance("PKIX", "BCJSSE");
+            kmf.init(keyStore, password);
+
             KeyStore trustStore = KeyStore.getInstance("JKS");
-            trustStore.load(keyStoreFile, "password".toCharArray());
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustStore.load(trustStoreFile, password);
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance("PKIX", "BCJSSE");
             tmf.init(trustStore);
-            sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+
+            SSLContextBuilder sslContextBuilder = SSLContextBuilder.create()
+                .setProvider("BCJSSE")
+                .setProtocol(getProtocol())
+                .setSecureRandom(secureRandom);
+
+            if (server) {
+                sslContextBuilder.loadKeyMaterial(keyStore, password);
+            }
+            sslContextBuilder.loadTrustMaterial(trustStore, null);
+            sslContext = sslContextBuilder.build();
+
         }
         return sslContext;
     }

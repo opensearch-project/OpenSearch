@@ -19,8 +19,6 @@ import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.client.Client;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
@@ -54,6 +52,8 @@ import org.opensearch.snapshots.SnapshotRestoreException;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -68,7 +68,9 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1448,9 +1450,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
 
         ensureStableCluster(4, internalCluster().getClusterManagerName());
 
-        final SnapshotInfo[] snapshotInfo = new SnapshotInfo[1];
-        final Boolean[] snapshotFailed = new Boolean[1];
-        snapshotFailed[0] = false;
+        final AtomicReference<SnapshotInfo> snapshotInfoRef = new AtomicReference<>();
+        final AtomicBoolean snapshotFailed = new AtomicBoolean(false);
         Thread snapshotThread = new Thread(() -> {
             try {
                 // Start snapshot creation
@@ -1459,10 +1460,10 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
                     .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
                     .setWaitForCompletion(true)
                     .get();
-                snapshotInfo[0] = createSnapshotResponse.getSnapshotInfo();
+                snapshotInfoRef.set(createSnapshotResponse.getSnapshotInfo());
 
             } catch (Exception e) {
-                snapshotFailed[0] = true;
+                snapshotFailed.set(true);
             }
         });
         snapshotThread.start();
@@ -1482,10 +1483,11 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         repository.getRepositoryData(repositoryDataPlainActionFuture);
 
         RepositoryData repositoryData = repositoryDataPlainActionFuture.get();
-        if (snapshotFailed[0]) {
-            assertFalse(repositoryData.getSnapshotIds().contains(snapshotInfo[0].snapshotId()));
+        SnapshotInfo snapshotInfo = snapshotInfoRef.get();
+        if (snapshotFailed.get()) {
+            assertTrue(repositoryData.getSnapshotIds().isEmpty());
         } else {
-            assertTrue(repositoryData.getSnapshotIds().contains(snapshotInfo[0].snapshotId()));
+            assertTrue(repositoryData.getSnapshotIds().contains(snapshotInfo.snapshotId()));
         }
     }
 

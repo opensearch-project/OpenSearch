@@ -42,6 +42,7 @@ import org.opensearch.common.Table;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -186,10 +187,10 @@ public class RestRecoveryActionTests extends OpenSearchTestCase {
                 state.getIndex().recoveredFileCount(),
                 percent(state.getIndex().recoveredFilesPercent()),
                 state.getIndex().totalFileCount(),
-                state.getIndex().totalRecoverBytes(),
-                state.getIndex().recoveredBytes(),
+                new ByteSizeValue(state.getIndex().totalRecoverBytes()),
+                new ByteSizeValue(state.getIndex().recoveredBytes()),
                 percent(state.getIndex().recoveredBytesPercent()),
-                state.getIndex().totalBytes(),
+                new ByteSizeValue(state.getIndex().totalBytes()),
                 state.getTranslog().totalOperations(),
                 state.getTranslog().recoveredOperations(),
                 percent(state.getTranslog().recoveredPercent())

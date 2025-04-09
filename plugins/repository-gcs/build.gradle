@@ -48,16 +48,16 @@ opensearchplugin {
 }
 
 dependencies {
-  api 'com.google.api:api-common:1.8.1'
-  api 'com.google.api:gax:2.35.0'
+  api 'com.google.api:api-common:2.46.1'
+  api 'com.google.api:gax:2.63.1'
   api 'com.google.api:gax-httpjson:2.42.0'
 
   api 'com.google.apis:google-api-services-storage:v1-rev20230617-2.0.0'
 
   api 'com.google.api-client:google-api-client:2.7.0'
 
-  api 'com.google.api.grpc:proto-google-common-protos:2.37.1'
-  api 'com.google.api.grpc:proto-google-iam-v1:1.33.0'
+  api 'com.google.api.grpc:proto-google-common-protos:2.54.1'
+  api 'com.google.api.grpc:proto-google-iam-v1:1.49.1'
 
   api "com.google.auth:google-auth-library-credentials:${versions.google_auth}"
   api "com.google.auth:google-auth-library-oauth2-http:${versions.google_auth}"
@@ -66,7 +66,7 @@ dependencies {
   api 'com.google.cloud:google-cloud-core-http:2.47.0'
   api 'com.google.cloud:google-cloud-storage:1.113.1'
 
-  api 'com.google.code.gson:gson:2.11.0'
+  api 'com.google.code.gson:gson:2.12.1'
 
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api 'com.google.guava:failureaccess:1.0.1'
@@ -202,9 +202,26 @@ thirdPartyAudit {
     'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
-    // Bump for gax 2.42.0
-    'com.google.api.gax.rpc.EndpointContext',
-    'com.google.api.gax.rpc.RequestMutator'
+
+    // opentelemetry-api is an optional dependency of com.google.api:gax
+    'io.opentelemetry.api.OpenTelemetry',
+    'io.opentelemetry.api.common.Attributes',
+    'io.opentelemetry.api.common.AttributesBuilder',
+    'io.opentelemetry.api.metrics.DoubleHistogram',
+    'io.opentelemetry.api.metrics.DoubleHistogramBuilder',
+    'io.opentelemetry.api.metrics.LongCounter',
+    'io.opentelemetry.api.metrics.LongCounterBuilder',
+    'io.opentelemetry.api.metrics.Meter',
+    'io.opentelemetry.api.metrics.MeterBuilder',
+
+    // slf4j is an optional dependency of com.google.api:gax
+    'org.slf4j.ILoggerFactory',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.MDC',
+    'org.slf4j.event.Level',
+    'org.slf4j.helpers.NOPLogger',
+    'org.slf4j.spi.LoggingEventBuilder'
   )
 }
 
@@ -246,7 +263,7 @@ def encodedCredentials = {
 task createServiceAccountFile() {
   doLast {
     KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(1024)
+    keyPairGenerator.initialize(2048)
     KeyPair keyPair = keyPairGenerator.generateKeyPair()
     String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
 

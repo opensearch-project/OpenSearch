@@ -41,7 +41,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.core.index.Index;
-import org.opensearch.lucene.util.automaton.MinimizationOperations;
 
 import java.util.Collection;
 import java.util.List;
@@ -147,6 +146,8 @@ public class SystemIndices {
         Optional<Automaton> automaton = descriptors.stream()
             .map(descriptor -> Regex.simpleMatchToAutomaton(descriptor.getIndexPattern()))
             .reduce(Operations::union);
-        return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(Automata.makeEmpty()), Integer.MAX_VALUE));
+        return new CharacterRunAutomaton(
+            Operations.determinize(automaton.orElse(Automata.makeEmpty()), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+        );
     }
 }

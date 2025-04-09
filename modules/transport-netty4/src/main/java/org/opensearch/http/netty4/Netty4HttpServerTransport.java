@@ -61,6 +61,8 @@ import org.opensearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
 import java.net.SocketOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import io.netty.bootstrap.ServerBootstrap;
@@ -77,6 +79,12 @@ import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.compression.Brotli;
+import io.netty.handler.codec.compression.CompressionOptions;
+import io.netty.handler.codec.compression.DeflateOptions;
+import io.netty.handler.codec.compression.GzipOptions;
+import io.netty.handler.codec.compression.StandardCompressionOptions;
+import io.netty.handler.codec.compression.ZstdEncoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
@@ -440,7 +448,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         pipeline.addAfter(
                             "aggregator",
                             "encoder_compress",
-                            new HttpContentCompressor(handlingSettings.getCompressionLevel())
+                            new HttpContentCompressor(defaultCompressionOptions(handlingSettings.getCompressionLevel()))
                         );
                     }
                     pipeline.addBefore("handler", "request_creator", requestCreator);
@@ -467,7 +475,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             pipeline.addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
-                pipeline.addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+                pipeline.addLast(
+                    "encoder_compress",
+                    new HttpContentCompressor(defaultCompressionOptions(handlingSettings.getCompressionLevel()))
+                );
             }
             pipeline.addLast("request_creator", requestCreator);
             pipeline.addLast("response_creator", responseCreator);
@@ -512,7 +523,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
                     if (handlingSettings.isCompression()) {
                         childChannel.pipeline()
-                            .addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+                            .addLast(
+                                "encoder_compress",
+                                new HttpContentCompressor(defaultCompressionOptions(handlingSettings.getCompressionLevel()))
+                            );
                     }
 
                     childChannel.pipeline()
@@ -563,4 +577,59 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected ChannelInboundHandlerAdapter createDecompressor() {
         return new HttpContentDecompressor();
     }
+
+    /**
+     * Copy of {@link HttpContentCompressor} default compression options with ZSTD excluded:
+     * although zstd-jni is on the classpath, {@link ZstdEncoder} requires direct buffers support
+     * which by default {@link NettyAllocator} does not provide.
+     *
+     * @param compressionLevel
+     *        {@code 1} yields the fastest compression and {@code 9} yields the
+     *        best compression.  {@code 0} means no compression.  The default
+     *        compression level is {@code 6}.
+     *
+     * @return default compression options
+     */
+    private static CompressionOptions[] defaultCompressionOptions(int compressionLevel) {
+        return defaultCompressionOptions(compressionLevel, 15, 8);
+    }
+
+    /**
+     * Copy of {@link HttpContentCompressor} default compression options with ZSTD excluded:
+     * although zstd-jni is on the classpath, {@link ZstdEncoder} requires direct buffers support
+     * which by default {@link NettyAllocator} does not provide.
+     *
+     * @param compressionLevel
+     *        {@code 1} yields the fastest compression and {@code 9} yields the
+     *        best compression.  {@code 0} means no compression.  The default
+     *        compression level is {@code 6}.
+     * @param windowBits
+     *        The base two logarithm of the size of the history buffer.  The
+     *        value should be in the range {@code 9} to {@code 15} inclusive.
+     *        Larger values result in better compression at the expense of
+     *        memory usage.  The default value is {@code 15}.
+     * @param memLevel
+     *        How much memory should be allocated for the internal compression
+     *        state.  {@code 1} uses minimum memory and {@code 9} uses maximum
+     *        memory.  Larger values result in better and faster compression
+     *        at the expense of memory usage.  The default value is {@code 8}
+     *
+     * @return default compression options
+     */
+    private static CompressionOptions[] defaultCompressionOptions(int compressionLevel, int windowBits, int memLevel) {
+        final List<CompressionOptions> options = new ArrayList<CompressionOptions>(4);
+        final GzipOptions gzipOptions = StandardCompressionOptions.gzip(compressionLevel, windowBits, memLevel);
+        final DeflateOptions deflateOptions = StandardCompressionOptions.deflate(compressionLevel, windowBits, memLevel);
+
+        options.add(gzipOptions);
+        options.add(deflateOptions);
+        options.add(StandardCompressionOptions.snappy());
+
+        if (Brotli.isAvailable()) {
+            options.add(StandardCompressionOptions.brotli());
+        }
+
+        return options.toArray(new CompressionOptions[0]);
+    }
+
 }
