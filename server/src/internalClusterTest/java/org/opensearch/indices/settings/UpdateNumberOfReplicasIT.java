@@ -761,6 +761,7 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
             .metadata()
             .index(TEST_INDEX)
             .getNumberOfReplicas();
+
         assertEquals(2, afterExpansionReplicas);
 
         // Add the search_only block
@@ -774,6 +775,7 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
         );
         // This adds 3 data nodes
         allowNodes(TEST_INDEX, 4);
+        ensureGreen(TEST_INDEX);
 
         // Verify same replicas
         int finalReplicas = client().admin().cluster().prepareState().get().getState().metadata().index(TEST_INDEX).getNumberOfReplicas();
