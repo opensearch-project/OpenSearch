@@ -9,12 +9,16 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.StreamPoller;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT;
 
 /**
  * Class encapsulating the configuration of an ingestion source.
@@ -157,8 +161,8 @@ public class IngestionSource {
         private PointerInitReset pointerInitReset;
         private IngestionErrorStrategy.ErrorStrategy errorStrategy;
         private Map<String, Object> params;
-        private long maxPollSize = 1000L;
-        private int pollTimeout = 1000;
+        private long maxPollSize = INGESTION_SOURCE_MAX_POLL_SIZE.getDefault(Settings.EMPTY);
+        private int pollTimeout = INGESTION_SOURCE_POLL_TIMEOUT.getDefault(Settings.EMPTY);
 
         public Builder(String type) {
             this.type = type;
