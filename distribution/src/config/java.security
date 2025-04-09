@@ -6,5 +6,9 @@ security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider
 security.provider.3=SUN
 security.provider.4=SunJGSS
 
+securerandom.source=file:/dev/urandom
+securerandom.strongAlgorithms=NativePRNGBlocking:SUN,DRBG:SUN
+securerandom.drbg.config=
+
 ssl.KeyManagerFactory.algorithm=PKIX
 ssl.TrustManagerFactory.algorithm=PKIX

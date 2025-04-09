@@ -164,7 +164,7 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 test.systemProperty("tests.seed", BuildParams.getTestSeed());
             }
 
-            var securityFile = "java.security";
+            var securityFile = BuildParams.isInFipsJvm() ? "fips_java.security" : "java.security";
             test.systemProperty(
                 "java.security.properties",
                 project.getRootProject().getLayout().getProjectDirectory() + "/distribution/src/config/" + securityFile

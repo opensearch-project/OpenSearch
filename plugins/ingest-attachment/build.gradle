@@ -142,12 +142,3 @@ thirdPartyAudit {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
 }
-
-if (BuildParams.inFipsJvm) {
-  // FIPS JVM includes many classes from bouncycastle which count as jar hell for the third party audit,
-  // rather than provide a long list of exclusions, disable the check on FIPS.
-  jarHell.enabled = false
-  test.enabled = false
-  yamlRestTest.enabled = false;
-  testingConventions.enabled = false;
-}

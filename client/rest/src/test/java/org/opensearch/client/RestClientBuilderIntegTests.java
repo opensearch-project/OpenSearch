@@ -39,6 +39,8 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
+import org.opensearch.common.ssl.KeyStoreFactory;
+import org.opensearch.common.ssl.KeyStoreType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -56,22 +58,22 @@ import java.security.KeyStore;
 import java.security.PrivilegedAction;
 import java.security.SecureRandom;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 /**
  * Integration test to validate the builder builds a client with the correct configuration
  */
-public class RestClientBuilderIntegTests extends RestClientTestCase {
+public class RestClientBuilderIntegTests extends RestClientTestCase implements RestClientFipsAwareTestCase {
 
     private static HttpsServer httpsServer;
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext(true)));
+        httpsServer.setHttpsConfigurator(new HttpsConfigurator(getSslContext(true, KeyStoreType.BCFKS)));
         httpsServer.createContext("/", new ResponseHandler());
         httpsServer.start();
     }
@@ -91,7 +93,11 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
+        makeRequest();
+    }
+
+    @Override
+    public void makeRequest(KeyStoreType keyStoreType) throws Exception {
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
@@ -103,7 +109,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
                 }
             }
 
-            SSLContext.setDefault(getSslContext(false));
+            SSLContext.setDefault(getSslContext(false, keyStoreType));
             try (RestClient client = buildRestClient()) {
                 Response response = client.performRequest(new Request("GET", "/"));
                 assertEquals(200, response.getStatusLine().getStatusCode());
@@ -118,22 +124,22 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         return RestClient.builder(new HttpHost("https", address.getHostString(), address.getPort())).build();
     }
 
-    private static SSLContext getSslContext(boolean server) throws Exception {
+    private static SSLContext getSslContext(boolean server, KeyStoreType keyStoreType) throws Exception {
         SSLContext sslContext;
         char[] password = "password".toCharArray();
         SecureRandom secureRandom = SecureRandom.getInstance("DEFAULT", "BCFIPS");
-        String fileExtension = ".jks";
+        String fileExtension = KeyStoreType.TYPE_TO_EXTENSION_MAP.get(keyStoreType).get(0);
 
         try (
             InputStream trustStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore" + fileExtension);
             InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/testks" + fileExtension)
         ) {
-            KeyStore keyStore = KeyStore.getInstance("JKS");
+            KeyStore keyStore = KeyStoreFactory.getInstance(keyStoreType);
             keyStore.load(keyStoreFile, password);
             KeyManagerFactory kmf = KeyManagerFactory.getInstance("PKIX", "BCJSSE");
             kmf.init(keyStore, password);
 
-            KeyStore trustStore = KeyStore.getInstance("JKS");
+            KeyStore trustStore = KeyStoreFactory.getInstance(keyStoreType);
             trustStore.load(trustStoreFile, password);
             TrustManagerFactory tmf = TrustManagerFactory.getInstance("PKIX", "BCJSSE");
             tmf.init(trustStore);
