@@ -22,6 +22,7 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -61,6 +62,16 @@ public class PublishCheckpointAction extends TransportReplicationAction<
 
     private final SegmentReplicationTargetService replicationService;
 
+    /**
+     * The timeout for retrying publish checkpoint requests.
+     */
+    public static final Setting<TimeValue> PUBLISH_CHECK_POINT_RETRY_TIMEOUT = Setting.timeSetting(
+        "indices.publish_check_point.retry_timeout",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     @Inject
     public PublishCheckpointAction(
         Settings settings,
@@ -86,7 +97,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             ThreadPool.Names.REFRESH,
             false,
             false,
-            new TimeValue(Long.MAX_VALUE)
+            PUBLISH_CHECK_POINT_RETRY_TIMEOUT
         );
         this.replicationService = targetService;
     }

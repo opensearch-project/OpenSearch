@@ -147,6 +147,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final String replicaNode = internalCluster().startDataOnlyNode(mockNodeSetting);
         ensureGreen(INDEX_NAME);
 
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder().put(PublishCheckpointAction.PUBLISH_CHECK_POINT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueMinutes(10))
+            )
+            .get();
+
         MockTransportService replicaTransportService = ((MockTransportService) internalCluster().getInstance(
             TransportService.class,
             replicaNode
