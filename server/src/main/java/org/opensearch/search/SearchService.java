@@ -322,7 +322,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     // only do optimization when there's enough docs per range at segment level and sub agg exists
     @ExperimentalApi
     public static final Setting<Integer> AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD = Setting.intSetting(
-        "search.aggregation_rewrite_filters.segment_level_threshold",
+        "search.aggregation_rewrite_filters.segment_threshold.docs_per_bucket",
         1000,
         0,
         Property.Dynamic,
