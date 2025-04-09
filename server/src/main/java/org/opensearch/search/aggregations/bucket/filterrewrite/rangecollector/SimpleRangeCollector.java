@@ -58,8 +58,4 @@ public class SimpleRangeCollector extends AbstractRangeCollector {
         }
     }
 
-    @Override
-    public void finalizeDocIdSetBuildersResult() {
-        throw new UnsupportedOperationException("finalizeDocIdSetBuildersResult should be unreachable");
-    }
 }

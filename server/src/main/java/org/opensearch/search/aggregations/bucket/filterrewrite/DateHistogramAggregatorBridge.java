@@ -15,6 +15,7 @@ import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.common.Rounding;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -139,7 +140,9 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
         PointValues values,
         BiConsumer<Long, Long> incrementDocCount,
         Ranges ranges,
-        Supplier<DocIdSetBuilder> disBuilderSupplier
+        Supplier<DocIdSetBuilder> disBuilderSupplier,
+        BucketCollector collectableSubAggregators,
+        LeafReaderContext leafCtx
     ) throws IOException {
         int size = getSize();
 
@@ -151,7 +154,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
             return getBucketOrd(bucketOrdProducer().apply(rangeStart));
         };
 
-        return getResult(values, incrementDocCount, ranges, disBuilderSupplier, getBucketOrd, size);
+        return getResult(values, incrementDocCount, ranges, disBuilderSupplier, getBucketOrd, size, collectableSubAggregators, leafCtx);
     }
 
     private static long getBucketOrd(long bucketOrd) {

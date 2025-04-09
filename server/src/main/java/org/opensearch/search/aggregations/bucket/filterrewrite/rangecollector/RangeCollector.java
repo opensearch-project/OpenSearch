@@ -57,11 +57,6 @@ public interface RangeCollector {
     void finalizePreviousRange();
 
     /**
-     * Finalize all document set builders and store results.
-     */
-    void finalizeDocIdSetBuildersResult();
-
-    /**
      * Iterate to find the next range that could include the given value.
      *
      * @param value The value to check against ranges

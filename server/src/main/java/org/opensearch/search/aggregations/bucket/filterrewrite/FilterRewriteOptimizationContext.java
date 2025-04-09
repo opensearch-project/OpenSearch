@@ -14,11 +14,9 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.aggregations.BucketCollector;
-import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -146,7 +144,14 @@ public final class FilterRewriteOptimizationContext {
         Supplier<DocIdSetBuilder> disBuilderSupplier = getDocIdSetBuilderSupplier(leafCtx, values);
         OptimizeResult optimizeResult;
         try {
-            optimizeResult = aggregatorBridge.tryOptimize(values, incrementDocCount, ranges, disBuilderSupplier);
+            optimizeResult = aggregatorBridge.tryOptimize(
+                values,
+                incrementDocCount,
+                ranges,
+                disBuilderSupplier,
+                collectableSubAggregators,
+                leafCtx
+            );
             consumeDebugInfo(optimizeResult);
         } catch (AbortFilterRewriteOptimizationException e) {
             logger.error("Abort filter rewrite optimization, fall back to default path");
@@ -156,32 +161,8 @@ public final class FilterRewriteOptimizationContext {
         optimizedSegments.incrementAndGet();
         logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
         logger.debug("Crossed leaf nodes: {}, inner nodes: {}", leafNodeVisited, innerNodeVisited);
-        if (hasSubAgg) {
-            runSubAggCollections(leafCtx, collectableSubAggregators, optimizeResult.builders);
-        }
 
         return true;
-    }
-
-    private static void runSubAggCollections(
-        LeafReaderContext leafCtx,
-        BucketCollector collectableSubAggregators,
-        DocIdSetBuilder[] builders
-    ) throws IOException {
-        LeafBucketCollector sub;
-        for (int bucketOrd = 0; bucketOrd < builders.length; bucketOrd++) {
-            logger.debug("Collecting bucket {} for sub aggregation", bucketOrd);
-            DocIdSetBuilder builder = builders[bucketOrd];
-            if (builder == null) {
-                continue;
-            }
-            DocIdSetIterator iterator = builders[bucketOrd].build().iterator();
-            sub = collectableSubAggregators.getLeafCollector(leafCtx); // resetting the sub collector after processing each bucket
-            while (iterator.nextDoc() != NO_MORE_DOCS) {
-                int currentDoc = iterator.docID();
-                sub.collect(currentDoc, bucketOrd);
-            }
-        }
     }
 
     private Supplier<DocIdSetBuilder> getDocIdSetBuilderSupplier(LeafReaderContext leafCtx, PointValues values) {

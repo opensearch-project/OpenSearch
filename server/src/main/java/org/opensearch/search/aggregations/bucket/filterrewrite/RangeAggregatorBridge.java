@@ -13,6 +13,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumericPointEncoder;
+import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -78,13 +79,15 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
         PointValues values,
         BiConsumer<Long, Long> incrementDocCount,
         Ranges ranges,
-        Supplier<DocIdSetBuilder> disBuilderSupplier
+        Supplier<DocIdSetBuilder> disBuilderSupplier,
+        BucketCollector collectableSubAggregators,
+        LeafReaderContext leafCtx
     ) throws IOException {
         int size = Integer.MAX_VALUE;
 
         Function<Integer, Long> getBucketOrd = (activeIndex) -> bucketOrdProducer().apply(activeIndex);
 
-        return getResult(values, incrementDocCount, ranges, disBuilderSupplier, getBucketOrd, size);
+        return getResult(values, incrementDocCount, ranges, disBuilderSupplier, getBucketOrd, size, collectableSubAggregators, leafCtx);
     }
 
     /**
