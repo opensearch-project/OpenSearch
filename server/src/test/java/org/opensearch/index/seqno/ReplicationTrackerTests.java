@@ -1870,7 +1870,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
         tracker.startReplicationLagTimers(initialCheckpoint);
-        // test retry start replication lag timers
+        // retry start replication lag timers
         tracker.startReplicationLagTimers(initialCheckpoint);
         tracker.setLatestReplicationCheckpoint(secondCheckpoint);
         tracker.startReplicationLagTimers(secondCheckpoint);
