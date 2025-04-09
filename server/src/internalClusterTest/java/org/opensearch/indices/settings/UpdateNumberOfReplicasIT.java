@@ -42,8 +42,6 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -755,7 +753,14 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
         ensureGreen(TEST_INDEX);
 
         // Verify replicas were expanded
-        int afterExpansionReplicas = client().admin().cluster().prepareState().get().getState().metadata().index(TEST_INDEX).getNumberOfReplicas();
+        int afterExpansionReplicas = client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .index(TEST_INDEX)
+            .getNumberOfReplicas();
         assertEquals(2, afterExpansionReplicas);
 
         // Add the search_only block
