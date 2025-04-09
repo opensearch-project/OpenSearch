@@ -26,7 +26,6 @@ import org.opensearch.arrow.spi.StreamReader;
 import org.opensearch.arrow.spi.StreamTicket;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -41,8 +40,6 @@ import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 5)
 public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
-
-    private FlightClientManager flightClientManager;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -192,7 +189,7 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
                     fail("Expected FlightRuntimeException");
                 } catch (FlightRuntimeException e) {
                     assertEquals("INTERNAL", e.status().code().name());
-                    assertEquals("Internal server error: Server error while producing batch", e.getMessage());
+                    assertEquals("Unexpected server error", e.getMessage());
                 }
                 assertEquals(1, totalBatches);
             }

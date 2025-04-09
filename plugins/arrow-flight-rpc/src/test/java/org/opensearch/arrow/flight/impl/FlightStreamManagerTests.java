@@ -123,6 +123,18 @@ public class FlightStreamManagerTests extends OpenSearchTestCase {
         assertFalse(removedProducer.isPresent());
     }
 
+    public void testStreamProducerExpired() {
+        TestStreamProducer producer = new TestStreamProducer() {
+            @Override
+            public TimeValue getJobDeadline() {
+                return TimeValue.timeValueMillis(0);
+            }
+        };
+        StreamTicket ticket = flightStreamManager.registerStream(producer, null);
+        Optional<FlightStreamManager.StreamProducerHolder> expiredProducer = flightStreamManager.getStreamProducer(ticket);
+        assertFalse(expiredProducer.isPresent());
+    }
+
     public void testClose() throws Exception {
         TestStreamProducer producer = new TestStreamProducer();
         StreamTicket ticket = flightStreamManager.registerStream(producer, null);

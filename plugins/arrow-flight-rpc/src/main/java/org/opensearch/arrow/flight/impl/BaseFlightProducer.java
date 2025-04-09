@@ -14,7 +14,9 @@ import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightEndpoint;
 import org.apache.arrow.flight.FlightInfo;
+import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStream;
+import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.NoOpFlightProducer;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.memory.BufferAllocator;
@@ -25,6 +27,7 @@ import org.opensearch.arrow.flight.bootstrap.FlightClientManager;
 import org.opensearch.arrow.spi.StreamProducer;
 import org.opensearch.arrow.spi.StreamTicket;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Optional;
 
@@ -35,10 +38,10 @@ import java.util.Optional;
  * It runs on the gRPC transport thread.
  */
 public class BaseFlightProducer extends NoOpFlightProducer {
+    private static final Logger logger = LogManager.getLogger(BaseFlightProducer.class);
     private final FlightClientManager flightClientManager;
     private final FlightStreamManager streamManager;
     private final BufferAllocator allocator;
-    private static final Logger logger = LogManager.getLogger(BaseFlightProducer.class);
 
     /**
      * Constructs a new BaseFlightProducer.
@@ -56,47 +59,28 @@ public class BaseFlightProducer extends NoOpFlightProducer {
     /**
      * Handles data streaming for a given Arrow Flight Ticket. This method runs on the gRPC transport thread
      * and manages the entire streaming process, including backpressure and error handling.
-     * <p>
-     * Error Handling Strategy:
-     * - Log errors for debugging/investigation when they occur during stream processing
-     * - Update listener with error status for client notification
-     * - Throw exceptions only for unrecoverable errors that should terminate the stream
-     *
      * @param context The call context (unused in this implementation)
      * @param ticket The Arrow Flight Ticket containing stream information
      * @param listener The server stream listener for data flow
      */
     @Override
     public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener) {
-        StreamTicket streamTicket;
         try {
-            streamTicket = streamManager.getStreamTicketFactory().fromBytes(ticket.getBytes());
-        } catch (Exception e) {
-            logger.debug("Failed to parse Arrow Flight Ticket into StreamTicket", e);
-            listener.error(
-                CallStatus.INVALID_ARGUMENT.withDescription("Invalid ticket format: " + e.getMessage()).withCause(e).toRuntimeException()
-            );
-            return;
-        }
-        try {
-            FlightStreamManager.StreamProducerHolder streamProducerHolder = acquireStreamProducer(streamTicket, ticket, listener);
-            if (streamProducerHolder == null) {
-                listener.error(CallStatus.NOT_FOUND.withDescription("Stream not found").toRuntimeException());
-                return;
-            }
-            try (StreamProducer<VectorSchemaRoot, BufferAllocator> producer = streamProducerHolder.producer()) {
-                StreamProducer.BatchedJob<VectorSchemaRoot> batchedJob = producer.createJob(allocator);
-                if (context.isCancelled()) {
-                    handleCancellation(batchedJob, listener);
-                    return;
-                }
-                processStream(streamProducerHolder, batchedJob, context, listener);
-            }
-        } catch (Exception e) {
-            logger.error("Unexpected error during stream processing for ticket: " + streamTicket, e);
-            listener.error(
-                CallStatus.INTERNAL.withDescription("Internal server error: " + e.getMessage()).withCause(e).toRuntimeException()
-            );
+            StreamTicket streamTicket = parseTicket(ticket);
+            FlightStreamManager.StreamProducerHolder producerHolder = acquireStreamProducer(streamTicket, ticket).orElseThrow(() -> {
+                FlightRuntimeException ex = CallStatus.NOT_FOUND.withDescription("Stream not found").toRuntimeException();
+                listener.error(ex);
+                return ex;
+            });
+            processStreamWithProducer(context, producerHolder, listener);
+        } catch (FlightRuntimeException ex) {
+            listener.error(ex);
+            throw ex;
+        } catch (Exception ex) {
+            logger.error("Unexpected error during stream processing", ex);
+            FlightRuntimeException fre = CallStatus.INTERNAL.withCause(ex).withDescription("Unexpected server error").toRuntimeException();
+            listener.error(fre);
+            throw fre;
         }
     }
 
@@ -111,84 +95,84 @@ public class BaseFlightProducer extends NoOpFlightProducer {
      */
     @Override
     public FlightInfo getFlightInfo(CallContext context, FlightDescriptor descriptor) {
-        StreamTicket streamTicket;
+        StreamTicket streamTicket = parseDescriptor(descriptor);
+        return streamTicket.getNodeId().equals(flightClientManager.getLocalNodeId())
+            ? getLocalFlightInfo(streamTicket, descriptor)
+            : getRemoteFlightInfo(streamTicket, descriptor);
+    }
+
+    private StreamTicket parseTicket(Ticket ticket) {
         try {
-            streamTicket = streamManager.getStreamTicketFactory().fromBytes(descriptor.getCommand());
+            return streamManager.getStreamTicketFactory().fromBytes(ticket.getBytes());
         } catch (Exception e) {
-            logger.debug("Failed to parse flight descriptor command into StreamTicket", e);
-            throw CallStatus.INVALID_ARGUMENT.withDescription("Invalid descriptor format: " + e.getMessage())
-                .withCause(e)
+            logger.debug("Failed to parse Arrow Flight Ticket", e);
+            throw CallStatus.INVALID_ARGUMENT.withCause(e).withDescription("Invalid ticket format: " + e.getMessage()).toRuntimeException();
+        }
+    }
+
+    private StreamTicket parseDescriptor(FlightDescriptor descriptor) {
+        try {
+            return streamManager.getStreamTicketFactory().fromBytes(descriptor.getCommand());
+        } catch (Exception e) {
+            logger.debug("Failed to parse flight descriptor command", e);
+            throw CallStatus.INVALID_ARGUMENT.withCause(e)
+                .withDescription("Invalid descriptor format: " + e.getMessage())
                 .toRuntimeException();
         }
-
-        if (streamTicket.getNodeId().equals(flightClientManager.getLocalNodeId())) {
-            return getLocalFlightInfo(streamTicket, descriptor);
-        } else {
-            return getRemoteFlightInfo(streamTicket, descriptor);
-        }
     }
 
-    private FlightStreamManager.StreamProducerHolder acquireStreamProducer(
-        StreamTicket streamTicket,
-        Ticket ticket,
-        ServerStreamListener listener
-    ) {
+    private Optional<FlightStreamManager.StreamProducerHolder> acquireStreamProducer(StreamTicket streamTicket, Ticket ticket) {
         if (streamTicket.getNodeId().equals(flightClientManager.getLocalNodeId())) {
-            return streamManager.removeStreamProducer(streamTicket).orElse(null);
+            return streamManager.removeStreamProducer(streamTicket);
         }
-        Optional<FlightClient> remoteClient = flightClientManager.getFlightClient(streamTicket.getNodeId());
-        if (remoteClient.isPresent()) {
-            try {
-                StreamProducer<VectorSchemaRoot, BufferAllocator> proxyProvider = createProxyProducer(remoteClient.get(), ticket, listener);
-                if (proxyProvider != null) {
-                    return FlightStreamManager.StreamProducerHolder.create(proxyProvider, allocator);
-                }
-            } catch (Exception e) {
-                logger.error("Failed to create stream producer", e);
-                listener.error(
-                    CallStatus.INTERNAL.withDescription("Failed to create stream producer: " + e.getMessage())
-                        .withCause(e)
-                        .toRuntimeException()
-                );
-            }
-        }
-        return null;
+        return flightClientManager.getFlightClient(streamTicket.getNodeId())
+            .map(client -> createProxyProducer(client, ticket))
+            .filter(Optional::isPresent)
+            .orElse(Optional.empty());
     }
 
-    private StreamProducer<VectorSchemaRoot, BufferAllocator> createProxyProducer(
-        FlightClient remoteClient,
-        Ticket ticket,
-        ServerStreamListener listener
-    ) {
-
+    private Optional<FlightStreamManager.StreamProducerHolder> createProxyProducer(FlightClient remoteClient, Ticket ticket) {
         try (FlightStream flightStream = remoteClient.getStream(ticket)) {
-            if (flightStream == null) {
-                logger.error("Failed to obtain flight stream");
-                listener.error(CallStatus.INTERNAL.withDescription("Failed to create remote flight stream").toRuntimeException());
-                return null;
-            }
-            return new ProxyStreamProducer(new FlightStreamReader(flightStream));
+            return Optional.ofNullable(flightStream)
+                .map(fs -> new ProxyStreamProducer(new FlightStreamReader(fs)))
+                .map(proxy -> FlightStreamManager.StreamProducerHolder.create(proxy, allocator))
+                .or(() -> {
+                    logger.warn("Remote client returned null flight stream for ticket");
+                    return Optional.empty();
+                });
         } catch (Exception e) {
-            logger.error("Error creating proxy producer", e);
-            listener.error(
-                CallStatus.INTERNAL.withDescription("Failed to create proxy producer: " + e.getMessage()).withCause(e).toRuntimeException()
-            );
-            return null;
+            logger.warn("Failed to create proxy producer for remote stream", e);
+            throw CallStatus.UNAVAILABLE.withCause(e)
+                .withDescription("Unable to create proxy stream: " + e.getMessage())
+                .toRuntimeException();
+        }
+    }
+
+    private void processStreamWithProducer(
+        CallContext context,
+        FlightStreamManager.StreamProducerHolder producerHolder,
+        ServerStreamListener listener
+    ) throws IOException {
+        try (StreamProducer<VectorSchemaRoot, BufferAllocator> producer = producerHolder.producer()) {
+            StreamProducer.BatchedJob<VectorSchemaRoot> batchedJob = producer.createJob(allocator);
+            if (context.isCancelled()) {
+                handleCancellation(batchedJob, listener);
+                return;
+            }
+            processStream(producerHolder, batchedJob, listener);
         }
     }
 
     private void processStream(
-        FlightStreamManager.StreamProducerHolder streamProducerHolder,
+        FlightStreamManager.StreamProducerHolder producerHolder,
         StreamProducer.BatchedJob<VectorSchemaRoot> batchedJob,
-        CallContext context,
         ServerStreamListener listener
     ) {
         BackpressureStrategy backpressureStrategy = new CustomCallbackBackpressureStrategy(null, batchedJob::onCancel);
         backpressureStrategy.register(listener);
-
         StreamProducer.FlushSignal flushSignal = createFlushSignal(batchedJob, listener, backpressureStrategy);
 
-        try (VectorSchemaRoot root = streamProducerHolder.getRoot()) {
+        try (VectorSchemaRoot root = producerHolder.getRoot()) {
             listener.start(root);
             batchedJob.run(root, flushSignal);
             listener.completed();
@@ -200,7 +184,7 @@ public class BaseFlightProducer extends NoOpFlightProducer {
         ServerStreamListener listener,
         BackpressureStrategy backpressureStrategy
     ) {
-        return (timeout) -> {
+        return timeout -> {
             BackpressureStrategy.WaitResult result = backpressureStrategy.waitForListener(timeout.millis());
             switch (result) {
                 case READY:
@@ -208,16 +192,20 @@ public class BaseFlightProducer extends NoOpFlightProducer {
                     break;
                 case TIMEOUT:
                     batchedJob.onCancel();
-                    listener.error(CallStatus.TIMED_OUT.withDescription("Stream deadline exceeded").toRuntimeException());
-                    break;
+                    FlightRuntimeException timeoutEx = CallStatus.TIMED_OUT.withDescription("Stream deadline exceeded")
+                        .toRuntimeException();
+                    throw timeoutEx;
                 case CANCELLED:
                     batchedJob.onCancel();
-                    listener.error(CallStatus.CANCELLED.withDescription("Stream cancelled by client").toRuntimeException());
-                    break;
+                    FlightRuntimeException cancelEx = CallStatus.CANCELLED.withDescription("Stream cancelled by client")
+                        .toRuntimeException();
+                    throw cancelEx;
                 default:
                     batchedJob.onCancel();
                     logger.error("Unexpected backpressure result: {}", result);
-                    listener.error(CallStatus.INTERNAL.withDescription("Error waiting for client: " + result).toRuntimeException());
+                    FlightRuntimeException unexpectedEx = CallStatus.INTERNAL.withDescription("Unexpected backpressure error: " + result)
+                        .toRuntimeException();
+                    throw unexpectedEx;
             }
         };
     }
@@ -225,54 +213,54 @@ public class BaseFlightProducer extends NoOpFlightProducer {
     private void handleCancellation(StreamProducer.BatchedJob<VectorSchemaRoot> batchedJob, ServerStreamListener listener) {
         try {
             batchedJob.onCancel();
-            listener.error(CallStatus.CANCELLED.withDescription("Stream cancelled before processing").toRuntimeException());
+            FlightRuntimeException ex = CallStatus.CANCELLED.withDescription("Stream cancelled before processing").toRuntimeException();
+            throw ex;
         } catch (Exception e) {
-            logger.error("Error during cancellation handling", e);
-            listener.error(
-                CallStatus.INTERNAL.withDescription("Error during cancellation: " + e.getMessage()).withCause(e).toRuntimeException()
-            );
+            logger.error("Unexpected error during cancellation", e);
+            FlightRuntimeException fre = CallStatus.INTERNAL.withCause(e)
+                .withDescription("Error during cancellation: " + e.getMessage())
+                .toRuntimeException();
+            throw fre;
         }
     }
 
     private FlightInfo getLocalFlightInfo(StreamTicket streamTicket, FlightDescriptor descriptor) {
-        return streamManager.getStreamProducer(streamTicket)
-            .map(streamProducerHolder -> flightClientManager.getFlightClientLocation(streamTicket.getNodeId()).map(location -> {
-                try {
-                    Ticket ticket = new Ticket(descriptor.getCommand());
-                    var schema = streamProducerHolder.getRoot().getSchema();
-                    FlightEndpoint endpoint = new FlightEndpoint(ticket, location);
-                    FlightInfo.Builder infoBuilder = FlightInfo.builder(schema, descriptor, Collections.singletonList(endpoint))
-                        .setRecords(streamProducerHolder.producer().estimatedRowCount());
-                    return infoBuilder.build();
-                } catch (Exception e) {
-                    logger.error("Failed to build FlightInfo", e);
-                    throw CallStatus.INTERNAL.withDescription("Error creating FlightInfo: " + e.getMessage())
-                        .withCause(e)
-                        .toRuntimeException();
-                }
-            }).orElseThrow(() -> {
-                logger.debug("Failed to determine location for node: {}", streamTicket.getNodeId());
-                throw CallStatus.UNAVAILABLE.withDescription("Internal error determining location").toRuntimeException();
-            }))
-            .orElseThrow(() -> {
-                logger.debug("FlightInfo not found for ticket: {}", streamTicket);
-                throw CallStatus.NOT_FOUND.withDescription("FlightInfo not found").toRuntimeException();
-            });
+        FlightStreamManager.StreamProducerHolder producerHolder = streamManager.getStreamProducer(streamTicket).orElseThrow(() -> {
+            logger.debug("FlightInfo not found for ticket: {}", streamTicket);
+            return CallStatus.NOT_FOUND.withDescription("FlightInfo not found").toRuntimeException();
+        });
+
+        Location location = flightClientManager.getFlightClientLocation(streamTicket.getNodeId()).orElseThrow(() -> {
+            logger.debug("Failed to determine location for node: {}", streamTicket.getNodeId());
+            return CallStatus.UNAVAILABLE.withDescription("Internal error determining location").toRuntimeException();
+        });
+
+        try {
+            Ticket ticket = new Ticket(descriptor.getCommand());
+            var schema = producerHolder.getRoot().getSchema();
+            FlightEndpoint endpoint = new FlightEndpoint(ticket, location);
+            return FlightInfo.builder(schema, descriptor, Collections.singletonList(endpoint))
+                .setRecords(producerHolder.producer().estimatedRowCount())
+                .build();
+        } catch (Exception e) {
+            logger.error("Failed to build FlightInfo", e);
+            throw CallStatus.INTERNAL.withCause(e).withDescription("Error creating FlightInfo: " + e.getMessage()).toRuntimeException();
+        }
     }
 
     private FlightInfo getRemoteFlightInfo(StreamTicket streamTicket, FlightDescriptor descriptor) {
-        return flightClientManager.getFlightClient(streamTicket.getNodeId()).map(remoteClient -> {
-            try {
-                return remoteClient.getInfo(descriptor);
-            } catch (Exception e) {
-                logger.error("Failed to get remote FlightInfo", e);
-                throw CallStatus.INTERNAL.withDescription("Error retrieving remote FlightInfo: " + e.getMessage())
-                    .withCause(e)
-                    .toRuntimeException();
-            }
-        }).orElseThrow(() -> {
+        FlightClient remoteClient = flightClientManager.getFlightClient(streamTicket.getNodeId()).orElseThrow(() -> {
             logger.warn("No remote client available for node: {}", streamTicket.getNodeId());
-            throw CallStatus.UNAVAILABLE.withDescription("Client doesn't support Stream").toRuntimeException();
+            return CallStatus.UNAVAILABLE.withDescription("Client doesn't support Stream").toRuntimeException();
         });
+
+        try {
+            return remoteClient.getInfo(descriptor);
+        } catch (Exception e) {
+            logger.error("Failed to get remote FlightInfo", e);
+            throw CallStatus.INTERNAL.withCause(e)
+                .withDescription("Error retrieving remote FlightInfo: " + e.getMessage())
+                .toRuntimeException();
+        }
     }
 }

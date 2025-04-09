@@ -47,7 +47,8 @@ public class FlightStreamManager implements StreamManager {
     private FlightClientManager clientManager;
     private Supplier<BufferAllocator> allocatorSupplier;
     private final Cache<String, StreamProducerHolder> streamProducers;
-    // TODO read from setting
+
+    // Default cache settings (TODO: Make configurable via settings)
     private static final TimeValue DEFAULT_CACHE_EXPIRE = TimeValue.timeValueMinutes(10);
     private static final int MAX_WEIGHT = 1000;
 
@@ -101,16 +102,16 @@ public class FlightStreamManager implements StreamManager {
      *                          This parameter is required to be non-null.
      */
     public void setAllocatorSupplier(Supplier<BufferAllocator> allocatorSupplier) {
-        this.allocatorSupplier = allocatorSupplier;
+        this.allocatorSupplier = Objects.requireNonNull(allocatorSupplier, "Allocator supplier cannot be null");
     }
 
     /**
-     * Sets the FlightClientManager for this FlightStreamManager.
-     * @param clientManager The FlightClientManager instance to use for Flight client operations.
-     *                      This parameter is required to be non-null.
+     * Sets the FlightClientManager for managing Flight clients.
+     *
+     * @param clientManager The FlightClientManager instance (must be non-null).
      */
     public void setClientManager(FlightClientManager clientManager) {
-        this.clientManager = clientManager;
+        this.clientManager = Objects.requireNonNull(clientManager, "FlightClientManager cannot be null");
         this.ticketFactory = new FlightStreamTicketFactory(clientManager::getLocalNodeId);
     }
 
@@ -123,7 +124,6 @@ public class FlightStreamManager implements StreamManager {
     @Override
     @SuppressWarnings("unchecked")
     public <VectorRoot, Allocator> StreamTicket registerStream(StreamProducer<VectorRoot, Allocator> provider, TaskId parentTaskId) {
-        Objects.requireNonNull(provider, "StreamProducer cannot be null");
         StreamTicket ticket = ticketFactory.newTicket();
         try {
             streamProducers.computeIfAbsent(
@@ -169,16 +169,19 @@ public class FlightStreamManager implements StreamManager {
      * @return Optional of StreamProducerHolder containing the producer if found and not expired
      */
     Optional<StreamProducerHolder> getStreamProducer(StreamTicket ticket) {
-        Objects.requireNonNull(ticket, "StreamTicket cannot be null");
-        StreamProducerHolder holder = streamProducers.get(ticket.getTicketId());
-        if (holder != null) {
-            if (holder.isExpired()) {
-                removeStreamProducer(ticket);
-                return Optional.empty();
-            }
-            return Optional.of(holder);
+        String ticketId = ticket.getTicketId();
+        StreamProducerHolder holder = streamProducers.get(ticketId);
+        if (holder == null) {
+            logger.debug("No stream producer found for ticket [{}]", ticketId);
+            return Optional.empty();
         }
-        return Optional.empty();
+
+        if (holder.isExpired()) {
+            logger.debug("Stream producer for ticket [{}] has expired", ticketId);
+            streamProducers.remove(ticketId);
+            return Optional.empty();
+        }
+        return Optional.of(holder);
     }
 
     /**
@@ -187,17 +190,14 @@ public class FlightStreamManager implements StreamManager {
      * @param ticket The StreamTicket identifying the stream
      * @return Optional of StreamProducerHolder containing the producer if found
      */
-    Optional<StreamProducerHolder> removeStreamProducer(StreamTicket ticket) {
-        Objects.requireNonNull(ticket, "StreamTicket cannot be null");
-
+    public Optional<StreamProducerHolder> removeStreamProducer(StreamTicket ticket) {
         String ticketId = ticket.getTicketId();
         StreamProducerHolder holder = streamProducers.get(ticketId);
-
-        if (holder != null) {
-            streamProducers.remove(ticketId);
-            return Optional.of(holder);
+        if (holder == null) {
+            return Optional.empty();
         }
-        return Optional.empty();
+        streamProducers.remove(ticketId);
+        return Optional.of(holder);
     }
 
     /**

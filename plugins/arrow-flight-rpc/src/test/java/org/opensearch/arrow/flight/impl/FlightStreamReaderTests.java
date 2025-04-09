@@ -18,8 +18,6 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -40,7 +38,6 @@ public class FlightStreamReaderTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        FeatureFlagSetter.set(FeatureFlags.ARROW_STREAMS_SETTING.getKey());
         ServerConfig.init(Settings.EMPTY);
         mockFlightStream = mock(FlightStream.class);
         allocator = new RootAllocator(100000);
