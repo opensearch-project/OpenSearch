@@ -25,17 +25,23 @@ public class IngestionSource {
     private final PointerInitReset pointerInitReset;
     private final IngestionErrorStrategy.ErrorStrategy errorStrategy;
     private final Map<String, Object> params;
+    private final long maxPollSize;
+    private final int pollTimeout;
 
     private IngestionSource(
         String type,
         PointerInitReset pointerInitReset,
         IngestionErrorStrategy.ErrorStrategy errorStrategy,
-        Map<String, Object> params
+        Map<String, Object> params,
+        long maxPollSize,
+        int pollTimeout
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
         this.params = params;
         this.errorStrategy = errorStrategy;
+        this.maxPollSize = maxPollSize;
+        this.pollTimeout = pollTimeout;
     }
 
     public String getType() {
@@ -54,6 +60,14 @@ public class IngestionSource {
         return params;
     }
 
+    public long getMaxPollSize() {
+        return maxPollSize;
+    }
+
+    public int getPollTimeout() {
+        return pollTimeout;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -62,12 +76,14 @@ public class IngestionSource {
         return Objects.equals(type, ingestionSource.type)
             && Objects.equals(pointerInitReset, ingestionSource.pointerInitReset)
             && Objects.equals(errorStrategy, ingestionSource.errorStrategy)
-            && Objects.equals(params, ingestionSource.params);
+            && Objects.equals(params, ingestionSource.params)
+            && Objects.equals(maxPollSize, ingestionSource.maxPollSize)
+            && Objects.equals(pollTimeout, ingestionSource.pollTimeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, pointerInitReset, params, errorStrategy);
+        return Objects.hash(type, pointerInitReset, params, errorStrategy, maxPollSize, pollTimeout);
     }
 
     @Override
@@ -84,6 +100,10 @@ public class IngestionSource {
             + '\''
             + ", params="
             + params
+            + ", maxPollSize="
+            + maxPollSize
+            + ", pollTimeout="
+            + pollTimeout
             + '}';
     }
 
@@ -137,6 +157,8 @@ public class IngestionSource {
         private PointerInitReset pointerInitReset;
         private IngestionErrorStrategy.ErrorStrategy errorStrategy;
         private Map<String, Object> params;
+        private long maxPollSize = 1000L;
+        private int pollTimeout = 1000;
 
         public Builder(String type) {
             this.type = type;
@@ -165,13 +187,23 @@ public class IngestionSource {
             return this;
         }
 
+        public Builder setMaxPollSize(long maxPollSize) {
+            this.maxPollSize = maxPollSize;
+            return this;
+        }
+
         public Builder addParam(String key, Object value) {
             this.params.put(key, value);
             return this;
         }
 
+        public Builder setPollTimeout(int pollTimeout) {
+            this.pollTimeout = pollTimeout;
+            return this;
+        }
+
         public IngestionSource build() {
-            return new IngestionSource(type, pointerInitReset, errorStrategy, params);
+            return new IngestionSource(type, pointerInitReset, errorStrategy, params, maxPollSize, pollTimeout);
         }
 
     }

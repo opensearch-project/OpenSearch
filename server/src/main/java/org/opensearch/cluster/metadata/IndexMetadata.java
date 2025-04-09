@@ -807,6 +807,30 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Dynamic
     );
 
+    /**
+     * Defines the max poll size per batch for pull-based ingestion.
+     */
+    public static final String SETTING_INGESTION_SOURCE_MAX_POLL_SIZE = "index.ingestion_source.poll.max_batch_size";
+    public static final Setting<Long> INGESTION_SOURCE_ERROR_MAX_POLL_SIZE = Setting.longSetting(
+        SETTING_INGESTION_SOURCE_MAX_POLL_SIZE,
+        1000,
+        0,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Defines the poll timeout for pull-based ingestion in milliseconds.
+     */
+    public static final String SETTING_INGESTION_SOURCE_POLL_TIMEOUT = "index.ingestion_source.poll.timeout";
+    public static final Setting<Integer> INGESTION_SOURCE_POLL_TIMEOUT = Setting.intSetting(
+        SETTING_INGESTION_SOURCE_POLL_TIMEOUT,
+        1000,
+        0,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
         "index.ingestion_source.param.",
         key -> new Setting<>(key, "", (value) -> {
@@ -1047,9 +1071,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final IngestionErrorStrategy.ErrorStrategy errorStrategy = INGESTION_SOURCE_ERROR_STRATEGY_SETTING.get(settings);
             final Map<String, Object> ingestionSourceParams = INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings);
+            final long maxPollSize = INGESTION_SOURCE_ERROR_MAX_POLL_SIZE.get(settings);
+            final int pollTimeout = INGESTION_SOURCE_POLL_TIMEOUT.get(settings);
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
                 .setErrorStrategy(errorStrategy)
+                .setMaxPollSize(maxPollSize)
+                .setPollTimeout(pollTimeout)
                 .build();
         }
         return null;
