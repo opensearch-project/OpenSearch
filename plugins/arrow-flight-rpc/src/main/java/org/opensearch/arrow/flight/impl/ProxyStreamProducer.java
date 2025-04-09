@@ -71,8 +71,7 @@ public class ProxyStreamProducer implements StreamProducer<VectorSchemaRoot, Buf
      */
     @Override
     public int estimatedRowCount() {
-        // TODO get it from remote flight stream
-        return -1;
+        return remoteStream.getRoot().getRowCount();
     }
 
     /**

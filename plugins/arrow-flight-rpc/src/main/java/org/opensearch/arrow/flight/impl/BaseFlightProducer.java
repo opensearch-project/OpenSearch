@@ -15,7 +15,6 @@ import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightEndpoint;
 import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.FlightStream;
-import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.NoOpFlightProducer;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.memory.BufferAllocator;
@@ -184,8 +183,7 @@ public class BaseFlightProducer extends NoOpFlightProducer {
         CallContext context,
         ServerStreamListener listener
     ) {
-        listener.setOnCancelHandler(batchedJob::onCancel);
-        BackpressureStrategy backpressureStrategy = new BaseBackpressureStrategy(null, batchedJob::onCancel);
+        BackpressureStrategy backpressureStrategy = new CustomCallbackBackpressureStrategy(null, batchedJob::onCancel);
         backpressureStrategy.register(listener);
 
         StreamProducer.FlushSignal flushSignal = createFlushSignal(batchedJob, listener, backpressureStrategy);
@@ -237,16 +235,14 @@ public class BaseFlightProducer extends NoOpFlightProducer {
     }
 
     private FlightInfo getLocalFlightInfo(StreamTicket streamTicket, FlightDescriptor descriptor) {
-        Optional<FlightStreamManager.StreamProducerHolder> streamProducerHolder = streamManager.getStreamProducer(streamTicket);
-        if (streamProducerHolder.isPresent()) {
-            Optional<Location> location = flightClientManager.getFlightClientLocation(streamTicket.getNodeId());
-            if (location.isPresent()) {
+        return streamManager.getStreamProducer(streamTicket)
+            .map(streamProducerHolder -> flightClientManager.getFlightClientLocation(streamTicket.getNodeId()).map(location -> {
                 try {
                     Ticket ticket = new Ticket(descriptor.getCommand());
-                    var schema = streamProducerHolder.get().getRoot().getSchema();
-                    FlightEndpoint endpoint = new FlightEndpoint(ticket, location.get());
+                    var schema = streamProducerHolder.getRoot().getSchema();
+                    FlightEndpoint endpoint = new FlightEndpoint(ticket, location);
                     FlightInfo.Builder infoBuilder = FlightInfo.builder(schema, descriptor, Collections.singletonList(endpoint))
-                        .setRecords(streamProducerHolder.get().producer().estimatedRowCount());
+                        .setRecords(streamProducerHolder.producer().estimatedRowCount());
                     return infoBuilder.build();
                 } catch (Exception e) {
                     logger.error("Failed to build FlightInfo", e);
@@ -254,30 +250,29 @@ public class BaseFlightProducer extends NoOpFlightProducer {
                         .withCause(e)
                         .toRuntimeException();
                 }
-            } else {
+            }).orElseThrow(() -> {
                 logger.debug("Failed to determine location for node: {}", streamTicket.getNodeId());
                 throw CallStatus.UNAVAILABLE.withDescription("Internal error determining location").toRuntimeException();
-            }
-        } else {
-            logger.debug("FlightInfo not found for ticket: {}", streamTicket);
-            throw CallStatus.NOT_FOUND.withDescription("FlightInfo not found").toRuntimeException();
-        }
+            }))
+            .orElseThrow(() -> {
+                logger.debug("FlightInfo not found for ticket: {}", streamTicket);
+                throw CallStatus.NOT_FOUND.withDescription("FlightInfo not found").toRuntimeException();
+            });
     }
 
     private FlightInfo getRemoteFlightInfo(StreamTicket streamTicket, FlightDescriptor descriptor) {
-        Optional<FlightClient> remoteClient = flightClientManager.getFlightClient(streamTicket.getNodeId());
-        if (remoteClient.isPresent()) {
+        return flightClientManager.getFlightClient(streamTicket.getNodeId()).map(remoteClient -> {
             try {
-                return remoteClient.get().getInfo(descriptor);
+                return remoteClient.getInfo(descriptor);
             } catch (Exception e) {
                 logger.error("Failed to get remote FlightInfo", e);
                 throw CallStatus.INTERNAL.withDescription("Error retrieving remote FlightInfo: " + e.getMessage())
                     .withCause(e)
                     .toRuntimeException();
             }
-        } else {
+        }).orElseThrow(() -> {
             logger.warn("No remote client available for node: {}", streamTicket.getNodeId());
             throw CallStatus.UNAVAILABLE.withDescription("Client doesn't support Stream").toRuntimeException();
-        }
+        });
     }
 }

@@ -53,6 +53,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -228,11 +229,8 @@ public class FlightStreamPlugin extends Plugin
      * Gets the StreamManager instance for managing flight streams.
      */
     @Override
-    public Supplier<StreamManager> getStreamManager() {
-        if (!isArrowStreamsEnabled) {
-            return null;
-        }
-        return flightService::getStreamManager;
+    public Optional<StreamManager> getStreamManager() {
+        return isArrowStreamsEnabled ? Optional.ofNullable(flightService.getStreamManager()) : Optional.empty();
     }
 
     /**

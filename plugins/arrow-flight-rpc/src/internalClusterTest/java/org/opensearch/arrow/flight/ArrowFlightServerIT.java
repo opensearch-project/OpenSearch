@@ -277,7 +277,7 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
 
                 @Override
                 public void onCancel() {
-                    if (root != null) {
+                    if (!isClosed && root != null) {
                         root.close();
                     }
                     isClosed = true;
@@ -307,7 +307,7 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
 
         @Override
         public void close() {
-            if (root != null) {
+            if (!isClosed && root != null) {
                 root.close();
             }
             closeLatch.countDown();

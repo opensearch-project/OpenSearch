@@ -23,12 +23,14 @@ import org.opensearch.arrow.spi.StreamTicket;
 import org.opensearch.arrow.spi.StreamTicketFactory;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
+import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -83,6 +85,13 @@ public class FlightStreamManager implements StreamManager {
         this.streamProducers = CacheBuilder.<String, StreamProducerHolder>builder()
             .setExpireAfterWrite(DEFAULT_CACHE_EXPIRE)
             .setMaximumWeight(MAX_WEIGHT)
+            .removalListener(n -> {
+                if (n.getRemovalReason() != RemovalReason.EXPLICIT) {
+                    try (var unused = n.getValue().producer()) {} catch (IOException e) {
+                        logger.error("Error closing stream producer, this may cause memory leaks.", e);
+                    }
+                }
+            })
             .build();
     }
 
@@ -116,10 +125,17 @@ public class FlightStreamManager implements StreamManager {
     public <VectorRoot, Allocator> StreamTicket registerStream(StreamProducer<VectorRoot, Allocator> provider, TaskId parentTaskId) {
         Objects.requireNonNull(provider, "StreamProducer cannot be null");
         StreamTicket ticket = ticketFactory.newTicket();
-        streamProducers.put(
-            ticket.getTicketId(),
-            StreamProducerHolder.create((StreamProducer<VectorSchemaRoot, BufferAllocator>) provider, allocatorSupplier.get())
-        );
+        try {
+            streamProducers.computeIfAbsent(
+                ticket.getTicketId(),
+                ticketId -> StreamProducerHolder.create(
+                    (StreamProducer<VectorSchemaRoot, BufferAllocator>) provider,
+                    allocatorSupplier.get()
+                )
+            );
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
         return ticket;
     }
 
@@ -131,11 +147,9 @@ public class FlightStreamManager implements StreamManager {
     @Override
     @SuppressWarnings("unchecked")
     public <VectorRoot> StreamReader<VectorRoot> getStreamReader(StreamTicket ticket) {
-        Optional<FlightClient> flightClient = clientManager.getFlightClient(ticket.getNodeId());
-        if (flightClient.isEmpty()) {
-            throw new RuntimeException("Flight client not found for node [" + ticket.getNodeId() + "].");
-        }
-        FlightStream stream = flightClient.get().getStream(new Ticket(ticket.toBytes()));
+        FlightClient flightClient = clientManager.getFlightClient(ticket.getNodeId())
+            .orElseThrow(() -> new RuntimeException("Flight client not found for node [" + ticket.getNodeId() + "]."));
+        FlightStream stream = flightClient.getStream(new Ticket(ticket.toBytes()));
         return (StreamReader<VectorRoot>) new FlightStreamReader(stream);
     }
 
@@ -180,7 +194,7 @@ public class FlightStreamManager implements StreamManager {
         StreamProducerHolder holder = streamProducers.get(ticketId);
 
         if (holder != null) {
-            streamProducers.invalidate(ticketId);
+            streamProducers.remove(ticketId);
             return Optional.of(holder);
         }
         return Optional.empty();
@@ -193,13 +207,6 @@ public class FlightStreamManager implements StreamManager {
      */
     @Override
     public void close() throws Exception {
-        streamProducers.values().forEach(holder -> {
-            try {
-                holder.producer().close();
-            } catch (IOException e) {
-                logger.error("Error closing stream producer, this may cause memory leaks.", e);
-            }
-        });
         streamProducers.invalidateAll();
     }
 }

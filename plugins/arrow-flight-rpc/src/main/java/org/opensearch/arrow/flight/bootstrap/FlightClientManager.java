@@ -144,8 +144,7 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
         if (closed) {
             return;
         }
-        FlightClient flightClient = buildClient(location);
-        flightClients.put(node.getId(), new ClientHolder(location, flightClient));
+        flightClients.computeIfAbsent(node.getId(), nodeId -> new ClientHolder(location, buildClient(location)));
     }
 
     private void requestNodeLocation(String nodeId, CompletableFuture<Location> future) {
@@ -209,7 +208,9 @@ public class FlightClientManager implements ClusterStateListener, AutoCloseable 
         }
         flightClients.clear();
         grpcExecutor.shutdown();
-        grpcExecutor.awaitTermination(5, TimeUnit.SECONDS);
+        if (grpcExecutor.awaitTermination(5, TimeUnit.SECONDS) == false) {
+            grpcExecutor.shutdownNow();
+        }
     }
 
     private record ClientHolder(Location location, FlightClient flightClient) {

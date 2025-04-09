@@ -311,7 +311,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -1391,30 +1390,22 @@ public class Node implements Closeable {
                 cacheService
             );
 
-            Supplier<StreamManager> streamManager = null;
             if (FeatureFlags.isEnabled(ARROW_STREAMS_SETTING)) {
-                List<StreamManagerPlugin> streamManagerPlugins = pluginsService.filterPlugins(StreamManagerPlugin.class);
-                if (!streamManagerPlugins.isEmpty()) {
-                    for (StreamManagerPlugin smPlugin : streamManagerPlugins) {
-                        Supplier<StreamManager> baseStreamManager = smPlugin.getStreamManager();
-                        if (streamManager == null && baseStreamManager != null) {
-                            streamManager = baseStreamManager;
-                            logger.info("StreamManager initialized");
-                        } else if (streamManager != null && baseStreamManager != null) {
-                            throw new IllegalStateException(
-                                String.format(
-                                    Locale.ROOT,
-                                    "Only one StreamManagerPlugin can be installed. Found: %d",
-                                    streamManagerPlugins.size()
-                                )
-                            );
-                        }
-                    }
-                    if (streamManager != null) {
-                        for (StreamManagerPlugin plugin : streamManagerPlugins) {
-                            plugin.onStreamManagerInitialized(streamManager);
-                        }
-                    }
+                final List<StreamManagerPlugin> streamManagerPlugins = pluginsService.filterPlugins(StreamManagerPlugin.class);
+
+                final List<StreamManager> streamManagers = streamManagerPlugins.stream()
+                    .map(StreamManagerPlugin::getStreamManager)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .toList();
+
+                if (streamManagers.size() > 1) {
+                    throw new IllegalStateException(
+                        String.format(Locale.ROOT, "Only one StreamManagerPlugin can be installed. Found: %d", streamManagerPlugins.size())
+                    );
+                } else if (streamManagers.isEmpty() == false) {
+                    StreamManager streamManager = streamManagers.getFirst();
+                    streamManagerPlugins.forEach(plugin -> plugin.onStreamManagerInitialized(streamManager));
                 }
             }
 

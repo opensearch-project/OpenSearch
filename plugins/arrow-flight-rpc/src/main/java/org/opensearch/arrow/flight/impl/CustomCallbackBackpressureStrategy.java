@@ -13,7 +13,7 @@ import org.apache.arrow.flight.BackpressureStrategy;
 /**
  * Base class for backpressure strategy.
  */
-public class BaseBackpressureStrategy extends BackpressureStrategy.CallbackBackpressureStrategy {
+public class CustomCallbackBackpressureStrategy extends BackpressureStrategy.CallbackBackpressureStrategy {
     private final Runnable readyCallback;
     private final Runnable cancelCallback;
 
@@ -23,7 +23,7 @@ public class BaseBackpressureStrategy extends BackpressureStrategy.CallbackBackp
      * @param readyCallback Callback to execute when the listener is ready.
      * @param cancelCallback Callback to execute when the listener is cancelled.
      */
-    BaseBackpressureStrategy(Runnable readyCallback, Runnable cancelCallback) {
+    CustomCallbackBackpressureStrategy(Runnable readyCallback, Runnable cancelCallback) {
         this.readyCallback = readyCallback;
         this.cancelCallback = cancelCallback;
     }

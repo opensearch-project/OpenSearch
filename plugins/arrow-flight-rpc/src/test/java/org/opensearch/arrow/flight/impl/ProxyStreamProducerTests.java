@@ -47,8 +47,11 @@ public class ProxyStreamProducerTests extends OpenSearchTestCase {
     }
 
     public void testDefaults() {
+        VectorSchemaRoot mockRoot = mock(VectorSchemaRoot.class);
+        when(mockRoot.getRowCount()).thenReturn(100);
+        when(mockRemoteStream.getRoot()).thenReturn(mockRoot);
         assertEquals("", proxyStreamProducer.getAction());
-        assertEquals(-1, proxyStreamProducer.estimatedRowCount());
+        assertEquals(100, proxyStreamProducer.estimatedRowCount());
     }
 
     public void testCreateJob() {
