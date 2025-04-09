@@ -16,6 +16,7 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.spi.FileSystemProvider;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collection;
@@ -46,15 +47,21 @@ public class FileInterceptor {
             return; /* noop */
         }
 
+        FileSystemProvider provider = null;
         String filePath = null;
         if (args.length > 0 && args[0] instanceof String pathStr) {
             filePath = Paths.get(pathStr).toAbsolutePath().toString();
         } else if (args.length > 0 && args[0] instanceof Path path) {
             filePath = path.toAbsolutePath().toString();
+            provider = path.getFileSystem().provider();
         }
 
         if (filePath == null) {
             return; // No valid file path found
+        }
+
+        if (provider != null && AgentPolicy.isTrustedFileSystem(provider.getScheme()) == true) {
+            return;
         }
 
         final StackWalker walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
@@ -66,7 +73,7 @@ public class FileInterceptor {
 
         String targetFilePath = null;
         if (isMutating == false && isDelete == false) {
-            if (name.equals("newByteChannel") == true) {
+            if (name.equals("newByteChannel") == true || name.equals("open") == true) {
                 if (args.length > 1 && args[1] instanceof OpenOption[] opts) {
                     for (final OpenOption opt : opts) {
                         if (opt != StandardOpenOption.READ) {
@@ -89,20 +96,22 @@ public class FileInterceptor {
         for (final ProtectionDomain domain : callers) {
             // Handle FileChannel.open() separately to check read/write permissions properly
             if (method.getName().equals("open")) {
-                if (!policy.implies(domain, new FilePermission(filePath, "read,write"))) {
-                    throw new SecurityException("Denied OPEN access to file: " + filePath + ", domain: " + domain);
+                if (isMutating == true && !policy.implies(domain, new FilePermission(filePath, "read,write"))) {
+                    throw new SecurityException("Denied OPEN (read/write) access to file: " + filePath + ", domain: " + domain);
+                } else if (!policy.implies(domain, new FilePermission(filePath, "read"))) {
+                    throw new SecurityException("Denied OPEN (read) access to file: " + filePath + ", domain: " + domain);
                 }
             }
 
             // Handle Files.copy() separately to check read/write permissions properly
             if (method.getName().equals("copy")) {
                 if (!policy.implies(domain, new FilePermission(filePath, "read"))) {
-                    throw new SecurityException("Denied OPEN access to file: " + filePath + ", domain: " + domain);
+                    throw new SecurityException("Denied COPY (read) access to file: " + filePath + ", domain: " + domain);
                 }
 
                 if (targetFilePath != null) {
                     if (!policy.implies(domain, new FilePermission(targetFilePath, "write"))) {
-                        throw new SecurityException("Denied OPEN access to file: " + targetFilePath + ", domain: " + domain);
+                        throw new SecurityException("Denied COPY (write) access to file: " + targetFilePath + ", domain: " + domain);
                     }
                 }
             }
