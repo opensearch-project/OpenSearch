@@ -8,9 +8,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.action.admin.indices.close.CloseIndexResponse;
-import org.opensearch.action.admin.indices.open.OpenIndexResponse;
-import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
@@ -53,24 +50,14 @@ public class MetadataIndexStateServiceIT extends RemoteStoreBaseIntegTestCase {
                 .get();
         }
 
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose(TEST_INDEX).get();
-        assertBusy(() -> {
-            assertTrue("Close operation should be acknowledged", closeIndexResponse.isAcknowledged());
-            assertEquals(
-                IndexMetadata.State.CLOSE,
-                client().admin().cluster().prepareState().get().getState().metadata().index(TEST_INDEX).getState()
-            );
-        }, 30, TimeUnit.SECONDS);
+        assertAcked(client().admin().indices().prepareClose(TEST_INDEX).get());
+        assertEquals(
+            IndexMetadata.State.CLOSE,
+            client().admin().cluster().prepareState().get().getState().metadata().index(TEST_INDEX).getState()
+        );
 
-        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen(TEST_INDEX).get();
-        assertBusy(() -> {
-            assertTrue("Open operation should be acknowledged", openIndexResponse.isAcknowledged());
-            assertTrue("Open operation shards should be acknowledged", openIndexResponse.isShardsAcknowledged());
-            assertEquals(
-                IndexMetadata.State.OPEN,
-                client().admin().cluster().prepareState().get().getState().metadata().index(TEST_INDEX).getState()
-            );
-        }, 30, TimeUnit.SECONDS);
+        assertAcked(client().admin().indices().prepareOpen(TEST_INDEX).get());
+        ensureGreen(TEST_INDEX);
 
         assertBusy(() -> {
             SearchResponse searchResponse = client().prepareSearch(TEST_INDEX).get();
@@ -103,30 +90,23 @@ public class MetadataIndexStateServiceIT extends RemoteStoreBaseIntegTestCase {
         assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
         ensureGreen(TEST_INDEX);
 
-        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(TEST_INDEX).get();
-        assertTrue(settingsResponse.getSetting(TEST_INDEX, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey()).equals("true"));
+        assertTrue(
+            client().admin()
+                .indices()
+                .prepareGetSettings(TEST_INDEX)
+                .get()
+                .getSetting(TEST_INDEX, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey())
+                .equals("true")
+        );
 
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose(TEST_INDEX).get();
-        assertBusy(() -> {
-            assertTrue("Close operation should be acknowledged", closeIndexResponse.isAcknowledged());
-            assertEquals(
-                IndexMetadata.State.CLOSE,
-                client().admin().cluster().prepareState().get().getState().metadata().index(TEST_INDEX).getState()
-            );
-        }, 30, TimeUnit.SECONDS);
+        assertAcked(client().admin().indices().prepareClose(TEST_INDEX).get());
+        assertEquals(
+            IndexMetadata.State.CLOSE,
+            client().admin().cluster().prepareState().get().getState().metadata().index(TEST_INDEX).getState()
+        );
 
-        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen(TEST_INDEX).get();
-        assertBusy(() -> {
-            assertTrue("Open operation should be acknowledged", openIndexResponse.isAcknowledged());
-            assertTrue("Open operation shards should be acknowledged", openIndexResponse.isShardsAcknowledged());
-            assertEquals(
-                IndexMetadata.State.OPEN,
-                client().admin().cluster().prepareState().get().getState().metadata().index(TEST_INDEX).getState()
-            );
-        }, 30, TimeUnit.SECONDS);
-
-        settingsResponse = client().admin().indices().prepareGetSettings(TEST_INDEX).get();
-        assertTrue(settingsResponse.getSetting(TEST_INDEX, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey()).equals("true"));
+        assertAcked(client().admin().indices().prepareOpen(TEST_INDEX).get());
+        ensureGreen(TEST_INDEX);
 
         assertBusy(() -> {
             SearchResponse searchResponse = client().prepareSearch(TEST_INDEX).get();
