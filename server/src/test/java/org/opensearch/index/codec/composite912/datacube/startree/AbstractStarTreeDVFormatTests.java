@@ -51,6 +51,7 @@ import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
  */
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatTestCase {
+    private static FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
     MapperService mapperService = null;
     StarTreeFieldConfiguration.StarTreeBuildMode buildMode;
 
@@ -67,13 +68,13 @@ public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatT
     }
 
     @BeforeClass
-    public static void createMapper() throws Exception {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(STAR_TREE_INDEX, "true").build());
+    public static void createMapper() {
+        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
     }
 
     @AfterClass
     public static void clearMapper() {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        ffLock.close();
     }
 
     @After
