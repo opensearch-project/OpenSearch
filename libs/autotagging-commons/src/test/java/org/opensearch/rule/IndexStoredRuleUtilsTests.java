@@ -6,10 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule.utils;
+package org.opensearch.rule;
 
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.rule.action.GetRuleRequest;
+import org.opensearch.rule.storage.IndexBasedRuleQueryBuilder;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -19,21 +22,28 @@ import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 
 public class IndexStoredRuleUtilsTests extends OpenSearchTestCase {
+    RuleQueryBuilder<QueryBuilder> sut;
+
+    public void setUp() throws Exception {
+        super.setUp();
+        sut = new IndexBasedRuleQueryBuilder();
+    }
+
     public void testBuildGetRuleQuery_WithId() {
-        BoolQueryBuilder query = IndexStoredRuleUtils.buildGetRuleQuery(
-            _ID_ONE,
-            new HashMap<>(),
-            RuleTestUtils.MockRuleFeatureType.INSTANCE
-        );
+        QueryBuilder query = sut.buildQuery(new GetRuleRequest(_ID_ONE, new HashMap<>(), null, RuleTestUtils.MockRuleFeatureType.INSTANCE));
         assertNotNull(query);
-        assertEquals(1, query.must().size());
-        QueryBuilder idQuery = query.must().get(0);
+        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) query;
+        assertEquals(1, queryBuilder.must().size());
+        QueryBuilder idQuery = queryBuilder.must().get(0);
         assertTrue(idQuery.toString().contains(_ID_ONE));
     }
 
     public void testBuildGetRuleQuery_WithAttributes() {
-        BoolQueryBuilder query = IndexStoredRuleUtils.buildGetRuleQuery(null, ATTRIBUTE_MAP, RuleTestUtils.MockRuleFeatureType.INSTANCE);
-        assertNotNull(query);
+        QueryBuilder queryBuilder = sut.buildQuery(
+            new GetRuleRequest(null, ATTRIBUTE_MAP, null, RuleTestUtils.MockRuleFeatureType.INSTANCE)
+        );
+        assertNotNull(queryBuilder);
+        BoolQueryBuilder query = (BoolQueryBuilder) queryBuilder;
         assertTrue(query.must().size() == 1);
         assertTrue(query.toString().contains(RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE.getName()));
         assertTrue(query.toString().contains(ATTRIBUTE_VALUE_ONE));

@@ -6,40 +6,38 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule.utils;
+package org.opensearch.rule.storage;
 
 import org.opensearch.autotagging.Attribute;
-import org.opensearch.autotagging.FeatureType;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.rule.RuleQueryBuilder;
+import org.opensearch.rule.action.GetRuleRequest;
 
 import java.util.Map;
 import java.util.Set;
 
-import jdk.jfr.Experimental;
-
 import static org.opensearch.autotagging.Rule._ID_STRING;
 
 /**
- * Utility class that provides methods for the lifecycle of rules.
- * @opensearch.experimental
+ * This class is used to build opensearch index based query object
  */
-@Experimental
-public class IndexStoredRuleUtils {
+@ExperimentalApi
+public class IndexBasedRuleQueryBuilder implements RuleQueryBuilder<QueryBuilder> {
 
     /**
-     * constructor for IndexStoredRuleUtils
+     * Default constructor
      */
-    public IndexStoredRuleUtils() {}
+    public IndexBasedRuleQueryBuilder() {}
 
-    /**
-     * Builds a Boolean query to retrieve a rule by its ID or attribute filters.
-     * @param id               The ID of the rule to search for. If null, no ID-based filtering is applied.
-     * @param attributeFilters A map of attributes and their corresponding filter values. This allows filtering by specific attribute values.
-     * @param featureType      The feature type that is required in the query.
-     */
-    public static BoolQueryBuilder buildGetRuleQuery(String id, Map<Attribute, Set<String>> attributeFilters, FeatureType featureType) {
-        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+    @Override
+    public QueryBuilder buildQuery(GetRuleRequest request) {
+        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+        final Map<Attribute, Set<String>> attributeFilters = request.getAttributeFilters();
+        final String id = request.getId();
+
         if (id != null) {
             return boolQuery.must(QueryBuilders.termQuery(_ID_STRING, id));
         }
@@ -54,7 +52,6 @@ public class IndexStoredRuleUtils {
                 boolQuery.must(attributeQuery);
             }
         }
-        boolQuery.filter(QueryBuilders.existsQuery(featureType.getName()));
         return boolQuery;
     }
 }

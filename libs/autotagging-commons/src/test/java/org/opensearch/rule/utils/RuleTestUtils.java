@@ -12,14 +12,10 @@ import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.AutoTaggingRegistry;
 import org.opensearch.autotagging.FeatureType;
 import org.opensearch.autotagging.Rule;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.QueryGroup;
-import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.rule.RuleEntityParser;
+import org.opensearch.rule.RuleQueryBuilder;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
-import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
 import java.util.Map;
@@ -27,8 +23,6 @@ import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RuleTestUtils {
     public static final String _ID_ONE = "AgfUO5Ja9yfvhdONlYi3TQ==";
@@ -68,21 +62,21 @@ public class RuleTestUtils {
         return Map.of(_ID_ONE, ruleOne, _ID_TWO, ruleTwo);
     }
 
-    public static IndexStoredRulePersistenceService setUpIndexStoredRulePersistenceService(Map<String, QueryGroup> queryGroupMap) {
-        Client client = mock(Client.class);
-        ClusterService clusterService = mock(ClusterService.class);
-        ClusterState clusterState = mock(ClusterState.class);
-        Metadata metadata = mock(Metadata.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        when(client.threadPool()).thenReturn(threadPool);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.queryGroups()).thenReturn(queryGroupMap);
-        return new IndexStoredRulePersistenceService(TEST_INDEX_NAME, client, MockRuleFeatureType.INSTANCE, 50);
-    }
+    // public static IndexStoredRulePersistenceService setUpIndexStoredRulePersistenceService(Map<String, QueryGroup> queryGroupMap) {
+    // Client client = mock(Client.class);
+    // ClusterService clusterService = mock(ClusterService.class);
+    // ClusterState clusterState = mock(ClusterState.class);
+    // Metadata metadata = mock(Metadata.class);
+    // ThreadPool threadPool = mock(ThreadPool.class);
+    //
+    // ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    // when(client.threadPool()).thenReturn(threadPool);
+    // when(threadPool.getThreadContext()).thenReturn(threadContext);
+    // when(clusterService.state()).thenReturn(clusterState);
+    // when(clusterState.metadata()).thenReturn(metadata);
+    // when(metadata.queryGroups()).thenReturn(queryGroupMap);
+    // return new IndexStoredRulePersistenceService(TEST_INDEX_NAME, client, MockRuleFeatureType.INSTANCE, 50);
+    // }
 
     public static void assertEqualRules(Map<String, Rule> mapOne, Map<String, Rule> mapTwo, boolean ruleUpdated) {
         assertEquals(mapOne.size(), mapTwo.size());
@@ -104,6 +98,55 @@ public class RuleTestUtils {
             assertEquals(one.getAttributeMap(), two.getAttributeMap());
         } else {
             assertEquals(one, two);
+        }
+    }
+
+    /**
+     * Used mainly for testing to avoid multiple methods to setup the mock
+     * this builder provides flexibility to inject use case specific mocks
+     */
+    public static class IndexStoredRulePersistenceBuilder {
+        private String indexName;
+        private Client client;
+        private FeatureType featureType;
+        private int maxValuesPerPage;
+        private RuleQueryBuilder<QueryBuilder> queryBuilder;
+        private RuleEntityParser parser;
+
+        public IndexStoredRulePersistenceBuilder() {}
+
+        public IndexStoredRulePersistenceBuilder indexName(String indexName) {
+            this.indexName = indexName;
+            return this;
+        }
+
+        public IndexStoredRulePersistenceBuilder client(Client client) {
+            this.client = client;
+            return this;
+        }
+
+        public IndexStoredRulePersistenceBuilder featureType(FeatureType featureType) {
+            this.featureType = featureType;
+            return this;
+        }
+
+        public IndexStoredRulePersistenceBuilder maxValuesPerPage(int maxValuesPerPage) {
+            this.maxValuesPerPage = maxValuesPerPage;
+            return this;
+        }
+
+        public IndexStoredRulePersistenceBuilder queryBuilder(RuleQueryBuilder<QueryBuilder> queryBuilder) {
+            this.queryBuilder = queryBuilder;
+            return this;
+        }
+
+        public IndexStoredRulePersistenceBuilder parser(RuleEntityParser parser) {
+            this.parser = parser;
+            return this;
+        }
+
+        public IndexStoredRulePersistenceService build() {
+            return new IndexStoredRulePersistenceService(indexName, client, featureType, maxValuesPerPage, parser, queryBuilder);
         }
     }
 

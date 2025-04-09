@@ -6,9 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule.utils;
+package org.opensearch.rule;
 
 import org.opensearch.autotagging.Rule;
+import org.opensearch.rule.storage.XContentRuleParser;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -17,7 +19,7 @@ import java.util.Locale;
 
 import static org.opensearch.rule.utils.RuleTestUtils.DESCRIPTION_ONE;
 
-public class IndexStoredRuleParserTests extends OpenSearchTestCase {
+public class XContentRuleParserTests extends OpenSearchTestCase {
     public static final String VALID_JSON = String.format(Locale.ROOT, """
         {
             "description": "%s",
@@ -34,19 +36,22 @@ public class IndexStoredRuleParserTests extends OpenSearchTestCase {
             "mock_attribute_three": ["attribute_value_one", "attribute_value_two"]
         }
         """;
+    RuleEntityParser sut;
+
+    public void setUp() throws Exception {
+        super.setUp();
+        sut = new XContentRuleParser(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+    }
 
     public void testParseRule_Success() throws IOException {
-        Rule parsedRule = IndexStoredRuleParser.parseRule(VALID_JSON, RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        Rule parsedRule = sut.parse(VALID_JSON);
         assertNotNull(parsedRule);
         assertEquals(DESCRIPTION_ONE, parsedRule.getDescription());
         assertEquals(RuleTestUtils.MockRuleFeatureType.INSTANCE, parsedRule.getFeatureType());
     }
 
     public void testParseRule_InvalidJson() {
-        Exception exception = assertThrows(
-            RuntimeException.class,
-            () -> IndexStoredRuleParser.parseRule(INVALID_JSON, RuleTestUtils.MockRuleFeatureType.INSTANCE)
-        );
+        Exception exception = assertThrows(RuntimeException.class, () -> sut.parse(INVALID_JSON));
         assertTrue(exception.getMessage().contains("mock_attribute_three is not a valid attribute within the mock_feature_type feature."));
     }
 

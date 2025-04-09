@@ -50,6 +50,8 @@ import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rule.rest.RestGetRuleAction;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
+import org.opensearch.rule.storage.IndexBasedRuleQueryBuilder;
+import org.opensearch.rule.storage.XContentRuleParser;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -93,7 +95,16 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        return List.of(new IndexStoredRulePersistenceService(INDEX_NAME, client, QueryGroupFeatureType.INSTANCE, MAX_RULES_PER_PAGE));
+        return List.of(
+            new IndexStoredRulePersistenceService(
+                INDEX_NAME,
+                client,
+                QueryGroupFeatureType.INSTANCE,
+                MAX_RULES_PER_PAGE,
+                new XContentRuleParser(QueryGroupFeatureType.INSTANCE),
+                new IndexBasedRuleQueryBuilder()
+            )
+        );
     }
 
     @Override
