@@ -15,7 +15,6 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
@@ -69,6 +68,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.medianAbsoluteDeviation;
@@ -93,8 +93,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for non-nested metric aggregations, with/without numeric term query
      */
+    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testQueryParsingForMetricAggregations() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
         setStarTreeIndexSetting("true");
 
         Settings settings = Settings.builder()
@@ -244,8 +244,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for date histogram aggregations, with/without numeric term query
      */
+    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testQueryParsingForDateHistogramAggregations() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
         setStarTreeIndexSetting("true");
 
         Settings settings = Settings.builder()
@@ -493,8 +493,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for date histogram aggregations on star-tree index when @timestamp field does not exist
      */
+    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testInvalidQueryParsingForDateHistogramAggregations() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
         setStarTreeIndexSetting("true");
 
         Settings settings = Settings.builder()
@@ -547,8 +547,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for bucket aggregations, with/without numeric term query
      */
+    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testQueryParsingForBucketAggregations() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
         setStarTreeIndexSetting("true");
 
         Settings settings = Settings.builder()
@@ -694,8 +694,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for range aggregations, with/without numeric term query
      */
+    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testQueryParsingForRangeAggregations() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
         setStarTreeIndexSetting("true");
 
         Settings settings = Settings.builder()
