@@ -694,8 +694,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for range aggregations, with/without numeric term query
      */
+    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testQueryParsingForRangeAggregations() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
         setStarTreeIndexSetting("true");
 
         Settings settings = Settings.builder()
