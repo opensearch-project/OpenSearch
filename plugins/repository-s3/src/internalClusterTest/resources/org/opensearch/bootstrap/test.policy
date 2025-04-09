@@ -7,6 +7,6 @@
  */
 
 grant {
-  permission java.net.SocketPermission "*", "connect,resolve";
   permission java.net.NetPermission "accessUnixDomainSocket";
+  permission java.net.SocketPermission "*", "connect,resolve";
 };
