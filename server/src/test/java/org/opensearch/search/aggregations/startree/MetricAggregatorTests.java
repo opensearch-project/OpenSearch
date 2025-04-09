@@ -91,6 +91,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
@@ -101,19 +102,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MetricAggregatorTests extends AggregatorTestCase {
-
+    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
     private static final String FIELD_NAME = "field";
     private static final NumberFieldMapper.NumberType DEFAULT_FIELD_TYPE = NumberFieldMapper.NumberType.LONG;
     private static final MappedFieldType DEFAULT_MAPPED_FIELD = new NumberFieldMapper.NumberFieldType(FIELD_NAME, DEFAULT_FIELD_TYPE);
 
     @Before
     public void setup() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
+        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
     }
 
     @After
     public void teardown() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        fflock.close();
     }
 
     protected Codec getCodec(
