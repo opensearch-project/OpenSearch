@@ -51,4 +51,5 @@ public enum ClusterBlockLevel {
 
     public static final EnumSet<ClusterBlockLevel> ALL = EnumSet.allOf(ClusterBlockLevel.class);
     public static final EnumSet<ClusterBlockLevel> READ_WRITE = EnumSet.of(READ, WRITE);
+    public static final EnumSet<ClusterBlockLevel> WRITE_BLOCK = EnumSet.of(WRITE);
 }

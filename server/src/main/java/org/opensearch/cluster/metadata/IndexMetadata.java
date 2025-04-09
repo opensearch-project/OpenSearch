@@ -166,6 +166,24 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
     );
 
+    // Block ID and block for scale operations (IDs 20-29 reserved for scaling)
+    public static final int INDEX_SEARCH_ONLY_BLOCK_ID = 20;
+
+    /**
+     * Permanent cluster block applied to indices in search-only mode.
+     * <p>
+     * This block prevents write operations to the index while allowing read operations.
+     */
+    public static final ClusterBlock INDEX_SEARCH_ONLY_BLOCK = new ClusterBlock(
+        INDEX_SEARCH_ONLY_BLOCK_ID,
+        "index scaled down",
+        false,
+        false,
+        false,
+        RestStatus.FORBIDDEN,
+        EnumSet.of(ClusterBlockLevel.WRITE)
+    );
+
     /**
      * The state of the index.
      *
@@ -507,7 +525,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         READ("read", INDEX_READ_BLOCK),
         WRITE("write", INDEX_WRITE_BLOCK),
         METADATA("metadata", INDEX_METADATA_BLOCK),
-        READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+        READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK),
+        SEARCH_ONLY("search_only", INDEX_SEARCH_ONLY_BLOCK);
 
         final String name;
         final String settingName;
@@ -575,6 +594,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_READ_ONLY_ALLOW_DELETE = APIBlock.READ_ONLY_ALLOW_DELETE.settingName();
     public static final Setting<Boolean> INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING = APIBlock.READ_ONLY_ALLOW_DELETE.setting();
+
+    public static final Setting<Boolean> INDEX_BLOCKS_SEARCH_ONLY_SETTING = APIBlock.SEARCH_ONLY.setting();
 
     public static final String SETTING_VERSION_CREATED = "index.version.created";
 
@@ -1026,7 +1047,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final IngestionErrorStrategy.ErrorStrategy errorStrategy = INGESTION_SOURCE_ERROR_STRATEGY_SETTING.get(settings);
             final Map<String, Object> ingestionSourceParams = INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings);
-            return new IngestionSource(ingestionSourceType, pointerInitReset, errorStrategy, ingestionSourceParams);
+            return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
+                .setPointerInitReset(pointerInitReset)
+                .setErrorStrategy(errorStrategy)
+                .build();
         }
         return null;
     }

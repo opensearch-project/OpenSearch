@@ -50,7 +50,6 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
@@ -825,8 +824,8 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
         }
     }
 
+    @LockFeatureFlag(REMOTE_STORE_MIGRATION_EXPERIMENTAL)
     public void testPreferReplicaOnRemoteNodeForPrimaryPromotion() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build());
         AllocationService allocation = createAllocationService(Settings.builder().build());
 
         // segment replication enabled
