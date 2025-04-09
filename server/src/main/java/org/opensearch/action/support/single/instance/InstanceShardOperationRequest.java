@@ -106,6 +106,10 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         return index;
     }
 
+    public ShardId shardId() {
+        return shardId;
+    }
+
     @Override
     public String[] indices() {
         return new String[] { index };

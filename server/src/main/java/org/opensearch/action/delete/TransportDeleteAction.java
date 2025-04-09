@@ -39,13 +39,10 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.transport.TransportService;
 
 /**
- * Performs the delete operation.
- * <p>
- * Deprecated use TransportBulkAction with a single item instead
+ * Performs the delete operation by delegating to {@link TransportBulkAction} with a single delete operation.
  *
  * @opensearch.internal
  */
-@Deprecated
 public class TransportDeleteAction extends TransportSingleItemBulkWriteAction<DeleteRequest, DeleteResponse> {
 
     @Inject
