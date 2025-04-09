@@ -19,6 +19,10 @@ public abstract class AgentTestCase {
     @BeforeClass
     public static void setUp() {
         AgentPolicy.setPolicy(new Policy() {
-        }, Set.of(), (caller, chain) -> caller.getName().equalsIgnoreCase("worker.org.gradle.process.internal.worker.GradleWorkerMain"));
+        },
+            Set.of(),
+            Set.of(),
+            (caller, chain) -> caller.getName().equalsIgnoreCase("worker.org.gradle.process.internal.worker.GradleWorkerMain")
+        );
     }
 }

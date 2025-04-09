@@ -120,7 +120,7 @@ public abstract class MetadataStateFormat<T> {
         throws WriteStateException {
         try {
             deleteFileIfExists(stateLocation, stateDir, tmpFileName);
-            try (IndexOutput out = EndiannessReverserUtil.createOutput(stateDir, tmpFileName, IOContext.DEFAULT)) {
+            try (IndexOutput out = EndiannessReverserUtil.createOutput(stateDir, tmpFileName, IOContext.READONCE)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(FORMAT.index());
                 try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
@@ -155,7 +155,7 @@ public abstract class MetadataStateFormat<T> {
             Directory extraStateDir = extraStatePathAndDir.v2();
             try {
                 deleteFileIfExists(extraStateLocation, extraStateDir, tmpFileName);
-                extraStateDir.copyFrom(srcStateDir, tmpFileName, tmpFileName, IOContext.DEFAULT);
+                extraStateDir.copyFrom(srcStateDir, tmpFileName, tmpFileName, IOContext.READONCE);
                 extraStateDir.sync(Collections.singleton(tmpFileName));
             } catch (Exception e) {
                 throw new WriteStateException(false, "failed to copy tmp state file to extra location " + extraStateLocation, e);
@@ -309,7 +309,7 @@ public abstract class MetadataStateFormat<T> {
      */
     public final T read(NamedXContentRegistry namedXContentRegistry, Path file) throws IOException {
         try (Directory dir = newDirectory(file.getParent())) {
-            try (IndexInput indexInput = EndiannessReverserUtil.openInput(dir, file.getFileName().toString(), IOContext.DEFAULT)) {
+            try (IndexInput indexInput = EndiannessReverserUtil.openInput(dir, file.getFileName().toString(), IOContext.READONCE)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, STATE_FILE_VERSION);

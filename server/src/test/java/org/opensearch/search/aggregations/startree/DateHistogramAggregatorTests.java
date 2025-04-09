@@ -28,7 +28,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
@@ -59,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Random;
 
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
@@ -69,6 +69,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
+    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
     private static final String TIMESTAMP_FIELD = "@timestamp";
     private static final MappedFieldType TIMESTAMP_FIELD_TYPE = new DateFieldMapper.DateFieldType(TIMESTAMP_FIELD);
 
@@ -80,12 +81,12 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     @Before
     public void setup() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
+        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
     }
 
     @After
     public void teardown() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        fflock.close();
     }
 
     protected Codec getCodec() {
