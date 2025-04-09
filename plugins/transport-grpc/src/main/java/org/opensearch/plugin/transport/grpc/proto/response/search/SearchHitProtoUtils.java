@@ -46,7 +46,7 @@ public class SearchHitProtoUtils {
      * @return A Protocol Buffer Hit representation
      * @throws IOException if there's an error during conversion
      */
-    public static org.opensearch.protobufs.Hit toProto(SearchHit hit) throws IOException {
+    protected static org.opensearch.protobufs.Hit toProto(SearchHit hit) throws IOException {
         return toInnerProto(hit);
     }
 
@@ -58,7 +58,7 @@ public class SearchHitProtoUtils {
      * @return A Protocol Buffer Hit representation
      * @throws IOException if there's an error during conversion
      */
-    public static org.opensearch.protobufs.Hit toInnerProto(SearchHit hit) throws IOException {
+    protected static org.opensearch.protobufs.Hit toInnerProto(SearchHit hit) throws IOException {
         org.opensearch.protobufs.Hit.Builder hitBuilder = org.opensearch.protobufs.Hit.newBuilder();
 
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
@@ -73,7 +73,7 @@ public class SearchHitProtoUtils {
         }
 
         if (hit.getId() != null) {
-            hitBuilder.setId(hit.getId().toString());
+            hitBuilder.setId(hit.getId());
         }
 
         if (hit.getNestedIdentity() != null) {
@@ -174,7 +174,7 @@ public class SearchHitProtoUtils {
      * This class handles the transformation of nested document identity information to ensure proper
      * representation of nested search hits.
      */
-    public static class NestedIdentityProtoUtils {
+    protected static class NestedIdentityProtoUtils {
         /**
          * Private constructor to prevent instantiation.
          * This is a utility class with only static methods.
@@ -190,7 +190,7 @@ public class SearchHitProtoUtils {
          * @param nestedIdentity The NestedIdentity to convert
          * @return A Protocol Buffer NestedIdentity representation
          */
-        public static NestedIdentity toProto(SearchHit.NestedIdentity nestedIdentity) {
+        protected static NestedIdentity toProto(SearchHit.NestedIdentity nestedIdentity) {
             return innerToProto(nestedIdentity);
         }
 
@@ -201,7 +201,7 @@ public class SearchHitProtoUtils {
          * @param nestedIdentity The NestedIdentity to convert
          * @return A Protocol Buffer NestedIdentity representation
          */
-        public static NestedIdentity innerToProto(SearchHit.NestedIdentity nestedIdentity) {
+        protected static NestedIdentity innerToProto(SearchHit.NestedIdentity nestedIdentity) {
             NestedIdentity.Builder nestedIdentityBuilder = NestedIdentity.newBuilder();
             if (nestedIdentity.getField() != null) {
                 nestedIdentityBuilder.setField(nestedIdentity.getField().string());

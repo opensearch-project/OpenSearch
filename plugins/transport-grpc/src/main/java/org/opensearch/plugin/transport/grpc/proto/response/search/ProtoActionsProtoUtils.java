@@ -38,7 +38,7 @@ public class ProtoActionsProtoUtils {
      * @param shardFailures the array of shard operation failures
      * @throws IOException if there's an error during conversion
      */
-    public static void buildBroadcastShardsHeader(
+    protected static void buildBroadcastShardsHeader(
         ResponseBody.Builder searchResponseBodyProtoBuilder,
         int total,
         int successful,

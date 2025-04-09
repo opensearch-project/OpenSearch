@@ -17,8 +17,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Utility class for converting SearchSourceBuilder Protocol Buffers to objects
- *
+ * Utility class for converting SearchAfterBuilder Protocol Buffers to OpenSearch objects.
+ * This class provides methods to transform Protocol Buffer representations of search_after
+ * values into their corresponding OpenSearch object arrays for pagination in search operations.
  */
 public class SearchAfterBuilderProtoUtils {
 
@@ -27,14 +28,17 @@ public class SearchAfterBuilderProtoUtils {
     }
 
     /**
-     * Similar to {@link SearchAfterBuilder#fromXContent(XContentParser)}
+     * Converts a list of Protocol Buffer FieldValue objects to an array of Java objects
+     * that can be used for search_after pagination.
+     * Similar to {@link SearchAfterBuilder#fromXContent(XContentParser)}, this method
+     * parses the Protocol Buffer representation and creates an array of values
+     * that can be used for search_after pagination.
      *
-     * @param searchAfterProto
-     * @throws IOException if there's an error during parsing
+     * @param searchAfterProto The list of Protocol Buffer FieldValue objects to convert
+     * @return An array of Java objects representing the search_after values
+     * @throws IOException if there's an error during parsing or conversion
      */
-
-    public static Object[] fromProto(List<FieldValue> searchAfterProto) throws IOException {
-        SearchAfterBuilder builder = new SearchAfterBuilder();
+    protected static Object[] fromProto(List<FieldValue> searchAfterProto) throws IOException {
         List<Object> values = new ArrayList<>();
 
         for (FieldValue fieldValue : searchAfterProto) {

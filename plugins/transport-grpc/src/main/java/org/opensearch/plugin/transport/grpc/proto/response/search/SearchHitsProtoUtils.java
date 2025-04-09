@@ -35,8 +35,7 @@ public class SearchHitsProtoUtils {
      * @return A Protocol Buffer HitsMetadata representation
      * @throws IOException if there's an error during conversion
      */
-
-    public static org.opensearch.protobufs.HitsMetadata toProto(SearchHits hits) throws IOException {
+    protected static org.opensearch.protobufs.HitsMetadata toProto(SearchHits hits) throws IOException {
 
         org.opensearch.protobufs.HitsMetadata.Builder hitsMetaData = org.opensearch.protobufs.HitsMetadata.newBuilder();
 

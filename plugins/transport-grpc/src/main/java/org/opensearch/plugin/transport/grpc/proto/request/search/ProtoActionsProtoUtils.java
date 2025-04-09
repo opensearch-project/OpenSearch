@@ -32,7 +32,7 @@ public class ProtoActionsProtoUtils {
      * @param request
      * @return
      */
-    public static QueryBuilder urlParamsToQueryBuilder(SearchRequest request) {
+    protected static QueryBuilder urlParamsToQueryBuilder(SearchRequest request) {
         if (!request.hasQ()) {
             return null;
         }

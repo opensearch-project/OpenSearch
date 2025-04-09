@@ -94,7 +94,7 @@ public class SearchRequestProtoUtils {
      * @param setSize consumer for setting the size parameter
      * @throws IOException if an I/O exception occurred during parsing
      */
-    public static void parseSearchRequest(
+    protected static void parseSearchRequest(
         org.opensearch.action.search.SearchRequest searchRequest,
         org.opensearch.protobufs.SearchRequest request,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -191,7 +191,7 @@ public class SearchRequestProtoUtils {
      * @param request the Protocol Buffer SearchRequest to parse
      * @param setSize consumer for setting the size parameter
      */
-    public static void parseSearchSource(
+    protected static void parseSearchSource(
         final SearchSourceBuilder searchSourceBuilder,
         org.opensearch.protobufs.SearchRequest request,
         IntConsumer setSize
@@ -315,7 +315,7 @@ public class SearchRequestProtoUtils {
      * @param protoRequest the Protocol Buffer SearchRequest
      * @param namedWriteableRegistry the registry for named writeables
      */
-    public static void preparePointInTime(
+    private static void preparePointInTime(
         org.opensearch.action.search.SearchRequest request,
         org.opensearch.protobufs.SearchRequest protoRequest,
         NamedWriteableRegistry namedWriteableRegistry
@@ -363,7 +363,7 @@ public class SearchRequestProtoUtils {
      * @param protoRequest the Protocol Buffer SearchRequest
      * @param searchRequest the SearchRequest to configure
      */
-    public static void checkProtoTotalHits(SearchRequest protoRequest, org.opensearch.action.search.SearchRequest searchRequest) {
+    protected static void checkProtoTotalHits(SearchRequest protoRequest, org.opensearch.action.search.SearchRequest searchRequest) {
 
         boolean totalHitsAsInt = protoRequest.hasRestTotalHitsAsInt() ? protoRequest.getRestTotalHitsAsInt() : false;
         if (totalHitsAsInt == false) {

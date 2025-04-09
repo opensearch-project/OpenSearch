@@ -12,8 +12,7 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.protobufs.MatchAllQuery;
 
 /**
- * Utility class for converting MatchAllQuery Protocol Buffers to objects
- *
+ * Utility class for converting MatchAllQuery Protocol Buffers to OpenSearch query objects.
  */
 public class MatchAllQueryBuilderProtoUtils {
 
@@ -22,12 +21,15 @@ public class MatchAllQueryBuilderProtoUtils {
     }
 
     /**
-     * Similar to {@link MatchAllQueryBuilder#fromXContent(XContentParser)}
+     * Converts a Protocol Buffer MatchAllQuery to an OpenSearch MatchAllQueryBuilder.
+     * Similar to {@link MatchAllQueryBuilder#fromXContent(XContentParser)}, this method
+     * parses the Protocol Buffer representation and creates a properly configured
+     * MatchAllQueryBuilder with the appropriate boost and name settings.
      *
-     * @param matchAllQueryProto
+     * @param matchAllQueryProto The Protocol Buffer MatchAllQuery to convert
+     * @return A configured MatchAllQueryBuilder instance
      */
-
-    public static MatchAllQueryBuilder fromProto(MatchAllQuery matchAllQueryProto) {
+    protected static MatchAllQueryBuilder fromProto(MatchAllQuery matchAllQueryProto) {
         MatchAllQueryBuilder matchAllQueryBuilder = new MatchAllQueryBuilder();
 
         if (matchAllQueryProto.hasBoost()) {

@@ -33,11 +33,14 @@ public class ReplicationResponseShardInfoFailureProtoUtils {
      */
     public static ShardFailure toProto(ReplicationResponse.ShardInfo.Failure exception) throws IOException {
         ShardFailure.Builder shardFailure = ShardFailure.newBuilder();
-        shardFailure.setIndex(exception.index());
+        if (exception.index() != null) {
+            shardFailure.setIndex(exception.index());
+        }
         shardFailure.setShard(exception.shardId());
-        shardFailure.setNode(exception.nodeId());
-        shardFailure.setReason(OpenSearchExceptionProtoUtils.generateThrowableProto(exception.getCause())); // TODO ErrorCause type in
-                                                                                                            // ShardFailure, not string
+        if (exception.nodeId() != null) {
+            shardFailure.setNode(exception.nodeId());
+        }
+        shardFailure.setReason(OpenSearchExceptionProtoUtils.generateThrowableProto(exception.getCause()));
         shardFailure.setStatus(exception.status().name());
         shardFailure.setPrimary(exception.primary());
         return shardFailure.build();

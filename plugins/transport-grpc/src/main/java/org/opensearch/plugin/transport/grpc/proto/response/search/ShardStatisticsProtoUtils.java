@@ -41,7 +41,7 @@ public class ShardStatisticsProtoUtils {
      * @return A Protocol Buffer ShardStatistics representation
      * @throws IOException if there's an error during conversion
      */
-    public static ShardStatistics getShardStats(
+    protected static ShardStatistics getShardStats(
         int total,
         int successful,
         int skipped,

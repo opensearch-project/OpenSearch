@@ -31,10 +31,12 @@ public class FieldSortBuilderProtoUtils {
     }
 
     /**
-     * Similar to {@link FieldSortBuilder#fromXContent(XContentParser, String)}
+     * Converts a Protocol Buffer field sort representation to OpenSearch SortBuilder objects.
+     * Similar to {@link FieldSortBuilder#fromXContent(XContentParser, String)}, this method
+     * parses field sort definitions from Protocol Buffers and adds them to the provided list.
      *
-     * @param sortBuilder
-     * @param fieldWithOrderMap
+     * @param sortBuilder The list of SortBuilder objects to add the parsed field sorts to
+     * @param fieldWithOrderMap The Protocol Buffer map containing field names and their sort orders
      */
     public static void fromProto(List<SortBuilder<?>> sortBuilder, FieldWithOrderMap fieldWithOrderMap) {
         for (Map.Entry<String, ScoreSort> entry : fieldWithOrderMap.getFieldWithOrderMapMap().entrySet()) {

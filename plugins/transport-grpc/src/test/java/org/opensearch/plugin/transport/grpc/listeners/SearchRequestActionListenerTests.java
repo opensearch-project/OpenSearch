@@ -13,8 +13,6 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.IOException;
-
 import io.grpc.stub.StreamObserver;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -38,7 +36,7 @@ public class SearchRequestActionListenerTests extends OpenSearchTestCase {
         listener = new SearchRequestActionListener(responseObserver);
     }
 
-    public void testOnResponse() throws IOException {
+    public void testOnResponse() {
 
         // Create a SearchResponse
         SearchResponse mockSearchResponse = new SearchResponse(

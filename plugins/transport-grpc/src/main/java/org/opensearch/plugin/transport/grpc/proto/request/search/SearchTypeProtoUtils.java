@@ -31,7 +31,7 @@ public class SearchTypeProtoUtils {
      * @param request the Protocol Buffer SearchRequest to convert
      * @return the corresponding SearchType
      */
-    public static SearchType fromProto(SearchRequest request) {
+    protected static SearchType fromProto(SearchRequest request) {
         if (!request.hasSearchType()) {
             return SearchType.DEFAULT;
         }

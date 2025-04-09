@@ -12,8 +12,9 @@ import org.opensearch.protobufs.Highlight;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 
 /**
- * Utility class for converting Highlight Protocol Buffers to objects
- *
+ * Utility class for converting Highlight Protocol Buffers to OpenSearch objects.
+ * This class provides methods to transform Protocol Buffer representations of highlights
+ * into their corresponding OpenSearch HighlightBuilder implementations for search result highlighting.
  */
 public class HighlightBuilderProtoUtils {
 
@@ -22,12 +23,16 @@ public class HighlightBuilderProtoUtils {
     }
 
     /**
-     * Similar to {@link HighlightBuilder#fromXContent(XContentParser)}
+     * Converts a Protocol Buffer Highlight to an OpenSearch HighlightBuilder.
+     * Similar to {@link HighlightBuilder#fromXContent(XContentParser)}, this method
+     * would parse the Protocol Buffer representation and create a properly configured
+     * HighlightBuilder with the appropriate settings.
      *
-     * @param highlightProto
+     * @param highlightProto The Protocol Buffer Highlight to convert
+     * @return A configured HighlightBuilder instance
+     * @throws UnsupportedOperationException as highlight functionality is not yet implemented
      */
-
-    public static HighlightBuilder fromProto(Highlight highlightProto) {
+    protected static HighlightBuilder fromProto(Highlight highlightProto) {
 
         throw new UnsupportedOperationException("highlight not supported yet");
 
@@ -36,7 +41,5 @@ public class HighlightBuilderProtoUtils {
         // TODO populate highlightBuilder
         return highlightBuilder;
         */
-
     }
-
 }

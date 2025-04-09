@@ -32,7 +32,7 @@ public class SearchSortValuesProtoUtils {
      * @param sortValues the array of sort values to convert
      */
 
-    public static void toProto(Hit.Builder hitBuilder, Object[] sortValues) {
+    protected static void toProto(Hit.Builder hitBuilder, Object[] sortValues) {
         for (Object sortValue : sortValues) {
             hitBuilder.addSort(FieldValueProtoUtils.toProto(sortValue));
         }

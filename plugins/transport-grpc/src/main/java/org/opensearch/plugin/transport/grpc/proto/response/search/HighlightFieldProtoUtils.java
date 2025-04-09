@@ -31,7 +31,7 @@ public class HighlightFieldProtoUtils {
      * @param fragments The list of HighlightField values to convert
      * @return A Protobuf Value representation
      */
-    public static StringArray toProto(Text[] fragments) {
+    protected static StringArray toProto(Text[] fragments) {
         StringArray.Builder stringArrayBuilder = StringArray.newBuilder();
         for (Text text : fragments) {
             stringArrayBuilder.addStringArray(text.string());

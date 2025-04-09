@@ -15,8 +15,10 @@ import org.opensearch.search.builder.PointInTimeBuilder;
 import static org.opensearch.search.builder.SearchSourceBuilder.POINT_IN_TIME;
 
 /**
- * Utility class for converting SearchSourceBuilder Protocol Buffers to objects
- *
+ * Utility class for converting PointInTimeBuilder Protocol Buffers to OpenSearch objects.
+ * This class provides methods to transform Protocol Buffer representations of point-in-time
+ * references into their corresponding OpenSearch PointInTimeBuilder implementations for
+ * search operations with consistent snapshots.
  */
 public class PointInTimeBuilderProtoUtils {
 
@@ -25,12 +27,15 @@ public class PointInTimeBuilderProtoUtils {
     }
 
     /**
-     * Similar to {@link PointInTimeBuilder#fromXContent(XContentParser)}
+     * Converts a Protocol Buffer PointInTimeReference to an OpenSearch PointInTimeBuilder.
+     * Similar to {@link PointInTimeBuilder#fromXContent(XContentParser)}, this method
+     * parses the Protocol Buffer representation and creates a properly configured
+     * PointInTimeBuilder with the appropriate ID and keep-alive settings.
      *
-     * @param pointInTime
+     * @param pointInTime The Protocol Buffer PointInTimeReference to convert
+     * @return A configured PointInTimeBuilder instance
      */
-
-    public static PointInTimeBuilder fromProto(PointInTimeReference pointInTime) {
+    protected static PointInTimeBuilder fromProto(PointInTimeReference pointInTime) {
 
         TimeValue keepAlive = TimeValue.parseTimeValue(pointInTime.getKeepAlive(), null, POINT_IN_TIME.getPreferredName());
         return new PointInTimeBuilder(pointInTime.getId()).setKeepAlive(keepAlive);

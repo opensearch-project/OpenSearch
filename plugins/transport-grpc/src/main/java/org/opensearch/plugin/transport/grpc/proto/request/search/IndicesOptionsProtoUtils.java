@@ -39,7 +39,7 @@ public class IndicesOptionsProtoUtils {
      * @param defaultSettings the default IndicesOptions to use if not specified in the request
      * @return the IndicesOptions based on the request parameters
      */
-    public static IndicesOptions fromRequest(org.opensearch.protobufs.SearchRequest request, IndicesOptions defaultSettings) {
+    protected static IndicesOptions fromRequest(org.opensearch.protobufs.SearchRequest request, IndicesOptions defaultSettings) {
         return fromProtoParameters(request, defaultSettings);
     }
 
@@ -51,7 +51,7 @@ public class IndicesOptionsProtoUtils {
      * @param defaultSettings the default IndicesOptions to use if not specified in the request
      * @return the IndicesOptions based on the request parameters
      */
-    public static IndicesOptions fromProtoParameters(SearchRequest request, IndicesOptions defaultSettings) {
+    protected static IndicesOptions fromProtoParameters(SearchRequest request, IndicesOptions defaultSettings) {
         if (!(request.getExpandWildcardsCount() > 0)
             && !request.hasIgnoreUnavailable()
             && !request.hasAllowNoIndices()
@@ -87,7 +87,7 @@ public class IndicesOptionsProtoUtils {
      * @param defaultStates the default WildcardStates to use if the list is empty
      * @return an EnumSet of WildcardStates based on the provided wildcardList
      */
-    public static EnumSet<IndicesOptions.WildcardStates> parseProtoParameter(
+    protected static EnumSet<IndicesOptions.WildcardStates> parseProtoParameter(
         List<SearchRequest.ExpandWildcard> wildcardList,
         EnumSet<IndicesOptions.WildcardStates> defaultStates
     ) {
@@ -110,7 +110,7 @@ public class IndicesOptionsProtoUtils {
      * @param states the EnumSet of WildcardStates to update
      * @param wildcard the ExpandWildcard value to use for updating the states
      */
-    public static void updateSetForValue(EnumSet<IndicesOptions.WildcardStates> states, SearchRequest.ExpandWildcard wildcard) {
+    protected static void updateSetForValue(EnumSet<IndicesOptions.WildcardStates> states, SearchRequest.ExpandWildcard wildcard) {
         switch (wildcard) {
             case EXPAND_WILDCARD_OPEN:
                 states.add(OPEN);

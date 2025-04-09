@@ -49,8 +49,7 @@ public class SearchSourceBuilderProtoUtils {
      * @param protoRequest The Protocol Buffer SearchRequest to parse
      * @throws IOException if there's an error during parsing
      */
-
-    public static void parseProto(SearchSourceBuilder searchSourceBuilder, SearchRequestBody protoRequest) throws IOException {
+    protected static void parseProto(SearchSourceBuilder searchSourceBuilder, SearchRequestBody protoRequest) throws IOException {
         // TODO what to do about parser.getDeprecationHandler() for protos?
 
         if (protoRequest.hasFrom()) {

@@ -34,8 +34,8 @@ public class FetchSourceContextProtoUtils {
      * Converts a SourceConfig Protocol Buffer to a FetchSourceContext object.
      * Similar to {@link FetchSourceContext#parseFromRestRequest(RestRequest)}
      *
-     * @param request
-     * @return
+     * @param request The BulkRequest Protocol Buffer containing source configuration
+     * @return A FetchSourceContext object based on the request parameters, or null if no source parameters are provided
      */
     public static FetchSourceContext parseFromProtoRequest(org.opensearch.protobufs.BulkRequest request) {
         Boolean fetchSource = true;
@@ -70,9 +70,11 @@ public class FetchSourceContextProtoUtils {
     }
 
     /**
+     * Converts a SourceConfig Protocol Buffer to a FetchSourceContext object.
      * Similar to {@link FetchSourceContext#parseFromRestRequest(RestRequest)}
-     * @param request
-     * @return
+     *
+     * @param request The SearchRequest Protocol Buffer containing source configuration
+     * @return A FetchSourceContext object based on the request parameters, or null if no source parameters are provided
      */
     public static FetchSourceContext parseFromProtoRequest(org.opensearch.protobufs.SearchRequest request) {
         Boolean fetchSource = null;

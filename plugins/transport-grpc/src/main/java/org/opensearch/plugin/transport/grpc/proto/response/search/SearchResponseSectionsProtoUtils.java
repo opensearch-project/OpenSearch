@@ -34,7 +34,7 @@ public class SearchResponseSectionsProtoUtils {
      * @return The populated Protocol Buffer SearchResponse builder
      * @throws IOException if there's an error during conversion
      */
-    public static org.opensearch.protobufs.ResponseBody.Builder toProto(
+    protected static org.opensearch.protobufs.ResponseBody.Builder toProto(
         org.opensearch.protobufs.ResponseBody.Builder builder,
         SearchResponse response
     ) throws IOException {

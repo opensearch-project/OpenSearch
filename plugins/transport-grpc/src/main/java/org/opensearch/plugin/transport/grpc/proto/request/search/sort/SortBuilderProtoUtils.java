@@ -18,8 +18,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Utility class for converting SearchSourceBuilder Protocol Buffers to objects
- *
+ * Utility class for converting SortBuilder Protocol Buffers to OpenSearch objects.
+ * This class provides methods to transform Protocol Buffer representations of sort
+ * specifications into their corresponding OpenSearch SortBuilder implementations for
+ * search result sorting.
  */
 public class SortBuilderProtoUtils {
 
@@ -28,8 +30,15 @@ public class SortBuilderProtoUtils {
     }
 
     /**
-     * Similar to {@link SortBuilder#fromXContent(XContentParser)}
-     * @param sortProto
+     * Converts a list of Protocol Buffer SortCombinations to a list of OpenSearch SortBuilder objects.
+     * Similar to {@link SortBuilder#fromXContent(XContentParser)}, this method
+     * parses the Protocol Buffer representation and creates properly configured
+     * SortBuilder instances with the appropriate settings.
+     *
+     * @param sortProto The list of Protocol Buffer SortCombinations to convert
+     * @return A list of configured SortBuilder instances
+     * @throws IllegalArgumentException if invalid sort combinations are provided
+     * @throws UnsupportedOperationException if sort options are not yet supported
      */
     public static List<SortBuilder<?>> fromProto(List<SortCombinations> sortProto) {
         List<SortBuilder<?>> sortFields = new ArrayList<>(2);
@@ -86,9 +95,13 @@ public class SortBuilderProtoUtils {
     }
 
     /**
-     * Similar to {@link SortBuilder#fieldOrScoreSort(String)}
-     * @param fieldName
-     * @return
+     * Creates either a ScoreSortBuilder or FieldSortBuilder based on the field name.
+     * Similar to {@link SortBuilder#fieldOrScoreSort(String)}, this method returns
+     * a ScoreSortBuilder if the field name is "score", otherwise it returns a
+     * FieldSortBuilder with the specified field name.
+     *
+     * @param fieldName The name of the field to sort by, or "score" for score-based sorting
+     * @return A SortBuilder instance (either ScoreSortBuilder or FieldSortBuilder)
      */
     public static SortBuilder<?> fieldOrScoreSort(String fieldName) {
         if (fieldName.equals("score")) {

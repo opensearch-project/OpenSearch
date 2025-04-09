@@ -8,8 +8,6 @@
 
 package org.opensearch.plugin.transport.grpc.proto.request.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.index.query.Operator;
 
 /**
@@ -18,11 +16,6 @@ import org.opensearch.index.query.Operator;
  * in search operations.
  */
 public class OperatorProtoUtils {
-    /**
-     * Logger for the OperatorProtoUtils class.
-     */
-    protected static Logger logger = LogManager.getLogger(OperatorProtoUtils.class);
-
     private OperatorProtoUtils() {
         // Utility class, no instances
     }
@@ -33,8 +26,7 @@ public class OperatorProtoUtils {
      * @param op
      * @return
      */
-
-    public static Operator fromEnum(org.opensearch.protobufs.SearchRequest.Operator op) {
+    protected static Operator fromEnum(org.opensearch.protobufs.SearchRequest.Operator op) {
         switch (op) {
             case OPERATOR_AND:
                 return Operator.AND;

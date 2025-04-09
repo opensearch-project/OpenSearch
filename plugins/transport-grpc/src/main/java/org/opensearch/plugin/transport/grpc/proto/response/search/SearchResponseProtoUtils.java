@@ -89,7 +89,7 @@ public class SearchResponseProtoUtils {
      * This class handles the transformation of phase timing information to ensure proper reporting
      * of search phase execution times.
      */
-    public static class PhaseTookProtoUtils {
+    protected static class PhaseTookProtoUtils {
         /**
          * Private constructor to prevent instantiation.
          * This is a utility class with only static methods.
@@ -104,7 +104,7 @@ public class SearchResponseProtoUtils {
          * @param phaseTook
          * @return
          */
-        public static org.opensearch.protobufs.PhaseTook toProto(SearchResponse.PhaseTook phaseTook) {
+        protected static org.opensearch.protobufs.PhaseTook toProto(SearchResponse.PhaseTook phaseTook) {
 
             org.opensearch.protobufs.PhaseTook.Builder phaseTookProtoBuilder = org.opensearch.protobufs.PhaseTook.newBuilder();
 
@@ -153,7 +153,7 @@ public class SearchResponseProtoUtils {
      * This class handles the transformation of cluster statistics information to ensure proper reporting
      * of cross-cluster search results.
      */
-    public static class ClustersProtoUtils {
+    protected static class ClustersProtoUtils {
         /**
          * Private constructor to prevent instantiation.
          * This is a utility class with only static methods.
@@ -169,7 +169,7 @@ public class SearchResponseProtoUtils {
          * @param clusters
          * @throws IOException
          */
-        public static void toProto(org.opensearch.protobufs.ResponseBody.Builder protoResponseBuilder, SearchResponse.Clusters clusters)
+        protected static void toProto(org.opensearch.protobufs.ResponseBody.Builder protoResponseBuilder, SearchResponse.Clusters clusters)
             throws IOException {
 
             if (clusters.getTotal() > 0) {

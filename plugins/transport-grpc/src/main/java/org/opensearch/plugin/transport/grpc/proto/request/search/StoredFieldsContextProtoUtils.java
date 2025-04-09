@@ -32,7 +32,7 @@ public class StoredFieldsContextProtoUtils {
      * @return a StoredFieldsContext
      * @throws IOException if an I/O exception occurred
      */
-    public static StoredFieldsContext fromProto(List<String> storedFields) throws IOException {
+    protected static StoredFieldsContext fromProto(List<String> storedFields) throws IOException {
         if (storedFields == null || storedFields.isEmpty()) {
             return null;
         }
@@ -46,7 +46,7 @@ public class StoredFieldsContextProtoUtils {
      * @param request the Protocol Buffer SearchRequest
      * @return a StoredFieldsContext
      */
-    public static StoredFieldsContext fromProtoRequest(org.opensearch.protobufs.SearchRequest request) {
+    protected static StoredFieldsContext fromProtoRequest(org.opensearch.protobufs.SearchRequest request) {
         if (request.getStoredFieldsCount() > 0) {
             return StoredFieldsContext.fromList(request.getStoredFieldsList());
         }

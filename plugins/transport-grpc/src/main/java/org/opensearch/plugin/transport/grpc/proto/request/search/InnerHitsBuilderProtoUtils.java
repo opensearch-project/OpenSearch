@@ -39,8 +39,7 @@ public class InnerHitsBuilderProtoUtils {
      * @param innerHits
      * @throws IOException if there's an error during parsing
      */
-
-    public static InnerHitBuilder fromProto(List<InnerHits> innerHits) throws IOException {
+    protected static InnerHitBuilder fromProto(List<InnerHits> innerHits) throws IOException {
         InnerHitBuilder innerHitBuilder = new InnerHitBuilder();
 
         for (InnerHits innerHit : innerHits) {

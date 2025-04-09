@@ -34,5 +34,4 @@ public class SuggestBuilderProtoUtils {
 
         return suggestBuilder;
     }
-
 }

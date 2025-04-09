@@ -53,7 +53,7 @@ public class ScriptProtoUtils {
      * @param defaultLang the default script language to use if not specified
      * @return the converted Script object
      */
-    public static Script parseFromProtoRequest(org.opensearch.protobufs.Script script, String defaultLang) {
+    private static Script parseFromProtoRequest(org.opensearch.protobufs.Script script, String defaultLang) {
         Objects.requireNonNull(defaultLang);
 
         if (script.hasInlineScript()) {

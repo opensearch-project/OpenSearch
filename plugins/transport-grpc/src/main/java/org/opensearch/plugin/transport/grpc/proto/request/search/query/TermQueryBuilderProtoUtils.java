@@ -17,8 +17,9 @@ import org.opensearch.protobufs.TermQuery;
 import java.util.Map;
 
 /**
- * Utility class for converting MatchAllQuery Protocol Buffers to objects
- *
+ * Utility class for converting TermQuery Protocol Buffers to OpenSearch objects.
+ * This class provides methods to transform Protocol Buffer representations of term queries
+ * into their corresponding OpenSearch TermQueryBuilder implementations for search operations.
  */
 public class TermQueryBuilderProtoUtils {
 
@@ -27,12 +28,18 @@ public class TermQueryBuilderProtoUtils {
     }
 
     /**
-     * Similar to {@link TermQueryBuilder#fromXContent(XContentParser)}
+     * Converts a Protocol Buffer TermQuery map to an OpenSearch TermQueryBuilder.
+     * Similar to {@link TermQueryBuilder#fromXContent(XContentParser)}, this method
+     * parses the Protocol Buffer representation and creates a properly configured
+     * TermQueryBuilder with the appropriate field name, value, boost, query name,
+     * and case sensitivity settings.
      *
-     * @param termQueryProto
+     * @param termQueryProto The map of field names to Protocol Buffer TermQuery objects
+     * @return A configured TermQueryBuilder instance
+     * @throws IllegalArgumentException if the term query map has more than one element,
+     *         if the field value type is not supported, or if the term query field value is not recognized
      */
-
-    public static TermQueryBuilder fromProto(Map<String, TermQuery> termQueryProto) {
+    protected static TermQueryBuilder fromProto(Map<String, TermQuery> termQueryProto) {
         String queryName = null;
         String fieldName = null;
         Object value = null;

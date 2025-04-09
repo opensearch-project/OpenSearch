@@ -12,8 +12,9 @@ import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.protobufs.MatchNoneQuery;
 
 /**
- * Utility class for converting MatchAllQuery Protocol Buffers to objects
- *
+ * Utility class for converting MatchNoneQuery Protocol Buffers to OpenSearch objects.
+ * This class provides methods to transform Protocol Buffer representations of match_none queries
+ * into their corresponding OpenSearch MatchNoneQueryBuilder implementations for search operations.
  */
 public class MatchNoneQueryBuilderProtoUtils {
 
@@ -22,12 +23,15 @@ public class MatchNoneQueryBuilderProtoUtils {
     }
 
     /**
-     * Similar to {@link MatchNoneQueryBuilder#fromXContent(XContentParser)}
+     * Converts a Protocol Buffer MatchNoneQuery to an OpenSearch MatchNoneQueryBuilder.
+     * Similar to {@link MatchNoneQueryBuilder#fromXContent(XContentParser)}, this method
+     * parses the Protocol Buffer representation and creates a properly configured
+     * MatchNoneQueryBuilder with the appropriate boost and name settings.
      *
-     * @param matchNoneQueryProto
+     * @param matchNoneQueryProto The Protocol Buffer MatchNoneQuery to convert
+     * @return A configured MatchNoneQueryBuilder instance
      */
-
-    public static MatchNoneQueryBuilder fromProto(MatchNoneQuery matchNoneQueryProto) {
+    protected static MatchNoneQueryBuilder fromProto(MatchNoneQuery matchNoneQueryProto) {
         MatchNoneQueryBuilder matchNoneQueryBuilder = new MatchNoneQueryBuilder();
 
         if (matchNoneQueryProto.hasBoost()) {

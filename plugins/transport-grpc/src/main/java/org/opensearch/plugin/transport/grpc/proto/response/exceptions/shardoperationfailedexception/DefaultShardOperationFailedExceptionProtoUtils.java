@@ -107,7 +107,9 @@ public class DefaultShardOperationFailedExceptionProtoUtils {
     public static void parentInnerToProto(ShardFailure.Builder shardFailureBuilder, DefaultShardOperationFailedException exception)
         throws IOException {
         shardFailureBuilder.setShard(exception.shardId());
-        shardFailureBuilder.setIndex(exception.index());
+        if (exception.index() != null) {
+            shardFailureBuilder.setIndex(exception.index());
+        }
         shardFailureBuilder.setStatus(exception.status().name());
         if (exception.reason() != null) {
             shardFailureBuilder.setReason(OpenSearchExceptionProtoUtils.generateThrowableProto(exception.getCause()));
