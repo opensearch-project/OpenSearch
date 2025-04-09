@@ -15,10 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
@@ -28,9 +25,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -38,17 +35,15 @@ import org.opensearch.index.codec.composite.composite101.Composite101Codec;
 import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
-import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
-import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
-import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorTestCase;
-import org.opensearch.search.aggregations.bucket.terms.InternalTerms;
-import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.range.InternalRange;
+import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.junit.After;
 import org.junit.Before;
@@ -59,39 +54,35 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Random;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.min;
+import static org.opensearch.search.aggregations.AggregationBuilders.range;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
-import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
-public class KeywordTermsAggregatorTests extends AggregatorTestCase {
-    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
+public class RangeAggregatorTests extends AggregatorTestCase {
     final static String STATUS = "status";
     final static String SIZE = "size";
-    final static String CLIENTIP = "clientip";
     private static final MappedFieldType STATUS_FIELD_TYPE = new NumberFieldMapper.NumberFieldType(
         STATUS,
         NumberFieldMapper.NumberType.LONG
     );
     private static final MappedFieldType SIZE_FIELD_NAME = new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.FLOAT);
-    private static final MappedFieldType CLIENTIP_FIELD_NAME = new KeywordFieldMapper.KeywordFieldType(CLIENTIP);
 
     @Before
     public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
     }
 
     @After
     public void teardown() throws IOException {
-        fflock.close();
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
     protected Codec getCodec() {
-        final Logger testLogger = LogManager.getLogger(KeywordTermsAggregatorTests.class);
+        final Logger testLogger = LogManager.getLogger(NumericTermsAggregatorTests.class);
         MapperService mapperService;
         try {
             mapperService = StarTreeDocValuesFormatTests.createMapperService(NumericTermsAggregatorTests.getExpandedMapping(1, false));
@@ -101,7 +92,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
-    public void testStarTreeKeywordTerms() throws IOException {
+    public void testRangeAggregation() throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
         conf.setCodec(getCodec());
@@ -110,25 +101,19 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
 
         Random random = RandomizedTest.getRandom();
         int totalDocs = 100;
-
+        List<Document> docs = new ArrayList<>();
         long val;
 
-        List<Document> docs = new ArrayList<>();
         // Index 100 random documents
         for (int i = 0; i < totalDocs; i++) {
             Document doc = new Document();
             if (random.nextBoolean()) {
-                val = random.nextInt(10); // Random int between 0 and 9 for status
+                val = random.nextInt(100); // Random int between 0 and 99 for status
                 doc.add(new SortedNumericDocValuesField(STATUS, val));
             }
             if (random.nextBoolean()) {
                 val = NumericUtils.doubleToSortableLong(random.nextInt(100) + 0.5f);
                 doc.add(new SortedNumericDocValuesField(SIZE, val));
-            }
-            if (random.nextBoolean()) {
-                val = random.nextInt(10); // Random strings for int between 0 and 9 for clientip
-                doc.add(new SortedSetDocValuesField(CLIENTIP, new BytesRef(String.valueOf(val))));
-                doc.add(new StringField(CLIENTIP, String.valueOf(val), Field.Store.NO));
             }
             iw.addDocument(doc);
             docs.add(doc);
@@ -138,11 +123,12 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
             iw.forceMerge(1);
         }
         iw.close();
+
         DirectoryReader ir = DirectoryReader.open(directory);
         LeafReaderContext context = ir.leaves().get(0);
 
         SegmentReader reader = Lucene.segmentReader(context.reader());
-        IndexSearcher indexSearcher = newSearcher(wrapInMockESDirectoryReader(ir), false, false);
+        IndexSearcher indexSearcher = newSearcher(reader, false, false);
         CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
 
         List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
@@ -151,13 +137,12 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = new LinkedHashMap<>();
         supportedDimensions.put(new NumericDimension(STATUS), STATUS_FIELD_TYPE);
         supportedDimensions.put(new NumericDimension(SIZE), SIZE_FIELD_NAME);
-        supportedDimensions.put(new OrdinalDimension(CLIENTIP), CLIENTIP_FIELD_NAME);
 
         Query query = new MatchAllDocsQuery();
         QueryBuilder queryBuilder = null;
-        TermsAggregationBuilder termsAggregationBuilder = terms("terms_agg").field(CLIENTIP)
-            .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
-        testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
+        RangeAggregationBuilder rangeAggregationBuilder = range("range_agg").field(STATUS).addRange(10, 30).addRange(30, 50);
+        // no sub-aggregation
+        testCase(indexSearcher, query, queryBuilder, rangeAggregationBuilder, starTree, supportedDimensions);
 
         ValuesSourceAggregationBuilder[] aggBuilders = {
             sum("_sum").field(SIZE),
@@ -169,30 +154,27 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         for (ValuesSourceAggregationBuilder aggregationBuilder : aggBuilders) {
             query = new MatchAllDocsQuery();
             queryBuilder = null;
+            rangeAggregationBuilder = range("range_agg").field(STATUS).addRange(10, 30).addRange(30, 50).subAggregation(aggregationBuilder);
+            // sub-aggregation, no top level query
+            testCase(indexSearcher, query, queryBuilder, rangeAggregationBuilder, starTree, supportedDimensions);
 
-            termsAggregationBuilder = terms("terms_agg").field(CLIENTIP)
-                .subAggregation(aggregationBuilder)
-                .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
-            testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
-
-            // Numeric-terms query with keyword terms aggregation
+            // Numeric-terms query with range aggregation
             for (int cases = 0; cases < 100; cases++) {
-                // query of status field
-                String queryField = STATUS;
-                long queryValue = random.nextInt(10);
+                // term query of status field
+                String queryField = SIZE;
+                long queryValue = NumericUtils.floatToSortableInt(random.nextInt(50) + 0.5f);
                 query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
                 queryBuilder = new TermQueryBuilder(queryField, queryValue);
-                testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
+                testCase(indexSearcher, query, queryBuilder, rangeAggregationBuilder, starTree, supportedDimensions);
 
-                // query on size field
-                queryField = SIZE;
-                queryValue = NumericUtils.floatToSortableInt(random.nextInt(20) - 14.5f);
-                query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
-                queryBuilder = new TermQueryBuilder(queryField, queryValue);
-                testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
+                // range query on same field as aggregation field
+                query = SortedNumericDocValuesField.newSlowRangeQuery(STATUS, 15, 35);
+                queryBuilder = new RangeQueryBuilder(STATUS).from(15).to(35);
+                testCase(indexSearcher, query, queryBuilder, rangeAggregationBuilder, starTree, supportedDimensions);
             }
         }
-        ir.close();
+
+        reader.close();
         directory.close();
     }
 
@@ -200,16 +182,16 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher,
         Query query,
         QueryBuilder queryBuilder,
-        TermsAggregationBuilder termsAggregationBuilder,
+        RangeAggregationBuilder rangeAggregationBuilder,
         CompositeIndexFieldInfo starTree,
         LinkedHashMap<Dimension, MappedFieldType> supportedDimensions
     ) throws IOException {
-        InternalTerms starTreeAggregation = searchAndReduceStarTree(
+        InternalRange starTreeAggregation = searchAndReduceStarTree(
             createIndexSettings(),
             indexSearcher,
             query,
             queryBuilder,
-            termsAggregationBuilder,
+            rangeAggregationBuilder,
             starTree,
             supportedDimensions,
             null,
@@ -218,16 +200,15 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
             null,
             true,
             STATUS_FIELD_TYPE,
-            SIZE_FIELD_NAME,
-            CLIENTIP_FIELD_NAME
+            SIZE_FIELD_NAME
         );
 
-        InternalTerms defaultAggregation = searchAndReduceStarTree(
+        InternalRange defaultAggregation = searchAndReduceStarTree(
             createIndexSettings(),
             indexSearcher,
             query,
             queryBuilder,
-            termsAggregationBuilder,
+            rangeAggregationBuilder,
             null,
             null,
             null,
@@ -236,8 +217,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
             null,
             false,
             STATUS_FIELD_TYPE,
-            SIZE_FIELD_NAME,
-            CLIENTIP_FIELD_NAME
+            SIZE_FIELD_NAME
         );
 
         assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());

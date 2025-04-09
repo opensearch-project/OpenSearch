@@ -30,6 +30,7 @@ public class AgentPolicy {
     private static final Logger LOGGER = Logger.getLogger(AgentPolicy.class.getName());
     private static volatile Policy policy;
     private static volatile Set<String> trustedHosts;
+    private static volatile Set<String> trustedFileSystems;
     private static volatile BiFunction<Class<?>, Collection<Class<?>>, Boolean> classesThatCanExit;
 
     /**
@@ -124,23 +125,26 @@ public class AgentPolicy {
      * @param policy policy
      */
     public static void setPolicy(Policy policy) {
-        setPolicy(policy, Set.of(), new NoneCanExit());
+        setPolicy(policy, Set.of(), Set.of(), new NoneCanExit());
     }
 
     /**
      * Set Agent policy
      * @param policy policy
      * @param trustedHosts trusted hosts
+     * @param trustedFileSystems trusted file systems
      * @param classesThatCanExit classed that are allowed to call {@link System#exit}, {@link Runtime#halt}
      */
     public static void setPolicy(
         Policy policy,
         final Set<String> trustedHosts,
+        final Set<String> trustedFileSystems,
         final BiFunction<Class<?>, Collection<Class<?>>, Boolean> classesThatCanExit
     ) {
         if (AgentPolicy.policy == null) {
             AgentPolicy.policy = policy;
             AgentPolicy.trustedHosts = Collections.unmodifiableSet(trustedHosts);
+            AgentPolicy.trustedFileSystems = Collections.unmodifiableSet(trustedFileSystems);
             AgentPolicy.classesThatCanExit = classesThatCanExit;
             LOGGER.info("Policy attached successfully: " + policy);
         } else {
@@ -180,6 +184,15 @@ public class AgentPolicy {
      */
     public static boolean isTrustedHost(String hostname) {
         return AgentPolicy.trustedHosts.contains(hostname);
+    }
+
+    /**
+     * Check if file system is trusted
+     * @param fileSystem file system
+     * @return is trusted or not
+     */
+    public static boolean isTrustedFileSystem(String fileSystem) {
+        return AgentPolicy.trustedFileSystems.contains(fileSystem);
     }
 
     /**
