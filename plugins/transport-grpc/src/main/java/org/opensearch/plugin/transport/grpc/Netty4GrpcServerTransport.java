@@ -32,9 +32,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import io.grpc.BindableService;
-import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.netty.shaded.io.netty.channel.EventLoopGroup;
@@ -115,14 +115,29 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         Setting.Property.NodeScope
     );
 
-    private final Settings settings;
+    /**
+     * Port range on which servers bind.
+     */
+    protected PortsRange port;
+
+    /**
+     * Port settings are set using the transport type, in this case GRPC_TRANSPORT_SETTING_KEY.
+     * Child classes have distinct transport type keys and need to override these settings.
+     */
+    protected String portSettingKey;
+
+    /**
+     * Settings.
+     */
+    protected final Settings settings;
+
     private final NetworkService networkService;
     private final List<BindableService> services;
-    private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
     private final String[] bindHosts;
     private final String[] publishHosts;
-    private final PortsRange port;
     private final int nettyEventLoopThreads;
+    private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
+    private final List<UnaryOperator<NettyServerBuilder>> serverBuilderConfigs = new ArrayList<>();
 
     private volatile BoundTransportAddress boundAddress;
     private volatile EventLoopGroup eventLoopGroup;
@@ -150,10 +165,21 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
 
         this.port = SETTING_GRPC_PORT.get(settings);
         this.nettyEventLoopThreads = SETTING_GRPC_WORKER_COUNT.get(settings);
+        this.portSettingKey = SETTING_GRPC_PORT.getKey();
     }
 
-    BoundTransportAddress boundAddress() {
+    // public for tests
+    @Override
+    public BoundTransportAddress getBoundAddress() {
         return this.boundAddress;
+    }
+
+    /**
+     * Inject a NettyServerBuilder configuration to be applied at server bind and start.
+     * @param configModifier builder configuration to set.
+     */
+    protected void addServerConfig(UnaryOperator<NettyServerBuilder> configModifier) {
+        serverBuilderConfigs.add(configModifier);
     }
 
     /**
@@ -210,7 +236,7 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
      */
     @Override
     protected void doClose() {
-
+        eventLoopGroup.close();
     }
 
     private void bindServer() {
@@ -242,7 +268,7 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
                     + publishInetAddress
                     + "). "
                     + "Please specify a unique port by setting "
-                    + SETTING_GRPC_PORT.getKey()
+                    + portSettingKey
                     + " or "
                     + SETTING_GRPC_PUBLISH_PORT.getKey()
             );
@@ -261,12 +287,17 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
             try {
 
                 final InetSocketAddress address = new InetSocketAddress(hostAddress, portNumber);
-                final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(address, InsecureServerCredentials.create())
+                final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(address)
+                    .directExecutor()
                     .bossEventLoopGroup(eventLoopGroup)
                     .workerEventLoopGroup(eventLoopGroup)
                     .channelType(NioServerSocketChannel.class)
                     .addService(new HealthStatusManager().getHealthService())
                     .addService(ProtoReflectionService.newInstance());
+
+                for (UnaryOperator<NettyServerBuilder> op : serverBuilderConfigs) {
+                    op.apply(serverBuilder);
+                }
 
                 services.forEach(serverBuilder::addService);
 
