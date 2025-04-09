@@ -12,17 +12,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.search.SearchRequestBuilder;
-import org.opensearch.action.search.SearchResponse;
-import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.FeatureType;
 import org.opensearch.autotagging.Rule;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.rule.RuleEntityParser;
+import org.opensearch.rule.RuleQueryBuilder;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
-import org.opensearch.rule.utils.IndexStoredRuleParser;
-import org.opensearch.rule.utils.IndexStoredRuleUtils;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
@@ -30,7 +29,6 @@ import org.opensearch.transport.client.Client;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.autotagging.Rule._ID_STRING;
@@ -47,6 +45,8 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final Client client;
     private final FeatureType featureType;
     private final int maxRulesPerPage;
+    private final RuleEntityParser parser;
+    private final RuleQueryBuilder<QueryBuilder> queryBuilder;
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
 
     /**
@@ -56,12 +56,23 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param client - The OpenSearch client used to interact with the OpenSearch cluster.
      * @param featureType - The feature type associated with the stored rules.
      * @param maxRulesPerPage - The maximum number of rules that can be returned in a single get request.
+     * @param parser
+     * @param queryBuilder
      */
-    public IndexStoredRulePersistenceService(String indexName, Client client, FeatureType featureType, int maxRulesPerPage) {
+    public IndexStoredRulePersistenceService(
+        String indexName,
+        Client client,
+        FeatureType featureType,
+        int maxRulesPerPage,
+        RuleEntityParser parser,
+        RuleQueryBuilder<QueryBuilder> queryBuilder
+    ) {
         this.indexName = indexName;
         this.client = client;
         this.featureType = featureType;
         this.maxRulesPerPage = maxRulesPerPage;
+        this.parser = parser;
+        this.queryBuilder = queryBuilder;
     }
 
     /**
@@ -70,65 +81,59 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param listener the listener for GetRuleResponse.
      */
     public void getRule(GetRuleRequest getRuleRequest, ActionListener<GetRuleResponse> listener) {
-        getRuleFromIndex(getRuleRequest.getId(), getRuleRequest.getAttributeFilters(), getRuleRequest.getSearchAfter(), listener);
+        final QueryBuilder getQueryBuilder = queryBuilder.buildQuery(getRuleRequest)
+            .filter(QueryBuilders.existsQuery(featureType.getName()));
+        getRuleFromIndex(getRuleRequest.getId(), getQueryBuilder, getRuleRequest.getSearchAfter(), listener);
     }
 
     /**
      * Get rules from index. If id is provided, we only get a single rule.
      * Otherwise, we get all rules that satisfy the attributeFilters.
-     * @param id - The id of the rule to get.
-     * @param attributeFilters - A map containing the attributes that user want to filter on
+     * @param queryBuilder query object
      * @param searchAfter - The sort values from the last document of the previous page, used for pagination
      * @param listener - ActionListener for GetRuleResponse
      */
-    private void getRuleFromIndex(
-        String id,
-        Map<Attribute, Set<String>> attributeFilters,
-        String searchAfter,
-        ActionListener<GetRuleResponse> listener
-    ) {
+    private void getRuleFromIndex(String id, QueryBuilder queryBuilder, String searchAfter, ActionListener<GetRuleResponse> listener) {
         // Stash the current thread context when interacting with system index to perform
         // operations as the system itself, bypassing authorization checks. This ensures that
         // actions within this block are trusted and executed with system-level privileges.
         try (ThreadContext.StoredContext context = getContext()) {
-            BoolQueryBuilder boolQuery = IndexStoredRuleUtils.buildGetRuleQuery(id, attributeFilters, featureType);
-            SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(boolQuery).setSize(maxRulesPerPage);
+            SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(queryBuilder).setSize(maxRulesPerPage);
             if (searchAfter != null) {
                 searchRequest.addSort(_ID_STRING, SortOrder.ASC).searchAfter(new Object[] { searchAfter });
             }
-            searchRequest.execute(ActionListener.wrap(searchResponse -> handleGetRuleResponse(id, searchResponse, listener), e -> {
+            searchRequest.execute(ActionListener.wrap(searchResponse -> {
+                List<SearchHit> hits = Arrays.asList(searchResponse.getHits().getHits());
+                if (hasNoResults(id, listener, hits)) return;
+                handleGetRuleResponse(hits, listener);
+            }, e -> {
                 logger.error("Failed to fetch all rules: {}", e.getMessage());
                 listener.onFailure(e);
             }));
         }
     }
 
-    /**
-     * Process searchResponse from index and send a GetRuleResponse
-     * @param searchResponse - Response received from index
-     * @param listener - ActionListener for GetRuleResponse
-     */
-    private void handleGetRuleResponse(String id, SearchResponse searchResponse, ActionListener<GetRuleResponse> listener) {
-        List<SearchHit> hits = Arrays.asList(searchResponse.getHits().getHits());
+    private static boolean hasNoResults(String id, ActionListener<GetRuleResponse> listener, List<SearchHit> hits) {
         if (id != null && hits.isEmpty()) {
             logger.error("Rule with ID " + id + " not found.");
             listener.onFailure(new ResourceNotFoundException("Rule with ID " + id + " not found."));
-            return;
+            return true;
         }
-        Map<String, Rule> ruleMap = hits.stream()
-            .collect(Collectors.toMap(SearchHit::getId, hit -> IndexStoredRuleParser.parseRule(hit.getSourceAsString(), featureType)));
+        return false;
+    }
+
+    /**
+     * Process searchResponse from index and send a GetRuleResponse
+     * @param hits - Response received from index
+     * @param listener - ActionListener for GetRuleResponse
+     */
+    void handleGetRuleResponse(List<SearchHit> hits, ActionListener<GetRuleResponse> listener) {
+        Map<String, Rule> ruleMap = hits.stream().collect(Collectors.toMap(SearchHit::getId, hit -> parser.parse(hit.getSourceAsString())));
         String nextSearchAfter = hits.isEmpty() ? null : hits.get(hits.size() - 1).getId();
         listener.onResponse(new GetRuleResponse(ruleMap, nextSearchAfter));
     }
 
     private ThreadContext.StoredContext getContext() {
         return client.threadPool().getThreadContext().stashContext();
-    }
-
-    /**
-     * client getter
-     */
-    public Client getClient() {
-        return client;
     }
 }
