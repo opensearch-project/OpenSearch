@@ -1095,8 +1095,8 @@ public final class IndexSettings {
             tieredMergePolicyProvider::setFloorSegmentSetting
         );
         scopedSettings.addSettingsUpdateConsumer(
-            TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
-            this::updateMaxMergesAtOnce
+            this::updateMaxMergesAtOnce,
+            List.of(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING)
         );
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
@@ -1266,11 +1266,13 @@ public final class IndexSettings {
      * Updates the maxMergesAtOnce for actual TieredMergePolicy used by the engine.
      * Sets it to default maxMergesAtOnce if index level settings is being removed
      */
-    void updateMaxMergesAtOnce(int newMaxMergesAtOnce) {
-        if (TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.exists(getSettings()) == false) {
-            tieredMergePolicyProvider.setMaxMergesAtOnce(newMaxMergesAtOnce);
-        } else {
+    void updateMaxMergesAtOnce(Settings updatedSettings) {
+        if (TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.exists(updatedSettings) == false) {
             tieredMergePolicyProvider.setMaxMergesAtOnceToDefault();
+        } else {
+            tieredMergePolicyProvider.setMaxMergesAtOnce(
+                TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.get(updatedSettings)
+            );
         }
     }
 

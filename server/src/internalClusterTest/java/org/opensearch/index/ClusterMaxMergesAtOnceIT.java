@@ -120,7 +120,7 @@ public class ClusterMaxMergesAtOnceIT extends AbstractSnapshotIntegTestCase {
         assertEquals(15, ((OpenSearchTieredMergePolicy) thirdIndexService.getIndexSettings().getMergePolicy(true)).getMaxMergeAtOnce());
 
         // removing index level override should pick up the cluster level default
-        final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(indexName);
+        UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(indexName);
         builder.setSettings(
             Settings.builder().putNull(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey()).build()
         );
@@ -130,5 +130,15 @@ public class ClusterMaxMergesAtOnceIT extends AbstractSnapshotIntegTestCase {
         assertEquals(35, ((OpenSearchTieredMergePolicy) secondIndexService.getIndexSettings().getMergePolicy(true)).getMaxMergeAtOnce());
         assertEquals(35, ((OpenSearchTieredMergePolicy) thirdIndexService.getIndexSettings().getMergePolicy(true)).getMaxMergeAtOnce());
 
+        // update index level setting to override cluster level default
+        builder = client().admin().indices().prepareUpdateSettings(indexName);
+        builder.setSettings(
+            Settings.builder().put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), 17).build()
+        );
+        builder.execute().actionGet();
+
+        assertEquals(35, ((OpenSearchTieredMergePolicy) indexService.getIndexSettings().getMergePolicy(true)).getMaxMergeAtOnce());
+        assertEquals(35, ((OpenSearchTieredMergePolicy) secondIndexService.getIndexSettings().getMergePolicy(true)).getMaxMergeAtOnce());
+        assertEquals(17, ((OpenSearchTieredMergePolicy) thirdIndexService.getIndexSettings().getMergePolicy(true)).getMaxMergeAtOnce());
     }
 }
