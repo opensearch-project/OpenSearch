@@ -103,7 +103,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
             Settings.builder()
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
-                .put("number_of_search_only_replicas", 1)
+                .put("number_of_search_replicas", 1)
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build()
         );

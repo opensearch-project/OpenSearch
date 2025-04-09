@@ -44,7 +44,7 @@ opensearchplugin {
 }
 
 dependencies {
-  api 'com.azure:azure-core:1.54.1'
+  api 'com.azure:azure-core:1.55.3'
   api 'com.azure:azure-json:1.3.0'
   api 'com.azure:azure-xml:1.1.0'
   api 'com.azure:azure-storage-common:12.28.0'
@@ -261,6 +261,23 @@ thirdPartyAudit {
     'org.opensaml.xmlsec.signature.support.SignatureValidator',
     'org.opensaml.xmlsec.signature.support.Signer',
     // End of the list of classes from the optional compile/provided dependencies used in "com.nimbusds:oauth2-oidc-sdk".
+
+    // from reactor_netty
+    'io.netty.incubator.codec.http3.Http3',
+    'io.netty.incubator.codec.http3.Http3ClientConnectionHandler',
+    'io.netty.incubator.codec.http3.Http3DataFrame',
+    'io.netty.incubator.codec.http3.Http3Headers',
+    'io.netty.incubator.codec.http3.Http3HeadersFrame',
+    'io.netty.incubator.codec.quic.QuicChannel',
+    'io.netty.incubator.codec.quic.QuicChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicClientCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicServerCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicSslContext',
+    'io.netty.incubator.codec.quic.QuicSslContextBuilder',
+    'io.netty.incubator.codec.quic.QuicSslEngine',
+    'io.netty.incubator.codec.quic.QuicStreamChannel',
+    'io.netty.incubator.codec.quic.QuicStreamChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicTokenHandler',
   )
 
   ignoreViolations(

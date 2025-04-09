@@ -14,25 +14,19 @@ import org.opensearch.arrow.flight.bootstrap.FlightClientManager;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
 import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.junit.BeforeClass;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
+
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 5)
 public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
 
     private FlightClientManager flightClientManager;
-
-    @BeforeClass
-    public static void setupFeatureFlags() {
-        FeatureFlagSetter.set(FeatureFlags.ARROW_STREAMS_SETTING.getKey());
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -48,6 +42,7 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
         flightClientManager = flightService.getFlightClientManager();
     }
 
+    @LockFeatureFlag(ARROW_STREAMS)
     public void testArrowFlightEndpoint() throws Exception {
         for (DiscoveryNode node : getClusterState().nodes()) {
             try (FlightClient flightClient = flightClientManager.getFlightClient(node.getId()).get()) {
