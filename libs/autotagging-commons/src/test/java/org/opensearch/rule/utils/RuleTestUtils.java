@@ -62,22 +62,6 @@ public class RuleTestUtils {
         return Map.of(_ID_ONE, ruleOne, _ID_TWO, ruleTwo);
     }
 
-    // public static IndexStoredRulePersistenceService setUpIndexStoredRulePersistenceService(Map<String, QueryGroup> queryGroupMap) {
-    // Client client = mock(Client.class);
-    // ClusterService clusterService = mock(ClusterService.class);
-    // ClusterState clusterState = mock(ClusterState.class);
-    // Metadata metadata = mock(Metadata.class);
-    // ThreadPool threadPool = mock(ThreadPool.class);
-    //
-    // ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-    // when(client.threadPool()).thenReturn(threadPool);
-    // when(threadPool.getThreadContext()).thenReturn(threadContext);
-    // when(clusterService.state()).thenReturn(clusterState);
-    // when(clusterState.metadata()).thenReturn(metadata);
-    // when(metadata.queryGroups()).thenReturn(queryGroupMap);
-    // return new IndexStoredRulePersistenceService(TEST_INDEX_NAME, client, MockRuleFeatureType.INSTANCE, 50);
-    // }
-
     public static void assertEqualRules(Map<String, Rule> mapOne, Map<String, Rule> mapTwo, boolean ruleUpdated) {
         assertEquals(mapOne.size(), mapTwo.size());
         for (Map.Entry<String, Rule> entry : mapOne.entrySet()) {
