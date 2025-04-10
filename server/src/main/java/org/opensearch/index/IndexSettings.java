@@ -1252,7 +1252,7 @@ public final class IndexSettings {
 
     /**
      * Update the default maxMergesAtOnce
-     * 1. sets the new default in {@code TieredMergePolicyProvide}
+     * 1. sets the new default in {@code TieredMergePolicyProvider}
      * 2. sets the maxMergesAtOnce on the actual TieredMergePolicy used by the engine if no index level override exists
      */
     void setDefaultMaxMergesAtOnce(int newDefaultMaxMergesAtOnce) {
@@ -1268,6 +1268,7 @@ public final class IndexSettings {
      */
     void updateMaxMergesAtOnce(Settings updatedSettings) {
         if (TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.exists(updatedSettings) == false) {
+            logger.debug("Resetting maxMergesAtOnce to cluster default");
             tieredMergePolicyProvider.setMaxMergesAtOnceToDefault();
         } else {
             tieredMergePolicyProvider.setMaxMergesAtOnce(
