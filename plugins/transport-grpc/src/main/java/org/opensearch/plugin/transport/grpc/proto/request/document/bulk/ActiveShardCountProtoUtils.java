@@ -13,7 +13,9 @@ import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.WaitForActiveShards;
 
 /**
- * Handler for bulk requests in gRPC.
+ * Utility class for handling active shard count settings in gRPC bulk requests.
+ * This class provides methods to convert between Protocol Buffer representations
+ * and OpenSearch ActiveShardCount objects.
  */
 public class ActiveShardCountProtoUtils {
     // protected final Settings settings;
@@ -27,11 +29,13 @@ public class ActiveShardCountProtoUtils {
 
     /**
      * Sets the active shard count on the bulk request based on the protobuf request.
-     * Similar to {@link ActiveShardCount#parseString(String)}
+     * Similar to {@link ActiveShardCount#parseString(String)}, this method interprets
+     * the wait_for_active_shards parameter from the Protocol Buffer request and applies
+     * the appropriate ActiveShardCount setting to the OpenSearch bulk request.
      *
-     * @param bulkRequest The bulk request to modify
-     * @param request The protobuf request containing the active shard count
-     * @return The modified bulk request
+     * @param bulkRequest The OpenSearch bulk request to modify
+     * @param request The Protocol Buffer request containing the active shard count settings
+     * @return The modified OpenSearch bulk request with updated active shard count settings
      */
     public static org.opensearch.action.bulk.BulkRequest getActiveShardCount(
         org.opensearch.action.bulk.BulkRequest bulkRequest,

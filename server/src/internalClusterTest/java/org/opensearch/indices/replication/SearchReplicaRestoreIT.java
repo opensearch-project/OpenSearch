@@ -173,7 +173,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             + "To restore with [index.replication.type] as ["
             + restoreReplicationType
             + "], "
-            + "[index.number_of_search_only_replicas] must be set to [0]";
+            + "[index.number_of_search_replicas] must be set to [0]";
     }
 
     private int getNumberOfSearchReplicas(String index) {

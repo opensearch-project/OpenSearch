@@ -122,15 +122,6 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
-    /**
-     * Gates the functionality of ApproximatePointRangeQuery where we approximate query results.
-     */
-    public static final String APPROXIMATE_POINT_RANGE_QUERY = FEATURE_FLAG_PREFIX + "approximate_point_range_query.enabled";
-    public static final Setting<Boolean> APPROXIMATE_POINT_RANGE_QUERY_SETTING = Setting.boolSetting(
-        APPROXIMATE_POINT_RANGE_QUERY,
-        false,
-        Property.NodeScope
-    );
     public static final String TERM_VERSION_PRECOMMIT_ENABLE = OS_EXPERIMENTAL_PREFIX + "optimization.termversion.precommit.enabled";
     public static final Setting<Boolean> TERM_VERSION_PRECOMMIT_ENABLE_SETTING = Setting.boolSetting(
         TERM_VERSION_PRECOMMIT_ENABLE,

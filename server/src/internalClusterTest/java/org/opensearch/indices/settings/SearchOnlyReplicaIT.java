@@ -29,6 +29,7 @@ import java.io.IOException;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
+import static org.opensearch.cluster.routing.OperationRouting.STRICT_SEARCH_REPLICA_ROUTING_ENABLED;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anyOf;
@@ -44,8 +45,7 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, Boolean.TRUE).build();
     }
 
-    private final String expectedFailureMessage =
-        "To set index.number_of_search_only_replicas, index.replication.type must be set to SEGMENT";
+    private final String expectedFailureMessage = "To set index.number_of_search_replicas, index.replication.type must be set to SEGMENT";
 
     @Override
     public Settings indexSettings() {
@@ -246,8 +246,8 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         ensureYellow(TEST_INDEX);
         client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-        // By default cluster.routing.search_only.strict is set as true
-        // When cluster.routing.search_only.strict is set as true, and no assigned search replica is available,
+        // By default cluster.routing.search_replica.strict is set as true
+        // When cluster.routing.search_replica.strict is set as true, and no assigned search replica is available,
         // search request will fail since it will route only to search replica but it's not available
         Throwable throwable = assertThrows(
             SearchPhaseExecutionException.class,
@@ -256,14 +256,14 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
 
         assertEquals("all shards failed", throwable.getMessage());
 
-        // Set cluster.routing.search_only.strict as false
+        // Set cluster.routing.search_replica.strict as false
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("cluster.routing.search_only.strict", false))
+            .setTransientSettings(Settings.builder().put(STRICT_SEARCH_REPLICA_ROUTING_ENABLED.getKey(), false))
             .get();
 
-        // When cluster.routing.search_only.strict is set as false, and no assigned search replica is available;
+        // When cluster.routing.search_replica.strict is set as false, and no assigned search replica is available;
         // search request will fall back to querying writers
         SearchResponse response = client().prepareSearch(TEST_INDEX).setPreference(null).setQuery(QueryBuilders.matchAllQuery()).get();
 
@@ -282,8 +282,8 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         internalCluster().startSearchOnlyNode();
         ensureGreen(TEST_INDEX);
 
-        // By default cluster.routing.search_only.strict is set as true
-        // When cluster.routing.search_only.strict is set as true, and assigned search replica is available;
+        // By default cluster.routing.search_replica.strict is set as true
+        // When cluster.routing.search_replica.strict is set as true, and assigned search replica is available;
         // search request will succeed
         SearchResponse response = client().prepareSearch(TEST_INDEX).setPreference(null).setQuery(QueryBuilders.matchAllQuery()).get();
 
@@ -291,14 +291,14 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
         assertEquals(nodeId, indexShardRoutingTable.searchOnlyReplicas().get(0).currentNodeId());
 
-        // Set cluster.routing.search_only.strict as false
+        // Set cluster.routing.search_replica.strict as false
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("cluster.routing.search_only.strict", false))
+            .setTransientSettings(Settings.builder().put(STRICT_SEARCH_REPLICA_ROUTING_ENABLED.getKey(), false))
             .get();
 
-        // When cluster.routing.search_only.strict is set as false, and assigned search replica is available;
+        // When cluster.routing.search_replica.strict is set as false, and assigned search replica is available;
         // search request can land on either writer or reader
         response = client().prepareSearch(TEST_INDEX).setPreference(null).setQuery(QueryBuilders.matchAllQuery()).get();
 
