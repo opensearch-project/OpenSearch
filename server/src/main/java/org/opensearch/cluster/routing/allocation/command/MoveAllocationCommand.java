@@ -120,7 +120,7 @@ public class MoveAllocationCommand implements AllocationCommand {
 
         boolean found = false;
         RoutingNode fromRoutingNode = allocation.routingNodes().node(fromDiscoNode.getId());
-        if (fromRoutingNode == null && !fromDiscoNode.isDataNode()) {
+        if (fromRoutingNode == null && !fromDiscoNode.canContainData()) {
             throw new IllegalArgumentException(
                 "[move_allocation] can't move ["
                     + index
@@ -136,7 +136,7 @@ public class MoveAllocationCommand implements AllocationCommand {
             );
         }
         RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.getId());
-        if (toRoutingNode == null && !toDiscoNode.isDataNode()) {
+        if (toRoutingNode == null && !toDiscoNode.canContainData()) {
             throw new IllegalArgumentException(
                 "[move_allocation] can't move ["
                     + index

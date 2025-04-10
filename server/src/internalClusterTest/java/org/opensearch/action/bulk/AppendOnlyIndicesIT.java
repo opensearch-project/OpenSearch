@@ -125,7 +125,7 @@ public class AppendOnlyIndicesIT extends OpenSearchIntegTestCase {
         Client client = internalCluster().coordOnlyNodeClient();
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         NodeStats unluckyNode = randomFrom(
-            nodeStats.getNodes().stream().filter((s) -> s.getNode().isDataNode()).collect(Collectors.toList())
+            nodeStats.getNodes().stream().filter((s) -> s.getNode().canContainData()).collect(Collectors.toList())
         );
         assertAcked(
             client().admin()
