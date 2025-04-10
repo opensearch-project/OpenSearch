@@ -782,14 +782,6 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    public static final Setting<Long> SEGMENT_COUNTER_INCREMENT_STEP_SETTING = Setting.longSetting(
-        "index.segment_counter_increment_step",
-        100000,
-        10,
-        Property.Dynamic,
-        Property.IndexScope
-    );
-
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -922,7 +914,6 @@ public final class IndexSettings {
     private volatile double docIdFuzzySetFalsePositiveProbability;
 
     private final boolean isCompositeIndex;
-    private volatile long segmentCounterIncrementStep;
 
     /**
      * Returns the default search fields for this index.
@@ -1072,7 +1063,6 @@ public final class IndexSettings {
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
-        segmentCounterIncrementStep = scopedSettings.get(SEGMENT_COUNTER_INCREMENT_STEP_SETTING);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
          * to higher bytes size like integer to long. This behavior was changed from OpenSearch 2.7 version not to
@@ -1210,7 +1200,6 @@ public final class IndexSettings {
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
             this::setRemoteStoreTranslogRepository
         );
-        scopedSettings.addSettingsUpdateConsumer(SEGMENT_COUNTER_INCREMENT_STEP_SETTING, this::setSegmentCounterIncrementStep);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2044,13 +2033,5 @@ public final class IndexSettings {
 
     public void setRemoteStoreTranslogRepository(String remoteStoreTranslogRepository) {
         this.remoteStoreTranslogRepository = remoteStoreTranslogRepository;
-    }
-
-    public long getSegmentCounterIncrementStep() {
-        return segmentCounterIncrementStep;
-    }
-
-    public void setSegmentCounterIncrementStep(long segmentCounterIncrementStep) {
-        this.segmentCounterIncrementStep = segmentCounterIncrementStep;
     }
 }

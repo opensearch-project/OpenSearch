@@ -67,6 +67,8 @@ public class NRTReplicationEngine extends Engine {
 
     private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
 
+    private static final int SI_COUNTER_INCREMENT = 100000;
+
     public NRTReplicationEngine(EngineConfig engineConfig) {
         super(engineConfig);
         store.incRef();
@@ -441,8 +443,7 @@ public class NRTReplicationEngine extends Engine {
                  */
                 if (engineConfig.getIndexSettings().isRemoteStoreEnabled() == false
                     && engineConfig.getIndexSettings().isAssignedOnRemoteNode() == false) {
-                    latestSegmentInfos.counter = latestSegmentInfos.counter + engineConfig.getIndexSettings()
-                        .getSegmentCounterIncrementStep();
+                    latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
                     latestSegmentInfos.changed();
                 }
                 try {
