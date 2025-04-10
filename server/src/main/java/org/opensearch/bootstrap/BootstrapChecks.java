@@ -47,6 +47,7 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexModule;
+import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.node.NodeRoleSettings;
@@ -57,6 +58,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AllPermission;
+import java.security.Policy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -720,10 +722,10 @@ final class BootstrapChecks {
 
         @SuppressWarnings("removal")
         boolean isAllPermissionGranted() {
-            final SecurityManager sm = System.getSecurityManager();
-            assert sm != null;
+            final Policy policy = AgentPolicy.getPolicy();
+            assert policy != null;
             try {
-                sm.checkPermission(new AllPermission());
+                AgentPolicy.checkPermission(new AllPermission());
             } catch (final SecurityException e) {
                 return false;
             }

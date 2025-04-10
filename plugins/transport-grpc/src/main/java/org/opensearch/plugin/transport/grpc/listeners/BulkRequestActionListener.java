@@ -23,7 +23,7 @@ import io.grpc.stub.StreamObserver;
  */
 public class BulkRequestActionListener implements ActionListener<BulkResponse> {
     private static final Logger logger = LogManager.getLogger(BulkRequestActionListener.class);
-    private StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver;
+    private final StreamObserver<org.opensearch.protobufs.BulkResponse> responseObserver;
 
     /**
      * Creates a new BulkRequestActionListener.

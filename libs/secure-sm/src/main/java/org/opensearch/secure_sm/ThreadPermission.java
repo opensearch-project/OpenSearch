@@ -38,16 +38,11 @@ import java.security.BasicPermission;
  * Permission to modify threads or thread groups normally not accessible
  * to the current thread.
  * <p>
- * {@link SecureSM} enforces ThreadGroup security: threads with
- * {@code RuntimePermission("modifyThread")} or {@code RuntimePermission("modifyThreadGroup")}
- * are only allowed to modify their current thread group or an ancestor of that group.
- * <p>
  * In some cases (e.g. test runners), code needs to manipulate arbitrary threads,
  * so this Permission provides for that: the targets {@code modifyArbitraryThread} and
  * {@code modifyArbitraryThreadGroup} allow a thread blanket access to any group.
  *
  * @see ThreadGroup
- * @see SecureSM
  */
 public final class ThreadPermission extends BasicPermission {
 

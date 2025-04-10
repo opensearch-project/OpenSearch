@@ -16,6 +16,7 @@ import org.opensearch.common.breaker.ResponseLimitBreachedException;
 import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.plugin.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
 import org.opensearch.protobufs.ErrorCause;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.StringOrStringArray;
@@ -151,7 +152,7 @@ public class OpenSearchExceptionProtoUtilsTests extends OpenSearchTestCase {
         // Create a basic exception
         RuntimeException exception = new RuntimeException("Test exception");
 
-        // Convert to Protocol Buffer using the protected method via reflection
+        // Convert to Protocol Buffer
         ErrorCause errorCause = OpenSearchExceptionProtoUtils.generateThrowableProto(exception);
 
         // Verify the conversion
