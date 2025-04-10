@@ -32,7 +32,6 @@ import java.util.concurrent.Executors;
 public class DefaultStreamPoller implements StreamPoller {
     private static final Logger logger = LogManager.getLogger(DefaultStreamPoller.class);
 
-    // TODO: make this configurable
     public static final long MAX_POLL_SIZE = 1000;
     public static final int POLL_TIMEOUT = 1000;
 
@@ -77,7 +76,9 @@ public class DefaultStreamPoller implements StreamPoller {
         ResetState resetState,
         String resetValue,
         IngestionErrorStrategy errorStrategy,
-        State initialState
+        State initialState,
+        long maxPollSize,
+        int pollTimeout
     ) {
         this(
             startPointer,

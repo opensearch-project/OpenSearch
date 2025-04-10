@@ -171,7 +171,6 @@ public class BootstrapForTesting {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
                     addClassCodebase(codebases, "plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
                     addClassCodebase(codebases, "opensearch-nio", "org.opensearch.nio.ChannelFactory");
-                    addClassCodebase(codebases, "opensearch-secure-sm", "org.opensearch.secure_sm.SecureSM");
                     addClassCodebase(codebases, "opensearch-rest-client", "org.opensearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);

@@ -49,7 +49,7 @@ public class ObjectMapProtoUtils {
      * @param value The generic protobuf ObjectMap.Value to convert
      * @return A Protobuf builder .google.protobuf.Struct representation
      */
-    private static Object fromProto(ObjectMap.Value value) {
+    public static Object fromProto(ObjectMap.Value value) {
         if (value.hasNullValue()) {
             // Null
             throw new UnsupportedOperationException("Cannot add null value in ObjectMap.value " + value.toString() + " to a Java map.");
