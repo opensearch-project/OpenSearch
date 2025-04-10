@@ -81,6 +81,7 @@ grant codeBase "${codebase.lucene-test-framework}" {
   permission java.nio.file.LinkPermission "hard";
   // needed for RAMUsageTester
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.net.NetPermission "accessUnixDomainSocket";
 };
 
 grant codeBase "${codebase.randomizedtesting-runner}" {
@@ -92,6 +93,7 @@ grant codeBase "${codebase.randomizedtesting-runner}" {
   permission org.opensearch.secure_sm.ThreadPermission "modifyArbitraryThreadGroup";
   // needed for TestClass creation
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.net.NetPermission "accessUnixDomainSocket";
 };
 
 grant codeBase "${codebase.junit}" {
@@ -176,4 +178,5 @@ grant {
   permission org.opensearch.secure_sm.ThreadContextPermission "stashAndMergeHeaders";
   permission org.opensearch.secure_sm.ThreadContextPermission "stashWithOrigin";
   permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
+  permission java.net.NetPermission "accessUnixDomainSocket";
 };
