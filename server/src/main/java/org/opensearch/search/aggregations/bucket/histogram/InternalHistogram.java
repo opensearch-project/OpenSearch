@@ -411,12 +411,14 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
     protected void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
 
+        int preEmptyBucketCount = list.size();
         int emptyBucketCount = getTotalBucketCount() - list.size();
         if (emptyBucketCount > 0) {
             CircuitBreaker breaker = reduceContext.getBreaker();
             if (breaker != null) {
                 breaker.addEstimateBytesAndMaybeBreak(50L * emptyBucketCount, "empty histogram buckets");
             }
+            preEmptyBucketCount += emptyBucketCount;
             reduceContext.consumeBucketsAndMaybeBreak(emptyBucketCount);
         }
 
@@ -463,13 +465,14 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
             }
         }
+        int postEmptyBucketCount = list.size() - preEmptyBucketCount;
+        reduceContext.consumeBucketsAndMaybeBreak(postEmptyBucketCount);
     }
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
-        int preEmptyBucketCount = reducedBuckets.size();
-        reduceContext.consumeBucketsAndMaybeBreak(preEmptyBucketCount);
+        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
         if (reduceContext.isFinalReduce()) {
             if (minDocCount == 0) {
                 addEmptyBuckets(reducedBuckets, reduceContext);
@@ -486,8 +489,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 CollectionUtil.introSort(reducedBuckets, order.comparator());
             }
         }
-        int postEmptyBucketCount = reducedBuckets.size();
-        reduceContext.consumeBucketsAndMaybeBreak(postEmptyBucketCount - preEmptyBucketCount);
         return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
