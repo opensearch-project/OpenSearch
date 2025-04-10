@@ -81,8 +81,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param listener the listener for GetRuleResponse.
      */
     public void getRule(GetRuleRequest getRuleRequest, ActionListener<GetRuleResponse> listener) {
-        final QueryBuilder getQueryBuilder = queryBuilder.getQuery(getRuleRequest)
-            .filter(QueryBuilders.existsQuery(featureType.getName()));
+        final QueryBuilder getQueryBuilder = queryBuilder.from(getRuleRequest).filter(QueryBuilders.existsQuery(featureType.getName()));
         getRuleFromIndex(getRuleRequest.getId(), getQueryBuilder, getRuleRequest.getSearchAfter(), listener);
     }
 
