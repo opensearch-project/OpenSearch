@@ -468,7 +468,8 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
-        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+        int preEmptyBucketCount = reducedBuckets.size();
+        reduceContext.consumeBucketsAndMaybeBreak(preEmptyBucketCount);
         if (reduceContext.isFinalReduce()) {
             if (minDocCount == 0) {
                 addEmptyBuckets(reducedBuckets, reduceContext);
@@ -485,6 +486,8 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 CollectionUtil.introSort(reducedBuckets, order.comparator());
             }
         }
+        int postEmptyBucketCount = reducedBuckets.size();
+        reduceContext.consumeBucketsAndMaybeBreak(postEmptyBucketCount - preEmptyBucketCount);
         return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 

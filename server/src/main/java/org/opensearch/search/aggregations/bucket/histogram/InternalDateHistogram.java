@@ -495,7 +495,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
-        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+        int preEmptyBucketCount = reducedBuckets.size();
+        reduceContext.consumeBucketsAndMaybeBreak(preEmptyBucketCount);
         if (reduceContext.isFinalReduce()) {
             if (minDocCount == 0) {
                 addEmptyBuckets(reducedBuckets, reduceContext);
@@ -512,6 +513,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                 CollectionUtil.introSort(reducedBuckets, order.comparator());
             }
         }
+        int postEmptyBucketCount = reducedBuckets.size();
+        reduceContext.consumeBucketsAndMaybeBreak(postEmptyBucketCount - preEmptyBucketCount);
         return new InternalDateHistogram(
             getName(),
             reducedBuckets,
