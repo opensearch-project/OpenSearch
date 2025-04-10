@@ -21,6 +21,10 @@ import java.nio.file.spi.FileSystemProvider;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collection;
+import java.util.ArrayList;
+import java.util.List;
+import java.lang.StackWalker.StackFrame;
+import java.util.stream.Collectors;
 
 import net.bytebuddy.asm.Advice;
 
@@ -66,7 +70,23 @@ public class FileInterceptor {
         }
 
         final StackWalker walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
-        final Collection<ProtectionDomain> callers = walker.walk(StackCallerProtectionDomainChainExtractor.INSTANCE);
+        final Collection<ProtectionDomain> callers = walker.walk(s -> {
+            List<ProtectionDomain> domains = new ArrayList<>();
+            boolean foundPrivileged = false;
+
+            for (StackFrame frame : s.toList()) {
+                if (frame.getClassName().equals("java.security.AccessController") &&
+                    frame.getMethodName().equals("doPrivileged")) {
+                    foundPrivileged = true;
+                    break;
+                }
+                Class<?> callerClass = frame.getDeclaringClass();
+                domains.add(callerClass.getProtectionDomain());
+            }
+
+            return foundPrivileged ? domains : s.map(f -> f.getDeclaringClass().getProtectionDomain())
+                .collect(Collectors.toList());
+        });
 
         final String name = method.getName();
         boolean isMutating = name.equals("move") || name.equals("write") || name.startsWith("create");

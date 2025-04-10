@@ -19,6 +19,10 @@ import java.net.UnixDomainSocketAddress;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collection;
+import java.util.ArrayList;
+import java.util.List;
+import java.lang.StackWalker.StackFrame;
+import java.util.stream.Collectors;
 
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.asm.Advice.Origin;
@@ -46,8 +50,24 @@ public class SocketChannelInterceptor {
             return; /* noop */
         }
 
-        final StackWalker walker = StackWalker.getInstance(Option.RETAIN_CLASS_REFERENCE);
-        final Collection<ProtectionDomain> callers = walker.walk(StackCallerProtectionDomainChainExtractor.INSTANCE);
+        final StackWalker walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
+        final Collection<ProtectionDomain> callers = walker.walk(s -> {
+            List<ProtectionDomain> domains = new ArrayList<>();
+            boolean foundPrivileged = false;
+
+            for (StackFrame frame : s.toList()) {
+                if (frame.getClassName().equals("java.security.AccessController") &&
+                    frame.getMethodName().equals("doPrivileged")) {
+                    foundPrivileged = true;
+                    break;
+                }
+                Class<?> callerClass = frame.getDeclaringClass();
+                domains.add(callerClass.getProtectionDomain());
+            }
+
+            return foundPrivileged ? domains : s.map(f -> f.getDeclaringClass().getProtectionDomain())
+                .collect(Collectors.toList());
+        });
 
         if (args[0] instanceof InetSocketAddress address) {
             if (!AgentPolicy.isTrustedHost(address.getHostString())) {
