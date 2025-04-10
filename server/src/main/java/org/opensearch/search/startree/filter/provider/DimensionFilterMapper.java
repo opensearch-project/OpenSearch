@@ -19,6 +19,7 @@ import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -109,7 +110,9 @@ public interface DimensionFilterMapper {
             DOUBLE.typeName(),
             new DoubleFieldMapperNumeric(),
             org.opensearch.index.mapper.KeywordFieldMapper.CONTENT_TYPE,
-            new KeywordFieldMapper()
+            new KeywordFieldMapper(),
+            DateFieldMapper.CONTENT_TYPE,
+            new StarDateFieldMapper()
         );
 
         public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType) {
@@ -407,4 +410,50 @@ class KeywordFieldMapper implements DimensionFilterMapper {
         return parsedValue;
     }
 
+}
+
+class StarDateFieldMapper implements DimensionFilterMapper {
+
+    @Override
+    public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+            DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) mappedFieldType;
+            List<Object> convertedValues = new ArrayList<>(rawValues.size());
+            for (Object rawValue : rawValues) {
+                convertedValues.add(dateFieldType.parse(rawValue.toString()));
+            }
+            return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
+        }
+        return null;
+    }
+
+    // This is unused as we need range query builder to compute this filter for date fields
+    @Override
+    public DimensionFilter getRangeMatchFilter(
+        MappedFieldType mappedFieldType,
+        Object rawLow,
+        Object rawHigh,
+        boolean includeLower,
+        boolean includeUpper
+    ) {
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+            DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) mappedFieldType;
+            Long parsedLow = rawLow == null ? null : dateFieldType.parse(rawLow.toString());
+            Long parsedHigh = rawHigh == null ? null : dateFieldType.parse(rawHigh.toString());
+
+            return new RangeMatchDimFilter(mappedFieldType.name(), parsedLow, parsedHigh, includeLower, includeUpper);
+        }
+        return null;
+    }
+
+    @Override
+    public Optional<Long> getMatchingOrdinal(
+        String dimensionName,
+        Object value,
+        StarTreeValues starTreeValues,
+        DimensionFilter.MatchType matchType
+    ) {
+        // Since dates are stored as longs internally, we can treat them as numeric values
+        return Optional.of((Long) value);
+    }
 }

@@ -8,9 +8,16 @@
 
 package org.opensearch.search.startree.filter.provider;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateMathParser;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
@@ -19,12 +26,15 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 /**
  * Converts a {@link QueryBuilder} into a {@link StarTreeFilter} by generating the appropriate @{@link org.opensearch.search.startree.filter.DimensionFilter}
@@ -136,6 +146,12 @@ public interface StarTreeFilterProvider {
                 : DimensionFilterMapper.Factory.fromMappedFieldType(mappedFieldType);
             if (matchedDimension == null || mappedFieldType == null || dimensionFilterMapper == null) {
                 return null;
+            }
+            if (matchedDimension instanceof DateDimension) {
+                if (!(mappedFieldType instanceof DateFieldMapper.DateFieldType)) {
+                    return null;
+                }
+                return getDateFilter(context, rawFilter, (DateFieldMapper.DateFieldType) mappedFieldType, (DateDimension) matchedDimension);
             } else {
                 return new StarTreeFilter(
                     Map.of(
@@ -154,6 +170,112 @@ public interface StarTreeFilterProvider {
             }
         }
 
-    }
+        public StarTreeFilter getDateFilter(
+            SearchContext context,
+            QueryBuilder rawFilter,
+            DateFieldMapper.DateFieldType dateFieldType,
+            DateDimension dateDimension
+        ) {
+            RangeQueryBuilder rangeQueryBuilder = (RangeQueryBuilder) rawFilter;
+            String field = rangeQueryBuilder.fieldName();
 
+            Query query = context.query();
+            if (query instanceof MatchNoDocsQuery) {
+                return new StarTreeFilter(Collections.emptyMap());
+            }
+
+            // Convert format string to DateMathParser if provided
+            DateMathParser forcedDateParser = rangeQueryBuilder.format() != null
+                ? DateFormatter.forPattern(rangeQueryBuilder.format()).toDateMathParser()
+                : DateFieldMapper.getDefaultDateTimeFormatter().toDateMathParser();
+
+            ZoneId timeZone = rangeQueryBuilder.timeZone() != null ? ZoneId.of(rangeQueryBuilder.timeZone()) : null;
+
+            // Get current time for 'now'-relative expressions
+            // Star-tree can be used when the resultant date values are rounded off to intervals in star-tree
+            long now = context.getQueryShardContext().nowInMillis();
+            LongSupplier nowSupplier = () -> now;
+
+            long l = Long.MIN_VALUE;
+            long u = Long.MAX_VALUE;
+
+            if (rangeQueryBuilder.from() != null) {
+                l = DateFieldMapper.DateFieldType.parseToLong(
+                    rangeQueryBuilder.from(),
+                    !rangeQueryBuilder.includeLower(),
+                    timeZone,
+                    forcedDateParser,
+                    nowSupplier,
+                    dateFieldType.resolution()
+                );
+                if (!rangeQueryBuilder.includeLower()) {
+                    if (l == Long.MAX_VALUE) {
+                        return new StarTreeFilter(Collections.emptyMap());
+                    }
+                    ++l;
+                }
+            }
+
+            if (rangeQueryBuilder.to() != null) {
+                u = DateFieldMapper.DateFieldType.parseToLong(
+                    rangeQueryBuilder.to(),
+                    rangeQueryBuilder.includeUpper(),
+                    timeZone,
+                    forcedDateParser,
+                    nowSupplier,
+                    dateFieldType.resolution()
+                );
+                if (!rangeQueryBuilder.includeUpper()) {
+                    if (u == Long.MIN_VALUE) {
+                        return new StarTreeFilter(Collections.emptyMap());
+                    }
+                    --u;
+                }
+            }
+
+            // Find the matching interval - preferring the highest possible interval for query optimization
+            List<DateTimeUnitRounding> intervals = dateDimension.getSortedCalendarIntervals().reversed();
+            DateTimeUnitRounding matchingInterval = null;
+
+            for (DateTimeUnitRounding interval : intervals) {
+                long roundedLow = l != Long.MIN_VALUE ? interval.roundFloor(l) : l;
+                long roundedHigh = u != Long.MAX_VALUE ? interval.roundFloor(u) : u;
+
+                // This is needed since OpenSearch rounds up to the last millisecond in the rounding interval.
+                // so when the date parser rounds up to say 2022-05-31T23:59:59.999 we can check if by adding 1
+                // the new interval which is 2022-05-31T00:00:00.000 in the example can be solved via star tree
+                //
+                // this is not needed for low since rounding is on the first millisecond 2022-06-01T00:00:00.000
+                long roundedHighPlus1 = u != Long.MAX_VALUE ? interval.roundFloor(u + 1) : u;
+
+                // If both bounds round to the same values, we have an exact match for this interval
+                if (roundedLow == l && (roundedHigh == u || roundedHighPlus1 == u + 1)) {
+                    matchingInterval = interval;
+                    break; // Found the most granular matching interval
+                }
+            }
+
+            if (matchingInterval == null) {
+                return null; // No matching interval found, fall back to default implementation
+            }
+
+            // Construct the sub-dimension field name
+            String subDimensionField = field + "_" + matchingInterval.shortName();
+
+            return new StarTreeFilter(
+                Map.of(
+                    subDimensionField,
+                    List.of(
+                        new RangeMatchDimFilter(
+                            field,
+                            l,
+                            u,
+                            true,  // Already handled inclusion above
+                            true   // Already handled inclusion above
+                        )
+                    )
+                )
+            );
+        }
+    }
 }
