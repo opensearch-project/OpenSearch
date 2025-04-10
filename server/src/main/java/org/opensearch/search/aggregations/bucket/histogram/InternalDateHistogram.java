@@ -425,13 +425,14 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     protected void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
         Bucket lastBucket = null;
         LongBounds bounds = emptyBucketInfo.bounds;
-
+        int preEmptyBucketCount = list.size();
         int emptyBucketCount = getTotalBucketCount() - list.size();
         if (emptyBucketCount > 0) {
             CircuitBreaker breaker = reduceContext.getBreaker();
             if (breaker != null) {
                 breaker.addEstimateBytesAndMaybeBreak(50L * emptyBucketCount, "empty date histogram buckets");
             }
+            preEmptyBucketCount += emptyBucketCount;
             reduceContext.consumeBucketsAndMaybeBreak(emptyBucketCount);
         }
 
@@ -490,13 +491,14 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                 key = nextKey(key).longValue();
             }
         }
+        int postEmptyBucketCount = list.size() - preEmptyBucketCount;
+        reduceContext.consumeBucketsAndMaybeBreak(postEmptyBucketCount);
     }
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
-        int preEmptyBucketCount = reducedBuckets.size();
-        reduceContext.consumeBucketsAndMaybeBreak(preEmptyBucketCount);
+        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
         if (reduceContext.isFinalReduce()) {
             if (minDocCount == 0) {
                 addEmptyBuckets(reducedBuckets, reduceContext);
@@ -513,8 +515,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                 CollectionUtil.introSort(reducedBuckets, order.comparator());
             }
         }
-        int postEmptyBucketCount = reducedBuckets.size();
-        reduceContext.consumeBucketsAndMaybeBreak(postEmptyBucketCount - preEmptyBucketCount);
         return new InternalDateHistogram(
             getName(),
             reducedBuckets,
