@@ -12,11 +12,6 @@ import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.AutoTaggingRegistry;
 import org.opensearch.autotagging.FeatureType;
 import org.opensearch.autotagging.Rule;
-import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.rule.RuleEntityParser;
-import org.opensearch.rule.RuleQueryMapper;
-import org.opensearch.rule.service.IndexStoredRulePersistenceService;
-import org.opensearch.transport.client.Client;
 
 import java.util.Map;
 import java.util.Set;
@@ -82,55 +77,6 @@ public class RuleTestUtils {
             assertEquals(one.getAttributeMap(), two.getAttributeMap());
         } else {
             assertEquals(one, two);
-        }
-    }
-
-    /**
-     * Used mainly for testing to avoid multiple methods to setup the mock
-     * this builder provides flexibility to inject use case specific mocks
-     */
-    public static class IndexStoredRulePersistenceBuilder {
-        private String indexName;
-        private Client client;
-        private FeatureType featureType;
-        private int maxValuesPerPage;
-        private RuleQueryMapper<QueryBuilder> queryBuilder;
-        private RuleEntityParser parser;
-
-        public IndexStoredRulePersistenceBuilder() {}
-
-        public IndexStoredRulePersistenceBuilder indexName(String indexName) {
-            this.indexName = indexName;
-            return this;
-        }
-
-        public IndexStoredRulePersistenceBuilder client(Client client) {
-            this.client = client;
-            return this;
-        }
-
-        public IndexStoredRulePersistenceBuilder featureType(FeatureType featureType) {
-            this.featureType = featureType;
-            return this;
-        }
-
-        public IndexStoredRulePersistenceBuilder maxValuesPerPage(int maxValuesPerPage) {
-            this.maxValuesPerPage = maxValuesPerPage;
-            return this;
-        }
-
-        public IndexStoredRulePersistenceBuilder queryBuilder(RuleQueryMapper<QueryBuilder> queryBuilder) {
-            this.queryBuilder = queryBuilder;
-            return this;
-        }
-
-        public IndexStoredRulePersistenceBuilder parser(RuleEntityParser parser) {
-            this.parser = parser;
-            return this;
-        }
-
-        public IndexStoredRulePersistenceService build() {
-            return new IndexStoredRulePersistenceService(indexName, client, featureType, maxValuesPerPage, parser, queryBuilder);
         }
     }
 

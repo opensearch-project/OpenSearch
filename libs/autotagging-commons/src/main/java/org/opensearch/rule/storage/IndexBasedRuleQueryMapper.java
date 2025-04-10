@@ -33,7 +33,7 @@ public class IndexBasedRuleQueryMapper implements RuleQueryMapper<QueryBuilder> 
     public IndexBasedRuleQueryMapper() {}
 
     @Override
-    public QueryBuilder getQuery(GetRuleRequest request) {
+    public QueryBuilder from(GetRuleRequest request) {
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
         final Map<Attribute, Set<String>> attributeFilters = request.getAttributeFilters();
         final String id = request.getId();
