@@ -19,7 +19,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rule.RuleEntityParser;
-import org.opensearch.rule.RuleQueryBuilder;
+import org.opensearch.rule.RuleQueryMapper;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.search.SearchHit;
@@ -46,7 +46,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final FeatureType featureType;
     private final int maxRulesPerPage;
     private final RuleEntityParser parser;
-    private final RuleQueryBuilder<QueryBuilder> queryBuilder;
+    private final RuleQueryMapper<QueryBuilder> queryBuilder;
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
 
     /**
@@ -65,7 +65,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         FeatureType featureType,
         int maxRulesPerPage,
         RuleEntityParser parser,
-        RuleQueryBuilder<QueryBuilder> queryBuilder
+        RuleQueryMapper<QueryBuilder> queryBuilder
     ) {
         this.indexName = indexName;
         this.client = client;
@@ -81,7 +81,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param listener the listener for GetRuleResponse.
      */
     public void getRule(GetRuleRequest getRuleRequest, ActionListener<GetRuleResponse> listener) {
-        final QueryBuilder getQueryBuilder = queryBuilder.buildQuery(getRuleRequest)
+        final QueryBuilder getQueryBuilder = queryBuilder.getQuery(getRuleRequest)
             .filter(QueryBuilders.existsQuery(featureType.getName()));
         getRuleFromIndex(getRuleRequest.getId(), getQueryBuilder, getRuleRequest.getSearchAfter(), listener);
     }

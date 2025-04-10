@@ -14,7 +14,7 @@ import org.opensearch.autotagging.FeatureType;
 import org.opensearch.autotagging.Rule;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.RuleEntityParser;
-import org.opensearch.rule.RuleQueryBuilder;
+import org.opensearch.rule.RuleQueryMapper;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.transport.client.Client;
 
@@ -94,7 +94,7 @@ public class RuleTestUtils {
         private Client client;
         private FeatureType featureType;
         private int maxValuesPerPage;
-        private RuleQueryBuilder<QueryBuilder> queryBuilder;
+        private RuleQueryMapper<QueryBuilder> queryBuilder;
         private RuleEntityParser parser;
 
         public IndexStoredRulePersistenceBuilder() {}
@@ -119,7 +119,7 @@ public class RuleTestUtils {
             return this;
         }
 
-        public IndexStoredRulePersistenceBuilder queryBuilder(RuleQueryBuilder<QueryBuilder> queryBuilder) {
+        public IndexStoredRulePersistenceBuilder queryBuilder(RuleQueryMapper<QueryBuilder> queryBuilder) {
             this.queryBuilder = queryBuilder;
             return this;
         }
