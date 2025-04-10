@@ -9,8 +9,8 @@
 package org.opensearch.plugin.transport.grpc.proto.request.document.bulk;
 
 import org.opensearch.action.bulk.BulkShardRequest;
-import org.opensearch.action.support.WriteRequest;
 import org.opensearch.plugin.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
+import org.opensearch.plugin.transport.grpc.proto.request.common.RefreshProtoUtils;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.document.RestBulkAction;
@@ -33,7 +33,7 @@ public class BulkRequestProtoUtils {
 
     /**
      * Prepare the request for execution.
-     * Similar to {@link RestBulkAction#prepareRequest(RestRequest, NodeClient)} ()}
+     * Similar to {@link RestBulkAction#prepareRequest(RestRequest, NodeClient)}
      * Please ensure to keep both implementations consistent.
      *
      * @param request the request to execute
@@ -47,8 +47,9 @@ public class BulkRequestProtoUtils {
         FetchSourceContext defaultFetchSourceContext = FetchSourceContextProtoUtils.parseFromProtoRequest(request);
         String defaultPipeline = request.hasPipeline() ? request.getPipeline() : null;
 
-        bulkRequest = ActiveShardCountProtoUtils.getActiveShardCount(bulkRequest, request);
-
+        if (request.hasWaitForActiveShards()) {
+            bulkRequest.waitForActiveShards(ActiveShardCountProtoUtils.parseProto(request.getWaitForActiveShards()));
+        }
         Boolean defaultRequireAlias = request.hasRequireAlias() ? request.getRequireAlias() : null;
 
         if (request.hasTimeout()) {
@@ -57,7 +58,7 @@ public class BulkRequestProtoUtils {
             bulkRequest.timeout(BulkShardRequest.DEFAULT_TIMEOUT);
         }
 
-        bulkRequest.setRefreshPolicy(getRefreshPolicy(request));
+        bulkRequest.setRefreshPolicy(RefreshProtoUtils.getRefreshPolicy(request.getRefresh()));
 
         // Note: batch_size is deprecated in OS 3.x. Add batch_size parameter when backporting to OS 2.x
         /*
@@ -79,27 +80,5 @@ public class BulkRequestProtoUtils {
         );
 
         return bulkRequest;
-    }
-
-    /**
-     * Extracts the refresh policy from the bulk request.
-     *
-     * @param request The bulk request containing the refresh policy
-     * @return The refresh policy as a string, or null if not specified
-     */
-    public static String getRefreshPolicy(org.opensearch.protobufs.BulkRequest request) {
-        if (!request.hasRefresh()) {
-            return null;
-        }
-        switch (request.getRefresh()) {
-            case REFRESH_TRUE:
-                return WriteRequest.RefreshPolicy.IMMEDIATE.getValue();
-            case REFRESH_WAIT_FOR:
-                return WriteRequest.RefreshPolicy.WAIT_UNTIL.getValue();
-            case REFRESH_FALSE:
-            case REFRESH_UNSPECIFIED:
-            default:
-                return WriteRequest.RefreshPolicy.NONE.getValue();
-        }
     }
 }

@@ -7,9 +7,6 @@
  */
 package org.opensearch.plugin.transport.grpc.proto.request.search.sort;
 
-import org.opensearch.protobufs.GeoDistanceSort;
-import org.opensearch.protobufs.ScoreSort;
-import org.opensearch.protobufs.ScriptSort;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -17,13 +14,13 @@ public class SortOrderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoScoreSortAsc() {
         // Test ASC order
-        SortOrder sortOrder = SortOrderProtoUtils.fromProto(ScoreSort.SortOrder.SORT_ORDER_ASC);
+        SortOrder sortOrder = SortOrderProtoUtils.fromProto(org.opensearch.protobufs.SortOrder.SORT_ORDER_ASC);
         assertEquals("Sort order should be ASC", SortOrder.ASC, sortOrder);
     }
 
     public void testFromProtoScoreSortDesc() {
         // Test DESC order
-        SortOrder sortOrder = SortOrderProtoUtils.fromProto(ScoreSort.SortOrder.SORT_ORDER_DESC);
+        SortOrder sortOrder = SortOrderProtoUtils.fromProto(org.opensearch.protobufs.SortOrder.SORT_ORDER_DESC);
         assertEquals("Sort order should be DESC", SortOrder.DESC, sortOrder);
     }
 
@@ -31,7 +28,7 @@ public class SortOrderProtoUtilsTests extends OpenSearchTestCase {
         // Test UNSPECIFIED order (should throw exception)
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> SortOrderProtoUtils.fromProto(ScoreSort.SortOrder.SORT_ORDER_UNSPECIFIED)
+            () -> SortOrderProtoUtils.fromProto(org.opensearch.protobufs.SortOrder.SORT_ORDER_UNSPECIFIED)
         );
         assertTrue(
             "Exception message should mention 'Must provide oneof sort combinations'",
@@ -41,13 +38,13 @@ public class SortOrderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoGeoDistanceSortAsc() {
         // Test ASC order
-        SortOrder sortOrder = SortOrderProtoUtils.fromProto(GeoDistanceSort.SortOrder.SORT_ORDER_ASC);
+        SortOrder sortOrder = SortOrderProtoUtils.fromProto(org.opensearch.protobufs.SortOrder.SORT_ORDER_ASC);
         assertEquals("Sort order should be ASC", SortOrder.ASC, sortOrder);
     }
 
     public void testFromProtoGeoDistanceSortDesc() {
         // Test DESC order
-        SortOrder sortOrder = SortOrderProtoUtils.fromProto(GeoDistanceSort.SortOrder.SORT_ORDER_DESC);
+        SortOrder sortOrder = SortOrderProtoUtils.fromProto(org.opensearch.protobufs.SortOrder.SORT_ORDER_DESC);
         assertEquals("Sort order should be DESC", SortOrder.DESC, sortOrder);
     }
 
@@ -55,7 +52,7 @@ public class SortOrderProtoUtilsTests extends OpenSearchTestCase {
         // Test UNSPECIFIED order (should throw exception)
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> SortOrderProtoUtils.fromProto(GeoDistanceSort.SortOrder.SORT_ORDER_UNSPECIFIED)
+            () -> SortOrderProtoUtils.fromProto(org.opensearch.protobufs.SortOrder.SORT_ORDER_UNSPECIFIED)
         );
         assertTrue(
             "Exception message should mention 'Must provide oneof sort combinations'",
@@ -65,13 +62,13 @@ public class SortOrderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoScriptSortAsc() {
         // Test ASC order
-        SortOrder sortOrder = SortOrderProtoUtils.fromProto(ScriptSort.SortOrder.SORT_ORDER_ASC);
+        SortOrder sortOrder = SortOrderProtoUtils.fromProto(org.opensearch.protobufs.SortOrder.SORT_ORDER_ASC);
         assertEquals("Sort order should be ASC", SortOrder.ASC, sortOrder);
     }
 
     public void testFromProtoScriptSortDesc() {
         // Test DESC order
-        SortOrder sortOrder = SortOrderProtoUtils.fromProto(ScriptSort.SortOrder.SORT_ORDER_DESC);
+        SortOrder sortOrder = SortOrderProtoUtils.fromProto(org.opensearch.protobufs.SortOrder.SORT_ORDER_DESC);
         assertEquals("Sort order should be DESC", SortOrder.DESC, sortOrder);
     }
 
@@ -79,7 +76,7 @@ public class SortOrderProtoUtilsTests extends OpenSearchTestCase {
         // Test UNSPECIFIED order (should throw exception)
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> SortOrderProtoUtils.fromProto(ScriptSort.SortOrder.SORT_ORDER_UNSPECIFIED)
+            () -> SortOrderProtoUtils.fromProto(org.opensearch.protobufs.SortOrder.SORT_ORDER_UNSPECIFIED)
         );
         assertTrue(
             "Exception message should mention 'Must provide oneof sort combinations'",
