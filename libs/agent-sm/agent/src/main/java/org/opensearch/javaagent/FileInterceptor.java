@@ -12,6 +12,7 @@ import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.io.FilePermission;
 import java.lang.reflect.Method;
+import java.net.NetPermission;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -71,59 +72,70 @@ public class FileInterceptor {
         boolean isMutating = name.equals("move") || name.equals("write") || name.startsWith("create");
         final boolean isDelete = isMutating == false ? name.startsWith("delete") : false;
 
-        String targetFilePath = null;
-        if (isMutating == false && isDelete == false) {
-            if (name.equals("newByteChannel") == true || name.equals("open") == true) {
-                if (args.length > 1 && args[1] instanceof OpenOption[] opts) {
-                    for (final OpenOption opt : opts) {
-                        if (opt != StandardOpenOption.READ) {
-                            isMutating = true;
-                            break;
+        // This is Windows implementation of UNIX Domain Sockets (close)
+        if (isDelete == true
+            && walker.getCallerClass().getName().equalsIgnoreCase("sun.nio.ch.PipeImpl$Initializer$LoopbackConnector") == true) {
+            final NetPermission permission = new NetPermission("accessUnixDomainSocket");
+            for (ProtectionDomain domain : callers) {
+                if (!policy.implies(domain, permission)) {
+                    throw new SecurityException("Denied access to: " + filePath + ", domain " + domain);
+                }
+            }
+        } else {
+            String targetFilePath = null;
+            if (isMutating == false && isDelete == false) {
+                if (name.equals("newByteChannel") == true || name.equals("open") == true) {
+                    if (args.length > 1 && args[1] instanceof OpenOption[] opts) {
+                        for (final OpenOption opt : opts) {
+                            if (opt != StandardOpenOption.READ) {
+                                isMutating = true;
+                                break;
+                            }
+                        }
+
+                    }
+                } else if (name.equals("copy") == true) {
+                    if (args.length > 1 && args[1] instanceof String pathStr) {
+                        targetFilePath = Paths.get(pathStr).toAbsolutePath().toString();
+                    } else if (args.length > 1 && args[1] instanceof Path path) {
+                        targetFilePath = path.toAbsolutePath().toString();
+                    }
+                }
+            }
+
+            // Check each permission separately
+            for (final ProtectionDomain domain : callers) {
+                // Handle FileChannel.open() separately to check read/write permissions properly
+                if (method.getName().equals("open")) {
+                    if (isMutating == true && !policy.implies(domain, new FilePermission(filePath, "read,write"))) {
+                        throw new SecurityException("Denied OPEN (read/write) access to file: " + filePath + ", domain: " + domain);
+                    } else if (!policy.implies(domain, new FilePermission(filePath, "read"))) {
+                        throw new SecurityException("Denied OPEN (read) access to file: " + filePath + ", domain: " + domain);
+                    }
+                }
+
+                // Handle Files.copy() separately to check read/write permissions properly
+                if (method.getName().equals("copy")) {
+                    if (!policy.implies(domain, new FilePermission(filePath, "read"))) {
+                        throw new SecurityException("Denied COPY (read) access to file: " + filePath + ", domain: " + domain);
+                    }
+
+                    if (targetFilePath != null) {
+                        if (!policy.implies(domain, new FilePermission(targetFilePath, "write"))) {
+                            throw new SecurityException("Denied COPY (write) access to file: " + targetFilePath + ", domain: " + domain);
                         }
                     }
-
-                }
-            } else if (name.equals("copy") == true) {
-                if (args.length > 1 && args[1] instanceof String pathStr) {
-                    targetFilePath = Paths.get(pathStr).toAbsolutePath().toString();
-                } else if (args.length > 1 && args[1] instanceof Path path) {
-                    targetFilePath = path.toAbsolutePath().toString();
-                }
-            }
-        }
-
-        // Check each permission separately
-        for (final ProtectionDomain domain : callers) {
-            // Handle FileChannel.open() separately to check read/write permissions properly
-            if (method.getName().equals("open")) {
-                if (isMutating == true && !policy.implies(domain, new FilePermission(filePath, "read,write"))) {
-                    throw new SecurityException("Denied OPEN (read/write) access to file: " + filePath + ", domain: " + domain);
-                } else if (!policy.implies(domain, new FilePermission(filePath, "read"))) {
-                    throw new SecurityException("Denied OPEN (read) access to file: " + filePath + ", domain: " + domain);
-                }
-            }
-
-            // Handle Files.copy() separately to check read/write permissions properly
-            if (method.getName().equals("copy")) {
-                if (!policy.implies(domain, new FilePermission(filePath, "read"))) {
-                    throw new SecurityException("Denied COPY (read) access to file: " + filePath + ", domain: " + domain);
                 }
 
-                if (targetFilePath != null) {
-                    if (!policy.implies(domain, new FilePermission(targetFilePath, "write"))) {
-                        throw new SecurityException("Denied COPY (write) access to file: " + targetFilePath + ", domain: " + domain);
-                    }
+                // File mutating operations
+                if (isMutating && !policy.implies(domain, new FilePermission(filePath, "write"))) {
+                    throw new SecurityException("Denied WRITE access to file: " + filePath + ", domain: " + domain);
                 }
-            }
 
-            // File mutating operations
-            if (isMutating && !policy.implies(domain, new FilePermission(filePath, "write"))) {
-                throw new SecurityException("Denied WRITE access to file: " + filePath + ", domain: " + domain);
-            }
-
-            // File deletion operations
-            if (isDelete && !policy.implies(domain, new FilePermission(filePath, "delete"))) {
-                throw new SecurityException("Denied DELETE access to file: " + filePath + ", domain: " + domain);
+                // File deletion operations
+                if (isDelete && !policy.implies(domain, new FilePermission(filePath, "delete"))) {
+                    throw new SecurityException("Denied DELETE access to file: " + filePath + ", domain: " + domain);
+                }
             }
         }
     }
