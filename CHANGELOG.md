@@ -68,6 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Removed
 - Remove deprecated `batch_size` parameter from `_bulk` ([#14283](https://github.com/opensearch-project/OpenSearch/issues/14283))
+- Remove `FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY_SETTING` since range query approximation is no longer experimental ([#17769](https://github.com/opensearch-project/OpenSearch/pull/17769))
 
 ### Fixed
 - Fix bytes parameter on `_cat/recovery` ([#17598](https://github.com/opensearch-project/OpenSearch/pull/17598))
