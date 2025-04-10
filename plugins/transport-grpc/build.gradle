@@ -8,9 +8,11 @@ import org.gradle.api.attributes.java.TargetJvmEnvironment
  * compatible open source license.
  */
 
+apply plugin: 'opensearch.internal-cluster-test'
+
 opensearchplugin {
   description = 'gRPC based transport implementation'
-  classname = 'org.opensearch.transport.grpc.GrpcPlugin'
+  classname = 'org.opensearch.plugin.transport.grpc.GrpcPlugin'
 }
 
 dependencies {
@@ -27,6 +29,7 @@ dependencies {
   implementation "io.grpc:grpc-stub:${versions.grpc}"
   implementation "io.grpc:grpc-util:${versions.grpc}"
   implementation "io.perfmark:perfmark-api:0.26.0"
+  implementation "org.opensearch:protobufs:0.2.0"
 }
 
 tasks.named("dependencyLicenses").configure {

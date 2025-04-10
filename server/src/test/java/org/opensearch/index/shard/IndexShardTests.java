@@ -3059,6 +3059,224 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary, replica);
     }
 
+    public void testRestoreSearchOnlyShardFromStoreOnNewNode() throws IOException {
+        // this test indexes docs on a primary, refreshes,
+        // then recovers a new Search Replica and asserts all docs are present
+        String remoteStorePath = createTempDir().toString();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test")
+            .build();
+        IndexShard primary = newStartedShard(true, settings, new InternalEngineFactory());
+        indexDoc(primary, "_doc", "1");
+        indexDoc(primary, "_doc", "2");
+        primary.refresh("test");
+        assertDocs(primary, "1", "2");
+
+        // Setting the RecoverySource to ExistingStoreRecoverySource to simulate a shard initializing on a new node
+        // during a node-left scenario. The shard attempts recovery using ExistingStoreRecoverySource,
+        // but since no segment info is found, it falls back to Empty Store recovery logic.
+        ShardRouting searchReplicaShardRouting = TestShardRouting.newShardRouting(
+            primary.shardId,
+            randomAlphaOfLength(10),
+            false,
+            true,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+        );
+        IndexShard replica = newShard(searchReplicaShardRouting, settings, new NRTReplicationEngineFactory());
+
+        recoverShardFromStore(replica);
+        assertDocs(replica, "1", "2");
+        assertEquals(
+            primary.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+            replica.getLatestReplicationCheckpoint().getSegmentInfosVersion()
+        );
+        closeShards(primary, replica);
+    }
+
+    public void testSearchShardDoesNotStartIfCorruptedMarkerIsPresent() throws Exception {
+        // this test indexes docs on a primary, refreshes, then recovers a new Search Replica and asserts
+        // all docs are present
+        String remoteStorePath = createTempDir().toString();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test")
+            .build();
+        IndexShard primary = newStartedShard(true, settings, new InternalEngineFactory());
+        indexDoc(primary, "_doc", "1");
+        indexDoc(primary, "_doc", "2");
+        primary.refresh("test");
+        assertDocs(primary, "1", "2");
+
+        // start search replica
+        ShardRouting searchReplicaShardRouting = TestShardRouting.newShardRouting(
+            primary.shardId,
+            randomAlphaOfLength(10),
+            false,
+            true,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        );
+        IndexShard replica = newShard(searchReplicaShardRouting, settings, new NRTReplicationEngineFactory());
+        recoverShardFromStore(replica);
+        assertDocs(replica, "1", "2");
+        assertEquals(
+            primary.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+            replica.getLatestReplicationCheckpoint().getSegmentInfosVersion()
+        );
+        closeShards(replica);
+
+        final ShardPath searchReplicaShardPath = replica.shardPath();
+        final IndexMetadata indexMetadata = replica.indexSettings().getIndexMetadata();
+        final Path indexPath = searchReplicaShardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+
+        // create corrupted marker
+        final String corruptionMessage = "fake ioexception";
+        try (Store store = createStore(replica.indexSettings(), searchReplicaShardPath)) {
+            store.markStoreCorrupted(new IOException(corruptionMessage));
+        }
+
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            primary.shardId,
+            randomAlphaOfLength(10),
+            false,
+            true,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+        );
+
+        // try to start shard on corrupted files
+        IndexShard replicaCorrupted = newShard(
+            shardRouting,
+            searchReplicaShardPath,
+            indexMetadata,
+            null,
+            null,
+            replica.engineFactory,
+            replica.engineConfigFactory,
+            replica.getGlobalCheckpointSyncer(),
+            replica.getRetentionLeaseSyncer(),
+            EMPTY_EVENT_LISTENER,
+            null
+        );
+
+        final IndexShardRecoveryException exception1 = expectThrows(
+            IndexShardRecoveryException.class,
+            () -> newStartedShard(p -> replicaCorrupted, true)
+        );
+
+        assertThat(exception1.getCause().getMessage(), equalTo(corruptionMessage + " (resource=preexisting_corruption)"));
+        closeShards(replicaCorrupted);
+        closeShards(primary);
+
+        final AtomicInteger corruptedMarkerCount = new AtomicInteger();
+        final SimpleFileVisitor<Path> corruptedVisitor = new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                if (Files.isRegularFile(file) && file.getFileName().toString().startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)) {
+                    corruptedMarkerCount.incrementAndGet();
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        };
+        Files.walkFileTree(indexPath, corruptedVisitor);
+        assertThat("store has to be marked as corrupted", corruptedMarkerCount.get(), equalTo(1));
+    }
+
+    public void testShardDoesNotStartIfCorruptedMarkerIsPresentSearch() throws Exception {
+        final IndexShard indexShard = newStartedShard(true);
+
+        final long numDocs = between(10, 100);
+        for (long i = 0; i < numDocs; i++) {
+            indexDoc(indexShard, "_doc", Long.toString(i), "{}");
+        }
+        indexShard.flush(new FlushRequest());
+        closeShards(indexShard);
+
+        final ShardPath shardPath = indexShard.shardPath();
+
+        final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(
+            indexShard.routingEntry(),
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+        );
+        final IndexMetadata indexMetadata = indexShard.indexSettings().getIndexMetadata();
+
+        final Path indexPath = shardPath.getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+
+        // create corrupted marker
+        final String corruptionMessage = "fake ioexception";
+        try (Store store = createStore(indexShard.indexSettings(), shardPath)) {
+            store.markStoreCorrupted(new IOException(corruptionMessage));
+        }
+
+        // try to start shard on corrupted files
+        final IndexShard corruptedShard = newShard(
+            shardRouting,
+            shardPath,
+            indexMetadata,
+            null,
+            null,
+            indexShard.engineFactory,
+            indexShard.engineConfigFactory,
+            indexShard.getGlobalCheckpointSyncer(),
+            indexShard.getRetentionLeaseSyncer(),
+            EMPTY_EVENT_LISTENER,
+            null
+        );
+
+        final IndexShardRecoveryException exception1 = expectThrows(
+            IndexShardRecoveryException.class,
+            () -> newStartedShard(p -> corruptedShard, true)
+        );
+        assertThat(exception1.getCause().getMessage(), equalTo(corruptionMessage + " (resource=preexisting_corruption)"));
+        closeShards(corruptedShard);
+
+        final AtomicInteger corruptedMarkerCount = new AtomicInteger();
+        final SimpleFileVisitor<Path> corruptedVisitor = new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                if (Files.isRegularFile(file) && file.getFileName().toString().startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)) {
+                    corruptedMarkerCount.incrementAndGet();
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        };
+        Files.walkFileTree(indexPath, corruptedVisitor);
+        assertThat("store has to be marked as corrupted", corruptedMarkerCount.get(), equalTo(1));
+
+        // try to start another time shard on corrupted files
+        final IndexShard corruptedShard2 = newShard(
+            shardRouting,
+            shardPath,
+            indexMetadata,
+            null,
+            null,
+            indexShard.engineFactory,
+            indexShard.engineConfigFactory,
+            indexShard.getGlobalCheckpointSyncer(),
+            indexShard.getRetentionLeaseSyncer(),
+            EMPTY_EVENT_LISTENER,
+            null
+        );
+
+        final IndexShardRecoveryException exception2 = expectThrows(
+            IndexShardRecoveryException.class,
+            () -> newStartedShard(p -> corruptedShard2, true)
+        );
+        assertThat(exception2.getCause().getMessage(), equalTo(corruptionMessage + " (resource=preexisting_corruption)"));
+        closeShards(corruptedShard2);
+
+        // check that corrupt marker is there
+        corruptedMarkerCount.set(0);
+        Files.walkFileTree(indexPath, corruptedVisitor);
+        assertThat("store still has a single corrupt marker", corruptedMarkerCount.get(), equalTo(1));
+    }
+
     public void testReaderWrapperIsUsed() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");

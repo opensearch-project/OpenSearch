@@ -93,6 +93,30 @@ grant codeBase "${codebase.reactor-core}" {
   permission java.net.SocketPermission "*", "connect,resolve";
 };
 
+grant codeBase "${codebase.opensearch-cli}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
+grant codeBase "${codebase.opensearch-core}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
+grant codeBase "${codebase.jackson-core}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
+grant codeBase "${codebase.opensearch-common}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
+grant codeBase "${codebase.opensearch-x-content}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
+grant codeBase "${codebase.opensearch}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
 //// Everything else:
 
 grant {
@@ -195,4 +219,11 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+
+  // needed by RestClientBuilder
+  permission java.io.FilePermission "${java.home}/lib/security/cacerts", "read";
+  permission java.io.FilePermission "${java.home}/lib/security/jssecacerts", "read";
+  permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
+  permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
+  permission java.security.SecurityPermission "getProperty.keystore.type.compat";
 };

@@ -345,7 +345,7 @@ public class SegmentReplicator {
     }
 
     ReplicationCheckpoint getPrimaryCheckpoint(ShardId shardId) {
-        return primaryCheckpoint.getOrDefault(shardId, ReplicationCheckpoint.empty(shardId));
+        return primaryCheckpoint.get(shardId);
     }
 
     ReplicationCollection.ReplicationRef<SegmentReplicationTarget> get(long id) {

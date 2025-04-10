@@ -75,7 +75,6 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.cluster.service.ClusterApplierService;
@@ -614,6 +613,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 OperationRouting.WEIGHTED_ROUTING_FAILOPEN_ENABLED,
                 OperationRouting.STRICT_WEIGHTED_SHARD_ROUTING_ENABLED,
                 OperationRouting.IGNORE_WEIGHTED_SHARD_ROUTING,
+                OperationRouting.STRICT_SEARCH_REPLICA_ROUTING_ENABLED,
                 IndexGraveyard.SETTING_MAX_TOMBSTONES,
                 PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
                 EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
@@ -821,7 +821,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ),
                 OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
                     CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-                )
+                ),
+
+                // Setting related to refresh optimisations
+                IndicesService.CLUSTER_REFRESH_FIXED_INTERVAL_SCHEDULE_ENABLED_SETTING
             )
         )
     );
@@ -841,8 +844,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING,
             TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING,
             TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING
-        ),
-        List.of(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL),
-        List.of(SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING)
+        )
     );
 }

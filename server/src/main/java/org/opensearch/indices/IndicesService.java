@@ -291,6 +291,17 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * This setting is used to enable fixed interval scheduling capability for refresh tasks to ensure consistent intervals
+     * between refreshes.
+     */
+    public static final Setting<Boolean> CLUSTER_REFRESH_FIXED_INTERVAL_SCHEDULE_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.index.refresh.fixed_interval_scheduling.enabled",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * This setting is used to restrict creation or updation of index where the `index.translog.durability` index setting
      * is set as ASYNC if enabled. If disabled, any of the durability mode can be used and switched at any later time from
      * one to another.
@@ -363,6 +374,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private volatile TimeValue clusterDefaultRefreshInterval;
+    private volatile boolean fixedRefreshIntervalSchedulingEnabled;
     private final SearchRequestStats searchRequestStats;
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
@@ -514,6 +526,15 @@ public class IndicesService extends AbstractLifecycleComponent
         this.clusterDefaultRefreshInterval = CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING, this::onRefreshIntervalUpdate);
+        this.fixedRefreshIntervalSchedulingEnabled = CLUSTER_REFRESH_FIXED_INTERVAL_SCHEDULE_ENABLED_SETTING.get(
+            clusterService.getSettings()
+        );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CLUSTER_REFRESH_FIXED_INTERVAL_SCHEDULE_ENABLED_SETTING,
+                this::setFixedRefreshIntervalSchedulingEnabled
+            );
+
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
         this.compositeIndexSettings = compositeIndexSettings;
@@ -1006,6 +1027,7 @@ public class IndicesService extends AbstractLifecycleComponent
             remoteDirectoryFactory,
             translogFactorySupplier,
             this::getClusterDefaultRefreshInterval,
+            this::isFixedRefreshIntervalSchedulingEnabled,
             this.recoverySettings,
             this.remoteStoreSettings,
             replicator,
@@ -2166,5 +2188,13 @@ public class IndicesService extends AbstractLifecycleComponent
     // Package-private for testing
     void setMaxSizeInRequestCache(Integer maxSizeInRequestCache) {
         this.maxSizeInRequestCache = maxSizeInRequestCache;
+    }
+
+    public void setFixedRefreshIntervalSchedulingEnabled(boolean fixedRefreshIntervalSchedulingEnabled) {
+        this.fixedRefreshIntervalSchedulingEnabled = fixedRefreshIntervalSchedulingEnabled;
+    }
+
+    private boolean isFixedRefreshIntervalSchedulingEnabled() {
+        return fixedRefreshIntervalSchedulingEnabled;
     }
 }

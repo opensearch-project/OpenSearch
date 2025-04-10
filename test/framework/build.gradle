@@ -49,9 +49,12 @@ dependencies {
   api "org.mockito:mockito-core:${versions.mockito}"
   api "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
   api "org.objenesis:objenesis:${versions.objenesis}"
-  api "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
+  api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  api "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
+  api "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+
+  compileOnly project(":libs:agent-sm:bootstrap")
+  compileOnly "com.github.spotbugs:spotbugs-annotations:4.9.0"
 
   annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 }
@@ -97,9 +100,8 @@ test {
   systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
   systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
 
-  if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_18) {
-    jvmArgs += ["-Djava.security.manager=allow"]
-  }
+  dependsOn(project(':libs:agent-sm:agent').prepareAgent)
+  jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
 }
 
 tasks.register("integTest", Test) {
