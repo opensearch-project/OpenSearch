@@ -10,13 +10,10 @@ package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.common.CheckedRunnable;
-import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.RangeCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.SimpleRangeCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.SubAggRangeCollector;
@@ -24,7 +21,6 @@ import org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.Su
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -51,13 +47,11 @@ final class PointTreeTraversal {
         BiConsumer<Integer, Integer> incrementRangeDocCount,
         int maxNumNonZeroRange,
         int activeIndex,
-        Supplier<DocIdSetBuilder> disBuilderSupplier,
         Function<Integer, Long> getBucketOrd,
         FilterRewriteOptimizationContext.OptimizeResult result,
-        BucketCollector collectableSubAggregators,
-        LeafReaderContext leafCtx
+        FilterRewriteOptimizationContext.SubAggCollectorParam subAggCollectorParam
     ) {
-        if (disBuilderSupplier == null) {
+        if (subAggCollectorParam == null) {
             return new SimpleRangeCollector(ranges, incrementRangeDocCount, maxNumNonZeroRange, activeIndex, result);
         } else {
             return new SubAggRangeCollector(
@@ -65,11 +59,9 @@ final class PointTreeTraversal {
                 incrementRangeDocCount,
                 maxNumNonZeroRange,
                 activeIndex,
-                disBuilderSupplier,
-                getBucketOrd,
                 result,
-                collectableSubAggregators,
-                leafCtx
+                getBucketOrd,
+                subAggCollectorParam
             );
         }
     }
@@ -123,14 +115,6 @@ final class PointTreeTraversal {
 
     private static PointValues.IntersectVisitor getIntersectVisitor(RangeCollector collector) {
         return new PointValues.IntersectVisitor() {
-
-            @Override
-            public void grow(int count) {
-                if (collector.hasSubAgg()) {
-                    collector.grow(count);
-                }
-            }
-
             @Override
             public void visit(int docID) {
                 collector.collectDocId(docID);

@@ -22,7 +22,6 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -141,17 +140,15 @@ public final class FilterRewriteOptimizationContext {
             return false;
         }
 
-        Supplier<DocIdSetBuilder> disBuilderSupplier = getDocIdSetBuilderSupplier(leafCtx, values);
         OptimizeResult optimizeResult;
+        SubAggCollectorParam subAggCollectorParam;
+        if (hasSubAgg) {
+            subAggCollectorParam = new SubAggCollectorParam(collectableSubAggregators, leafCtx);
+        } else {
+            subAggCollectorParam = null;
+        }
         try {
-            optimizeResult = aggregatorBridge.tryOptimize(
-                values,
-                incrementDocCount,
-                ranges,
-                disBuilderSupplier,
-                collectableSubAggregators,
-                leafCtx
-            );
+            optimizeResult = aggregatorBridge.tryOptimize(values, incrementDocCount, ranges, subAggCollectorParam);
             consumeDebugInfo(optimizeResult);
         } catch (AbortFilterRewriteOptimizationException e) {
             logger.error("Abort filter rewrite optimization, fall back to default path");
@@ -165,21 +162,10 @@ public final class FilterRewriteOptimizationContext {
         return true;
     }
 
-    private Supplier<DocIdSetBuilder> getDocIdSetBuilderSupplier(LeafReaderContext leafCtx, PointValues values) {
-        Supplier<DocIdSetBuilder> disBuilderSupplier = null;
-        if (hasSubAgg) {
-            disBuilderSupplier = () -> {
-                try {
-                    return new DocIdSetBuilder(leafCtx.reader().maxDoc(), values, aggregatorBridge.fieldType.name());
-                } catch (IOException e) {
-                    throw new AbortFilterRewriteOptimizationException(
-                        "Abort filter rewrite optimization due to IOException when building DocIdSetBuilder",
-                        e
-                    );
-                }
-            };
-        }
-        return disBuilderSupplier;
+    /**
+     * Parameters for {@link org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.SubAggRangeCollector}
+     */
+    public record SubAggCollectorParam(BucketCollector collectableSubAggregators, LeafReaderContext leafCtx) {
     }
 
     static class AbortFilterRewriteOptimizationException extends RuntimeException {

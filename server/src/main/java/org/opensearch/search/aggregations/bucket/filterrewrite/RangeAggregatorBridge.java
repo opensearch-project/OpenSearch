@@ -10,10 +10,8 @@ package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumericPointEncoder;
-import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -21,7 +19,6 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * For range aggregation
@@ -79,15 +76,13 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
         PointValues values,
         BiConsumer<Long, Long> incrementDocCount,
         Ranges ranges,
-        Supplier<DocIdSetBuilder> disBuilderSupplier,
-        BucketCollector collectableSubAggregators,
-        LeafReaderContext leafCtx
+        FilterRewriteOptimizationContext.SubAggCollectorParam subAggCollectorParam
     ) throws IOException {
         int size = Integer.MAX_VALUE;
 
         Function<Integer, Long> getBucketOrd = (activeIndex) -> bucketOrdProducer().apply(activeIndex);
 
-        return getResult(values, incrementDocCount, ranges, disBuilderSupplier, getBucketOrd, size, collectableSubAggregators, leafCtx);
+        return getResult(values, incrementDocCount, ranges, getBucketOrd, size, subAggCollectorParam);
     }
 
     /**

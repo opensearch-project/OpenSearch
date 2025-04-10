@@ -23,12 +23,6 @@ public interface RangeCollector {
     boolean hasSubAgg();
 
     /**
-     * Grow the internal collection capacity.
-     * @param count The number of documents to accommodate
-     */
-    void grow(int count);
-
-    /**
      * Count a node that is fully contained within the current range.
      * @param count The number of documents in the node
      */

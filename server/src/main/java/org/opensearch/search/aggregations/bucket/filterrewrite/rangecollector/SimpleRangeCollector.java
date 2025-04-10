@@ -36,11 +36,6 @@ public class SimpleRangeCollector extends AbstractRangeCollector {
     }
 
     @Override
-    public void grow(int count) {
-        throw new UnsupportedOperationException("grow should be unreachable");
-    }
-
-    @Override
     public void collectDocId(int docId) {
         throw new UnsupportedOperationException("collectDocId should be unreachable");
     }

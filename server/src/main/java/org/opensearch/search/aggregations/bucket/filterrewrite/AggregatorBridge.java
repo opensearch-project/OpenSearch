@@ -14,9 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.RangeCollector;
 import org.opensearch.search.internal.SearchContext;
 
@@ -24,7 +22,6 @@ import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.createCollector;
 import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.multiRangesTraverse;
@@ -87,30 +84,25 @@ public abstract class AggregatorBridge {
     /**
      * Attempts to build aggregation results for a segment
      *
-     * @param values                    the point values (index structure for numeric values) for a segment
-     * @param incrementDocCount         a consumer to increment the document count for a range bucket. The First parameter is document count, the second is the key of the bucket
+     * @param values               the point values (index structure for numeric values) for a segment
+     * @param incrementDocCount    a consumer to increment the document count for a range bucket. The First parameter is document count, the second is the key of the bucket
      * @param ranges
-     * @param collectableSubAggregators
-     * @param leafCtx
+     * @param subAggCollectorParam
      */
     abstract FilterRewriteOptimizationContext.OptimizeResult tryOptimize(
         PointValues values,
         BiConsumer<Long, Long> incrementDocCount,
         Ranges ranges,
-        Supplier<DocIdSetBuilder> disBuilderSupplier,
-        BucketCollector collectableSubAggregators,
-        LeafReaderContext leafCtx
+        FilterRewriteOptimizationContext.SubAggCollectorParam subAggCollectorParam
     ) throws IOException;
 
     static FilterRewriteOptimizationContext.OptimizeResult getResult(
         PointValues values,
         BiConsumer<Long, Long> incrementDocCount,
         Ranges ranges,
-        Supplier<DocIdSetBuilder> disBuilderSupplier,
         Function<Integer, Long> getBucketOrd,
         int size,
-        BucketCollector collectableSubAggregators,
-        LeafReaderContext leafCtx
+        FilterRewriteOptimizationContext.SubAggCollectorParam subAggCollectorParam
     ) throws IOException {
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
             long bucketOrd = getBucketOrd.apply(activeIndex);
@@ -129,11 +121,9 @@ public abstract class AggregatorBridge {
             incrementFunc,
             size,
             activeIndex,
-            disBuilderSupplier,
             getBucketOrd,
             optimizeResult,
-            collectableSubAggregators,
-            leafCtx
+            subAggCollectorParam
         );
 
         return multiRangesTraverse(tree, collector);
