@@ -36,7 +36,6 @@ import java.util.HashMap;
 import org.mockito.ArgumentCaptor;
 
 import static org.opensearch.rule.XContentRuleParserTests.VALID_JSON;
-import static org.opensearch.rule.utils.RuleTestUtils.IndexStoredRulePersistenceBuilder;
 import static org.opensearch.rule.utils.RuleTestUtils.MockRuleFeatureType;
 import static org.opensearch.rule.utils.RuleTestUtils.TEST_INDEX_NAME;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
@@ -63,19 +62,20 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         Rule mockRule = mock(Rule.class);
 
         when(mockRuleEntityParser.parse(anyString())).thenReturn(mockRule);
-        when(mockRuleQueryMapper.getQuery(getRuleRequest)).thenReturn(queryBuilder);
+        when(mockRuleQueryMapper.from(getRuleRequest)).thenReturn(queryBuilder);
         when(queryBuilder.filter(any())).thenReturn(queryBuilder);
 
         SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
         Client client = setUpMockClient(searchRequestBuilder);
 
-        IndexStoredRulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceBuilder().indexName(TEST_INDEX_NAME)
-            .client(client)
-            .featureType(MockRuleFeatureType.INSTANCE)
-            .maxValuesPerPage(MAX_VALUES_PER_PAGE)
-            .parser(mockRuleEntityParser)
-            .queryBuilder(mockRuleQueryMapper)
-            .build();
+        RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
+            TEST_INDEX_NAME,
+            client,
+            MockRuleFeatureType.INSTANCE,
+            MAX_VALUES_PER_PAGE,
+            mockRuleEntityParser,
+            mockRuleQueryMapper
+        );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         SearchHits searchHits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
@@ -108,19 +108,20 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         Rule mockRule = mock(Rule.class);
 
         when(mockRuleEntityParser.parse(anyString())).thenReturn(mockRule);
-        when(mockRuleQueryMapper.getQuery(getRuleRequest)).thenReturn(queryBuilder);
+        when(mockRuleQueryMapper.from(getRuleRequest)).thenReturn(queryBuilder);
         when(queryBuilder.filter(any())).thenReturn(queryBuilder);
 
         SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
         Client client = setUpMockClient(searchRequestBuilder);
 
-        IndexStoredRulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceBuilder().indexName(TEST_INDEX_NAME)
-            .client(client)
-            .featureType(MockRuleFeatureType.INSTANCE)
-            .maxValuesPerPage(MAX_VALUES_PER_PAGE)
-            .parser(mockRuleEntityParser)
-            .queryBuilder(mockRuleQueryMapper)
-            .build();
+        RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
+            TEST_INDEX_NAME,
+            client,
+            MockRuleFeatureType.INSTANCE,
+            MAX_VALUES_PER_PAGE,
+            mockRuleEntityParser,
+            mockRuleQueryMapper
+        );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(new SearchHits(new SearchHit[] {}, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f));

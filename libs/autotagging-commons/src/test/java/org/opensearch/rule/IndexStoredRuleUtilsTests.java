@@ -30,7 +30,7 @@ public class IndexStoredRuleUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildGetRuleQuery_WithId() {
-        QueryBuilder query = sut.getQuery(new GetRuleRequest(_ID_ONE, new HashMap<>(), null, RuleTestUtils.MockRuleFeatureType.INSTANCE));
+        QueryBuilder query = sut.from(new GetRuleRequest(_ID_ONE, new HashMap<>(), null, RuleTestUtils.MockRuleFeatureType.INSTANCE));
         assertNotNull(query);
         BoolQueryBuilder queryBuilder = (BoolQueryBuilder) query;
         assertEquals(1, queryBuilder.must().size());
@@ -39,9 +39,7 @@ public class IndexStoredRuleUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildGetRuleQuery_WithAttributes() {
-        QueryBuilder queryBuilder = sut.getQuery(
-            new GetRuleRequest(null, ATTRIBUTE_MAP, null, RuleTestUtils.MockRuleFeatureType.INSTANCE)
-        );
+        QueryBuilder queryBuilder = sut.from(new GetRuleRequest(null, ATTRIBUTE_MAP, null, RuleTestUtils.MockRuleFeatureType.INSTANCE));
         assertNotNull(queryBuilder);
         BoolQueryBuilder query = (BoolQueryBuilder) queryBuilder;
         assertTrue(query.must().size() == 1);

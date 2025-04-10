@@ -23,5 +23,5 @@ public interface RuleQueryMapper<T> {
      * @param request
      * @return
      */
-    T getQuery(GetRuleRequest request);
+    T from(GetRuleRequest request);
 }
