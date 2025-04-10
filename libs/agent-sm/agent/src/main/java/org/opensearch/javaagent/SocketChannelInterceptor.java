@@ -13,9 +13,7 @@ import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import java.lang.StackWalker.Option;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
-import java.net.NetPermission;
 import java.net.SocketPermission;
-import java.net.UnixDomainSocketAddress;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collection;
@@ -58,13 +56,6 @@ public class SocketChannelInterceptor {
                     if (!policy.implies(domain, permission)) {
                         throw new SecurityException("Denied access to: " + host + ", domain " + domain);
                     }
-                }
-            }
-        } else if (args[0] instanceof UnixDomainSocketAddress address) {
-            final NetPermission permission = new NetPermission("accessUnixDomainSocket");
-            for (ProtectionDomain domain : callers) {
-                if (!policy.implies(domain, permission)) {
-                    throw new SecurityException("Denied access to: " + address + ", domain " + domain);
                 }
             }
         }
