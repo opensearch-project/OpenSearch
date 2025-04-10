@@ -277,11 +277,13 @@ public class BaseCompositeAggregatorTestCase extends AggregatorTestCase {
     }
 
     protected static SortField sortFieldFrom(MappedFieldType type) {
-        if (type instanceof KeywordFieldMapper.KeywordFieldType) {
+        if (type == null) {
+            return null;
+        } else if (type.unwrap() instanceof KeywordFieldMapper.KeywordFieldType) {
             return new SortedSetSortField(type.name(), false);
-        } else if (type instanceof DateFieldMapper.DateFieldType) {
+        } else if (type.unwrap() instanceof DateFieldMapper.DateFieldType) {
             return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
-        } else if (type instanceof NumberFieldMapper.NumberFieldType) {
+        } else if (type.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
             switch (type.typeName()) {
                 case "byte":
                 case "short":

@@ -300,7 +300,8 @@ public class MatchQuery {
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(fieldName, value.toString());
             if (type == Type.BOOLEAN_PREFIX
-                && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
+                && (fieldType.unwrap() instanceof TextFieldMapper.TextFieldType
+                    || fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
             } else {
                 return builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
@@ -887,7 +888,7 @@ public class MatchQuery {
 
         private void checkForPositions(String field) {
             if (fieldType.getTextSearchInfo().hasPositions() == false) {
-                if (fieldType instanceof MatchOnlyTextFieldMapper.MatchOnlyTextFieldType) {
+                if (fieldType.unwrap() instanceof MatchOnlyTextFieldMapper.MatchOnlyTextFieldType) {
                     return;
                 }
                 throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");

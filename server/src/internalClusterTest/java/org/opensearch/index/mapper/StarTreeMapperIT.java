@@ -602,7 +602,8 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
 
                 for (CompositeMappedFieldType ft : fts) {
-                    assertTrue(ft instanceof StarTreeMapper.StarTreeFieldType);
+                    assertFalse(ft == null);
+                    assertTrue(ft.unwrap() instanceof StarTreeMapper.StarTreeFieldType);
                     StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) ft;
                     assertEquals("timestamp", starTreeFieldType.getDimensions().get(0).getField());
                     assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
@@ -643,7 +644,8 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
 
                 for (CompositeMappedFieldType ft : fts) {
-                    assertTrue(ft instanceof StarTreeMapper.StarTreeFieldType);
+                    assertFalse(ft == null);
+                    assertTrue(ft.unwrap() instanceof StarTreeMapper.StarTreeFieldType);
                     StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) ft;
                     assertEquals("timestamp", starTreeFieldType.getDimensions().get(0).getField());
                     assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
@@ -681,7 +683,8 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
 
                 for (CompositeMappedFieldType ft : fts) {
-                    assertTrue(ft instanceof StarTreeMapper.StarTreeFieldType);
+                    assertFalse(ft == null);
+                    assertTrue(ft.unwrap() instanceof StarTreeMapper.StarTreeFieldType);
                     StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) ft;
                     assertEquals("timestamp", starTreeFieldType.getDimensions().get(0).getField());
                     assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
@@ -721,7 +724,8 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
 
                 for (CompositeMappedFieldType ft : fts) {
-                    assertTrue(ft instanceof StarTreeMapper.StarTreeFieldType);
+                    assertFalse(ft == null);
+                    assertTrue(ft.unwrap() instanceof StarTreeMapper.StarTreeFieldType);
                     StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) ft;
                     assertEquals("timestamp", starTreeFieldType.getDimensions().get(0).getField());
                     assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
@@ -1053,7 +1057,8 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 Set<CompositeMappedFieldType> fts = indexService.mapperService().getCompositeFieldTypes();
 
                 for (CompositeMappedFieldType ft : fts) {
-                    assertTrue(ft instanceof StarTreeMapper.StarTreeFieldType);
+                    assertFalse(ft == null);
+                    assertTrue(ft.unwrap() instanceof StarTreeMapper.StarTreeFieldType);
                     StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) ft;
                     assertEquals("timestamp", starTreeFieldType.getDimensions().get(0).getField());
                     assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);

@@ -213,7 +213,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             }
             MappedFieldType fieldType = indexService.mapperService().fieldType(request.field());
             if (fieldType != null) {
-                if (fieldType instanceof StringFieldType) {
+                if (fieldType.unwrap() instanceof StringFieldType) {
                     return fieldType.indexAnalyzer();
                 } else {
                     throw new IllegalArgumentException(

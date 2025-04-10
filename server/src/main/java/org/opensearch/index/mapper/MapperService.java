@@ -699,7 +699,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return Collections.emptySet();
         }
         for (MappedFieldType type : this.mapper.fieldTypes()) {
-            if (type instanceof CompositeMappedFieldType) {
+            if (type != null && type.unwrap() instanceof CompositeMappedFieldType) {
                 compositeMappedFieldTypes.add((CompositeMappedFieldType) type);
             }
         }
