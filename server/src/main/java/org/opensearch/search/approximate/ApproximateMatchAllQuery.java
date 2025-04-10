@@ -39,7 +39,9 @@ public class ApproximateMatchAllQuery extends ApproximateQuery {
 
         if (context.request() != null && context.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
-            if (primarySortField != null && primarySortField.missing() == null) {
+            if (primarySortField != null
+                && primarySortField.missing() == null
+                && !primarySortField.fieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)) {
                 MappedFieldType mappedFieldType = context.getQueryShardContext().fieldMapper(primarySortField.fieldName());
                 Query rangeQuery = mappedFieldType.rangeQuery(null, null, false, false, null, null, null, context.getQueryShardContext());
                 if (rangeQuery instanceof ApproximateScoreQuery approximateScoreQuery) {
