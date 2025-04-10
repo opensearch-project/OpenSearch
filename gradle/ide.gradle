@@ -49,6 +49,10 @@ if (System.getProperty('idea.active') == 'true') {
     }
   }
 
+  buildScan {
+    server = 'https://127.0.0.1'
+  }
+
   idea {
     project {
       vcs = 'Git'
@@ -81,8 +85,14 @@ if (System.getProperty('idea.active') == 'true') {
         }
         runConfigurations {
           defaults(JUnit) {
-            vmParameters = '-ea -Djava.locale.providers=SPI,CLDR'
-            vmParameters += ' -javaagent:' + project(':libs:agent-sm:agent').jar.archiveFile.get()
+            project(':libs:agent-sm:agent').afterEvaluate { agentProject ->
+              vmParameters = '-ea -Djava.locale.providers=SPI,CLDR'
+              def jarName = "${agentProject.base.archivesName.get()}-${project.version}.jar"
+              vmParameters += ' -javaagent:' + agentProject.layout.buildDirectory
+                .dir('distributions')
+                .map { it.file(jarName) }
+                .get()
+            }
           }
         }
         copyright {
