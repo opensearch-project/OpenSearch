@@ -161,7 +161,12 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         );
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
-        private final Parameter<Boolean> useSimilarity = TextParams.norms(false, m -> toType(m).useSimilarity == false);
+        private final Parameter<Boolean> useSimilarity = Parameter.boolParam(
+            "useSimilarity",
+            true,
+            m -> toType(m).useSimilarity,
+            false
+        );
 
         private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");
 
@@ -300,12 +305,17 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
+            this(name, isSearchable, hasDocValues, false, meta);
+        }
+
+        public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, boolean useSimilarity, Map<String, String> meta) {
             super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
-            this.useSimilarity = false;
+            this.useSimilarity = useSimilarity;
         }
+
 
         public KeywordFieldType(String name) {
             this(name, true, true, Collections.emptyMap());

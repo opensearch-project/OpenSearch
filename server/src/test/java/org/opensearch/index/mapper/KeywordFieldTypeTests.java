@@ -43,6 +43,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -129,10 +130,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
 
         ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
 
         ft = new KeywordFieldType("field", false, true, Collections.emptyMap());
         Query expected = SortedSetDocValuesField.newSlowRangeQuery("field", new BytesRef("foo"), new BytesRef("foo"), true, true);
@@ -147,6 +148,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
             e.getMessage()
         );
+        //backwards compatible enaled with useSimilarity=true
+        ft = new KeywordFieldType("field", true, false, true, Collections.emptyMap());
+        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
     }
 
     public void testTermQueryWithNormalizer() {
@@ -164,7 +169,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             }
         };
         MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
-        assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("fOo BaR", null));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo bar"))), ft.termQuery("fOo BaR", null));
     }
 
     public void testTermsQuery() {
@@ -392,9 +397,9 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testNormalizeQueries() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", new BytesRef("FOO")))), ft.termQuery("FOO", null));
         ft = new KeywordFieldType("field", Lucene.STANDARD_ANALYZER);
-        assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", new BytesRef("foo")))), ft.termQuery("FOO", null));
     }
 
     public void testFetchSourceValue() throws IOException {
