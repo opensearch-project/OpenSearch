@@ -50,8 +50,13 @@ public class ProxyStreamProducerTests extends OpenSearchTestCase {
         VectorSchemaRoot mockRoot = mock(VectorSchemaRoot.class);
         when(mockRoot.getRowCount()).thenReturn(100);
         when(mockRemoteStream.getRoot()).thenReturn(mockRoot);
-        assertEquals("", proxyStreamProducer.getAction());
         assertEquals(100, proxyStreamProducer.estimatedRowCount());
+        try {
+            proxyStreamProducer.getAction();
+            fail("Expected UnsupportedOperationException");
+        } catch (UnsupportedOperationException e) {
+            assertEquals("Not implemented yet", e.getMessage());
+        }
     }
 
     public void testCreateJob() {

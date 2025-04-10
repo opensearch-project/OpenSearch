@@ -192,20 +192,14 @@ public class BaseFlightProducer extends NoOpFlightProducer {
                     break;
                 case TIMEOUT:
                     batchedJob.onCancel();
-                    FlightRuntimeException timeoutEx = CallStatus.TIMED_OUT.withDescription("Stream deadline exceeded")
-                        .toRuntimeException();
-                    throw timeoutEx;
+                    throw CallStatus.TIMED_OUT.withDescription("Stream deadline exceeded").toRuntimeException();
                 case CANCELLED:
                     batchedJob.onCancel();
-                    FlightRuntimeException cancelEx = CallStatus.CANCELLED.withDescription("Stream cancelled by client")
-                        .toRuntimeException();
-                    throw cancelEx;
+                    throw CallStatus.CANCELLED.withDescription("Stream cancelled by client").toRuntimeException();
                 default:
                     batchedJob.onCancel();
                     logger.error("Unexpected backpressure result: {}", result);
-                    FlightRuntimeException unexpectedEx = CallStatus.INTERNAL.withDescription("Unexpected backpressure error: " + result)
-                        .toRuntimeException();
-                    throw unexpectedEx;
+                    throw CallStatus.INTERNAL.withDescription("Unexpected backpressure error: " + result).toRuntimeException();
             }
         };
     }

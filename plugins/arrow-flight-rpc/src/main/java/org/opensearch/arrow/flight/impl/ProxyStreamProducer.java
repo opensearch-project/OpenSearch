@@ -80,7 +80,7 @@ public class ProxyStreamProducer implements StreamProducer<VectorSchemaRoot, Buf
     @Override
     public String getAction() {
         // TODO get it from remote flight stream
-        return "";
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
     /**
