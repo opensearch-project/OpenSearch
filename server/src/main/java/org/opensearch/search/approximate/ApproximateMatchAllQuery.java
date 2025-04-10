@@ -37,11 +37,15 @@ public class ApproximateMatchAllQuery extends ApproximateQuery {
             return false;
         }
 
-        if (context.request() != null && context.request().source() != null) {
+        if (context.request() != null
+            && context.request().source() != null
+            && context.innerHits() == null
+            && context.aggregations() == null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
             if (primarySortField != null
                 && primarySortField.missing() == null
-                && !primarySortField.fieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)) {
+                && !primarySortField.fieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)
+                && !primarySortField.fieldName().equals(FieldSortBuilder.ID_FIELD_NAME)) {
                 MappedFieldType mappedFieldType = context.getQueryShardContext().fieldMapper(primarySortField.fieldName());
                 if (mappedFieldType == null) {
                     return false;
