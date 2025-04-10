@@ -112,11 +112,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             request.query(rewrittenQuery);
             super.doExecute(task, request, listener);
         }, listener::onFailure);
-        Rewriteable.rewriteAndFetch(
-            request.query(),
-            searchService.getIndicesService().getRewriteContext(() -> request.nowInMillis),
-            rewriteListener
-        );
+        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(() -> request.nowInMillis, request), rewriteListener);
     }
 
     @Override
