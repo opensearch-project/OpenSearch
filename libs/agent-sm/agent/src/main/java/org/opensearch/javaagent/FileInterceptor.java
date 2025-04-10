@@ -71,6 +71,11 @@ public class FileInterceptor {
         boolean isMutating = name.equals("move") || name.equals("write") || name.startsWith("create");
         final boolean isDelete = isMutating == false ? name.startsWith("delete") : false;
 
+        // This is Windows implementation of UNIX Domain Sockets (close)
+        if (walker.getCallerClass().getName().equalsIgnoreCase("sun.nio.ch.PipeImpl$Initializer$LoopbackConnector") == true) {
+            return;
+        }
+
         String targetFilePath = null;
         if (isMutating == false && isDelete == false) {
             if (name.equals("newByteChannel") == true || name.equals("open") == true) {
