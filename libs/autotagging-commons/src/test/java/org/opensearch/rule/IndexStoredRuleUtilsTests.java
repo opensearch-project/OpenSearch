@@ -11,7 +11,7 @@ package org.opensearch.rule;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.action.GetRuleRequest;
-import org.opensearch.rule.storage.IndexBasedRuleQueryBuilder;
+import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
 import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -22,15 +22,15 @@ import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 
 public class IndexStoredRuleUtilsTests extends OpenSearchTestCase {
-    RuleQueryBuilder<QueryBuilder> sut;
+    RuleQueryMapper<QueryBuilder> sut;
 
     public void setUp() throws Exception {
         super.setUp();
-        sut = new IndexBasedRuleQueryBuilder();
+        sut = new IndexBasedRuleQueryMapper();
     }
 
     public void testBuildGetRuleQuery_WithId() {
-        QueryBuilder query = sut.buildQuery(new GetRuleRequest(_ID_ONE, new HashMap<>(), null, RuleTestUtils.MockRuleFeatureType.INSTANCE));
+        QueryBuilder query = sut.getQuery(new GetRuleRequest(_ID_ONE, new HashMap<>(), null, RuleTestUtils.MockRuleFeatureType.INSTANCE));
         assertNotNull(query);
         BoolQueryBuilder queryBuilder = (BoolQueryBuilder) query;
         assertEquals(1, queryBuilder.must().size());
@@ -39,7 +39,7 @@ public class IndexStoredRuleUtilsTests extends OpenSearchTestCase {
     }
 
     public void testBuildGetRuleQuery_WithAttributes() {
-        QueryBuilder queryBuilder = sut.buildQuery(
+        QueryBuilder queryBuilder = sut.getQuery(
             new GetRuleRequest(null, ATTRIBUTE_MAP, null, RuleTestUtils.MockRuleFeatureType.INSTANCE)
         );
         assertNotNull(queryBuilder);

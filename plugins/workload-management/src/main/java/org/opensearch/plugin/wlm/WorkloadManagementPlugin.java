@@ -50,7 +50,7 @@ import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rule.rest.RestGetRuleAction;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
-import org.opensearch.rule.storage.IndexBasedRuleQueryBuilder;
+import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
 import org.opensearch.rule.storage.XContentRuleParser;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -102,7 +102,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
                 QueryGroupFeatureType.INSTANCE,
                 MAX_RULES_PER_PAGE,
                 new XContentRuleParser(QueryGroupFeatureType.INSTANCE),
-                new IndexBasedRuleQueryBuilder()
+                new IndexBasedRuleQueryMapper()
             )
         );
     }

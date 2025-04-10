@@ -22,7 +22,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.RuleEntityParser;
-import org.opensearch.rule.RuleQueryBuilder;
+import org.opensearch.rule.RuleQueryMapper;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.search.SearchHit;
@@ -58,12 +58,12 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         when(getRuleRequest.getId()).thenReturn(_ID_ONE);
         when(getRuleRequest.getAttributeFilters()).thenReturn(new HashMap<>());
         QueryBuilder queryBuilder = mock(QueryBuilder.class);
-        RuleQueryBuilder<QueryBuilder> mockRuleQueryBuilder = mock(RuleQueryBuilder.class);
+        RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
         RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
         Rule mockRule = mock(Rule.class);
 
         when(mockRuleEntityParser.parse(anyString())).thenReturn(mockRule);
-        when(mockRuleQueryBuilder.buildQuery(getRuleRequest)).thenReturn(queryBuilder);
+        when(mockRuleQueryMapper.getQuery(getRuleRequest)).thenReturn(queryBuilder);
         when(queryBuilder.filter(any())).thenReturn(queryBuilder);
 
         SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
@@ -74,7 +74,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
             .featureType(MockRuleFeatureType.INSTANCE)
             .maxValuesPerPage(MAX_VALUES_PER_PAGE)
             .parser(mockRuleEntityParser)
-            .queryBuilder(mockRuleQueryBuilder)
+            .queryBuilder(mockRuleQueryMapper)
             .build();
 
         SearchResponse searchResponse = mock(SearchResponse.class);
@@ -103,12 +103,12 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         GetRuleRequest getRuleRequest = mock(GetRuleRequest.class);
         when(getRuleRequest.getId()).thenReturn(_ID_ONE);
         QueryBuilder queryBuilder = mock(QueryBuilder.class);
-        RuleQueryBuilder<QueryBuilder> mockRuleQueryBuilder = mock(RuleQueryBuilder.class);
+        RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
         RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
         Rule mockRule = mock(Rule.class);
 
         when(mockRuleEntityParser.parse(anyString())).thenReturn(mockRule);
-        when(mockRuleQueryBuilder.buildQuery(getRuleRequest)).thenReturn(queryBuilder);
+        when(mockRuleQueryMapper.getQuery(getRuleRequest)).thenReturn(queryBuilder);
         when(queryBuilder.filter(any())).thenReturn(queryBuilder);
 
         SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
@@ -119,7 +119,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
             .featureType(MockRuleFeatureType.INSTANCE)
             .maxValuesPerPage(MAX_VALUES_PER_PAGE)
             .parser(mockRuleEntityParser)
-            .queryBuilder(mockRuleQueryBuilder)
+            .queryBuilder(mockRuleQueryMapper)
             .build();
 
         SearchResponse searchResponse = mock(SearchResponse.class);
