@@ -17,11 +17,11 @@ import org.opensearch.rule.action.GetRuleRequest;
  * @param <T>
  */
 @ExperimentalApi
-public interface RuleQueryBuilder<T> {
+public interface RuleQueryMapper<T> {
     /**
      * This method translates the {@link GetRuleRequest} to a storage engine specific  query object
      * @param request
      * @return
      */
-    T buildQuery(GetRuleRequest request);
+    T getQuery(GetRuleRequest request);
 }
