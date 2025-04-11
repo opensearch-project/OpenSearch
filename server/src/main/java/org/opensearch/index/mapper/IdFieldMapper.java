@@ -66,9 +66,7 @@ import org.opensearch.search.sort.BucketedSort;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
@@ -166,15 +164,15 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexed();
-            Collection<BytesRef> bytesRefs = new ArrayList<>(values.size());
+            BytesRefsCollectionBuilder bytesRefs = new BytesRefsCollectionBuilder(values.size());
             for (int i = 0; i < values.size(); i++) {
                 Object idObject = values.get(i);
                 if (idObject instanceof BytesRef) {
                     idObject = ((BytesRef) idObject).utf8ToString();
                 }
-                bytesRefs.add(Uid.encodeId(idObject.toString()));
+                bytesRefs.accept(Uid.encodeId(idObject.toString()));
             }
-            return new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), bytesRefs);
+            return new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), bytesRefs.get());
         }
 
         @Override
