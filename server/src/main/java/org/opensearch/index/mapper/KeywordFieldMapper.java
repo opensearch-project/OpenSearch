@@ -71,9 +71,7 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -468,23 +466,26 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 if (!context.keywordFieldIndexOrDocValuesEnabled()) {
                     return super.termsQuery(values, context);
                 }
-                Collection<BytesRef> iBytesRefs = new ArrayList<>(values.size());
-                Collection<BytesRef> dVByteRefs = new ArrayList<>(values.size());
+                BytesRefsCollectionBuilder iBytesRefs = new BytesRefsCollectionBuilder(values.size());
+                BytesRefsCollectionBuilder dVByteRefs = new BytesRefsCollectionBuilder(values.size());
                 for (int i = 0; i < values.size(); i++) {
-                    iBytesRefs.add(indexedValueForSearch(values.get(i)));
-                    dVByteRefs.add(indexedValueForSearch(rewriteForDocValue(values.get(i))));
+                    BytesRef idxBytes = indexedValueForSearch(values.get(i));
+                    iBytesRefs.accept(idxBytes);
+                    BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(values.get(i)));
+                    dVByteRefs.accept(dvBytes);
                 }
-                Query indexQuery = new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), iBytesRefs);
-                Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), dVByteRefs);
+                Query indexQuery = new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), iBytesRefs.get());
+                Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), dVByteRefs.get());
                 return new IndexOrDocValuesQuery(indexQuery, dvQuery);
             }
             // if we only have doc_values enabled, we construct a new query with doc_values re-written
             if (hasDocValues()) {
-                Collection<BytesRef> bytesRefs = new ArrayList<>(values.size());
+                BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder(values.size());
                 for (int i = 0; i < values.size(); i++) {
-                    bytesRefs.add(indexedValueForSearch(rewriteForDocValue(values.get(i))));
+                    BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(values.get(i)));
+                    bytesCollector.accept(dvBytes);
                 }
-                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesRefs);
+                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesCollector.get());
             }
             // has index enabled, we're going to return the query as is
             return super.termsQuery(values, context);
