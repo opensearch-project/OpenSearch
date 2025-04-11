@@ -9,4 +9,4 @@
 /**
  * Action to retrieve flight info from nodes
  */
-package org.opensearch.arrow.flight.api;
+package org.opensearch.arrow.flight.api.flightinfo;
