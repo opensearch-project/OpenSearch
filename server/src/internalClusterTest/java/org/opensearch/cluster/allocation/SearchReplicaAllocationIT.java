@@ -12,7 +12,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -24,11 +23,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchReplicaAllocationIT extends RemoteStoreBaseIntegTestCase {
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, Boolean.TRUE).build();
-    }
 
     public void testSearchReplicaAllocatedToDedicatedSearchNode() {
         internalCluster().startClusterManagerOnlyNode();

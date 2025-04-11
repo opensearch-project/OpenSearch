@@ -18,7 +18,6 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
@@ -40,11 +39,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String TEST_INDEX = "test_scale_index";
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, Boolean.TRUE).build();
-    }
 
     public Settings indexSettings() {
         return Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();

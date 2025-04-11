@@ -136,7 +136,6 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
-import static org.opensearch.common.util.FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasRemoteStoreSettings;
 
 /**
@@ -318,9 +317,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
-        if (READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(indexSettings.getNodeSettings())) {
-            this.asyncReplicationTask = new AsyncReplicationTask(this);
-        }
+        this.asyncReplicationTask = new AsyncReplicationTask(this);
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
@@ -1110,9 +1107,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
             onRefreshIntervalChange();
             updateFsyncTaskIfNecessary();
-            if (READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(indexSettings.getNodeSettings())) {
-                updateReplicationTask();
-            }
+            updateReplicationTask();
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));

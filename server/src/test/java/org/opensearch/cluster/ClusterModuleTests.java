@@ -57,6 +57,7 @@ import org.opensearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActi
 import org.opensearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider;
@@ -249,6 +250,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             SnapshotInProgressAllocationDecider.class,
             RestoreInProgressAllocationDecider.class,
             FilterAllocationDecider.class,
+            SearchReplicaAllocationDecider.class,
             SameShardAllocationDecider.class,
             DiskThresholdDecider.class,
             ThrottlingAllocationDecider.class,

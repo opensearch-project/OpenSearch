@@ -62,6 +62,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isClusterStateRepoConfigured;
@@ -494,7 +495,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      * @return true if the node contains a search role, false otherwise
      */
     public boolean isSearchNode() {
-        return roles.contains(DiscoveryNodeRole.SEARCH_ROLE);
+        return roles.contains(SEARCH_ROLE);
     }
 
     /**

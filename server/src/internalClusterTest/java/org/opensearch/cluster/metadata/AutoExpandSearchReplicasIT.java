@@ -11,7 +11,6 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
@@ -21,11 +20,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class AutoExpandSearchReplicasIT extends RemoteStoreBaseIntegTestCase {
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, Boolean.TRUE).build();
-    }
 
     public void testAutoExpandSearchReplica() throws Exception {
         String indexName = "test";
