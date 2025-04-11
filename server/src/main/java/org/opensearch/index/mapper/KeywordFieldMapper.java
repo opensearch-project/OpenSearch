@@ -466,7 +466,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             // has index and doc_values enabled
             if (isSearchable() && hasDocValues()) {
                 if (!context.keywordFieldIndexOrDocValuesEnabled()) {
-                    return new ConstantScoreQuery(super.termsQuery(values, context));
+                    return super.termsQuery(values, context);
                 }
                 Collection<BytesRef> iBytesRefs = new ArrayList<>(values.size());
                 Collection<BytesRef> dVByteRefs = new ArrayList<>(values.size());

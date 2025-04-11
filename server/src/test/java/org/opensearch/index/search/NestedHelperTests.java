@@ -36,6 +36,7 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -341,7 +342,7 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
         query = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         // this time we do not add a filter since the inner query only matches inner docs
-        expectedChildQuery = new TermQuery(new Term("nested1.foo", "bar"));
+        expectedChildQuery = new ConstantScoreQuery(new TermQuery(new Term("nested1.foo", "bar")));
         assertEquals(expectedChildQuery, query.getChildQuery());
 
         assertFalse(new NestedHelper(mapperService).mightMatchNestedDocs(query));

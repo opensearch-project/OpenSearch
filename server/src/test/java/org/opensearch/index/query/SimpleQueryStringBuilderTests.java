@@ -41,6 +41,7 @@ import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -311,6 +312,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 if (disjunct instanceof BoostQuery) {
                     termQuery = ((BoostQuery) disjunct).getQuery();
                 }
+                if (termQuery instanceof ConstantScoreQuery) {
+                    termQuery = ((ConstantScoreQuery) termQuery).getQuery();
+                }
                 if (termQuery instanceof TermQuery) {
                     TermQuery inner = (TermQuery) termQuery;
                     assertThat(inner.getTerm().bytes().toString(), is(inner.getTerm().bytes().toString().toLowerCase(Locale.ROOT)));
@@ -330,6 +334,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             );
             if (query instanceof DisjunctionMaxQuery) {
                 for (Query disjunct : (DisjunctionMaxQuery) query) {
+                    if (disjunct instanceof ConstantScoreQuery constantScoreQuery) {
+                        disjunct = constantScoreQuery.getQuery();
+                    }
                     assertThat(disjunct, either(instanceOf(TermQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
                 }
             }
@@ -624,7 +631,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             createShardContext()
         );
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), parser.parse("bar"));
-        assertEquals(new TermQuery(new Term(KEYWORD_FIELD_NAME, "bar")), parser.parse("\"bar\""));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "bar"))), parser.parse("\"bar\""));
 
         // Now check what happens if the quote field does not exist
         settings.quoteFieldSuffix(".quote");
@@ -670,7 +677,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             Query expected = new DisjunctionMaxQuery(
                 Arrays.asList(
                     new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
+                    new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello"))), 5.0f)
                 ),
                 1.0f
             );
@@ -736,14 +743,20 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .toQuery(createShardContext());
         expected = new BooleanQuery.Builder().add(
             new DisjunctionMaxQuery(
-                Arrays.asList(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "quick"))),
+                Arrays.asList(
+                    new TermQuery(new Term(TEXT_FIELD_NAME, "quick")),
+                    new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "quick")))
+                ),
                 1.0f
             ),
             BooleanClause.Occur.SHOULD
         )
             .add(
                 new DisjunctionMaxQuery(
-                    Arrays.asList(new TermQuery(new Term(TEXT_FIELD_NAME, "fox")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "fox"))),
+                    Arrays.asList(
+                        new TermQuery(new Term(TEXT_FIELD_NAME, "fox")),
+                        new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "fox")))
+                    ),
                     1.0f
                 ),
                 BooleanClause.Occur.SHOULD
@@ -834,7 +847,10 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(9, noMatchNoDocsQueries);
         assertThat(
             disjunctionMaxQuery.getDisjuncts(),
-            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "hello")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
+            hasItems(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
+                new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
+            )
         );
     }
 
