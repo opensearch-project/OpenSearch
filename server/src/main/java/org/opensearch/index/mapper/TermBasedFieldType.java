@@ -43,8 +43,6 @@ import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.index.query.QueryShardContext;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -96,11 +94,12 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termsQuery(List<?> values, QueryShardContext context) {
         failIfNotIndexed();
-        Collection<BytesRef> bytesRefs = new ArrayList<>(values.size());
+        BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder(values.size());
         for (int i = 0; i < values.size(); i++) {
-            bytesRefs.add(indexedValueForSearch(values.get(i)));
+            BytesRef elem = indexedValueForSearch(values.get(i));
+            bytesCollector.accept(elem);
         }
-        return new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), bytesRefs);
+        return new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), bytesCollector.get());
     }
 
 }

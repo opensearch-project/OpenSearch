@@ -1,0 +1,22 @@
+{
+  "delete_workload_group_context": {
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_wlm/workload_group/{name}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "WorkloadGroup name"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

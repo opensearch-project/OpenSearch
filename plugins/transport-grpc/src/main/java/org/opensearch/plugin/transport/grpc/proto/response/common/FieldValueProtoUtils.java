@@ -14,7 +14,9 @@ import org.opensearch.protobufs.ObjectMap;
 import java.util.Map;
 
 /**
- * Utility class for converting generic Java objects to google.protobuf.Struct Protobuf type.
+ * Utility class for converting generic Java objects to Protocol Buffer FieldValue type.
+ * This class provides methods to transform Java objects of various types (primitives, strings,
+ * maps, etc.) into their corresponding Protocol Buffer representations for gRPC communication.
  */
 public class FieldValueProtoUtils {
 
@@ -23,10 +25,13 @@ public class FieldValueProtoUtils {
     }
 
     /**
-     * Converts a generic Java Object to its Protocol Buffer representation.
+     * Converts a generic Java Object to its Protocol Buffer FieldValue representation.
+     * This method handles various Java types (Integer, Long, Double, Float, String, Boolean, Enum, Map)
+     * and converts them to the appropriate FieldValue type.
      *
-     * @param javaObject The java object to convert
-     * @return A Protobuf builder .google.protobuf.Struct representation
+     * @param javaObject The Java object to convert
+     * @return A Protocol Buffer FieldValue representation of the Java object
+     * @throws IllegalArgumentException if the Java object type cannot be converted
      */
     public static FieldValue toProto(Object javaObject) {
         FieldValue.Builder fieldValueBuilder = FieldValue.newBuilder();

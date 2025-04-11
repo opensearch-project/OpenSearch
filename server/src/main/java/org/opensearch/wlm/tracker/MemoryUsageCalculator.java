@@ -10,7 +10,7 @@ package org.opensearch.wlm.tracker;
 
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.monitor.jvm.JvmStats;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.List;
 
@@ -24,12 +24,12 @@ public class MemoryUsageCalculator extends ResourceUsageCalculator {
     private MemoryUsageCalculator() {}
 
     @Override
-    public double calculateResourceUsage(List<QueryGroupTask> tasks) {
+    public double calculateResourceUsage(List<WorkloadGroupTask> tasks) {
         return tasks.stream().mapToDouble(this::calculateTaskResourceUsage).sum();
     }
 
     @Override
-    public double calculateTaskResourceUsage(QueryGroupTask task) {
+    public double calculateTaskResourceUsage(WorkloadGroupTask task) {
         return (1.0f * task.getTotalResourceUtilization(ResourceStats.MEMORY)) / HEAP_SIZE_BYTES;
     }
 }
