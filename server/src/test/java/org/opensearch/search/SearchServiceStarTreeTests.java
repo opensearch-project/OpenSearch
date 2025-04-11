@@ -856,17 +856,14 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
 
         long from = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(80);
         long to = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(20);
-
         String fromDateString = formatter.format(Instant.ofEpochMilli(from));
         String toDateString = formatter.format(Instant.ofEpochMilli(to));
 
-        QueryBuilder queryBuilderAbsolute = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString)
-            .includeLower(true)
-            .to(toDateString)
-            .includeUpper(false)
+        QueryBuilder queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, true)
+            .to(toDateString, false)
             .format("strict_date_optional_time||epoch_second");
 
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilderAbsolute).aggregation(sumAggNoSub);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
         assertStarTreeContext(
             request,
             sourceBuilder,
@@ -884,12 +881,26 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                     new NumericDimension(STATUS)
                 ),
                 List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
-                queryBuilderAbsolute,
+                queryBuilder,
                 sourceBuilder,
                 true
             ),
             -1
         );
+
+        // Query resolves to MatchNoneQuery, star-tree query context will not be created
+        from = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(240);
+        to = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(200);
+        fromDateString = formatter.format(Instant.ofEpochMilli(from));
+        toDateString = formatter.format(Instant.ofEpochMilli(to));
+
+        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, true)
+            .to(toDateString, false)
+            .format("strict_date_optional_time||epoch_second");
+
+        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
         setStarTreeIndexSetting(null);
     }
 
