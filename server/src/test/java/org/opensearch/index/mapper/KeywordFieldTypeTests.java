@@ -33,8 +33,6 @@ package org.opensearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
@@ -79,18 +77,9 @@ import org.opensearch.index.mapper.MappedFieldType.Relation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
-import java.util.SortedSet;
-import java.util.stream.Stream;
-
-import org.mockito.MockedConstruction;
-import org.mockito.stubbing.Answer;
-
-import static org.mockito.Mockito.mockConstructionWithAnswer;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
@@ -227,57 +216,6 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
         Query expectedDocValues = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", bytesRefList);
         assertEquals(expectedDocValues, onlyDocValues.termsQuery(sortedStrings, null));
-    }
-
-    @AwaitsFix(bugUrl = "no commit")
-    public void testMockTermsSortedQuery() {
-        String[] seedStrings = generateRandomStringArray(10, 10, false, false);
-        if (seedStrings.length == 1) {
-            seedStrings = Stream.concat(Arrays.stream(seedStrings), Arrays.stream(generateRandomStringArray(10, 10, false, false)))
-                .toArray(String[]::new);
-        }
-        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).toList();
-        List<String> sortedStrings = bytesRefList.stream().sorted().map(BytesRef::utf8ToString).toList();
-        Answer asseretSortedSetArg = invocationOnMock -> {
-            Object[] args = invocationOnMock.getArguments();
-            for (int i = 0; i < args.length; i++) {
-                if (args[i] instanceof Collection<?>) {
-                    assertTrue(args[i] instanceof SortedSet<?>);
-                    return invocationOnMock.callRealMethod();
-                }
-            }
-            fail();
-            return null;
-        };
-        try (MockedConstruction<TermInSetQuery> ignored = mockConstructionWithAnswer(TermInSetQuery.class, asseretSortedSetArg)) {
-            MappedFieldType ft = new KeywordFieldType("field");
-            assertNotNull(ft.termsQuery(sortedStrings, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
-            MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
-            assertNotNull(onlyIndexed.termsQuery(sortedStrings, null));
-            MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
-            assertNotNull(onlyDocValues.termsQuery(sortedStrings, null));
-        }
-    }
-
-    @AwaitsFix(bugUrl = "no commit")
-    public void testHeavyWeight() {
-        int arraySize = 10000000;
-        BytesRef[] array = new BytesRef[arraySize];
-        Random random = random();
-        for (int i = 0; i < arraySize; i++) {
-            String str = RandomStrings.randomAsciiOfLength(random, 10);
-            array[i] = new BytesRef(str);
-        }
-        BytesRefsCollectionBuilder outofOrder = new BytesRefsCollectionBuilder(arraySize);
-        BytesRefsCollectionBuilder inOrder = new BytesRefsCollectionBuilder(arraySize);
-        Arrays.stream(array).forEach(outofOrder);
-        Arrays.stream(array).sorted().forEachOrdered(inOrder);
-        Logger logger = LogManager.getLogger(KeywordFieldTypeTests.class);
-        long start = System.currentTimeMillis(), intermid;
-        new TermInSetQuery("foo", outofOrder.get());
-        logger.info("out of order {} ms", (intermid = System.currentTimeMillis()) - start);
-        new TermInSetQuery("foo", inOrder.get());
-        logger.info("in order{} ms", System.currentTimeMillis() - intermid);
     }
 
     public void testExistsQuery() {
