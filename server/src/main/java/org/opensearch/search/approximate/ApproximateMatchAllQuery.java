@@ -37,10 +37,7 @@ public class ApproximateMatchAllQuery extends ApproximateQuery {
             return false;
         }
 
-        if (context.request() != null
-            && context.request().source() != null
-            && context.innerHits() == null
-            && context.aggregations() == null) {
+        if (context.request() != null && context.request().source() != null && context.innerHits().getInnerHits().isEmpty()) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
             if (primarySortField != null
                 && primarySortField.missing() == null
