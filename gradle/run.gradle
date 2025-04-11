@@ -43,9 +43,17 @@ testClusters {
       installedPlugins = Eval.me(installedPlugins)
       for (String p : installedPlugins) {
         plugin('plugins:'.concat(p))
+        if (p.equals("arrow-flight-rpc")) {
+          // Add system properties for Netty configuration
+          systemProperty 'io.netty.allocator.numDirectArenas', '1'
+          systemProperty 'io.netty.noUnsafe', 'false'
+          systemProperty 'io.netty.tryUnsafe', 'true'
+          systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+        }
       }
     }
   }
+
 }
 
 tasks.register("run", RunTask) {
