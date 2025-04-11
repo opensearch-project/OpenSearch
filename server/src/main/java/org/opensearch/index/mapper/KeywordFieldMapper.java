@@ -159,7 +159,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         );
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
-        private final Parameter<Boolean> useSimilarity = Parameter.boolParam("useSimilarity", true, m -> toType(m).useSimilarity, false);
+        private final Parameter<Boolean> useSimilarity = Parameter.boolParam("use_similarity", true, m -> toType(m).useSimilarity, false);
 
         private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");
 

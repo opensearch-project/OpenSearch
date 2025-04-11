@@ -36,7 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add update and delete support in pull-based ingestion ([#17822](https://github.com/opensearch-project/OpenSearch/pull/17822))
 - Allow maxPollSize and pollTimeout in IngestionSource to be configurable ([#17863](https://github.com/opensearch-project/OpenSearch/pull/17863))
 - [Star Tree] [Search] Add query changes to support unsigned-long in star tree ([#17275](https://github.com/opensearch-project/OpenSearch/pull/17275))
-- Disable scoring of keyword term search by default, fallback logic with new useSimilarity:true parameter ([#17889](https://github.com/opensearch-project/OpenSearch/pull/17889))
+- Disable scoring of keyword term search by default, fallback logic with new use_similarity:true parameter ([#17889](https://github.com/opensearch-project/OpenSearch/pull/17889))
 
 ### Changed
 - Migrate BC libs to their FIPS counterparts ([#14912](https://github.com/opensearch-project/OpenSearch/pull/14912))
