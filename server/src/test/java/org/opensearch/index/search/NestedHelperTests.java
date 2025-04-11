@@ -42,6 +42,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -52,6 +53,8 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.NestedQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.search.approximate.ApproximateMatchAllQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
@@ -325,7 +328,10 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.Avg);
         OpenSearchToParentBlockJoinQuery query = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
-        Query expectedChildQuery = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST)
+        Query expectedChildQuery = new BooleanQuery.Builder().add(
+            new ApproximateScoreQuery(Queries.newMatchAllQuery(), new ApproximateMatchAllQuery()),
+            Occur.MUST
+        )
             // we automatically add a filter since the inner query might match non-nested docs
             .add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested1")), Occur.FILTER)
             .build();
