@@ -154,6 +154,7 @@ public class OperationRouting {
         clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_FAILOPEN_ENABLED, this::setFailOpenEnabled);
         clusterSettings.addSettingsUpdateConsumer(STRICT_WEIGHTED_SHARD_ROUTING_ENABLED, this::setStrictWeightedShardRouting);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_WEIGHTED_SHARD_ROUTING, this::setIgnoreWeightedRouting);
+        clusterSettings.addSettingsUpdateConsumer(STRICT_SEARCH_REPLICA_ROUTING_ENABLED, this::setStrictSearchOnlyShardRouting);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {

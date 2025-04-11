@@ -26,13 +26,13 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.core.IsEqual.equalTo;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.routing.OperationRouting.STRICT_SEARCH_REPLICA_ROUTING_ENABLED;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.core.IsEqual.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
