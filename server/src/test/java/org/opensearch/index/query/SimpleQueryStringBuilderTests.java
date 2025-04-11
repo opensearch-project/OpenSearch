@@ -306,7 +306,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             for (Query disjunct : maxQuery.getDisjuncts()) {
                 assertThat(
                     disjunct,
-                    either(instanceOf(TermQuery.class)).or(instanceOf(BoostQuery.class)).or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(ConstantScoreQuery.class))
+                    either(instanceOf(TermQuery.class)).or(instanceOf(BoostQuery.class))
+                        .or(instanceOf(MatchNoDocsQuery.class))
+                        .or(instanceOf(ConstantScoreQuery.class))
                 );
                 Query termQuery = disjunct;
                 if (disjunct instanceof BoostQuery) {
