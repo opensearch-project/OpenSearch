@@ -298,7 +298,7 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
 
         RangeAggregatorBridge bridge = new RangeAggregatorBridge() {
             @Override
-            protected boolean canOptimize(int subAggLength) {
+            protected boolean canOptimize() {
                 return canOptimize(config, ranges);
             }
 

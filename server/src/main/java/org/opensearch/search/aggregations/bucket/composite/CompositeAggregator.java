@@ -172,8 +172,8 @@ public final class CompositeAggregator extends BucketsAggregator {
             private long afterKey = -1L;
 
             @Override
-            protected boolean canOptimize(int subAggLength) {
-                if (subAggLength > 0) {
+            protected boolean canOptimize() {
+                if (subAggregators.length > 0) {
                     return false;
                 }
                 if (canOptimize(sourceConfigs)) {

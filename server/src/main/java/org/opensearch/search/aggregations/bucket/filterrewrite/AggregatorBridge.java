@@ -63,7 +63,7 @@ public abstract class AggregatorBridge {
      * @return {@code true} if the aggregator can be optimized, {@code false} otherwise.
      * The result will be saved in the optimization context.
      */
-    protected abstract boolean canOptimize(int subAggLength);
+    protected abstract boolean canOptimize();
 
     /**
      * Prepares the optimization at shard level after checking aggregator is optimizable.

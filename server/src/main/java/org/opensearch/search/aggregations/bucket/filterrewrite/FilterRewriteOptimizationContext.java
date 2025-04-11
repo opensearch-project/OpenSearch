@@ -74,7 +74,7 @@ public final class FilterRewriteOptimizationContext {
         if (parent != null) return false;
         this.hasSubAgg = subAggLength > 0;
 
-        boolean canOptimize = aggregatorBridge.canOptimize(subAggLength);
+        boolean canOptimize = aggregatorBridge.canOptimize();
         if (canOptimize) {
             aggregatorBridge.setRangesConsumer(this::setRanges);
 

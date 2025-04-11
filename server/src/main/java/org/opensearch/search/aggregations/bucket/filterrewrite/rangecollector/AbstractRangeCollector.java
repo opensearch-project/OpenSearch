@@ -40,16 +40,6 @@ public abstract class AbstractRangeCollector implements RangeCollector {
     }
 
     @Override
-    public void countNode(int count) {
-        counter += count;
-    }
-
-    @Override
-    public void count() {
-        counter++;
-    }
-
-    @Override
     public boolean iterateRangeEnd(byte[] value, boolean inLeaf) {
         while (!withinUpperBound(value)) {
             if (++activeIndex >= ranges.getSize()) {

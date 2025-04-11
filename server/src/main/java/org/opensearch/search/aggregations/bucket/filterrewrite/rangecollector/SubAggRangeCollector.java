@@ -28,7 +28,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * Range collector implementation that supports sub-aggregations by collecting doc IDs.
  */
-public class SubAggRangeCollector extends AbstractRangeCollector {
+public class SubAggRangeCollector extends SimpleRangeCollector {
 
     private static final Logger logger = LogManager.getLogger(SubAggRangeCollector.class);
 
@@ -75,10 +75,7 @@ public class SubAggRangeCollector extends AbstractRangeCollector {
 
     @Override
     public void finalizePreviousRange() {
-        if (counter > 0) {
-            incrementRangeDocCount.accept(activeIndex, counter);
-            counter = 0;
-        }
+        super.finalizePreviousRange();
 
         long bucketOrd = getBucketOrd.apply(activeIndex);
         logger.trace("finalize range {} with bucket ordinal {}", activeIndex, bucketOrd);

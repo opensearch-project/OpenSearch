@@ -36,6 +36,16 @@ public class SimpleRangeCollector extends AbstractRangeCollector {
     }
 
     @Override
+    public void countNode(int count) {
+        counter += count;
+    }
+
+    @Override
+    public void count() {
+        counter++;
+    }
+
+    @Override
     public void collectDocId(int docId) {
         throw new UnsupportedOperationException("collectDocId should be unreachable");
     }
@@ -52,5 +62,4 @@ public class SimpleRangeCollector extends AbstractRangeCollector {
             counter = 0;
         }
     }
-
 }
