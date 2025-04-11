@@ -163,15 +163,15 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexed();
-            BytesRef[] bytesRefs = new BytesRef[values.size()];
-            for (int i = 0; i < bytesRefs.length; i++) {
+            BytesRefsCollectionBuilder bytesRefs = new BytesRefsCollectionBuilder(values.size());
+            for (int i = 0; i < values.size(); i++) {
                 Object idObject = values.get(i);
                 if (idObject instanceof BytesRef) {
                     idObject = ((BytesRef) idObject).utf8ToString();
                 }
-                bytesRefs[i] = Uid.encodeId(idObject.toString());
+                bytesRefs.accept(Uid.encodeId(idObject.toString()));
             }
-            return new TermInSetQuery(name(), bytesRefs);
+            return new TermInSetQuery(name(), bytesRefs.get());
         }
 
         @Override

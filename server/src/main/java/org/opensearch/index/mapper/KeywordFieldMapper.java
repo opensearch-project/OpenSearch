@@ -447,23 +447,26 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 if (!context.keywordFieldIndexOrDocValuesEnabled()) {
                     return super.termsQuery(values, context);
                 }
-                BytesRef[] iBytesRefs = new BytesRef[values.size()];
-                BytesRef[] dVByteRefs = new BytesRef[values.size()];
-                for (int i = 0; i < iBytesRefs.length; i++) {
-                    iBytesRefs[i] = indexedValueForSearch(values.get(i));
-                    dVByteRefs[i] = indexedValueForSearch(rewriteForDocValue(values.get(i)));
+                BytesRefsCollectionBuilder iBytesRefs = new BytesRefsCollectionBuilder(values.size());
+                BytesRefsCollectionBuilder dVByteRefs = new BytesRefsCollectionBuilder(values.size());
+                for (int i = 0; i < values.size(); i++) {
+                    BytesRef idxBytes = indexedValueForSearch(values.get(i));
+                    iBytesRefs.accept(idxBytes);
+                    BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(values.get(i)));
+                    dVByteRefs.accept(dvBytes);
                 }
-                Query indexQuery = new TermInSetQuery(name(), iBytesRefs);
-                Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), dVByteRefs);
+                Query indexQuery = new TermInSetQuery(name(), iBytesRefs.get());
+                Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), dVByteRefs.get());
                 return new IndexOrDocValuesQuery(indexQuery, dvQuery);
             }
             // if we only have doc_values enabled, we construct a new query with doc_values re-written
             if (hasDocValues()) {
-                BytesRef[] bytesRefs = new BytesRef[values.size()];
-                for (int i = 0; i < bytesRefs.length; i++) {
-                    bytesRefs[i] = indexedValueForSearch(rewriteForDocValue(values.get(i)));
+                BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder(values.size());
+                for (int i = 0; i < values.size(); i++) {
+                    BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(values.get(i)));
+                    bytesCollector.accept(dvBytes);
                 }
-                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesRefs);
+                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesCollector.get());
             }
             // has index enabled, we're going to return the query as is
             return super.termsQuery(values, context);
