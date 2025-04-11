@@ -15,15 +15,15 @@ import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
 
-import static org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService.MIN_VALUE;
+import static org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService.MIN_VALUE;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 
 public class MaximumResourceTaskSelectionStrategyTests extends OpenSearchTestCase {
@@ -33,8 +33,8 @@ public class MaximumResourceTaskSelectionStrategyTests extends OpenSearchTestCas
             new MaximumResourceTaskSelectionStrategy();
         double reduceBy = 50000.0 / HEAP_SIZE_BYTES;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<QueryGroupTask> tasks = getListOfTasks(100);
-        List<QueryGroupTask> selectedTasks = testHighestResourceConsumingTaskFirstSelectionStrategy.selectTasksForCancellation(
+        List<WorkloadGroupTask> tasks = getListOfTasks(100);
+        List<WorkloadGroupTask> selectedTasks = testHighestResourceConsumingTaskFirstSelectionStrategy.selectTasksForCancellation(
             tasks,
             reduceBy,
             resourceType
@@ -55,7 +55,7 @@ public class MaximumResourceTaskSelectionStrategyTests extends OpenSearchTestCas
             new MaximumResourceTaskSelectionStrategy();
         double reduceBy = -50.0 / HEAP_SIZE_BYTES;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<QueryGroupTask> tasks = getListOfTasks(3);
+        List<WorkloadGroupTask> tasks = getListOfTasks(3);
         try {
             testHighestResourceConsumingTaskFirstSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         } catch (Exception e) {
@@ -69,8 +69,8 @@ public class MaximumResourceTaskSelectionStrategyTests extends OpenSearchTestCas
             new MaximumResourceTaskSelectionStrategy();
         double reduceBy = 0.0;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<QueryGroupTask> tasks = getListOfTasks(50);
-        List<QueryGroupTask> selectedTasks = testHighestResourceConsumingTaskFirstSelectionStrategy.selectTasksForCancellation(
+        List<WorkloadGroupTask> tasks = getListOfTasks(50);
+        List<WorkloadGroupTask> selectedTasks = testHighestResourceConsumingTaskFirstSelectionStrategy.selectTasksForCancellation(
             tasks,
             reduceBy,
             resourceType
@@ -78,9 +78,9 @@ public class MaximumResourceTaskSelectionStrategyTests extends OpenSearchTestCas
         assertTrue(selectedTasks.isEmpty());
     }
 
-    private boolean tasksUsageMeetsThreshold(List<QueryGroupTask> selectedTasks, double threshold) {
+    private boolean tasksUsageMeetsThreshold(List<WorkloadGroupTask> selectedTasks, double threshold) {
         double memory = 0;
-        for (QueryGroupTask task : selectedTasks) {
+        for (WorkloadGroupTask task : selectedTasks) {
             memory += ResourceType.MEMORY.getResourceUsageCalculator().calculateTaskResourceUsage(task);
             if ((memory - threshold) > MIN_VALUE) {
                 return true;
@@ -89,12 +89,12 @@ public class MaximumResourceTaskSelectionStrategyTests extends OpenSearchTestCas
         return false;
     }
 
-    private List<QueryGroupTask> getListOfTasks(int numberOfTasks) {
-        List<QueryGroupTask> tasks = new ArrayList<>();
+    private List<WorkloadGroupTask> getListOfTasks(int numberOfTasks) {
+        List<WorkloadGroupTask> tasks = new ArrayList<>();
 
         while (tasks.size() < numberOfTasks) {
             long id = randomLong();
-            final QueryGroupTask task = getRandomSearchTask(id);
+            final WorkloadGroupTask task = getRandomSearchTask(id);
             long initial_memory = randomLongBetween(1, 100);
 
             ResourceUsageMetric[] initialTaskResourceMetrics = new ResourceUsageMetric[] {
@@ -113,7 +113,7 @@ public class MaximumResourceTaskSelectionStrategyTests extends OpenSearchTestCas
         return tasks;
     }
 
-    private QueryGroupTask getRandomSearchTask(long id) {
+    private WorkloadGroupTask getRandomSearchTask(long id) {
         return new SearchTask(
             id,
             "transport",
