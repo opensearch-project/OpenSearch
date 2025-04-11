@@ -17,7 +17,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor.RequestHandler;
-import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
+import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
 
 import java.util.Collections;
 
@@ -26,22 +26,22 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestCase {
-    private QueryGroupTaskCancellationService mockTaskCancellationService;
+    private WorkloadGroupTaskCancellationService mockTaskCancellationService;
     private ClusterService mockClusterService;
     private ThreadPool mockThreadPool;
     private WorkloadManagementSettings mockWorkloadManagementSettings;
     private ThreadPool threadPool;
     private WorkloadManagementTransportInterceptor sut;
-    private QueryGroupsStateAccessor stateAccessor;
+    private WorkloadGroupsStateAccessor stateAccessor;
 
     public void setUp() throws Exception {
         super.setUp();
-        mockTaskCancellationService = mock(QueryGroupTaskCancellationService.class);
+        mockTaskCancellationService = mock(WorkloadGroupTaskCancellationService.class);
         mockClusterService = mock(ClusterService.class);
         mockThreadPool = mock(ThreadPool.class);
         mockWorkloadManagementSettings = mock(WorkloadManagementSettings.class);
         threadPool = new TestThreadPool(getTestName());
-        stateAccessor = new QueryGroupsStateAccessor();
+        stateAccessor = new WorkloadGroupsStateAccessor();
 
         ClusterState state = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
@@ -50,7 +50,7 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
         when(metadata.queryGroups()).thenReturn(Collections.emptyMap());
         sut = new WorkloadManagementTransportInterceptor(
             threadPool,
-            new QueryGroupService(
+            new WorkloadGroupService(
                 mockTaskCancellationService,
                 mockClusterService,
                 mockThreadPool,

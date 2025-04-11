@@ -16,7 +16,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.opensearch.wlm.QueryGroupService;
+import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.stats.WlmStats;
 
 import java.io.IOException;
@@ -29,14 +29,14 @@ import java.util.List;
  */
 public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsRequest, WlmStatsResponse, WlmStatsRequest, WlmStats> {
 
-    final QueryGroupService queryGroupService;
+    final WorkloadGroupService queryGroupService;
 
     @Inject
     public TransportWlmStatsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        QueryGroupService queryGroupService,
+        WorkloadGroupService queryGroupService,
         ActionFilters actionFilters
     ) {
         super(
@@ -73,7 +73,7 @@ public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsReques
         assert transportService.getLocalNode() != null;
         return new WlmStats(
             transportService.getLocalNode(),
-            queryGroupService.nodeStats(wlmStatsRequest.getQueryGroupIds(), wlmStatsRequest.isBreach())
+            queryGroupService.nodeStats(wlmStatsRequest.getWorkloadGroupIds(), wlmStatsRequest.isBreach())
         );
     }
 }

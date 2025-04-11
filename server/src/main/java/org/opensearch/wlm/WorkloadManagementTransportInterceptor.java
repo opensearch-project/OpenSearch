@@ -20,9 +20,9 @@ import org.opensearch.transport.TransportRequestHandler;
  */
 public class WorkloadManagementTransportInterceptor implements TransportInterceptor {
     private final ThreadPool threadPool;
-    private final QueryGroupService queryGroupService;
+    private final WorkloadGroupService queryGroupService;
 
-    public WorkloadManagementTransportInterceptor(final ThreadPool threadPool, final QueryGroupService queryGroupService) {
+    public WorkloadManagementTransportInterceptor(final ThreadPool threadPool, final WorkloadGroupService queryGroupService) {
         this.threadPool = threadPool;
         this.queryGroupService = queryGroupService;
     }
@@ -45,9 +45,9 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
 
         private final ThreadPool threadPool;
         TransportRequestHandler<T> actualHandler;
-        private final QueryGroupService queryGroupService;
+        private final WorkloadGroupService queryGroupService;
 
-        public RequestHandler(ThreadPool threadPool, TransportRequestHandler<T> actualHandler, QueryGroupService queryGroupService) {
+        public RequestHandler(ThreadPool threadPool, TransportRequestHandler<T> actualHandler, WorkloadGroupService queryGroupService) {
             this.threadPool = threadPool;
             this.actualHandler = actualHandler;
             this.queryGroupService = queryGroupService;
@@ -56,15 +56,15 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             if (isSearchWorkloadRequest(task)) {
-                ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
-                final String queryGroupId = ((QueryGroupTask) (task)).getQueryGroupId();
+                ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
+                final String queryGroupId = ((WorkloadGroupTask) (task)).getWorkloadGroupId();
                 queryGroupService.rejectIfNeeded(queryGroupId);
             }
             actualHandler.messageReceived(request, channel, task);
         }
 
         boolean isSearchWorkloadRequest(Task task) {
-            return task instanceof QueryGroupTask;
+            return task instanceof WorkloadGroupTask;
         }
     }
 }

@@ -48,7 +48,7 @@ import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.metadata.MetadataMappingService;
 import org.opensearch.cluster.metadata.MetadataUpdateSettingsService;
-import org.opensearch.cluster.metadata.QueryGroupMetadata;
+import org.opensearch.cluster.metadata.WorkloadGroupMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
@@ -221,7 +221,7 @@ public class ClusterModule extends AbstractModule {
             DecommissionAttributeMetadata::readDiffFrom
         );
 
-        registerMetadataCustom(entries, QueryGroupMetadata.TYPE, QueryGroupMetadata::new, QueryGroupMetadata::readDiffFrom);
+        registerMetadataCustom(entries, WorkloadGroupMetadata.TYPE, WorkloadGroupMetadata::new, WorkloadGroupMetadata::readDiffFrom);
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
@@ -330,8 +330,8 @@ public class ClusterModule extends AbstractModule {
         entries.add(
             new NamedXContentRegistry.Entry(
                 Metadata.Custom.class,
-                new ParseField(QueryGroupMetadata.TYPE),
-                QueryGroupMetadata::fromXContent
+                new ParseField(WorkloadGroupMetadata.TYPE),
+                WorkloadGroupMetadata::fromXContent
             )
         );
         return entries;

@@ -33,7 +33,7 @@ public class WlmStatsRequest extends BaseNodesRequest<WlmStatsRequest> {
     }
 
     /**
-     * Get QueryGroup stats from nodes based on the nodes ids specified. If none are passed, stats
+     * Get WorkloadGroup stats from nodes based on the nodes ids specified. If none are passed, stats
      * for all nodes will be returned.
      */
     public WlmStatsRequest(String[] nodesIds, Set<String> queryGroupIds, Boolean breach) {
@@ -55,7 +55,7 @@ public class WlmStatsRequest extends BaseNodesRequest<WlmStatsRequest> {
         out.writeOptionalBoolean(breach);
     }
 
-    public Set<String> getQueryGroupIds() {
+    public Set<String> getWorkloadGroupIds() {
         return queryGroupIds;
     }
 

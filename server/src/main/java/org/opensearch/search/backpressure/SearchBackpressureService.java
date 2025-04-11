@@ -42,7 +42,7 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.TaskResourceTrackingService.TaskCompletionListener;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.QueryGroupService;
+import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.ResourceType;
 
 import java.io.IOException;
@@ -87,14 +87,14 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
     private final Map<Class<? extends SearchBackpressureTask>, SearchBackpressureState> searchBackpressureStates;
     private final TaskManager taskManager;
-    private final QueryGroupService queryGroupService;
+    private final WorkloadGroupService queryGroupService;
 
     public SearchBackpressureService(
         SearchBackpressureSettings settings,
         TaskResourceTrackingService taskResourceTrackingService,
         ThreadPool threadPool,
         TaskManager taskManager,
-        QueryGroupService queryGroupService
+        WorkloadGroupService queryGroupService
     ) {
         this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {
             {
@@ -148,7 +148,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         TaskResourceUsageTrackers searchTaskTrackers,
         TaskResourceUsageTrackers searchShardTaskTrackers,
         TaskManager taskManager,
-        QueryGroupService queryGroupService
+        WorkloadGroupService queryGroupService
     ) {
         this.settings = settings;
         this.taskResourceTrackingService = taskResourceTrackingService;

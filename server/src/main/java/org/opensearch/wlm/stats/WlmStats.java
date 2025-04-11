@@ -23,16 +23,16 @@ import java.util.Objects;
  * This class contains the stats for Workload Management
  */
 public class WlmStats extends BaseNodeResponse implements ToXContentObject, Writeable {
-    private final QueryGroupStats queryGroupStats;
+    private final WorkloadGroupStats queryGroupStats;
 
-    public WlmStats(DiscoveryNode node, QueryGroupStats queryGroupStats) {
+    public WlmStats(DiscoveryNode node, WorkloadGroupStats queryGroupStats) {
         super(node);
         this.queryGroupStats = queryGroupStats;
     }
 
     public WlmStats(StreamInput in) throws IOException {
         super(in);
-        queryGroupStats = new QueryGroupStats(in);
+        queryGroupStats = new WorkloadGroupStats(in);
     }
 
     @Override
@@ -51,7 +51,7 @@ public class WlmStats extends BaseNodeResponse implements ToXContentObject, Writ
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         WlmStats that = (WlmStats) o;
-        return Objects.equals(getQueryGroupStats(), that.getQueryGroupStats());
+        return Objects.equals(getWorkloadGroupStats(), that.getWorkloadGroupStats());
     }
 
     @Override
@@ -59,7 +59,7 @@ public class WlmStats extends BaseNodeResponse implements ToXContentObject, Writ
         return Objects.hash(queryGroupStats);
     }
 
-    public QueryGroupStats getQueryGroupStats() {
+    public WorkloadGroupStats getWorkloadGroupStats() {
         return queryGroupStats;
     }
 }

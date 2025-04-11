@@ -16,8 +16,8 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupLevelResourceUsageView;
+import org.opensearch.wlm.WorkloadGroupTask;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.junit.After;
@@ -29,8 +29,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.opensearch.wlm.QueryGroupTask.QUERY_GROUP_ID_HEADER;
-import static org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService.MIN_VALUE;
+import static org.opensearch.wlm.WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER;
+import static org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService.MIN_VALUE;
 import static org.opensearch.wlm.tracker.CpuUsageCalculator.PROCESSOR_COUNT;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
 public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCase {
     TestThreadPool threadPool;
     TaskResourceTrackingService mockTaskResourceTrackingService;
-    QueryGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService;
+    WorkloadGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService;
     WorkloadManagementSettings settings;
 
     public static class TestClock {
@@ -64,7 +64,7 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
         settings = mock(WorkloadManagementSettings.class);
         threadPool = new TestThreadPool(getTestName());
         mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
-        queryGroupResourceUsageTrackerService = new QueryGroupResourceUsageTrackerService(mockTaskResourceTrackingService);
+        queryGroupResourceUsageTrackerService = new WorkloadGroupResourceUsageTrackerService(mockTaskResourceTrackingService);
     }
 
     @After
@@ -72,45 +72,45 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
         ThreadPool.terminate(threadPool, 5, TimeUnit.SECONDS);
     }
 
-    public void testConstructQueryGroupLevelViews_CreatesQueryGroupLevelUsageView_WhenTasksArePresent() {
+    public void testConstructWorkloadGroupLevelViews_CreatesWorkloadGroupLevelUsageView_WhenTasksArePresent() {
         List<String> queryGroupIds = List.of("queryGroup1", "queryGroup2", "queryGroup3");
         clock.fastForwardBy(2000);
 
         Map<Long, Task> activeSearchShardTasks = createActiveSearchShardTasks(queryGroupIds);
         when(mockTaskResourceTrackingService.getResourceAwareTasks()).thenReturn(activeSearchShardTasks);
 
-        Map<String, QueryGroupLevelResourceUsageView> stringQueryGroupLevelResourceUsageViewMap = queryGroupResourceUsageTrackerService
-            .constructQueryGroupLevelUsageViews();
+        Map<String, WorkloadGroupLevelResourceUsageView> stringWorkloadGroupLevelResourceUsageViewMap = queryGroupResourceUsageTrackerService
+            .constructWorkloadGroupLevelUsageViews();
 
         for (String queryGroupId : queryGroupIds) {
             assertEquals(
                 (400 * 1.0f) / HEAP_SIZE_BYTES,
-                stringQueryGroupLevelResourceUsageViewMap.get(queryGroupId).getResourceUsageData().get(ResourceType.MEMORY),
+                stringWorkloadGroupLevelResourceUsageViewMap.get(queryGroupId).getResourceUsageData().get(ResourceType.MEMORY),
                 MIN_VALUE
             );
             assertEquals(
                 (200 * 1.0f) / (PROCESSOR_COUNT * 2000),
-                stringQueryGroupLevelResourceUsageViewMap.get(queryGroupId).getResourceUsageData().get(ResourceType.CPU),
+                stringWorkloadGroupLevelResourceUsageViewMap.get(queryGroupId).getResourceUsageData().get(ResourceType.CPU),
                 MIN_VALUE
             );
-            assertEquals(2, stringQueryGroupLevelResourceUsageViewMap.get(queryGroupId).getActiveTasks().size());
+            assertEquals(2, stringWorkloadGroupLevelResourceUsageViewMap.get(queryGroupId).getActiveTasks().size());
         }
     }
 
-    public void testConstructQueryGroupLevelViews_CreatesQueryGroupLevelUsageView_WhenTasksAreNotPresent() {
-        Map<String, QueryGroupLevelResourceUsageView> stringQueryGroupLevelResourceUsageViewMap = queryGroupResourceUsageTrackerService
-            .constructQueryGroupLevelUsageViews();
-        assertTrue(stringQueryGroupLevelResourceUsageViewMap.isEmpty());
+    public void testConstructWorkloadGroupLevelViews_CreatesWorkloadGroupLevelUsageView_WhenTasksAreNotPresent() {
+        Map<String, WorkloadGroupLevelResourceUsageView> stringWorkloadGroupLevelResourceUsageViewMap = queryGroupResourceUsageTrackerService
+            .constructWorkloadGroupLevelUsageViews();
+        assertTrue(stringWorkloadGroupLevelResourceUsageViewMap.isEmpty());
     }
 
-    public void testConstructQueryGroupLevelUsageViews_WithTasksHavingDifferentResourceUsage() {
+    public void testConstructWorkloadGroupLevelUsageViews_WithTasksHavingDifferentResourceUsage() {
         Map<Long, Task> activeSearchShardTasks = new HashMap<>();
         clock.fastForwardBy(2000);
         activeSearchShardTasks.put(1L, createMockTask(SearchShardTask.class, 100, 200, "queryGroup1"));
         activeSearchShardTasks.put(2L, createMockTask(SearchShardTask.class, 200, 400, "queryGroup1"));
         when(mockTaskResourceTrackingService.getResourceAwareTasks()).thenReturn(activeSearchShardTasks);
-        Map<String, QueryGroupLevelResourceUsageView> queryGroupViews = queryGroupResourceUsageTrackerService
-            .constructQueryGroupLevelUsageViews();
+        Map<String, WorkloadGroupLevelResourceUsageView> queryGroupViews = queryGroupResourceUsageTrackerService
+            .constructWorkloadGroupLevelUsageViews();
 
         assertEquals(
             (double) 600 / HEAP_SIZE_BYTES,
@@ -136,17 +136,17 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
         return activeSearchShardTasks;
     }
 
-    private <T extends QueryGroupTask> T createMockTask(Class<T> type, long cpuUsage, long heapUsage, String queryGroupId) {
+    private <T extends WorkloadGroupTask> T createMockTask(Class<T> type, long cpuUsage, long heapUsage, String queryGroupId) {
         T task = mock(type);
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            threadPool.getThreadContext().putHeader(QUERY_GROUP_ID_HEADER, queryGroupId);
-            task.setQueryGroupId(threadPool.getThreadContext());
+            threadPool.getThreadContext().putHeader(WORKLOAD_GROUP_ID_HEADER, queryGroupId);
+            task.setWorkloadGroupId(threadPool.getThreadContext());
         }
         when(task.getTotalResourceUtilization(ResourceStats.CPU)).thenReturn(cpuUsage);
         when(task.getTotalResourceUtilization(ResourceStats.MEMORY)).thenReturn(heapUsage);
         when(task.getStartTimeNanos()).thenReturn((long) 0);
         when(task.getElapsedTime()).thenReturn(clock.getTime());
-        when(task.isQueryGroupSet()).thenReturn(true);
+        when(task.isWorkloadGroupSet()).thenReturn(true);
 
         AtomicBoolean isCancelled = new AtomicBoolean(false);
         doAnswer(invocation -> {

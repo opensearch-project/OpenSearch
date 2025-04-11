@@ -17,7 +17,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.stats.QueryGroupStats;
+import org.opensearch.wlm.stats.WorkloadGroupStats;
 import org.opensearch.wlm.stats.WlmStats;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.util.Set;
 
 public class WlmStatsResponseTests extends OpenSearchTestCase {
     ClusterName clusterName = new ClusterName("test-cluster");
-    String testQueryGroupId = "safjgagnaeekg-3r3fads";
+    String testWorkloadGroupId = "safjgagnaeekg-3r3fads";
     DiscoveryNode node = new DiscoveryNode(
         "node-1",
         buildNewFakeTransportAddress(),
@@ -37,20 +37,20 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
         Set.of(DiscoveryNodeRole.DATA_ROLE),
         Version.CURRENT
     );
-    Map<String, QueryGroupStats.QueryGroupStatsHolder> statsHolderMap = new HashMap<>();
-    QueryGroupStats queryGroupStats = new QueryGroupStats(
+    Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> statsHolderMap = new HashMap<>();
+    WorkloadGroupStats queryGroupStats = new WorkloadGroupStats(
         Map.of(
-            testQueryGroupId,
-            new QueryGroupStats.QueryGroupStatsHolder(
+            testWorkloadGroupId,
+            new WorkloadGroupStats.WorkloadGroupStatsHolder(
                 0,
                 0,
                 1,
                 0,
                 Map.of(
                     ResourceType.CPU,
-                    new QueryGroupStats.ResourceStats(0, 0, 0),
+                    new WorkloadGroupStats.ResourceStats(0, 0, 0),
                     ResourceType.MEMORY,
-                    new QueryGroupStats.ResourceStats(0, 0, 0)
+                    new WorkloadGroupStats.ResourceStats(0, 0, 0)
                 )
             )
         )
@@ -75,7 +75,7 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
         assertEquals(
             "{\n"
                 + "  \"node-1\" : {\n"
-                + "    \"query_groups\" : {\n"
+                + "    \"workload_groups\" : {\n"
                 + "      \"safjgagnaeekg-3r3fads\" : {\n"
                 + "        \"total_completions\" : 0,\n"
                 + "        \"total_rejections\" : 0,\n"
