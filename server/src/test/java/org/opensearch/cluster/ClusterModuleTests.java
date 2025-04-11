@@ -33,8 +33,8 @@
 package org.opensearch.cluster;
 
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.QueryGroupMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.WorkloadGroupMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -332,18 +332,19 @@ public class ClusterModuleTests extends ModuleTestCase {
         );
     }
 
-    public void testQueryGroupMetadataRegister() {
+    public void testWorkloadGroupMetadataRegister() {
         List<NamedWriteableRegistry.Entry> customEntries = ClusterModule.getNamedWriteables();
         List<NamedXContentRegistry.Entry> customXEntries = ClusterModule.getNamedXWriteables();
         assertTrue(
             customEntries.stream()
-                .anyMatch(entry -> entry.categoryClass == Metadata.Custom.class && entry.name.equals(QueryGroupMetadata.TYPE))
+                .anyMatch(entry -> entry.categoryClass == Metadata.Custom.class && entry.name.equals(WorkloadGroupMetadata.TYPE))
         );
 
         assertTrue(
             customXEntries.stream()
                 .anyMatch(
-                    entry -> entry.categoryClass == Metadata.Custom.class && entry.name.getPreferredName().equals(QueryGroupMetadata.TYPE)
+                    entry -> entry.categoryClass == Metadata.Custom.class
+                        && entry.name.getPreferredName().equals(WorkloadGroupMetadata.TYPE)
                 )
         );
     }

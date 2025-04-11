@@ -49,7 +49,8 @@ public class PolicyFile extends java.security.Policy {
         "org.bouncycastle.crypto.CryptoServicesPermission",
         "org.opensearch.script.ClassPermission",
         "javax.security.auth.AuthPermission",
-        "javax.security.auth.kerberos.ServicePermission"
+        "javax.security.auth.kerberos.ServicePermission",
+        "com.sun.tools.attach.AttachPermission"
     );
 
     private final PolicyInfo policyInfo;
