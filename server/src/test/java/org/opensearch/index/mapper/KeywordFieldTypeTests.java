@@ -130,10 +130,16 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        assertEquals(
+            new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))),
+            ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+        );
 
         ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        assertEquals(
+            new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))),
+            ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+        );
 
         ft = new KeywordFieldType("field", false, true, Collections.emptyMap());
         Query expected = SortedSetDocValuesField.newSlowRangeQuery("field", new BytesRef("foo"), new BytesRef("foo"), true, true);
@@ -148,7 +154,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
             e.getMessage()
         );
-        //backwards compatible enaled with useSimilarity=true
+        // backwards compatible enaled with useSimilarity=true
         ft = new KeywordFieldType("field", true, false, true, Collections.emptyMap());
         assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
 

@@ -161,12 +161,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         );
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
-        private final Parameter<Boolean> useSimilarity = Parameter.boolParam(
-            "useSimilarity",
-            true,
-            m -> toType(m).useSimilarity,
-            false
-        );
+        private final Parameter<Boolean> useSimilarity = Parameter.boolParam("useSimilarity", true, m -> toType(m).useSimilarity, false);
 
         private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");
 
@@ -315,7 +310,6 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             this.nullValue = null;
             this.useSimilarity = useSimilarity;
         }
-
 
         public KeywordFieldType(String name) {
             this(name, true, true, Collections.emptyMap());
@@ -472,7 +466,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             // has index and doc_values enabled
             if (isSearchable() && hasDocValues()) {
                 if (!context.keywordFieldIndexOrDocValuesEnabled()) {
-                    return super.termsQuery(values, context);
+                    return new ConstantScoreQuery(super.termsQuery(values, context));
                 }
                 Collection<BytesRef> iBytesRefs = new ArrayList<>(values.size());
                 Collection<BytesRef> dVByteRefs = new ArrayList<>(values.size());
