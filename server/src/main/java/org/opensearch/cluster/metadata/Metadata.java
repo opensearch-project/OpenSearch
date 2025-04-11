@@ -853,9 +853,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
     }
 
-    public Map<String, QueryGroup> queryGroups() {
-        return Optional.ofNullable((QueryGroupMetadata) this.custom(QueryGroupMetadata.TYPE))
-            .map(QueryGroupMetadata::queryGroups)
+    public Map<String, WorkloadGroup> workloadGroups() {
+        return Optional.ofNullable((WorkloadGroupMetadata) this.custom(WorkloadGroupMetadata.TYPE))
+            .map(WorkloadGroupMetadata::workloadGroups)
             .orElse(Collections.emptyMap());
     }
 
@@ -1385,29 +1385,29 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public Builder queryGroups(final Map<String, QueryGroup> queryGroups) {
-            this.customs.put(QueryGroupMetadata.TYPE, new QueryGroupMetadata(queryGroups));
+        public Builder workloadGroups(final Map<String, WorkloadGroup> workloadGroups) {
+            this.customs.put(WorkloadGroupMetadata.TYPE, new WorkloadGroupMetadata(workloadGroups));
             return this;
         }
 
-        public Builder put(final QueryGroup queryGroup) {
-            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
-            Map<String, QueryGroup> existing = new HashMap<>(getQueryGroups());
-            existing.put(queryGroup.get_id(), queryGroup);
-            return queryGroups(existing);
+        public Builder put(final WorkloadGroup workloadGroup) {
+            Objects.requireNonNull(workloadGroup, "workloadGroup should not be null");
+            Map<String, WorkloadGroup> existing = new HashMap<>(getWorkloadGroups());
+            existing.put(workloadGroup.get_id(), workloadGroup);
+            return workloadGroups(existing);
         }
 
-        public Builder remove(final QueryGroup queryGroup) {
-            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
-            Map<String, QueryGroup> existing = new HashMap<>(getQueryGroups());
-            existing.remove(queryGroup.get_id());
-            return queryGroups(existing);
+        public Builder remove(final WorkloadGroup workloadGroup) {
+            Objects.requireNonNull(workloadGroup, "workloadGroup should not be null");
+            Map<String, WorkloadGroup> existing = new HashMap<>(getWorkloadGroups());
+            existing.remove(workloadGroup.get_id());
+            return workloadGroups(existing);
         }
 
-        private Map<String, QueryGroup> getQueryGroups() {
-            return Optional.ofNullable(this.customs.get(QueryGroupMetadata.TYPE))
-                .map(o -> (QueryGroupMetadata) o)
-                .map(QueryGroupMetadata::queryGroups)
+        private Map<String, WorkloadGroup> getWorkloadGroups() {
+            return Optional.ofNullable(this.customs.get(WorkloadGroupMetadata.TYPE))
+                .map(o -> (WorkloadGroupMetadata) o)
+                .map(WorkloadGroupMetadata::workloadGroups)
                 .orElse(Collections.emptyMap());
         }
 

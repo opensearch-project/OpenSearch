@@ -9,7 +9,7 @@
 package org.opensearch.wlm.tracker;
 
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.List;
 
@@ -24,7 +24,7 @@ public class CpuUsageCalculator extends ResourceUsageCalculator {
     private CpuUsageCalculator() {}
 
     @Override
-    public double calculateResourceUsage(List<QueryGroupTask> tasks) {
+    public double calculateResourceUsage(List<WorkloadGroupTask> tasks) {
         double usage = tasks.stream().mapToDouble(this::calculateTaskResourceUsage).sum();
 
         usage /= PROCESSOR_COUNT;
@@ -32,7 +32,7 @@ public class CpuUsageCalculator extends ResourceUsageCalculator {
     }
 
     @Override
-    public double calculateTaskResourceUsage(QueryGroupTask task) {
+    public double calculateTaskResourceUsage(WorkloadGroupTask task) {
         return (1.0f * task.getTotalResourceUtilization(ResourceStats.CPU)) / task.getElapsedTime();
     }
 }

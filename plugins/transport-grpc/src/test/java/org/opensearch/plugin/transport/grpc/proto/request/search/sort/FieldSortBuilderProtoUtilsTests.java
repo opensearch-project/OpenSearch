@@ -37,7 +37,7 @@ public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithSingleField() {
         // Create a FieldWithOrderMap with a single field
         FieldWithOrderMap.Builder builder = FieldWithOrderMap.newBuilder();
-        builder.putFieldWithOrderMap("field1", ScoreSort.newBuilder().setOrder(ScoreSort.SortOrder.SORT_ORDER_ASC).build());
+        builder.putFieldWithOrderMap("field1", ScoreSort.newBuilder().setOrder(org.opensearch.protobufs.SortOrder.SORT_ORDER_ASC).build());
         FieldWithOrderMap fieldWithOrderMap = builder.build();
 
         // Create a list to populate
@@ -57,8 +57,8 @@ public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithMultipleFields() {
         // Create a FieldWithOrderMap with multiple fields
         FieldWithOrderMap.Builder builder = FieldWithOrderMap.newBuilder();
-        builder.putFieldWithOrderMap("field1", ScoreSort.newBuilder().setOrder(ScoreSort.SortOrder.SORT_ORDER_ASC).build());
-        builder.putFieldWithOrderMap("field2", ScoreSort.newBuilder().setOrder(ScoreSort.SortOrder.SORT_ORDER_DESC).build());
+        builder.putFieldWithOrderMap("field1", ScoreSort.newBuilder().setOrder(org.opensearch.protobufs.SortOrder.SORT_ORDER_ASC).build());
+        builder.putFieldWithOrderMap("field2", ScoreSort.newBuilder().setOrder(org.opensearch.protobufs.SortOrder.SORT_ORDER_DESC).build());
         FieldWithOrderMap fieldWithOrderMap = builder.build();
 
         // Create a list to populate
@@ -94,7 +94,7 @@ public class FieldSortBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testFromProtoWithScoreField() {
         // Create a FieldWithOrderMap with the special "score" field
         FieldWithOrderMap.Builder builder = FieldWithOrderMap.newBuilder();
-        builder.putFieldWithOrderMap("score", ScoreSort.newBuilder().setOrder(ScoreSort.SortOrder.SORT_ORDER_DESC).build());
+        builder.putFieldWithOrderMap("score", ScoreSort.newBuilder().setOrder(org.opensearch.protobufs.SortOrder.SORT_ORDER_DESC).build());
         FieldWithOrderMap fieldWithOrderMap = builder.build();
 
         // Create a list to populate

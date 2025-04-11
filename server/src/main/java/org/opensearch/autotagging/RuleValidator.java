@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.opensearch.cluster.metadata.QueryGroup.isValid;
+import static org.opensearch.cluster.metadata.WorkloadGroup.isValid;
 
 /**
  * This is the validator for rule. It ensures that the rule has a valid description, feature value,
