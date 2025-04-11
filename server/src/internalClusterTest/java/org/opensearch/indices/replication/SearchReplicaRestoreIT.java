@@ -8,7 +8,11 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
@@ -99,6 +103,24 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
         assertTrue(exception.getMessage().contains(getSnapshotExceptionMessage(ReplicationType.SEGMENT, ReplicationType.DOCUMENT)));
     }
 
+    public void testRemoteStoreRestoreFailsForSearchOnlyIndex() throws Exception {
+        bootstrapIndexWithSearchReplicas();
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(INDEX_NAME, true).get());
+
+        GetSettingsResponse settingsResponse = client().admin().indices().prepareGetSettings(INDEX_NAME).get();
+        assertEquals("true", settingsResponse.getSetting(INDEX_NAME, IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey()));
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            PlainActionFuture<RestoreRemoteStoreResponse> future = PlainActionFuture.newFuture();
+            client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), future);
+            future.actionGet();
+        });
+
+        assertTrue(
+            exception.getMessage().contains("Cannot use _remotestore/_restore on search_only mode enabled index [" + INDEX_NAME + "].")
+        );
+    }
+
     private void bootstrapIndexWithOutSearchReplicas(ReplicationType replicationType) throws InterruptedException {
         internalCluster().startNodes(2);
 
@@ -151,7 +173,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             + "To restore with [index.replication.type] as ["
             + restoreReplicationType
             + "], "
-            + "[index.number_of_search_only_replicas] must be set to [0]";
+            + "[index.number_of_search_replicas] must be set to [0]";
     }
 
     private int getNumberOfSearchReplicas(String index) {

@@ -30,26 +30,26 @@ import static org.mockito.Mockito.mock;
 public class WlmStatsTests extends AbstractWireSerializingTestCase<WlmStats> {
 
     public void testToXContent() throws IOException {
-        final Map<String, QueryGroupStats.QueryGroupStatsHolder> stats = new HashMap<>();
-        final String queryGroupId = "afakjklaj304041-afaka";
+        final Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> stats = new HashMap<>();
+        final String workloadGroupId = "afakjklaj304041-afaka";
         stats.put(
-            queryGroupId,
-            new QueryGroupStats.QueryGroupStatsHolder(
+            workloadGroupId,
+            new WorkloadGroupStats.WorkloadGroupStatsHolder(
                 123456789,
                 13,
                 2,
                 0,
-                Map.of(ResourceType.CPU, new QueryGroupStats.ResourceStats(0.3, 13, 2))
+                Map.of(ResourceType.CPU, new WorkloadGroupStats.ResourceStats(0.3, 13, 2))
             )
         );
         XContentBuilder builder = JsonXContent.contentBuilder();
-        QueryGroupStats queryGroupStats = new QueryGroupStats(stats);
-        WlmStats wlmStats = new WlmStats(mock(DiscoveryNode.class), queryGroupStats);
+        WorkloadGroupStats workloadGroupStats = new WorkloadGroupStats(stats);
+        WlmStats wlmStats = new WlmStats(mock(DiscoveryNode.class), workloadGroupStats);
         builder.startObject();
         wlmStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals(
-            "{\"query_groups\":{\"afakjklaj304041-afaka\":{\"total_completions\":123456789,\"total_rejections\":13,\"total_cancellations\":0,\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
+            "{\"workload_groups\":{\"afakjklaj304041-afaka\":{\"total_completions\":123456789,\"total_rejections\":13,\"total_cancellations\":0,\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
             builder.toString()
         );
     }
@@ -68,7 +68,7 @@ public class WlmStatsTests extends AbstractWireSerializingTestCase<WlmStats> {
             DiscoveryNodeRole.BUILT_IN_ROLES,
             VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
         );
-        QueryGroupStatsTests queryGroupStatsTests = new QueryGroupStatsTests();
-        return new WlmStats(discoveryNode, queryGroupStatsTests.createTestInstance());
+        WorkloadGroupStatsTests workloadGroupStatsTests = new WorkloadGroupStatsTests();
+        return new WlmStats(discoveryNode, workloadGroupStatsTests.createTestInstance());
     }
 }

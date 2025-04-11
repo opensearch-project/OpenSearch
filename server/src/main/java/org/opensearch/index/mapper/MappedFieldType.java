@@ -101,7 +101,7 @@ public abstract class MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        setBoost(1.0f);
+        this.boost = 1.0f;
         this.name = Objects.requireNonNull(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
@@ -520,5 +520,13 @@ public abstract class MappedFieldType {
      */
     public TextSearchInfo getTextSearchInfo() {
         return textSearchInfo;
+    }
+
+    /**
+     * @return a concrete (unfiltered) field type, which should be the current instance
+     * if this is not a field type wrapper. See {@link FilterFieldType}.
+     */
+    public MappedFieldType unwrap() {
+        return this;
     }
 }

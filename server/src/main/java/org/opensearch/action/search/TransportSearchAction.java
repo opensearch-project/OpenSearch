@@ -102,7 +102,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.OriginSettingClient;
 import org.opensearch.transport.client.node.NodeClient;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -447,8 +447,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
-            if (task instanceof QueryGroupTask) {
-                ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
+            if (task instanceof WorkloadGroupTask) {
+                ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
             }
 
             PipelinedRequest searchRequest;

@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -64,6 +65,9 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
+
+import static org.opensearch.action.pagination.PageParams.PARAM_ASC_SORT_VALUE;
+import static org.opensearch.action.pagination.PageParams.PARAM_DESC_SORT_VALUE;
 
 /**
  * Base handler for REST requests.
@@ -347,5 +351,22 @@ public abstract class BaseRestHandler implements RestHandler {
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
             }
         };
+    }
+
+    /**
+     * Validate and return the page params required for pagination.
+     */
+    protected PageParams validateAndGetPageParams(RestRequest restRequest, String defaultSortValue, int defaultPageSize) {
+        PageParams pageParams = restRequest.parsePaginatedQueryParams(defaultSortValue, defaultPageSize);
+
+        // validating pageSize
+        if (pageParams.getSize() <= 0) {
+            throw new IllegalArgumentException("size must be greater than zero");
+        }
+        // Validating sort order
+        if ((PARAM_ASC_SORT_VALUE.equals(pageParams.getSort()) || PARAM_DESC_SORT_VALUE.equals(pageParams.getSort())) == false) {
+            throw new IllegalArgumentException("value of sort can either be asc or desc");
+        }
+        return pageParams;
     }
 }

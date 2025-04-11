@@ -95,7 +95,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
 
     @Override
-    public final ParametrizedFieldMapper merge(Mapper mergeWith) {
+    public ParametrizedFieldMapper merge(Mapper mergeWith) {
 
         if (mergeWith instanceof FieldMapper == false) {
             throw new IllegalArgumentException(
@@ -348,7 +348,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             }
         }
 
-        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        public void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             if (serializerCheck.check(includeDefaults, isConfigured(), get())) {
                 serializer.serialize(builder, name, getValue());
             }
@@ -649,7 +649,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         /**
          * Writes the current builder parameter values as XContent
          */
-        protected final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        public final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }

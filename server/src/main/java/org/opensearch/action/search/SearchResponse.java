@@ -709,6 +709,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             out.writeMap(phaseTookMap, StreamOutput::writeString, StreamOutput::writeLong);
         }
 
+        public Map<String, Long> getPhaseTookMap() {
+            return phaseTookMap;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(PHASE_TOOK.getPreferredName());
