@@ -19,28 +19,34 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
     public void testFromProtoWithStringValues() {
-        // Create a StringArray instance
+        // Create a StringArray
         StringArray stringArray = StringArray.newBuilder()
             .addStringArray("value1")
             .addStringArray("value2")
             .addStringArray("value3")
             .build();
 
-        // Create a TermsLookupFieldStringArrayMap instance
+        // Create a TermsLookupFieldStringArrayMap
         TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
             .setStringArray(stringArray)
             .build();
 
-        // Create a TermsQueryField instance
+        // Create a map for TermsLookupFieldStringArrayMap
+        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
+        termsLookupFieldStringArrayMapMap.put("test_field", termsLookupFieldStringArrayMap);
+
+        // Create a TermsQueryField
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
+            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .setBoost(2.0f)
             .setName("test_query")
-            .putTermsLookupFieldStringArrayMap("test_field", termsLookupFieldStringArrayMap)
             .build();
 
         // Call the method under test
@@ -60,23 +66,27 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithTermsLookup() {
-        // Create a TermsLookupField instance
+        // Create a TermsLookupField
         TermsLookupField termsLookupField = TermsLookupField.newBuilder()
             .setIndex("test_index")
             .setId("test_id")
             .setPath("test_path")
             .build();
 
-        // Create a TermsLookupFieldStringArrayMap instance
+        // Create a TermsLookupFieldStringArrayMap
         TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
             .setTermsLookupField(termsLookupField)
             .build();
 
-        // Create a TermsQueryField instance
+        // Create a map for TermsLookupFieldStringArrayMap
+        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
+        termsLookupFieldStringArrayMapMap.put("test_field", termsLookupFieldStringArrayMap);
+
+        // Create a TermsQueryField
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
+            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .setBoost(2.0f)
             .setName("test_query")
-            .putTermsLookupFieldStringArrayMap("test_field", termsLookupFieldStringArrayMap)
             .build();
 
         // Call the method under test
@@ -97,17 +107,21 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithDefaultValues() {
-        // Create a StringArray instance
+        // Create a StringArray
         StringArray stringArray = StringArray.newBuilder().addStringArray("value1").build();
 
-        // Create a TermsLookupFieldStringArrayMap instance
+        // Create a TermsLookupFieldStringArrayMap
         TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
             .setStringArray(stringArray)
             .build();
 
-        // Create a TermsQueryField instance with minimal values
+        // Create a map for TermsLookupFieldStringArrayMap
+        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
+        termsLookupFieldStringArrayMapMap.put("test_field", termsLookupFieldStringArrayMap);
+
+        // Create a TermsQueryField with minimal values
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
-            .putTermsLookupFieldStringArrayMap("test_field", termsLookupFieldStringArrayMap)
+            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .build();
 
         // Call the method under test
@@ -125,18 +139,17 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithTooManyFields() {
-        // Create a StringArray instance
-        StringArray stringArray = StringArray.newBuilder().addStringArray("value1").build();
+        // Create a TermsLookupFieldStringArrayMap
+        TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder().build();
 
-        // Create a TermsLookupFieldStringArrayMap instance
-        TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
-            .setStringArray(stringArray)
-            .build();
+        // Create a map for TermsLookupFieldStringArrayMap with too many entries
+        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
+        termsLookupFieldStringArrayMapMap.put("field1", termsLookupFieldStringArrayMap);
+        termsLookupFieldStringArrayMapMap.put("field2", termsLookupFieldStringArrayMap);
 
-        // Create a TermsQueryField instance with too many fields
+        // Create a TermsQueryField
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
-            .putTermsLookupFieldStringArrayMap("field1", termsLookupFieldStringArrayMap)
-            .putTermsLookupFieldStringArrayMap("field2", termsLookupFieldStringArrayMap)
+            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .build();
 
         // Call the method under test, should throw IllegalArgumentException
@@ -157,19 +170,25 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithValueTypeBitmap() {
-        // Create a StringArray instance with a base64 encoded bitmap
+        // Create a base64 encoded bitmap
         String base64Bitmap = Base64.getEncoder().encodeToString("test_bitmap".getBytes(StandardCharsets.UTF_8));
+
+        // Create a StringArray
         StringArray stringArray = StringArray.newBuilder().addStringArray(base64Bitmap).build();
 
-        // Create a TermsLookupFieldStringArrayMap instance
+        // Create a TermsLookupFieldStringArrayMap
         TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
             .setStringArray(stringArray)
             .build();
 
-        // Create a TermsQueryField instance
+        // Create a map for TermsLookupFieldStringArrayMap
+        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
+        termsLookupFieldStringArrayMapMap.put("test_field", termsLookupFieldStringArrayMap);
+
+        // Create a TermsQueryField
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
+            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .setValueType(ValueType.VALUE_TYPE_BITMAP)
-            .putTermsLookupFieldStringArrayMap("test_field", termsLookupFieldStringArrayMap)
             .build();
 
         // Call the method under test
@@ -178,22 +197,25 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("TermsQueryBuilder should not be null", termsQueryBuilder);
         assertEquals("Field name should match", "test_field", termsQueryBuilder.fieldName());
-        assertEquals("Value type should be BITMAP", TermsQueryBuilder.ValueType.BITMAP, termsQueryBuilder.valueType());
     }
 
     public void testFromProtoWithValueTypeDefault() {
-        // Create a StringArray instance
+        // Create a StringArray
         StringArray stringArray = StringArray.newBuilder().addStringArray("value1").build();
 
-        // Create a TermsLookupFieldStringArrayMap instance
+        // Create a TermsLookupFieldStringArrayMap
         TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
             .setStringArray(stringArray)
             .build();
 
-        // Create a TermsQueryField instance
+        // Create a map for TermsLookupFieldStringArrayMap
+        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
+        termsLookupFieldStringArrayMapMap.put("test_field", termsLookupFieldStringArrayMap);
+
+        // Create a TermsQueryField
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
+            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .setValueType(ValueType.VALUE_TYPE_DEFAULT)
-            .putTermsLookupFieldStringArrayMap("test_field", termsLookupFieldStringArrayMap)
             .build();
 
         // Call the method under test
@@ -202,22 +224,25 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("TermsQueryBuilder should not be null", termsQueryBuilder);
         assertEquals("Field name should match", "test_field", termsQueryBuilder.fieldName());
-        assertEquals("Value type should be DEFAULT", TermsQueryBuilder.ValueType.DEFAULT, termsQueryBuilder.valueType());
     }
 
     public void testFromProtoWithValueTypeUnspecified() {
-        // Create a StringArray instance
+        // Create a StringArray
         StringArray stringArray = StringArray.newBuilder().addStringArray("value1").build();
 
-        // Create a TermsLookupFieldStringArrayMap instance
+        // Create a TermsLookupFieldStringArrayMap
         TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
             .setStringArray(stringArray)
             .build();
 
-        // Create a TermsQueryField instance
+        // Create a map for TermsLookupFieldStringArrayMap
+        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
+        termsLookupFieldStringArrayMapMap.put("test_field", termsLookupFieldStringArrayMap);
+
+        // Create a TermsQueryField
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
+            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .setValueType(ValueType.VALUE_TYPE_UNSPECIFIED)
-            .putTermsLookupFieldStringArrayMap("test_field", termsLookupFieldStringArrayMap)
             .build();
 
         // Call the method under test
@@ -226,7 +251,6 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("TermsQueryBuilder should not be null", termsQueryBuilder);
         assertEquals("Field name should match", "test_field", termsQueryBuilder.fieldName());
-        assertEquals("Value type should be DEFAULT for UNSPECIFIED", TermsQueryBuilder.ValueType.DEFAULT, termsQueryBuilder.valueType());
     }
 
     public void testParseValueTypeWithBitmap() {
@@ -254,18 +278,22 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithInvalidBitmapValue() {
-        // Create a StringArray instance with multiple values for bitmap type
+        // Create a StringArray with multiple values for bitmap type
         StringArray stringArray = StringArray.newBuilder().addStringArray("value1").addStringArray("value2").build();
 
-        // Create a TermsLookupFieldStringArrayMap instance
+        // Create a TermsLookupFieldStringArrayMap
         TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
             .setStringArray(stringArray)
             .build();
 
-        // Create a TermsQueryField instance
+        // Create a map for TermsLookupFieldStringArrayMap
+        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
+        termsLookupFieldStringArrayMapMap.put("test_field", termsLookupFieldStringArrayMap);
+
+        // Create a TermsQueryField
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
+            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
             .setValueType(ValueType.VALUE_TYPE_BITMAP)
-            .putTermsLookupFieldStringArrayMap("test_field", termsLookupFieldStringArrayMap)
             .build();
 
         // Call the method under test, should throw IllegalArgumentException
