@@ -22,7 +22,7 @@ public class ActiveShardCountProtoUtils {
     /**
      * Private constructor to prevent instantiation of utility class.
      */
-    protected ActiveShardCountProtoUtils() {
+    private ActiveShardCountProtoUtils() {
         // Utility class, no instances
     }
 
