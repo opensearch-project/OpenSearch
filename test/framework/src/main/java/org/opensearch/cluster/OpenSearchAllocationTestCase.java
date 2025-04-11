@@ -170,6 +170,10 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), SEARCH_ROLE, version);
     }
 
+    protected static DiscoveryNode newSearchNode(String nodeId, Map<String, String> attributes) {
+        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, SEARCH_ROLE, Version.CURRENT);
+    }
+
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Map<String, String> attributes) {
         return new DiscoveryNode(nodeName, nodeId, buildNewFakeTransportAddress(), attributes, CLUSTER_MANAGER_DATA_ROLES, Version.CURRENT);
     }

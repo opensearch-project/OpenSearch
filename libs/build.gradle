@@ -41,20 +41,21 @@ subprojects {
    */
   project.afterEvaluate {
     if (!project.path.equals(':libs:agent-sm:agent')) {
-      configurations.all { Configuration conf ->
-        dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
-          Project depProject = project.project(dep.path)
-          if (depProject != null
-            && (false == depProject.path.equals(':libs:opensearch-core') &&
-                false == depProject.path.equals(':libs:opensearch-common'))
-            && depProject.path.startsWith(':libs')) {
-            throw new InvalidUserDataException("projects in :libs "
-              + "may not depend on other projects libs except "
-              + ":libs:opensearch-core or :libs:opensearch-common but "
-              + "${project.path} depends on ${depProject.path}")
+        configurations.all { Configuration conf ->
+          dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
+            Project depProject = project.project(dep.path)
+            if (depProject != null
+              && (false == depProject.path.equals(':libs:opensearch-core') &&
+                  false == depProject.path.equals(':libs:opensearch-common')&&
+                  false == depProject.path.equals(':libs:agent-sm:agent-policy'))
+              && depProject.path.startsWith(':libs')) {
+              throw new InvalidUserDataException("projects in :libs "
+                + "may not depend on other projects libs except "
+                + ":libs:opensearch-core, :libs:agent-sm:agent-policy or :libs:opensearch-common but "
+                + "${project.path} depends on ${depProject.path}")
+            }
           }
         }
-      }
     }
   }
 }

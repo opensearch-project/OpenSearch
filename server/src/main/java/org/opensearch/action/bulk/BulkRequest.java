@@ -97,7 +97,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
-    private int batchSize = Integer.MAX_VALUE;
 
     private long sizeInBytes = 0;
 
@@ -109,8 +108,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_2_14_0)) {
-            batchSize = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_2_14_0) && in.getVersion().before(Version.V_3_0_0)) {
+            in.readInt(); // formerly batch_size
         }
     }
 
@@ -352,27 +351,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     }
 
     /**
-     * Set batch size
-     * @param size batch size from input
-     * @return {@link BulkRequest}
-     */
-    public BulkRequest batchSize(int size) {
-        if (size < 1) {
-            throw new IllegalArgumentException("batch_size must be greater than 0");
-        }
-        this.batchSize = size;
-        return this;
-    }
-
-    /**
-     * Get batch size
-     * @return batch size
-     */
-    public int batchSize() {
-        return this.batchSize;
-    }
-
-    /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
      * <p>
@@ -479,8 +457,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getVersion().onOrAfter(Version.V_2_14_0)) {
-            out.writeInt(batchSize);
+        if (out.getVersion().onOrAfter(Version.V_2_14_0) && out.getVersion().before(Version.V_3_0_0)) {
+            out.writeInt(Integer.MAX_VALUE); // formerly batch_size
         }
     }
 

@@ -11,7 +11,9 @@ package org.opensearch.javaagent;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.lang.instrument.Instrumentation;
+import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.file.Files;
 import java.util.Map;
 
 import net.bytebuddy.ByteBuddy;
@@ -32,6 +34,22 @@ public class Agent {
      * Constructor
      */
     private Agent() {}
+
+    /**
+     * List of methods that are intercepted
+     */
+    private static final String[] INTERCEPTED_METHODS = {
+        "write",
+        "createFile",
+        "createDirectories",
+        "createLink",
+        "copy",
+        "move",
+        "newByteChannel",
+        "delete",
+        "deleteIfExists",
+        "read",
+        "open" };
 
     /**
      * Premain
@@ -55,17 +73,25 @@ public class Agent {
 
     private static AgentBuilder createAgentBuilder(Instrumentation inst) throws Exception {
         final Junction<TypeDescription> systemType = ElementMatchers.isSubTypeOf(SocketChannel.class);
+        final Junction<TypeDescription> pathType = ElementMatchers.isSubTypeOf(Files.class);
+        final Junction<TypeDescription> fileChannelType = ElementMatchers.isSubTypeOf(FileChannel.class);
 
-        final AgentBuilder.Transformer transformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
+        final AgentBuilder.Transformer socketTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
             Advice.to(SocketChannelInterceptor.class)
                 .on(ElementMatchers.named("connect").and(ElementMatchers.not(ElementMatchers.isAbstract())))
+        );
+
+        final AgentBuilder.Transformer fileTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
+            Advice.to(FileInterceptor.class).on(ElementMatchers.namedOneOf(INTERCEPTED_METHODS).or(ElementMatchers.isAbstract()))
         );
 
         ClassInjector.UsingUnsafe.ofBootLoader()
             .inject(
                 Map.of(
-                    new TypeDescription.ForLoadedType(StackCallerChainExtractor.class),
-                    ClassFileLocator.ForClassLoader.read(StackCallerChainExtractor.class),
+                    new TypeDescription.ForLoadedType(StackCallerProtectionDomainChainExtractor.class),
+                    ClassFileLocator.ForClassLoader.read(StackCallerProtectionDomainChainExtractor.class),
+                    new TypeDescription.ForLoadedType(StackCallerClassChainExtractor.class),
+                    ClassFileLocator.ForClassLoader.read(StackCallerClassChainExtractor.class),
                     new TypeDescription.ForLoadedType(AgentPolicy.class),
                     ClassFileLocator.ForClassLoader.read(AgentPolicy.class)
                 )
@@ -75,9 +101,23 @@ public class Agent {
         final AgentBuilder agentBuilder = new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
             .with(AgentBuilder.RedefinitionStrategy.REDEFINITION)
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
-            .ignore(ElementMatchers.none())
+            .ignore(ElementMatchers.nameContains("$MockitoMock$")) /* ingore all Mockito mocks */
             .type(systemType)
-            .transform(transformer);
+            .transform(socketTransformer)
+            .type(pathType.or(fileChannelType))
+            .transform(fileTransformer)
+            .type(ElementMatchers.is(java.lang.System.class))
+            .transform(
+                (b, typeDescription, classLoader, module, pd) -> b.visit(
+                    Advice.to(SystemExitInterceptor.class).on(ElementMatchers.named("exit"))
+                )
+            )
+            .type(ElementMatchers.is(java.lang.Runtime.class))
+            .transform(
+                (b, typeDescription, classLoader, module, pd) -> b.visit(
+                    Advice.to(RuntimeHaltInterceptor.class).on(ElementMatchers.named("halt"))
+                )
+            );
 
         return agentBuilder;
     }

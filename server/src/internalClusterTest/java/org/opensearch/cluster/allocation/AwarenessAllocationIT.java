@@ -364,7 +364,6 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
         assertThat(counts.get(noZoneNode), equalTo(2));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5908")
     public void testThreeZoneOneReplicaWithForceZoneValueAndLoadAwareness() throws Exception {
         int nodeCountPerAZ = 5;
         int numOfShards = 30;
@@ -503,5 +502,33 @@ public class AwarenessAllocationIT extends OpenSearchIntegTestCase {
         // All shards should be started now and cluster health should be green
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2 * numOfShards * (numOfReplica + 1)));
         assertThat(health.isTimedOut(), equalTo(false));
+    }
+
+    public void testAwarenessBalanceWithForcedAwarenessCreateAndUpdateIndex() {
+        Settings settings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.balance", "true")
+            .build();
+
+        logger.info("--> starting 3 nodes on zones a,b,c");
+        internalCluster().startNodes(
+            Settings.builder().put(settings).put("node.attr.zone", "a").build(),
+            Settings.builder().put(settings).put("node.attr.zone", "b").build(),
+            Settings.builder().put(settings).put("node.attr.zone", "c").build()
+        );
+
+        // Create index with 2 replicas ie total 3 shards
+        createIndex(
+            "test-idx",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build()
+        );
+
+        // Update the number of replicas to 4
+        final Settings newsettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 4).build();
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            assertAcked(client().admin().indices().prepareUpdateSettings("test-idx").setSettings(newsettings));
+        });
     }
 }

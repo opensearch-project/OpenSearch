@@ -118,6 +118,13 @@ public class OperationRouting {
         Preference.PREFER_NODES
     );
 
+    public static final Setting<Boolean> STRICT_SEARCH_REPLICA_ROUTING_ENABLED = Setting.boolSetting(
+        "cluster.routing.search_replica.strict",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private volatile List<String> awarenessAttributes;
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
@@ -125,6 +132,7 @@ public class OperationRouting {
     private volatile boolean isFailOpenEnabled;
     private volatile boolean isStrictWeightedShardRouting;
     private volatile boolean ignoreWeightedRouting;
+    private volatile boolean isStrictSearchOnlyShardRouting;
     private final boolean isReaderWriterSplitEnabled;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
@@ -140,12 +148,14 @@ public class OperationRouting {
         this.isFailOpenEnabled = WEIGHTED_ROUTING_FAILOPEN_ENABLED.get(settings);
         this.isStrictWeightedShardRouting = STRICT_WEIGHTED_SHARD_ROUTING_ENABLED.get(settings);
         this.ignoreWeightedRouting = IGNORE_WEIGHTED_SHARD_ROUTING.get(settings);
+        this.isStrictSearchOnlyShardRouting = STRICT_SEARCH_REPLICA_ROUTING_ENABLED.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
         clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_DEFAULT_WEIGHT, this::setWeightedRoutingDefaultWeight);
         clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_FAILOPEN_ENABLED, this::setFailOpenEnabled);
         clusterSettings.addSettingsUpdateConsumer(STRICT_WEIGHTED_SHARD_ROUTING_ENABLED, this::setStrictWeightedShardRouting);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_WEIGHTED_SHARD_ROUTING, this::setIgnoreWeightedRouting);
+        clusterSettings.addSettingsUpdateConsumer(STRICT_SEARCH_REPLICA_ROUTING_ENABLED, this::setStrictSearchOnlyShardRouting);
         this.isReaderWriterSplitEnabled = FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(settings);
     }
 
@@ -191,6 +201,10 @@ public class OperationRouting {
 
     public double getWeightedRoutingDefaultWeight() {
         return this.weightedRoutingDefaultWeight;
+    }
+
+    void setStrictSearchOnlyShardRouting(boolean strictSearchOnlyShardRouting) {
+        this.isStrictSearchOnlyShardRouting = strictSearchOnlyShardRouting;
     }
 
     public ShardIterator indexShards(ClusterState clusterState, String index, String id, @Nullable String routing) {
@@ -265,7 +279,7 @@ public class OperationRouting {
 
             if (isReaderWriterSplitEnabled) {
                 if (preference == null || preference.isEmpty()) {
-                    if (indexMetadataForShard.getNumberOfSearchOnlyReplicas() > 0) {
+                    if (indexMetadataForShard.getNumberOfSearchOnlyReplicas() > 0 && isStrictSearchOnlyShardRouting) {
                         preference = Preference.SEARCH_REPLICA.type();
                     }
                 }

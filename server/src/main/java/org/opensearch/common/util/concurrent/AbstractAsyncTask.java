@@ -33,6 +33,7 @@ package org.opensearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
@@ -40,6 +41,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * A base class for tasks that need to repeat.
@@ -56,17 +58,31 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     private volatile boolean isScheduledOrRunning;
     private volatile Exception lastThrownException;
     private volatile TimeValue interval;
+    private volatile long lastRunStartTimeNs = -1;
+    private final Supplier<Boolean> fixedIntervalSchedulingEnabled;
 
     protected AbstractAsyncTask(Logger logger, ThreadPool threadPool, TimeValue interval, boolean autoReschedule) {
+        this(logger, threadPool, interval, autoReschedule, () -> Boolean.FALSE);
+    }
+
+    protected AbstractAsyncTask(
+        Logger logger,
+        ThreadPool threadPool,
+        TimeValue interval,
+        boolean autoReschedule,
+        Supplier<Boolean> fixedIntervalSchedulingEnabled
+    ) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.interval = interval;
         this.autoReschedule = autoReschedule;
+        this.fixedIntervalSchedulingEnabled = fixedIntervalSchedulingEnabled;
     }
 
     /**
      * Change the interval between runs.
      * If a future run is scheduled then this will reschedule it.
+     *
      * @param interval The new interval between runs.
      */
     public synchronized void setInterval(TimeValue interval) {
@@ -85,6 +101,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
      * should be scheduled.  This method does *not* need to test if
      * the task is closed, as being closed automatically prevents
      * scheduling.
+     *
      * @return Should the task be scheduled to run?
      */
     protected abstract boolean mustReschedule();
@@ -106,7 +123,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             if (logger.isTraceEnabled()) {
                 logger.trace("scheduling {} every {}", toString(), interval);
             }
-            cancellable = threadPool.schedule(this, interval, getThreadPool());
+            cancellable = threadPool.schedule(this, getSleepDuration(), getThreadPool());
             isScheduledOrRunning = true;
         } else {
             logger.trace("scheduled {} disabled", toString());
@@ -156,6 +173,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             isScheduledOrRunning = autoReschedule;
         }
         try {
+            lastRunStartTimeNs = System.nanoTime();
             runInternal();
         } catch (Exception ex) {
             if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
@@ -202,5 +220,35 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
      */
     protected String getThreadPool() {
         return ThreadPool.Names.SAME;
+    }
+
+    /**
+     * Calculates the sleep duration for the next scheduled execution of the task.
+     * This method determines the appropriate delay based on the last run time and the configured interval
+     * to schedule the next execution.
+     */
+    public TimeValue getSleepDuration() {
+        if (!fixedIntervalSchedulingEnabled.get()) {
+            return interval;
+        }
+
+        if (lastRunStartTimeNs == -1) {
+            // We want to stagger the start of refreshes in random manner so that we avoid refreshes to happen at the same
+            // when we have refreshes happening in parallel for multiple shards of the same index. a.k.a. Dense shard packing
+            long sleepTimeNs = Randomness.get().nextLong(interval.nanos());
+            return TimeValue.timeValueNanos(sleepTimeNs);
+        }
+
+        long timeSinceLastRunNs = System.nanoTime() - lastRunStartTimeNs;
+        if (timeSinceLastRunNs >= interval.nanos()) {
+            // If the time taken for refresh is more than the configured refresh interval, then we schedule the next refresh
+            // immediately. This is to avoid the case where the time taken for refresh is more than the configured refresh
+            // interval due to the processing of the refresh request.
+            return TimeValue.ZERO;
+        } else {
+            // If the time taken for refresh is less than the configured refresh interval, then we schedule the next refresh
+            // after the remaining time for the refresh interval.
+            return TimeValue.timeValueNanos(interval.nanos() - timeSinceLastRunNs);
+        }
     }
 }
