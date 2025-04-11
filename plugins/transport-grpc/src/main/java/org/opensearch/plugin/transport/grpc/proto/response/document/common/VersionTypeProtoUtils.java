@@ -11,9 +11,9 @@ package org.opensearch.plugin.transport.grpc.proto.response.document.common;
 import org.opensearch.index.VersionType;
 
 /**
- * Utility class for converting REST-like actions between OpenSearch and Protocol Buffers formats.
- * This class provides methods to transform response components such as shard statistics and
- * broadcast headers to ensure proper communication between the OpenSearch server and gRPC clients.
+ * Utility class for converting VersionType Protocol Buffers to OpenSearch VersionType objects.
+ * This class handles the conversion of Protocol Buffer version type representations to their
+ * corresponding OpenSearch version type enumerations.
  */
 public class VersionTypeProtoUtils {
 
@@ -22,9 +22,11 @@ public class VersionTypeProtoUtils {
     }
 
     /**
-     * Similar to {@link VersionType#fromString(String)}
+     * Converts a Protocol Buffer VersionType to its corresponding OpenSearch VersionType.
+     * Similar to {@link VersionType#fromString(String)}.
      *
-     * @param versionType
+     * @param versionType The Protocol Buffer VersionType to convert
+     * @return The corresponding OpenSearch VersionType
      */
     public static VersionType fromProto(org.opensearch.protobufs.VersionType versionType) {
         switch (versionType) {

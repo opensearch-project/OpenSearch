@@ -12,9 +12,9 @@ import org.opensearch.action.DocWriteRequest;
 import org.opensearch.protobufs.OpType;
 
 /**
- * Utility class for converting SourceConfig Protocol Buffers to FetchSourceContext objects.
+ * Utility class for converting OpType Protocol Buffers to OpenSearch DocWriteRequest.OpType objects.
  * This class handles the conversion of Protocol Buffer representations to their
- * corresponding OpenSearch objects.
+ * corresponding OpenSearch operation type enumerations.
  */
 public class OpTypeProtoUtils {
 
@@ -23,11 +23,12 @@ public class OpTypeProtoUtils {
     }
 
     /**
+     * Converts a Protocol Buffer OpType to its corresponding OpenSearch DocWriteRequest.OpType.
+     * Similar to {@link DocWriteRequest.OpType}.
      *
-     * Similar to {@link DocWriteRequest.OpType}
-     *
-     * @param opType
-     * @return
+     * @param opType The Protocol Buffer OpType to convert
+     * @return The corresponding OpenSearch DocWriteRequest.OpType
+     * @throws UnsupportedOperationException if the operation type is not supported
      */
     public static DocWriteRequest.OpType fromProto(OpType opType) {
 

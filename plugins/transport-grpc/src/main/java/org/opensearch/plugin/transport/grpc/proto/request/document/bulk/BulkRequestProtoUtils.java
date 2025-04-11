@@ -27,7 +27,7 @@ public class BulkRequestProtoUtils {
     /**
      * Private constructor to prevent instantiation of utility class.
      */
-    protected BulkRequestProtoUtils() {
+    private BulkRequestProtoUtils() {
         // Utility class, no instances
     }
 
