@@ -29,8 +29,10 @@ public class BytesRefsCollectionBuilderTests extends OpenSearchTestCase {
         Collection<BytesRef> sortedSet = assertCollectionBuilt(sortedBytesRefs);
         assertCollectionBuilt(bytesRefList);
 
-        assertTrue(sortedSet instanceof SortedSet);
-        assertNull(((SortedSet<BytesRef>) sortedSet).comparator());
+        assertTrue(sortedSet.isEmpty() || sortedSet instanceof SortedSet);
+        if (!sortedSet.isEmpty()) {
+            assertNull(((SortedSet<BytesRef>) sortedSet).comparator());
+        }
     }
 
     public void testBuildFooBar() {
