@@ -16,7 +16,6 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -37,11 +36,8 @@ public class JavaAgent implements Plugin<Project> {
 
         project.afterEvaluate(p -> {
             String opensearchVersion = getOpensearchVersion(p);
-            String byteBuddyVersion = getByteBuddyVersion(p);
-
             p.getDependencies().add("agent", "org.opensearch:opensearch-agent-bootstrap:" + opensearchVersion);
             p.getDependencies().add("agent", "org.opensearch:opensearch-agent:" + opensearchVersion);
-            p.getDependencies().add("agent", "net.bytebuddy:byte-buddy:" + byteBuddyVersion);
         });
 
         Configuration finalAgentConfiguration = agentConfiguration;
@@ -71,15 +67,5 @@ public class JavaAgent implements Plugin<Project> {
      */
     private String getOpensearchVersion(Project project) {
         return Objects.requireNonNull(project.property("opensearch_version")).toString();
-    }
-
-    /**
-     * Gets the ByteBuddy version from project properties, with a fallback default.
-     *
-     * @param project The Gradle project
-     * @return The ByteBuddy version to use
-     */
-    private String getByteBuddyVersion(Project project) {
-        return (String) ((Map<?, ?>) project.property("versions")).get("bytebuddy");
     }
 }
