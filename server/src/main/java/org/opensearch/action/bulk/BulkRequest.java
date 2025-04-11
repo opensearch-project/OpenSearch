@@ -46,6 +46,7 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
@@ -62,6 +63,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
@@ -100,7 +102,15 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     private long sizeInBytes = 0;
 
-    public BulkRequest() {}
+    /**
+     * UUID of the bulk request. This id can be set in its sub requests to help check if those requests belong to this
+     * bulk request.
+     */
+    private String uuid;
+
+    public BulkRequest() {
+        uuid = UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
+    }
 
     public BulkRequest(StreamInput in) throws IOException {
         super(in);
@@ -110,6 +120,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         timeout = in.readTimeValue();
         if (in.getVersion().onOrAfter(Version.V_2_14_0) && in.getVersion().before(Version.V_3_0_0)) {
             in.readInt(); // formerly batch_size
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            uuid = in.readOptionalString();
         }
     }
 
@@ -460,6 +473,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         if (out.getVersion().onOrAfter(Version.V_2_14_0) && out.getVersion().before(Version.V_3_0_0)) {
             out.writeInt(Integer.MAX_VALUE); // formerly batch_size
         }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalString(uuid);
+        }
     }
 
     @Override
@@ -492,5 +508,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     public Set<String> getIndices() {
         return Collections.unmodifiableSet(indices);
+    }
+
+    public String getUuid() {
+        return uuid;
     }
 }

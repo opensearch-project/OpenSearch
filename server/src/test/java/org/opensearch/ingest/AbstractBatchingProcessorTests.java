@@ -19,6 +19,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+
 public class AbstractBatchingProcessorTests extends OpenSearchTestCase {
 
     public void testBatchExecute_emptyInput() {
@@ -113,6 +116,15 @@ public class AbstractBatchingProcessorTests extends OpenSearchTestCase {
         assertEquals(3, processor.batchSize);
     }
 
+    public void testSystemFactory_shouldNotModifyConfig() throws Exception {
+        Map<String, Object> config = mock(Map.class);
+
+        DummyProcessor.DummySystemProcessorFactory factory = new DummyProcessor.DummySystemProcessorFactory("DummyProcessor");
+        factory.create(config);
+
+        verifyNoInteractions(config);
+    }
+
     static class DummyProcessor extends AbstractBatchingProcessor {
         private List<List<IngestDocumentWrapper>> subBatches = new ArrayList<>();
 
@@ -154,6 +166,21 @@ public class AbstractBatchingProcessorTests extends OpenSearchTestCase {
             @Override
             protected AbstractBatchingProcessor newProcessor(String tag, String description, int batchSize, Map<String, Object> config) {
                 return new DummyProcessor(batchSize);
+            }
+        }
+
+        public static class DummySystemProcessorFactory extends SystemFactory {
+            protected DummySystemProcessorFactory(String processorType) {
+                super(processorType);
+            }
+
+            @Override
+            protected AbstractBatchingProcessor newProcessor(String tag, String description, Map<String, Object> config) {
+                return new DummyProcessor(1);
+            }
+
+            public AbstractBatchingProcessor create(Map<String, Object> config) throws Exception {
+                return super.create(Collections.emptyMap(), "tag", "description", config);
             }
         }
     }

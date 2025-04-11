@@ -180,6 +180,7 @@ import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicator;
 import org.opensearch.indices.store.IndicesStore;
+import org.opensearch.ingest.SystemIngestPipelineCache;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.monitor.fs.FsHealthService;
@@ -969,7 +970,9 @@ public class Node implements Closeable {
                 analysisModule.getAnalysisRegistry(),
                 pluginsService.filterPlugins(IngestPlugin.class),
                 client,
-                indicesService
+                indicesService,
+                xContentRegistry,
+                new SystemIngestPipelineCache()
             );
 
             final AliasValidator aliasValidator = new AliasValidator();
