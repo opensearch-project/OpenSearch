@@ -723,7 +723,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             mock(Function.class),
             randomBoolean(),
             OpenSearchTestCase::randomBoolean,
-            () -> indexService.getIndexSettings().getRefreshInterval()
+            () -> indexService.getIndexSettings().getRefreshInterval(),
+            indexService.getRefreshMutex()
         );
     }
 
