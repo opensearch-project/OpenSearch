@@ -22,6 +22,7 @@ import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
 import org.opensearch.search.startree.filter.MatchNoneFilter;
@@ -78,6 +79,10 @@ public interface DimensionFilterMapper {
         DimensionFilter.MatchType matchType
     );
 
+    default Optional<String> getSubDimension() {
+        return Optional.empty();
+    }
+
     /**
      * Singleton Factory for @{@link DimensionFilterMapper}
      */
@@ -99,13 +104,14 @@ public interface DimensionFilterMapper {
             DOUBLE.typeName(),
             new DoubleFieldMapperNumeric(),
             org.opensearch.index.mapper.KeywordFieldMapper.CONTENT_TYPE,
-            new KeywordFieldMapper(),
-            org.opensearch.index.mapper.DateFieldMapper.CONTENT_TYPE,
-            new StarDateFieldMapper()
+            new KeywordFieldMapper()
         );
 
-        public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType) {
+        public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType, SearchContext searchContext) {
             if (mappedFieldType != null) {
+                if (org.opensearch.index.mapper.DateFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName())) {
+                    return new StarDateFieldMapper(searchContext);
+                }
                 return DIMENSION_FILTER_MAPPINGS.get(mappedFieldType.typeName());
             }
             return null;
