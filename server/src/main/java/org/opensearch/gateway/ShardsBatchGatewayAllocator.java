@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -82,6 +83,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     private TimeValue primaryShardsBatchGatewayAllocatorTimeout;
     private TimeValue replicaShardsBatchGatewayAllocatorTimeout;
+    private volatile Priority followUpRerouteTaskPriority;
     public static final TimeValue MIN_ALLOCATOR_TIMEOUT = TimeValue.timeValueSeconds(20);
     private final ClusterManagerMetrics clusterManagerMetrics;
 
@@ -145,6 +147,32 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Adjusts the priority of the followup reroute task when current round times out. NORMAL is right for reasonable clusters,
+     * but for a cluster in a messed up state which is starving NORMAL priority tasks, it might be necessary to raise this higher
+     * to allocate existing shards.
+     */
+    public static final Setting<Priority> FOLLOW_UP_REROUTE_PRIORITY_SETTING = new Setting<>(
+        "cluster.routing.allocation.shards_batch_gateway_allocator.schedule_reroute.priority",
+        Priority.NORMAL.toString(),
+        ShardsBatchGatewayAllocator::parseReroutePriority,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private static Priority parseReroutePriority(String priorityString) {
+        final Priority priority = Priority.valueOf(priorityString.toUpperCase(Locale.ROOT));
+        switch (priority) {
+            case NORMAL:
+            case HIGH:
+            case URGENT:
+                return priority;
+        }
+        throw new IllegalArgumentException(
+            "priority [" + priority + "] not supported for [" + FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey() + "]"
+        );
+    }
+
     private final RerouteService rerouteService;
     private final PrimaryShardBatchAllocator primaryShardBatchAllocator;
     private final ReplicaShardBatchAllocator replicaShardBatchAllocator;
@@ -179,6 +207,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         this.replicaShardsBatchGatewayAllocatorTimeout = REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING, this::setReplicaBatchAllocatorTimeout);
         this.clusterManagerMetrics = clusterManagerMetrics;
+        setFollowUpRerouteTaskPriority(FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(FOLLOW_UP_REROUTE_PRIORITY_SETTING, this::setFollowUpRerouteTaskPriority);
     }
 
     @Override
@@ -308,8 +338,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                         logger.trace("scheduling reroute after existing shards allocator timed out for primary shards");
                         assert rerouteService != null;
                         rerouteService.reroute(
-                            "reroute after existing shards allocator timed out",
-                            Priority.HIGH,
+                            "reroute after existing shards allocator [P] timed out",
+                            followUpRerouteTaskPriority,
                             ActionListener.wrap(
                                 r -> logger.trace("reroute after existing shards allocator timed out completed"),
                                 e -> logger.debug("reroute after existing shards allocator timed out failed", e)
@@ -343,8 +373,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                         logger.trace("scheduling reroute after existing shards allocator timed out for replica shards");
                         assert rerouteService != null;
                         rerouteService.reroute(
-                            "reroute after existing shards allocator timed out",
-                            Priority.HIGH,
+                            "reroute after existing shards allocator [R] timed out",
+                            followUpRerouteTaskPriority,
                             ActionListener.wrap(
                                 r -> logger.trace("reroute after existing shards allocator timed out completed"),
                                 e -> logger.debug("reroute after existing shards allocator timed out failed", e)
@@ -919,5 +949,9 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     protected void setReplicaBatchAllocatorTimeout(TimeValue replicaShardsBatchGatewayAllocatorTimeout) {
         this.replicaShardsBatchGatewayAllocatorTimeout = replicaShardsBatchGatewayAllocatorTimeout;
+    }
+
+    protected void setFollowUpRerouteTaskPriority(Priority followUpRerouteTaskPriority) {
+        this.followUpRerouteTaskPriority = followUpRerouteTaskPriority;
     }
 }

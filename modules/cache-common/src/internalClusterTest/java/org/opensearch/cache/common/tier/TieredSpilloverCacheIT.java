@@ -118,7 +118,7 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
         );
     }
 
-    public void testWithDynamicTookTimePolicyWithMultiSegments() throws Exception {
+    public void testWithDynamicDiskTookTimePolicyWithMultiSegments() throws Exception {
         int numberOfSegments = getNumberOfSegments();
         int onHeapCacheSizePerSegmentInBytes = 800; // Per cache entry below is around ~700 bytes, so keeping this
         // just a bit higher so that each segment can atleast hold 1 entry.
@@ -139,12 +139,13 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
                 )
                 .get()
         );
-        // Set a very high value for took time policy so that no items evicted from onHeap cache are spilled
+        // Set a very high value for took time disk policy so that no items evicted from onHeap cache are spilled
         // to disk. And then hit requests so that few items are cached into cache.
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
             Settings.builder()
                 .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+                        .getKey(),
                     new TimeValue(100, TimeUnit.SECONDS)
                 )
                 .build()
@@ -182,12 +183,13 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
         assertEquals(0, requestCacheStats.getHitCount());
         long lastEvictionSeen = requestCacheStats.getEvictions();
 
-        // Decrease took time policy to zero so that disk cache also comes into play. Now we should be able
+        // Decrease disk took time policy to zero so that disk cache also comes into play. Now we should be able
         // to cache all entries.
         updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
             Settings.builder()
                 .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+                        .getKey(),
                     new TimeValue(0, TimeUnit.MILLISECONDS)
                 )
                 .build()
@@ -206,7 +208,7 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
         assertEquals(lastEvictionSeen, requestCacheStats.getEvictions());
     }
 
-    public void testWithDynamicTookTimePolicy() throws Exception {
+    public void testWithDynamicHeapTookTimePolicy() throws Exception {
         int onHeapCacheSizeInBytes = 2000;
         internalCluster().startNode(Settings.builder().put(defaultSettings(onHeapCacheSizeInBytes + "b", 1)).build());
         Client client = client();
@@ -224,12 +226,62 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
                 )
                 .get()
         );
-        // Step 1 : Set a very high value for took time policy so that no items evicted from onHeap cache are spilled
-        // to disk. And then hit requests so that few items are cached into cache.
+        // Set a high threshold for the overall cache took time policy so nothing will enter the cache.
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
             Settings.builder()
                 .put(
                     TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    new TimeValue(100, TimeUnit.SECONDS)
+                )
+                .build()
+        );
+        assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).get());
+        int numberOfIndexedItems = randomIntBetween(6, 10);
+        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
+            indexRandom(true, client.prepareIndex("index").setSource("k" + iterator, "hello" + iterator));
+        }
+        ensureSearchable("index");
+        refreshAndWaitForReplication();
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
+        long perQuerySizeInCacheInBytes = -1;
+        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
+            SearchResponse resp = client.prepareSearch("index")
+                .setRequestCache(true)
+                .setQuery(QueryBuilders.termQuery("k" + iterator, "hello" + iterator))
+                .get();
+            assertSearchResponse(resp);
+        }
+        RequestCacheStats requestCacheStats = getRequestCacheStats(client, "index");
+        assertEquals(0, requestCacheStats.getEvictions());
+    }
+
+    public void testWithDynamicDiskTookTimePolicy() throws Exception {
+        int onHeapCacheSizeInBytes = 2000;
+        internalCluster().startNode(Settings.builder().put(defaultSettings(onHeapCacheSizeInBytes + "b", 1)).build());
+        Client client = client();
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate("index")
+                .setMapping("k", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", -1)
+                )
+                .get()
+        );
+        // Step 1 : Set a very high value for disk took time policy so that no items evicted from onHeap cache are spilled
+        // to disk. And then hit requests so that few items are cached into cache.
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
+            Settings.builder()
+                .put(
+                    TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+                        .getKey(),
                     new TimeValue(100, TimeUnit.SECONDS)
                 )
                 .build()
@@ -282,12 +334,13 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
         assertEquals(0, requestCacheStats.getHitCount());
         long lastEvictionSeen = requestCacheStats.getEvictions();
 
-        // Step 3: Decrease took time policy to zero so that disk cache also comes into play. Now we should be able
+        // Step 3: Decrease disk took time policy to zero so that disk cache also comes into play. Now we should be able
         // to cache all entries.
         updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
             Settings.builder()
                 .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+                        .getKey(),
                     new TimeValue(0, TimeUnit.MILLISECONDS)
                 )
                 .build()
@@ -352,11 +405,12 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
                 )
                 .get()
         );
-        // Update took time policy to zero so that all entries are eligible to be cached on disk.
+        // Update disk took time policy to zero so that all entries are eligible to be cached on disk.
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
             Settings.builder()
                 .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+                        .getKey(),
                     new TimeValue(0, TimeUnit.MILLISECONDS)
                 )
                 .build()
@@ -437,11 +491,12 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
                 )
                 .get()
         );
-        // Update took time policy to zero so that all entries are eligible to be cached on disk.
+        // Update disk took time policy to zero so that all entries are eligible to be cached on disk.
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
             Settings.builder()
                 .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+                        .getKey(),
                     new TimeValue(0, TimeUnit.MILLISECONDS)
                 )
                 .build()
@@ -512,11 +567,12 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
                 )
                 .get()
         );
-        // Update took time policy to zero so that all entries are eligible to be cached on disk.
+        // Update disk took time policy to zero so that all entries are eligible to be cached on disk.
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
             Settings.builder()
                 .put(
-                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+                        .getKey(),
                     new TimeValue(0, TimeUnit.MILLISECONDS)
                 )
                 .build()

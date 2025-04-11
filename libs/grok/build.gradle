@@ -31,7 +31,7 @@
 dependencies {
   api 'org.jruby.joni:joni:2.2.3'
   // joni dependencies:
-  api 'org.jruby.jcodings:jcodings:1.0.61'
+  api 'org.jruby.jcodings:jcodings:1.0.63'
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-grok'

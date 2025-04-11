@@ -26,7 +26,6 @@ import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -1221,7 +1220,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         MockRemovalListener<String, String> listener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
             Settings settings = Settings.builder()
-                .put(FeatureFlags.PLUGGABLE_CACHE, true)
                 .put(
                     CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
                     EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME

@@ -38,7 +38,7 @@ if (System.getProperty("tests.coverage")) {
   reporting {
     reports {
       testCodeCoverageReport(JacocoCoverageReport) {
-        testType = TestSuiteType.UNIT_TEST
+        testSuiteName = "test"
       }
     }
   }

@@ -331,7 +331,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
     public boolean shouldSBPHandle(Task t) {
         QueryGroupTask task = (QueryGroupTask) t;
         boolean isInvalidQueryGroupTask = true;
-        if (!task.getQueryGroupId().equals(QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get())) {
+        if (task.isQueryGroupSet() && !QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get().equals(task.getQueryGroupId())) {
             isInvalidQueryGroupTask = activeQueryGroups.stream()
                 .noneMatch(queryGroup -> queryGroup.get_id().equals(task.getQueryGroupId()));
         }
@@ -340,7 +340,7 @@ public class QueryGroupService extends AbstractLifecycleComponent
 
     @Override
     public void onTaskCompleted(Task task) {
-        if (!(task instanceof QueryGroupTask)) {
+        if (!(task instanceof QueryGroupTask) || !((QueryGroupTask) task).isQueryGroupSet()) {
             return;
         }
         final QueryGroupTask queryGroupTask = (QueryGroupTask) task;

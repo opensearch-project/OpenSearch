@@ -19,4 +19,5 @@ opensearchplugin {
 }
 
 dependencies {
+  api project(":libs:opensearch-autotagging-commons")
 }
