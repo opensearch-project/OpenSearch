@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.Term;
 import org.opensearch.action.DocWriteRequest;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.util.RequestUtils;
@@ -58,6 +59,10 @@ public class MessageProcessorRunnable implements Runnable {
     private final BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
     private final MessageProcessor messageProcessor;
     private final CounterMetric stats = new CounterMetric();
+
+    // tracks the most recent pointer that is being processed
+    @Nullable
+    private volatile IngestionShardPointer currentShardPointer;
 
     /**
      * Constructor.
@@ -274,6 +279,7 @@ public class MessageProcessorRunnable implements Runnable {
             if (readResult != null) {
                 try {
                     stats.inc();
+                    currentShardPointer = readResult.getPointer();
                     messageProcessor.process(readResult.getMessage(), readResult.getPointer());
                     readResult = null;
                 } catch (Exception e) {
@@ -307,5 +313,10 @@ public class MessageProcessorRunnable implements Runnable {
 
     public void setErrorStrategy(IngestionErrorStrategy errorStrategy) {
         this.errorStrategy = errorStrategy;
+    }
+
+    @Nullable
+    public IngestionShardPointer getCurrentShardPointer() {
+        return currentShardPointer;
     }
 }

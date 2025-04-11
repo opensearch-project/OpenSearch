@@ -102,7 +102,7 @@ public class IngestionEngineTests extends EngineTestCase {
         // verify the commit data
         Assert.assertEquals(7, commitData.size());
         // the commiit data is the start of the current batch
-        Assert.assertEquals("0", commitData.get(StreamPoller.BATCH_START));
+        Assert.assertEquals("1", commitData.get(StreamPoller.BATCH_START));
 
         // verify the stored offsets
         var offset = new FakeIngestionSource.FakeIngestionShardPointer(0);

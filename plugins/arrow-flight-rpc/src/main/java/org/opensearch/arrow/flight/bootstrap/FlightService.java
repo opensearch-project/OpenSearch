@@ -134,6 +134,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
      * Retrieves the bound address of the FlightService.
      * @return The BoundTransportAddress instance.
      */
+    @Override
     public BoundTransportAddress getBoundAddress() {
         return serverComponents.getBoundAddress();
     }
