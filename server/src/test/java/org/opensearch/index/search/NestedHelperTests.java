@@ -355,9 +355,10 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
         query = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         // we need to add the filter again because of include_in_parent
-        expectedChildQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("nested2.foo", "bar")), Occur.MUST)
-            .add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested2")), Occur.FILTER)
-            .build();
+        expectedChildQuery = new BooleanQuery.Builder().add(
+            new ConstantScoreQuery(new TermQuery(new Term("nested2.foo", "bar"))),
+            Occur.MUST
+        ).add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested2")), Occur.FILTER).build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
         assertFalse(new NestedHelper(mapperService).mightMatchNestedDocs(query));
@@ -370,9 +371,10 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
         query = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         // we need to add the filter again because of include_in_root
-        expectedChildQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("nested3.foo", "bar")), Occur.MUST)
-            .add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested3")), Occur.FILTER)
-            .build();
+        expectedChildQuery = new BooleanQuery.Builder().add(
+            new ConstantScoreQuery(new TermQuery(new Term("nested3.foo", "bar"))),
+            Occur.MUST
+        ).add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested3")), Occur.FILTER).build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
         assertFalse(new NestedHelper(mapperService).mightMatchNestedDocs(query));
