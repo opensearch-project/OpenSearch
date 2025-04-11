@@ -13,9 +13,12 @@ import org.opensearch.common.time.DateMathParser;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
+import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
 import org.opensearch.search.startree.filter.RangeMatchDimFilter;
@@ -28,20 +31,26 @@ import java.util.function.LongSupplier;
 
 class StarDateFieldMapper implements DimensionFilterMapper {
 
-    DateDimension dateDimension;
+    CompositeDataCubeFieldType compositeDataCubeFieldType;
     LongSupplier nowSupplier;
     String subDimensionField;
+
+    public StarDateFieldMapper(SearchContext searchContext) {
+        this.nowSupplier = () -> searchContext.getQueryShardContext().nowInMillis();
+        this.compositeDataCubeFieldType = (CompositeDataCubeFieldType) searchContext.mapperService()
+            .getCompositeFieldTypes()
+            .iterator()
+            .next();
+    }
 
     @Override
     public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
         DateFieldType dateFieldType = (DateFieldType) mappedFieldType;
-
         List<Object> convertedValues = new ArrayList<>(rawValues.size());
         for (Object rawValue : rawValues) {
             convertedValues.add(dateFieldType.parse(rawValue.toString()));
         }
         return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
-
     }
 
     @Override
@@ -49,6 +58,10 @@ class StarDateFieldMapper implements DimensionFilterMapper {
 
         DateFieldType dateFieldType = (DateFieldType) mappedFieldType;
         String field = rangeQueryBuilder.fieldName();
+        DateDimension dateDimension = (DateDimension) StarTreeQueryHelper.getMatchingDimensionOrNull(
+            field,
+            compositeDataCubeFieldType.getDimensions()
+        );
 
         // Convert format string to DateMathParser if provided
         DateMathParser forcedDateParser = rangeQueryBuilder.format() != null
@@ -134,6 +147,11 @@ class StarDateFieldMapper implements DimensionFilterMapper {
     }
 
     @Override
+    public Optional<String> getSubDimension() {
+        return Optional.of(subDimensionField);
+    }
+
+    @Override
     public Optional<Long> getMatchingOrdinal(
         String dimensionName,
         Object value,
@@ -142,17 +160,5 @@ class StarDateFieldMapper implements DimensionFilterMapper {
     ) {
         // Since dates are stored as longs internally, we can treat them as numeric values
         return Optional.of((Long) value);
-    }
-
-    void setDateDimension(DateDimension dateDimension) {
-        this.dateDimension = dateDimension;
-    }
-
-    void setNowSupplier(LongSupplier nowSupplier) {
-        this.nowSupplier = nowSupplier;
-    }
-
-    String getSubDimensionField() {
-        return subDimensionField;
     }
 }

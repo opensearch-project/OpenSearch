@@ -181,7 +181,6 @@ public class DateRangeQueryTests extends AggregatorTestCase {
 
         long to = startOfTodayUTC.toEpochMilli();
         long from = to - TimeUnit.DAYS.toMillis(80);
-
         String fromDateString = formatter.format(Instant.ofEpochMilli(from));
         String toDateString = formatter.format(Instant.ofEpochMilli(to));
 
