@@ -18,8 +18,8 @@ import java.util.Map;
  * This class is used to propagate WorkloadGroup related headers to request and nodes
  */
 public class WorkloadGroupThreadContextStatePropagator implements ThreadContextStatePropagator {
-    // TODO: move this constant to WorkloadGroupService class once the WorkloadGroup monitoring framework PR is ready
-    public static List<String> PROPAGATED_HEADERS = List.of("queryGroupId");
+
+    public static List<String> PROPAGATED_HEADERS = List.of(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
 
     /**
      * @param source current context transient headers
