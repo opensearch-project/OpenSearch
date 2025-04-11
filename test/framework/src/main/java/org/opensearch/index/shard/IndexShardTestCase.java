@@ -722,7 +722,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 DefaultRemoteStoreSettings.INSTANCE,
                 false,
                 discoveryNodes,
-                mockReplicationStatsProvider
+                mockReplicationStatsProvider,
+                false,
+                () -> Boolean.FALSE,
+                indexSettings::getRefreshInterval,
+                new Object()
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {
