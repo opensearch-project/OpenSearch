@@ -6,17 +6,10 @@
  * compatible open source license.
  */
 
-grant codeBase "${codebase.netty-common}" {
-   permission java.net.SocketPermission "*", "accept,connect,listen,resolve";
-   permission java.lang.RuntimePermission "*", "setContextClassLoader";
-};
-
-grant codeBase "${codebase.grpc-core}" {
-   permission java.net.SocketPermission "*", "accept,connect,listen,resolve";
-   permission java.lang.RuntimePermission "*", "setContextClassLoader";
-};
-
 grant {
+  // Memory access
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+
   // arrow flight service permissions
   permission java.util.PropertyPermission "arrow.allocation.manager.type", "write";
   permission java.util.PropertyPermission "arrow.enable_null_check_for_get", "write";
@@ -29,7 +22,6 @@ grant {
   permission java.util.PropertyPermission "io.netty.tryUnsafe", "write";
 
   // Needed for netty based arrow flight server for netty configs related to buffer allocator
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.util.PropertyPermission "arrow.allocation.manager.type", "write";
 
   permission java.lang.RuntimePermission "modifyThreadGroup";
@@ -39,7 +31,11 @@ grant {
   // Reflection access needed by Arrow
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.RuntimePermission "getClassLoader";
 
   // Memory access
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+
+  // needed by netty-common
+  permission java.lang.RuntimePermission "*", "setContextClassLoader";
 };
