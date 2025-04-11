@@ -121,7 +121,9 @@ public class IngestionEngine extends InternalEngine {
             resetState,
             resetValue,
             ingestionErrorStrategy,
-            initialPollerState
+            initialPollerState,
+            ingestionSource.getMaxPollSize(),
+            ingestionSource.getPollTimeout()
         );
         streamPoller.start();
     }

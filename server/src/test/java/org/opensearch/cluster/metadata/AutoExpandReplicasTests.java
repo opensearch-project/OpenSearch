@@ -43,6 +43,9 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.cluster.ClusterStateChanges;
 import org.opensearch.test.OpenSearchTestCase;
@@ -54,11 +57,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -136,7 +141,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
      * Instead, one of the replicas on the live nodes first gets promoted to primary, and the auto-expansion (removing replicas) only
      * triggers in a follow-up step.
      */
-    public void testAutoExpandWhenNodeLeavesAndPossiblyRejoins() throws InterruptedException {
+    public void testAutoExpandWhenNodeLeavesAndPossiblyRejoins() {
         final ThreadPool threadPool = new TestThreadPool(getClass().getName());
         final ClusterStateChanges cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
 
@@ -293,6 +298,93 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
             // remove old node and check that auto-expansion takes allocation filtering into account
             state = cluster.removeNodes(state, Collections.singletonList(oldNode));
             assertThat(state.routingTable().index("index").shard(0).size(), equalTo(1));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testSkipSearchOnlyIndexForAutoExpandReplicas() {
+        final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        final ClusterStateChanges cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
+
+        try {
+            DiscoveryNode localNode = createNode(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE);
+            ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, localNode);
+
+            state = cluster.createIndex(
+                state,
+                new CreateIndexRequest(
+                    "search-only-index",
+                    Settings.builder()
+                        .put(SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                        .put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), true)
+                        .build()
+                ).waitForActiveShards(ActiveShardCount.NONE)
+            );
+
+            state = cluster.createIndex(
+                state,
+                new CreateIndexRequest(
+                    "regular-index",
+                    Settings.builder()
+                        .put(SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                        .build()
+                ).waitForActiveShards(ActiveShardCount.NONE)
+            );
+
+            List<DiscoveryNode> additionalNodes = new ArrayList<>();
+            for (int i = 0; i < 3; i++) {
+                additionalNodes.add(createNode(DiscoveryNodeRole.DATA_ROLE));
+            }
+            state = cluster.addNodes(state, additionalNodes);
+
+            while (state.routingTable().shardsWithState(ShardRoutingState.INITIALIZING).isEmpty() == false
+                || state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty() == false) {
+                state = cluster.applyStartedShards(state, state.routingTable().shardsWithState(ShardRoutingState.INITIALIZING));
+                state = cluster.reroute(state, new ClusterRerouteRequest());
+            }
+
+            assertEquals(3, state.metadata().index("regular-index").getNumberOfReplicas());
+            assertEquals(0, state.metadata().index("search-only-index").getNumberOfReplicas());
+
+            AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.emptyList()) {
+                @Override
+                public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+                    return Decision.YES;
+                }
+            };
+            RoutingAllocation allocation = new RoutingAllocation(
+                allocationDeciders,
+                state.getRoutingNodes(),
+                state,
+                null,
+                null,
+                System.nanoTime()
+            );
+
+            // To force the auto expand scenario as the expand might have already triggered upon adding a new node.
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
+            IndexMetadata originalMeta = state.metadata().index("regular-index");
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(originalMeta);
+            indexMetaBuilder.numberOfReplicas(0);
+            metadataBuilder.put(indexMetaBuilder);
+
+            Map<Integer, List<String>> changes = AutoExpandReplicas.getAutoExpandReplicaChanges(metadataBuilder.build(), allocation);
+
+            assertFalse(
+                "Search-only index should not be auto-expanded",
+                changes.values().stream().anyMatch(indices -> indices.contains("search-only-index"))
+            );
+
+            assertTrue(
+                "Regular index should be auto-expanded",
+                changes.values().stream().anyMatch(indices -> indices.contains("regular-index"))
+            );
+
         } finally {
             terminate(threadPool);
         }

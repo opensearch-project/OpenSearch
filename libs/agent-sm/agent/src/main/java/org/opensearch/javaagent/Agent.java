@@ -101,7 +101,7 @@ public class Agent {
         final AgentBuilder agentBuilder = new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
             .with(AgentBuilder.RedefinitionStrategy.REDEFINITION)
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
-            .ignore(ElementMatchers.none())
+            .ignore(ElementMatchers.nameContains("$MockitoMock$")) /* ingore all Mockito mocks */
             .type(systemType)
             .transform(socketTransformer)
             .type(pathType.or(fileChannelType))

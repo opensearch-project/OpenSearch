@@ -10,7 +10,7 @@ package org.opensearch.plugin.transport.grpc.proto.response.document.common;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.transport.grpc.proto.response.common.OpenSearchExceptionProtoUtils;
+import org.opensearch.plugin.transport.grpc.proto.response.exceptions.opensearchexception.OpenSearchExceptionProtoUtils;
 import org.opensearch.protobufs.ShardFailure;
 import org.opensearch.protobufs.ShardInfo;
 
