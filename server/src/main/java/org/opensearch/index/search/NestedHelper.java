@@ -79,12 +79,14 @@ public final class NestedHelper {
             case BooleanQuery bq -> {
                 boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
                 if (hasRequiredClauses) {
-                    yield bq.clauses().stream()
+                    yield bq.clauses()
+                        .stream()
                         .filter(BooleanClause::isRequired)
                         .map(BooleanClause::query)
                         .allMatch(this::mightMatchNestedDocs);
                 } else {
-                    yield bq.clauses().stream()
+                    yield bq.clauses()
+                        .stream()
                         .filter(c -> c.occur() == Occur.SHOULD)
                         .map(BooleanClause::query)
                         .anyMatch(this::mightMatchNestedDocs);
@@ -135,12 +137,14 @@ public final class NestedHelper {
             case BooleanQuery bq -> {
                 boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
                 if (hasRequiredClauses) {
-                    yield bq.clauses().stream()
+                    yield bq.clauses()
+                        .stream()
                         .filter(BooleanClause::isRequired)
                         .map(BooleanClause::query)
                         .allMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
                 } else {
-                    yield bq.clauses().stream()
+                    yield bq.clauses()
+                        .stream()
                         .filter(c -> c.occur() == Occur.SHOULD)
                         .map(BooleanClause::query)
                         .anyMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
