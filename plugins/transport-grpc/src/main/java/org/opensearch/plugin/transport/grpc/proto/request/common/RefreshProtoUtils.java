@@ -11,9 +11,9 @@ package org.opensearch.plugin.transport.grpc.proto.request.common;
 import org.opensearch.action.support.WriteRequest;
 
 /**
- * Utility class for converting SourceConfig Protocol Buffers to FetchSourceContext objects.
- * This class handles the conversion of Protocol Buffer representations to their
- * corresponding OpenSearch objects.
+ * Utility class for converting Refresh Protocol Buffers to OpenSearch WriteRequest.RefreshPolicy values.
+ * This class handles the conversion of Protocol Buffer refresh policy representations to their
+ * corresponding OpenSearch refresh policy string values.
  */
 public class RefreshProtoUtils {
 
@@ -22,10 +22,12 @@ public class RefreshProtoUtils {
     }
 
     /**
-     * Extracts the refresh policy from the bulk request.
+     * Converts a Protocol Buffer Refresh enum to its corresponding OpenSearch refresh policy string value.
+     * This method maps the gRPC protocol buffer refresh policy values to the internal
+     * OpenSearch WriteRequest.RefreshPolicy string values.
      *
-     * @param refresh The bulk request containing the refresh policy
-     * @return The refresh policy as a string, or null if not specified
+     * @param refresh The Protocol Buffer Refresh enum to convert
+     * @return The corresponding OpenSearch refresh policy string value
      */
     public static String getRefreshPolicy(org.opensearch.protobufs.Refresh refresh) {
         switch (refresh) {
