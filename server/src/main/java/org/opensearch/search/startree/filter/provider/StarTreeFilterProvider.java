@@ -9,8 +9,10 @@
 package org.opensearch.search.startree.filter.provider;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
@@ -19,6 +21,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
@@ -136,24 +139,24 @@ public interface StarTreeFilterProvider {
                 : DimensionFilterMapper.Factory.fromMappedFieldType(mappedFieldType);
             if (matchedDimension == null || mappedFieldType == null || dimensionFilterMapper == null) {
                 return null;
-            } else {
-                return new StarTreeFilter(
-                    Map.of(
-                        field,
-                        List.of(
-                            dimensionFilterMapper.getRangeMatchFilter(
-                                mappedFieldType,
-                                rangeQueryBuilder.from(),
-                                rangeQueryBuilder.to(),
-                                rangeQueryBuilder.includeLower(),
-                                rangeQueryBuilder.includeUpper()
-                            )
-                        )
-                    )
-                );
             }
+            DimensionFilter dimensionFilter;
+            if (matchedDimension instanceof DateDimension) {
+                if (!(mappedFieldType instanceof DateFieldMapper.DateFieldType)) {
+                    return null;
+                }
+                StarDateFieldMapper dateFieldMapper = (StarDateFieldMapper) dimensionFilterMapper;
+                dateFieldMapper.setNowSupplier(() -> context.getQueryShardContext().nowInMillis());
+                dateFieldMapper.setDateDimension((DateDimension) matchedDimension);
+                dimensionFilter = dimensionFilterMapper.getRangeMatchFilter(mappedFieldType, rangeQueryBuilder);
+                field = dateFieldMapper.getSubDimensionField();
+
+            } else {
+                dimensionFilter = dimensionFilterMapper.getRangeMatchFilter(mappedFieldType, rangeQueryBuilder);
+            }
+            return dimensionFilter != null
+                ? new StarTreeFilter(Map.of(field, List.of(dimensionFilter)))
+                : new StarTreeFilter(Collections.emptyMap());
         }
-
     }
-
 }
