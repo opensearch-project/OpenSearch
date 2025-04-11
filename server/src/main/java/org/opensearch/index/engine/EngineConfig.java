@@ -33,6 +33,7 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.QueryCache;
@@ -248,6 +249,8 @@ public final class EngineConfig {
 
     private final TranslogFactory translogFactory;
 
+    private final IndexWriter.IndexReaderWarmer indexReaderWarmer;
+
     /**
      * Creates a new {@link org.opensearch.index.engine.EngineConfig}
      */
@@ -299,6 +302,7 @@ public final class EngineConfig {
         this.translogFactory = builder.translogFactory;
         this.leafSorter = builder.leafSorter;
         this.documentMapperForTypeSupplier = builder.documentMapperForTypeSupplier;
+        this.indexReaderWarmer = builder.indexReaderWarmer;
     }
 
     /**
@@ -524,6 +528,14 @@ public final class EngineConfig {
     }
 
     /**
+     * Returns the underlying indexReaderWarmer
+     * @return the indexReaderWarmer
+     */
+    public IndexWriter.IndexReaderWarmer getIndexReaderWarmer() {
+        return indexReaderWarmer;
+    }
+
+    /**
      * A supplier supplies tombstone documents which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
      *
@@ -598,6 +610,7 @@ public final class EngineConfig {
         private TranslogFactory translogFactory = new InternalTranslogFactory();
         private Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
         Comparator<LeafReader> leafSorter;
+        private IndexWriter.IndexReaderWarmer indexReaderWarmer;
 
         public Builder shardId(ShardId shardId) {
             this.shardId = shardId;
@@ -736,6 +749,11 @@ public final class EngineConfig {
 
         public Builder leafSorter(Comparator<LeafReader> leafSorter) {
             this.leafSorter = leafSorter;
+            return this;
+        }
+
+        public Builder indexReaderWarmer(IndexWriter.IndexReaderWarmer indexReaderWarmer) {
+            this.indexReaderWarmer = indexReaderWarmer;
             return this;
         }
 
