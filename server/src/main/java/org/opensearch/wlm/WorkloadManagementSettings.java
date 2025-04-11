@@ -53,7 +53,7 @@ public class WorkloadManagementSettings {
      */
     public static final String QUERYGROUP_ENFORCEMENT_INTERVAL_SETTING_NAME = "wlm.workload_group.enforcement_interval";
 
-    private TimeValue queryGroupServiceRunInterval;
+    private TimeValue workloadGroupServiceRunInterval;
     /**
      * Setting to control the run interval of Query Group Service
      */
@@ -147,7 +147,7 @@ public class WorkloadManagementSettings {
         nodeLevelMemoryRejectionThreshold = NODE_LEVEL_MEMORY_REJECTION_THRESHOLD.get(settings);
         nodeLevelCpuCancellationThreshold = NODE_LEVEL_CPU_CANCELLATION_THRESHOLD.get(settings);
         nodeLevelCpuRejectionThreshold = NODE_LEVEL_CPU_REJECTION_THRESHOLD.get(settings);
-        this.queryGroupServiceRunInterval = TimeValue.timeValueMillis(QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING.get(settings));
+        this.workloadGroupServiceRunInterval = TimeValue.timeValueMillis(QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING.get(settings));
         duressStreak = QUERYGROUP_SERVICE_DURESS_STREAK_SETTING.get(settings);
 
         ensureRejectionThresholdIsLessThanCancellation(
@@ -189,19 +189,19 @@ public class WorkloadManagementSettings {
     }
 
     /**
-     * queryGroupServiceRunInterval setter
+     * workloadGroupServiceRunInterval setter
      * @param newIntervalInMillis new value
      */
     private void setWorkloadGroupServiceRunInterval(long newIntervalInMillis) {
-        this.queryGroupServiceRunInterval = TimeValue.timeValueMillis(newIntervalInMillis);
+        this.workloadGroupServiceRunInterval = TimeValue.timeValueMillis(newIntervalInMillis);
     }
 
     /**
-     * queryGroupServiceRunInterval getter
-     * @return current queryGroupServiceRunInterval value
+     * workloadGroupServiceRunInterval getter
+     * @return current workloadGroupServiceRunInterval value
      */
     public TimeValue getWorkloadGroupServiceRunInterval() {
-        return this.queryGroupServiceRunInterval;
+        return this.workloadGroupServiceRunInterval;
     }
 
     /**

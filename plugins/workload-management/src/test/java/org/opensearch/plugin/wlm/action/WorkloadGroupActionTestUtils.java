@@ -11,7 +11,10 @@ package org.opensearch.plugin.wlm.action;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 
 public class WorkloadGroupActionTestUtils {
-    public static UpdateWorkloadGroupRequest updateWorkloadGroupRequest(String name, MutableWorkloadGroupFragment mutableWorkloadGroupFragment) {
+    public static UpdateWorkloadGroupRequest updateWorkloadGroupRequest(
+        String name,
+        MutableWorkloadGroupFragment mutableWorkloadGroupFragment
+    ) {
         return new UpdateWorkloadGroupRequest(name, mutableWorkloadGroupFragment);
     }
 }

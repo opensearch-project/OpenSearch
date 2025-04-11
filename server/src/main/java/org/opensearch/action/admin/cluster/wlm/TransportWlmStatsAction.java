@@ -29,14 +29,14 @@ import java.util.List;
  */
 public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsRequest, WlmStatsResponse, WlmStatsRequest, WlmStats> {
 
-    final WorkloadGroupService queryGroupService;
+    final WorkloadGroupService workloadGroupService;
 
     @Inject
     public TransportWlmStatsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        WorkloadGroupService queryGroupService,
+        WorkloadGroupService workloadGroupService,
         ActionFilters actionFilters
     ) {
         super(
@@ -50,7 +50,7 @@ public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsReques
             ThreadPool.Names.MANAGEMENT,
             WlmStats.class
         );
-        this.queryGroupService = queryGroupService;
+        this.workloadGroupService = workloadGroupService;
     }
 
     @Override
@@ -73,7 +73,7 @@ public class TransportWlmStatsAction extends TransportNodesAction<WlmStatsReques
         assert transportService.getLocalNode() != null;
         return new WlmStats(
             transportService.getLocalNode(),
-            queryGroupService.nodeStats(wlmStatsRequest.getWorkloadGroupIds(), wlmStatsRequest.isBreach())
+            workloadGroupService.nodeStats(wlmStatsRequest.getWorkloadGroupIds(), wlmStatsRequest.isBreach())
         );
     }
 }

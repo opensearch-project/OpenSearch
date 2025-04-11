@@ -30,7 +30,7 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
     ActionFilters actionFilters = mock(ActionFilters.class);
     ThreadPool threadPool = mock(ThreadPool.class);
     IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-    WorkloadGroupPersistenceService queryGroupPersistenceService = mock(WorkloadGroupPersistenceService.class);
+    WorkloadGroupPersistenceService workloadGroupPersistenceService = mock(WorkloadGroupPersistenceService.class);
 
     TransportDeleteWorkloadGroupAction action = new TransportDeleteWorkloadGroupAction(
         clusterService,
@@ -38,7 +38,7 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
         actionFilters,
         threadPool,
         indexNameExpressionResolver,
-        queryGroupPersistenceService
+        workloadGroupPersistenceService
     );
 
     /**
@@ -58,6 +58,6 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
         ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
         ClusterState clusterState = mock(ClusterState.class);
         action.clusterManagerOperation(request, clusterState, listener);
-        verify(queryGroupPersistenceService).deleteInClusterStateMetadata(eq(request), eq(listener));
+        verify(workloadGroupPersistenceService).deleteInClusterStateMetadata(eq(request), eq(listener));
     }
 }

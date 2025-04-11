@@ -52,6 +52,10 @@ public class RestDeleteWorkloadGroupAction extends BaseRestHandler {
             request.paramAsTime("cluster_manager_timeout", deleteWorkloadGroupRequest.clusterManagerNodeTimeout())
         );
         deleteWorkloadGroupRequest.timeout(request.paramAsTime("timeout", deleteWorkloadGroupRequest.timeout()));
-        return channel -> client.execute(DeleteWorkloadGroupAction.INSTANCE, deleteWorkloadGroupRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            DeleteWorkloadGroupAction.INSTANCE,
+            deleteWorkloadGroupRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

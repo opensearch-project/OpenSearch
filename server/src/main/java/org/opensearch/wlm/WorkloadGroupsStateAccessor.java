@@ -20,45 +20,48 @@ import java.util.Map;
 public class WorkloadGroupsStateAccessor {
     // This map does not need to be concurrent since we will process the cluster state change serially and update
     // this map with new additions and deletions of entries. WorkloadGroupState is thread safe
-    private final Map<String, WorkloadGroupState> queryGroupStateMap;
+    private final Map<String, WorkloadGroupState> workloadGroupStateMap;
 
     public WorkloadGroupsStateAccessor() {
         this(new HashMap<>());
     }
 
-    public WorkloadGroupsStateAccessor(Map<String, WorkloadGroupState> queryGroupStateMap) {
-        this.queryGroupStateMap = queryGroupStateMap;
+    public WorkloadGroupsStateAccessor(Map<String, WorkloadGroupState> workloadGroupStateMap) {
+        this.workloadGroupStateMap = workloadGroupStateMap;
     }
 
     /**
      * returns the query groups state
      */
     public Map<String, WorkloadGroupState> getWorkloadGroupStateMap() {
-        return queryGroupStateMap;
+        return workloadGroupStateMap;
     }
 
     /**
-     * return WorkloadGroupState for the given queryGroupId
-     * @param queryGroupId
-     * @return WorkloadGroupState for the given queryGroupId, if id is invalid return default query group state
+     * return WorkloadGroupState for the given workloadGroupId
+     * @param workloadGroupId
+     * @return WorkloadGroupState for the given workloadGroupId, if id is invalid return default query group state
      */
-    public WorkloadGroupState getWorkloadGroupState(String queryGroupId) {
-        return queryGroupStateMap.getOrDefault(queryGroupId, queryGroupStateMap.get(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get()));
+    public WorkloadGroupState getWorkloadGroupState(String workloadGroupId) {
+        return workloadGroupStateMap.getOrDefault(
+            workloadGroupId,
+            workloadGroupStateMap.get(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get())
+        );
     }
 
     /**
-     * adds new WorkloadGroupState against given queryGroupId
-     * @param queryGroupId
+     * adds new WorkloadGroupState against given workloadGroupId
+     * @param workloadGroupId
      */
-    public void addNewWorkloadGroup(String queryGroupId) {
-        this.queryGroupStateMap.putIfAbsent(queryGroupId, new WorkloadGroupState());
+    public void addNewWorkloadGroup(String workloadGroupId) {
+        this.workloadGroupStateMap.putIfAbsent(workloadGroupId, new WorkloadGroupState());
     }
 
     /**
-     * removes WorkloadGroupState against given queryGroupId
-     * @param queryGroupId
+     * removes WorkloadGroupState against given workloadGroupId
+     * @param workloadGroupId
      */
-    public void removeWorkloadGroup(String queryGroupId) {
-        this.queryGroupStateMap.remove(queryGroupId);
+    public void removeWorkloadGroup(String workloadGroupId) {
+        this.workloadGroupStateMap.remove(workloadGroupId);
     }
 }

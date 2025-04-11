@@ -67,7 +67,7 @@ public class WorkloadGroupTask extends CancellableTask {
 
     /**
      * This method should always be called after calling setWorkloadGroupId at least once on this object
-     * @return task queryGroupId
+     * @return task workloadGroupId
      */
     public final String getWorkloadGroupId() {
         if (workloadGroupId == null) {
@@ -77,8 +77,8 @@ public class WorkloadGroupTask extends CancellableTask {
     }
 
     /**
-     * sets the queryGroupId from threadContext into the task itself,
-     * This method was defined since the queryGroupId can only be evaluated after task creation
+     * sets the workloadGroupId from threadContext into the task itself,
+     * This method was defined since the workloadGroupId can only be evaluated after task creation
      * @param threadContext current threadContext
      */
     public final void setWorkloadGroupId(final ThreadContext threadContext) {

@@ -13,11 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
+import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadGroupLevelResourceUsageView;
 import org.opensearch.wlm.WorkloadGroupTask;
 import org.opensearch.wlm.WorkloadGroupsStateAccessor;
-import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.stats.WorkloadGroupState;
 import org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService;
@@ -93,20 +93,24 @@ public class WorkloadGroupTaskCancellationService {
 
     private void updateResourceUsageInWorkloadGroupState(Collection<WorkloadGroup> activeWorkloadGroups) {
         Set<String> isSearchWorkloadRunning = new HashSet<>();
-        for (Map.Entry<String, WorkloadGroupLevelResourceUsageView> queryGroupLevelResourceUsageViewEntry : workloadGroupLevelResourceUsageViews
-            .entrySet()) {
-            isSearchWorkloadRunning.add(queryGroupLevelResourceUsageViewEntry.getKey());
-            WorkloadGroupState queryGroupState = getWorkloadGroupState(queryGroupLevelResourceUsageViewEntry.getKey());
+        for (Map.Entry<
+            String,
+            WorkloadGroupLevelResourceUsageView> workloadGroupLevelResourceUsageViewEntry : workloadGroupLevelResourceUsageViews
+                .entrySet()) {
+            isSearchWorkloadRunning.add(workloadGroupLevelResourceUsageViewEntry.getKey());
+            WorkloadGroupState workloadGroupState = getWorkloadGroupState(workloadGroupLevelResourceUsageViewEntry.getKey());
             TRACKED_RESOURCES.forEach(resourceType -> {
-                final double currentUsage = queryGroupLevelResourceUsageViewEntry.getValue().getResourceUsageData().get(resourceType);
-                queryGroupState.getResourceState().get(resourceType).setLastRecordedUsage(currentUsage);
+                final double currentUsage = workloadGroupLevelResourceUsageViewEntry.getValue().getResourceUsageData().get(resourceType);
+                workloadGroupState.getResourceState().get(resourceType).setLastRecordedUsage(currentUsage);
             });
         }
 
-        activeWorkloadGroups.forEach(queryGroup -> {
-            if (!isSearchWorkloadRunning.contains(queryGroup.get_id())) {
+        activeWorkloadGroups.forEach(workloadGroup -> {
+            if (!isSearchWorkloadRunning.contains(workloadGroup.get_id())) {
                 TRACKED_RESOURCES.forEach(
-                    resourceType -> getWorkloadGroupState(queryGroup.get_id()).getResourceState().get(resourceType).setLastRecordedUsage(0.0)
+                    resourceType -> getWorkloadGroupState(workloadGroup.get_id()).getResourceState()
+                        .get(resourceType)
+                        .setLastRecordedUsage(0.0)
                 );
             }
         });
@@ -143,9 +147,11 @@ public class WorkloadGroupTaskCancellationService {
      *
      * @return List of tasks that can be cancelled
      */
-    List<TaskCancellation> getAllCancellableTasks(ResiliencyMode resiliencyMode, Collection<WorkloadGroup> queryGroups) {
+    List<TaskCancellation> getAllCancellableTasks(ResiliencyMode resiliencyMode, Collection<WorkloadGroup> workloadGroups) {
         return getAllCancellableTasks(
-            queryGroups.stream().filter(queryGroup -> queryGroup.getResiliencyMode() == resiliencyMode).collect(Collectors.toList())
+            workloadGroups.stream()
+                .filter(workloadGroup -> workloadGroup.getResiliencyMode() == resiliencyMode)
+                .collect(Collectors.toList())
         );
     }
 
@@ -154,22 +160,22 @@ public class WorkloadGroupTaskCancellationService {
      *
      * @return List of tasks that can be cancelled
      */
-    List<TaskCancellation> getAllCancellableTasks(Collection<WorkloadGroup> queryGroups) {
+    List<TaskCancellation> getAllCancellableTasks(Collection<WorkloadGroup> workloadGroups) {
         List<TaskCancellation> taskCancellations = new ArrayList<>();
         final List<Runnable> onCancelCallbacks = new ArrayList<>();
-        for (WorkloadGroup queryGroup : queryGroups) {
+        for (WorkloadGroup workloadGroup : workloadGroups) {
             final List<TaskCancellation.Reason> reasons = new ArrayList<>();
             List<WorkloadGroupTask> selectedTasks = new ArrayList<>();
             for (ResourceType resourceType : TRACKED_RESOURCES) {
                 // We need to consider the already selected tasks since those tasks also consumed the resources
-                double excessUsage = getExcessUsage(queryGroup, resourceType) - resourceType.getResourceUsageCalculator()
+                double excessUsage = getExcessUsage(workloadGroup, resourceType) - resourceType.getResourceUsageCalculator()
                     .calculateResourceUsage(selectedTasks);
                 if (excessUsage > MIN_VALUE) {
-                    reasons.add(new TaskCancellation.Reason(generateReasonString(queryGroup, resourceType), 1));
-                    onCancelCallbacks.add(this.getResourceTypeOnCancelCallback(queryGroup.get_id(), resourceType));
+                    reasons.add(new TaskCancellation.Reason(generateReasonString(workloadGroup, resourceType), 1));
+                    onCancelCallbacks.add(this.getResourceTypeOnCancelCallback(workloadGroup.get_id(), resourceType));
                     // Only add tasks not already added to avoid double cancellations
                     selectedTasks.addAll(
-                        taskSelectionStrategy.selectTasksForCancellation(getTasksFor(queryGroup), excessUsage, resourceType)
+                        taskSelectionStrategy.selectTasksForCancellation(getTasksFor(workloadGroup), excessUsage, resourceType)
                             .stream()
                             .filter(x -> selectedTasks.stream().noneMatch(y -> x.getId() != y.getId()))
                             .collect(Collectors.toList())
@@ -178,7 +184,7 @@ public class WorkloadGroupTaskCancellationService {
             }
 
             if (!reasons.isEmpty()) {
-                onCancelCallbacks.add(getWorkloadGroupState(queryGroup.get_id()).totalCancellations::inc);
+                onCancelCallbacks.add(getWorkloadGroupState(workloadGroup.get_id()).totalCancellations::inc);
                 taskCancellations.addAll(
                     selectedTasks.stream().map(task -> new TaskCancellation(task, reasons, onCancelCallbacks)).collect(Collectors.toList())
                 );
@@ -187,24 +193,24 @@ public class WorkloadGroupTaskCancellationService {
         return taskCancellations;
     }
 
-    private String generateReasonString(WorkloadGroup queryGroup, ResourceType resourceType) {
-        final double currentUsage = getCurrentUsage(queryGroup, resourceType);
+    private String generateReasonString(WorkloadGroup workloadGroup, ResourceType resourceType) {
+        final double currentUsage = getCurrentUsage(workloadGroup, resourceType);
         return "WorkloadGroup ID : "
-            + queryGroup.get_id()
+            + workloadGroup.get_id()
             + " breached the resource limit: ("
             + currentUsage
             + " > "
-            + queryGroup.getResourceLimits().get(resourceType)
+            + workloadGroup.getResourceLimits().get(resourceType)
             + ") for resource type : "
             + resourceType.getName();
     }
 
-    private List<WorkloadGroupTask> getTasksFor(WorkloadGroup queryGroup) {
-        return workloadGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks();
+    private List<WorkloadGroupTask> getTasksFor(WorkloadGroup workloadGroup) {
+        return workloadGroupLevelResourceUsageViews.get(workloadGroup.get_id()).getActiveTasks();
     }
 
-    private void cancelTasks(ResiliencyMode resiliencyMode, Collection<WorkloadGroup> queryGroups) {
-        cancelTasks(getAllCancellableTasks(resiliencyMode, queryGroups));
+    private void cancelTasks(ResiliencyMode resiliencyMode, Collection<WorkloadGroup> workloadGroups) {
+        cancelTasks(getAllCancellableTasks(resiliencyMode, workloadGroups));
     }
 
     private void cancelTasks(List<TaskCancellation> cancellableTasks) {
@@ -226,48 +232,50 @@ public class WorkloadGroupTaskCancellationService {
         cancellableTasks.forEach(cancellationConsumer);
     }
 
-    private double getExcessUsage(WorkloadGroup queryGroup, ResourceType resourceType) {
-        if (queryGroup.getResourceLimits().get(resourceType) == null
-            || !workloadGroupLevelResourceUsageViews.containsKey(queryGroup.get_id())) {
+    private double getExcessUsage(WorkloadGroup workloadGroup, ResourceType resourceType) {
+        if (workloadGroup.getResourceLimits().get(resourceType) == null
+            || !workloadGroupLevelResourceUsageViews.containsKey(workloadGroup.get_id())) {
             return 0;
         }
-        return getCurrentUsage(queryGroup, resourceType) - getNormalisedThreshold(queryGroup, resourceType);
+        return getCurrentUsage(workloadGroup, resourceType) - getNormalisedThreshold(workloadGroup, resourceType);
     }
 
-    private double getCurrentUsage(WorkloadGroup queryGroup, ResourceType resourceType) {
-        final WorkloadGroupLevelResourceUsageView queryGroupResourceUsageView = workloadGroupLevelResourceUsageViews.get(queryGroup.get_id());
-        return queryGroupResourceUsageView.getResourceUsageData().get(resourceType);
+    private double getCurrentUsage(WorkloadGroup workloadGroup, ResourceType resourceType) {
+        final WorkloadGroupLevelResourceUsageView workloadGroupResourceUsageView = workloadGroupLevelResourceUsageViews.get(
+            workloadGroup.get_id()
+        );
+        return workloadGroupResourceUsageView.getResourceUsageData().get(resourceType);
     }
 
     /**
      * normalises configured value with respect to node level cancellation thresholds
-     * @param queryGroup instance
+     * @param workloadGroup instance
      * @return normalised value with respect to node level cancellation thresholds
      */
-    private double getNormalisedThreshold(WorkloadGroup queryGroup, ResourceType resourceType) {
+    private double getNormalisedThreshold(WorkloadGroup workloadGroup, ResourceType resourceType) {
         double nodeLevelCancellationThreshold = resourceType.getNodeLevelThreshold(workloadManagementSettings);
-        return queryGroup.getResourceLimits().get(resourceType) * nodeLevelCancellationThreshold;
+        return workloadGroup.getResourceLimits().get(resourceType) * nodeLevelCancellationThreshold;
     }
 
-    private Runnable getResourceTypeOnCancelCallback(String queryGroupId, ResourceType resourceType) {
-        WorkloadGroupState queryGroupState = getWorkloadGroupState(queryGroupId);
-        return queryGroupState.getResourceState().get(resourceType).cancellations::inc;
+    private Runnable getResourceTypeOnCancelCallback(String workloadGroupId, ResourceType resourceType) {
+        WorkloadGroupState workloadGroupState = getWorkloadGroupState(workloadGroupId);
+        return workloadGroupState.getResourceState().get(resourceType).cancellations::inc;
     }
 
-    private WorkloadGroupState getWorkloadGroupState(String queryGroupId) {
-        assert queryGroupId != null : "queryGroupId should never be null at this point.";
+    private WorkloadGroupState getWorkloadGroupState(String workloadGroupId) {
+        assert workloadGroupId != null : "workloadGroupId should never be null at this point.";
 
-        return workloadGroupStateAccessor.getWorkloadGroupState(queryGroupId);
+        return workloadGroupStateAccessor.getWorkloadGroupState(workloadGroupId);
     }
 
     /**
-     * Removes the queryGroups from deleted list if it doesn't have any tasks running
+     * Removes the workloadGroups from deleted list if it doesn't have any tasks running
      */
     public void pruneDeletedWorkloadGroups(Collection<WorkloadGroup> deletedWorkloadGroups) {
         List<WorkloadGroup> currentDeletedWorkloadGroups = new ArrayList<>(deletedWorkloadGroups);
-        for (WorkloadGroup queryGroup : currentDeletedWorkloadGroups) {
-            if (workloadGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks().isEmpty()) {
-                deletedWorkloadGroups.remove(queryGroup);
+        for (WorkloadGroup workloadGroup : currentDeletedWorkloadGroups) {
+            if (workloadGroupLevelResourceUsageViews.get(workloadGroup.get_id()).getActiveTasks().isEmpty()) {
+                deletedWorkloadGroups.remove(workloadGroup);
             }
         }
     }

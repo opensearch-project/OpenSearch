@@ -1055,32 +1055,31 @@ public class Node implements Closeable {
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
 
-            final WorkloadGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService = new WorkloadGroupResourceUsageTrackerService(
-                taskResourceTrackingService
-            );
+            final WorkloadGroupResourceUsageTrackerService workloadGroupResourceUsageTrackerService =
+                new WorkloadGroupResourceUsageTrackerService(taskResourceTrackingService);
             final WorkloadManagementSettings workloadManagementSettings = new WorkloadManagementSettings(
                 settings,
                 settingsModule.getClusterSettings()
             );
 
-            final WorkloadGroupsStateAccessor queryGroupsStateAccessor = new WorkloadGroupsStateAccessor();
+            final WorkloadGroupsStateAccessor workloadGroupsStateAccessor = new WorkloadGroupsStateAccessor();
 
-            final WorkloadGroupService queryGroupService = new WorkloadGroupService(
+            final WorkloadGroupService workloadGroupService = new WorkloadGroupService(
                 new WorkloadGroupTaskCancellationService(
                     workloadManagementSettings,
                     new MaximumResourceTaskSelectionStrategy(),
-                    queryGroupResourceUsageTrackerService,
-                    queryGroupsStateAccessor
+                    workloadGroupResourceUsageTrackerService,
+                    workloadGroupsStateAccessor
                 ),
                 clusterService,
                 threadPool,
                 workloadManagementSettings,
-                queryGroupsStateAccessor
+                workloadGroupsStateAccessor
             );
-            taskResourceTrackingService.addTaskCompletionListener(queryGroupService);
+            taskResourceTrackingService.addTaskCompletionListener(workloadGroupService);
 
-            final WorkloadGroupRequestOperationListener queryGroupRequestOperationListener = new WorkloadGroupRequestOperationListener(
-                queryGroupService,
+            final WorkloadGroupRequestOperationListener workloadGroupRequestOperationListener = new WorkloadGroupRequestOperationListener(
+                workloadGroupService,
                 threadPool
             );
 
@@ -1092,7 +1091,7 @@ public class Node implements Closeable {
                             searchRequestStats,
                             searchRequestSlowLog,
                             searchTaskRequestOperationsListener,
-                            queryGroupRequestOperationListener
+                            workloadGroupRequestOperationListener
                         ),
                         pluginComponents.stream()
                             .filter(p -> p instanceof SearchRequestOperationsListener)
@@ -1144,7 +1143,7 @@ public class Node implements Closeable {
 
             WorkloadManagementTransportInterceptor workloadManagementTransportInterceptor = new WorkloadManagementTransportInterceptor(
                 threadPool,
-                queryGroupService
+                workloadGroupService
             );
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
@@ -1243,7 +1242,7 @@ public class Node implements Closeable {
                 taskResourceTrackingService,
                 threadPool,
                 transportService.getTaskManager(),
-                queryGroupService
+                workloadGroupService
             );
 
             final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
@@ -1455,7 +1454,7 @@ public class Node implements Closeable {
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
-                b.bind(WorkloadGroupService.class).toInstance(queryGroupService);
+                b.bind(WorkloadGroupService.class).toInstance(workloadGroupService);
                 b.bind(AdmissionControlService.class).toInstance(admissionControlService);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());

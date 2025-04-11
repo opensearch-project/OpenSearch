@@ -57,7 +57,11 @@ public class RestCreateWorkloadGroupAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             CreateWorkloadGroupRequest createWorkloadGroupRequest = CreateWorkloadGroupRequest.fromXContent(parser);
-            return channel -> client.execute(CreateWorkloadGroupAction.INSTANCE, createWorkloadGroupRequest, createWorkloadGroupResponse(channel));
+            return channel -> client.execute(
+                CreateWorkloadGroupAction.INSTANCE,
+                createWorkloadGroupRequest,
+                createWorkloadGroupResponse(channel)
+            );
         }
     }
 

@@ -34,7 +34,10 @@ public class WorkloadGroupMetadataTests extends AbstractDiffableSerializationTes
                 new WorkloadGroup(
                     "test",
                     "ajakgakg983r92_4242",
-                    new MutableWorkloadGroupFragment(MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.MEMORY, 0.5)),
+                    new MutableWorkloadGroupFragment(
+                        MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
+                        Map.of(ResourceType.MEMORY, 0.5)
+                    ),
                     updatedAt
                 )
             )

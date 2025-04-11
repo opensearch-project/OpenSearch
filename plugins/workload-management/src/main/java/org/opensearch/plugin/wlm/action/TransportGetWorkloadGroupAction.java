@@ -36,7 +36,9 @@ import java.util.Collection;
  *
  * @opensearch.experimental
  */
-public class TransportGetWorkloadGroupAction extends TransportClusterManagerNodeReadAction<GetWorkloadGroupRequest, GetWorkloadGroupResponse> {
+public class TransportGetWorkloadGroupAction extends TransportClusterManagerNodeReadAction<
+    GetWorkloadGroupRequest,
+    GetWorkloadGroupResponse> {
     private static final Logger logger = LogManager.getLogger(SearchPipelineService.class);
 
     /**
@@ -84,8 +86,11 @@ public class TransportGetWorkloadGroupAction extends TransportClusterManagerNode
     }
 
     @Override
-    protected void clusterManagerOperation(GetWorkloadGroupRequest request, ClusterState state, ActionListener<GetWorkloadGroupResponse> listener)
-        throws Exception {
+    protected void clusterManagerOperation(
+        GetWorkloadGroupRequest request,
+        ClusterState state,
+        ActionListener<GetWorkloadGroupResponse> listener
+    ) throws Exception {
         final String name = request.getName();
         final Collection<WorkloadGroup> resultGroups = WorkloadGroupPersistenceService.getFromClusterStateMetadata(name, state);
 

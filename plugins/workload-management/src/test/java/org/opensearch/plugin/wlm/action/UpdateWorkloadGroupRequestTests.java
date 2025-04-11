@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_ONE;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.queryGroupOne;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
 
 public class UpdateWorkloadGroupRequestTests extends OpenSearchTestCase {
 
@@ -28,7 +28,7 @@ public class UpdateWorkloadGroupRequestTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of UpdateWorkloadGroupRequest.
      */
     public void testSerialization() throws IOException {
-        UpdateWorkloadGroupRequest request = new UpdateWorkloadGroupRequest(NAME_ONE, queryGroupOne.getMutableWorkloadGroupFragment());
+        UpdateWorkloadGroupRequest request = new UpdateWorkloadGroupRequest(NAME_ONE, workloadGroupOne.getMutableWorkloadGroupFragment());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
@@ -41,7 +41,10 @@ public class UpdateWorkloadGroupRequestTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of UpdateWorkloadGroupRequest with only name field.
      */
     public void testSerializationOnlyName() throws IOException {
-        UpdateWorkloadGroupRequest request = new UpdateWorkloadGroupRequest(NAME_ONE, new MutableWorkloadGroupFragment(null, new HashMap<>()));
+        UpdateWorkloadGroupRequest request = new UpdateWorkloadGroupRequest(
+            NAME_ONE,
+            new MutableWorkloadGroupFragment(null, new HashMap<>())
+        );
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();

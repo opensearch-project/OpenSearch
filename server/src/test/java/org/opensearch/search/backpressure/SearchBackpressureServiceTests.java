@@ -39,9 +39,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
-import org.opensearch.wlm.ResourceType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -77,12 +77,12 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
     MockTransportService transportService;
     TaskManager taskManager;
     ThreadPool threadPool;
-    WorkloadGroupService queryGroupService;
+    WorkloadGroupService workloadGroupService;
 
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getClass().getName());
-        queryGroupService = mock(WorkloadGroupService.class);
+        workloadGroupService = mock(WorkloadGroupService.class);
         transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, NoopTracer.INSTANCE);
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -125,10 +125,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             new TaskResourceUsageTrackers(),
             new TaskResourceUsageTrackers(),
             taskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         // Node not in duress.
         cpuUsage.set(0.0);
@@ -171,10 +171,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             taskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         for (int i = 0; i < 100; i++) {
             // service.onTaskCompleted(new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>()));
@@ -205,10 +205,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             new TaskResourceUsageTrackers(),
             taskResourceUsageTrackers,
             taskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         // Record task completions to update the tracker state. Tasks other than SearchTask & SearchShardTask are ignored.
         service.onTaskCompleted(createMockTaskWithResourceStats(CancellableTask.class, 100, 200, 101));
@@ -260,10 +260,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             mockTaskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         // Run two iterations so that node is marked 'in duress' from the third iteration onwards.
         service.doRun();
@@ -356,10 +356,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             new TaskResourceUsageTrackers(),
             taskResourceUsageTrackers,
             mockTaskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         // Run two iterations so that node is marked 'in duress' from the third iteration onwards.
         service.doRun();
@@ -461,10 +461,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             mockTaskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         service.doRun();
         service.doRun();
@@ -560,11 +560,11 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 taskResourceUsageTrackers,
                 new TaskResourceUsageTrackers(),
                 mockTaskManager,
-                queryGroupService
+                workloadGroupService
             )
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
         when(service.isHeapUsageDominatedBySearch(anyList(), anyDouble())).thenReturn(false);
 
         service.doRun();

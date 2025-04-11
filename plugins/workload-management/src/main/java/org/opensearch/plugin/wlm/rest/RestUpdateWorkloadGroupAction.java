@@ -57,7 +57,11 @@ public class RestUpdateWorkloadGroupAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             UpdateWorkloadGroupRequest updateWorkloadGroupRequest = UpdateWorkloadGroupRequest.fromXContent(parser, request.param("name"));
-            return channel -> client.execute(UpdateWorkloadGroupAction.INSTANCE, updateWorkloadGroupRequest, updateWorkloadGroupResponse(channel));
+            return channel -> client.execute(
+                UpdateWorkloadGroupAction.INSTANCE,
+                updateWorkloadGroupRequest,
+                updateWorkloadGroupResponse(channel)
+            );
         }
     }
 

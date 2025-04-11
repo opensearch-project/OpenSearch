@@ -60,9 +60,9 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
         List<Map.Entry<String, WorkloadGroupStatsHolder>> entryList = new ArrayList<>(stats.entrySet());
         entryList.sort((k1, k2) -> k1.getKey().compareTo(k2.getKey()));
 
-        for (Map.Entry<String, WorkloadGroupStatsHolder> queryGroupStats : entryList) {
-            builder.startObject(queryGroupStats.getKey());
-            queryGroupStats.getValue().toXContent(builder, params);
+        for (Map.Entry<String, WorkloadGroupStatsHolder> workloadGroupStats : entryList) {
+            builder.startObject(workloadGroupStats.getKey());
+            workloadGroupStats.getValue().toXContent(builder, params);
             builder.endObject();
         }
         builder.endObject();
@@ -128,22 +128,22 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
 
         /**
          * static factory method to convert {@link WorkloadGroupState} into {@link WorkloadGroupStatsHolder}
-         * @param queryGroupState which needs to be converted
+         * @param workloadGroupState which needs to be converted
          * @return WorkloadGroupStatsHolder object
          */
-        public static WorkloadGroupStatsHolder from(WorkloadGroupState queryGroupState) {
+        public static WorkloadGroupStatsHolder from(WorkloadGroupState workloadGroupState) {
             final WorkloadGroupStatsHolder statsHolder = new WorkloadGroupStatsHolder();
 
             Map<ResourceType, ResourceStats> resourceStatsMap = new HashMap<>();
 
-            for (Map.Entry<ResourceType, ResourceTypeState> resourceTypeStateEntry : queryGroupState.getResourceState().entrySet()) {
+            for (Map.Entry<ResourceType, ResourceTypeState> resourceTypeStateEntry : workloadGroupState.getResourceState().entrySet()) {
                 resourceStatsMap.put(resourceTypeStateEntry.getKey(), ResourceStats.from(resourceTypeStateEntry.getValue()));
             }
 
-            statsHolder.completions = queryGroupState.getTotalCompletions();
-            statsHolder.rejections = queryGroupState.getTotalRejections();
-            statsHolder.failures = queryGroupState.getFailures();
-            statsHolder.cancellations = queryGroupState.getTotalCancellations();
+            statsHolder.completions = workloadGroupState.getTotalCompletions();
+            statsHolder.rejections = workloadGroupState.getTotalRejections();
+            statsHolder.failures = workloadGroupState.getFailures();
+            statsHolder.cancellations = workloadGroupState.getTotalCancellations();
             statsHolder.resourceStats = resourceStatsMap;
             return statsHolder;
         }

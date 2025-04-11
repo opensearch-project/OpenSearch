@@ -47,7 +47,7 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
         Metadata metadata = mock(Metadata.class);
         when(mockClusterService.state()).thenReturn(state);
         when(state.metadata()).thenReturn(metadata);
-        when(metadata.queryGroups()).thenReturn(Collections.emptyMap());
+        when(metadata.workloadGroups()).thenReturn(Collections.emptyMap());
         sut = new WorkloadManagementTransportInterceptor(
             threadPool,
             new WorkloadGroupService(

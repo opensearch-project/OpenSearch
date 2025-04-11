@@ -16,15 +16,15 @@ public class WorkloadGroupThreadContextStatePropagatorTests extends OpenSearchTe
 
     public void testTransients() {
         WorkloadGroupThreadContextStatePropagator sut = new WorkloadGroupThreadContextStatePropagator();
-        Map<String, Object> source = Map.of("queryGroupId", "adgarja0r235te");
+        Map<String, Object> source = Map.of("workloadGroupId", "adgarja0r235te");
         Map<String, Object> transients = sut.transients(source);
-        assertEquals("adgarja0r235te", transients.get("queryGroupId"));
+        assertEquals("adgarja0r235te", transients.get("workloadGroupId"));
     }
 
     public void testHeaders() {
         WorkloadGroupThreadContextStatePropagator sut = new WorkloadGroupThreadContextStatePropagator();
-        Map<String, Object> source = Map.of("queryGroupId", "adgarja0r235te");
+        Map<String, Object> source = Map.of("workloadGroupId", "adgarja0r235te");
         Map<String, String> headers = sut.headers(source);
-        assertEquals("adgarja0r235te", headers.get("queryGroupId"));
+        assertEquals("adgarja0r235te", headers.get("workloadGroupId"));
     }
 }

@@ -58,14 +58,14 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     private Set<WorkloadGroup> activeWorkloadGroups;
     private final Set<WorkloadGroup> deletedWorkloadGroups;
     private final NodeDuressTrackers nodeDuressTrackers;
-    private final WorkloadGroupsStateAccessor queryGroupsStateAccessor;
+    private final WorkloadGroupsStateAccessor workloadGroupsStateAccessor;
 
     public WorkloadGroupService(
         WorkloadGroupTaskCancellationService taskCancellationService,
         ClusterService clusterService,
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings,
-        WorkloadGroupsStateAccessor queryGroupsStateAccessor
+        WorkloadGroupsStateAccessor workloadGroupsStateAccessor
     ) {
 
         this(
@@ -90,7 +90,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                     )
                 )
             ),
-            queryGroupsStateAccessor,
+            workloadGroupsStateAccessor,
             new HashSet<>(),
             new HashSet<>()
         );
@@ -102,7 +102,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         ThreadPool threadPool,
         WorkloadManagementSettings workloadManagementSettings,
         NodeDuressTrackers nodeDuressTrackers,
-        WorkloadGroupsStateAccessor queryGroupsStateAccessor,
+        WorkloadGroupsStateAccessor workloadGroupsStateAccessor,
         Set<WorkloadGroup> activeWorkloadGroups,
         Set<WorkloadGroup> deletedWorkloadGroups
     ) {
@@ -113,9 +113,9 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         this.nodeDuressTrackers = nodeDuressTrackers;
         this.activeWorkloadGroups = activeWorkloadGroups;
         this.deletedWorkloadGroups = deletedWorkloadGroups;
-        this.queryGroupsStateAccessor = queryGroupsStateAccessor;
-        activeWorkloadGroups.forEach(queryGroup -> this.queryGroupsStateAccessor.addNewWorkloadGroup(queryGroup.get_id()));
-        this.queryGroupsStateAccessor.addNewWorkloadGroup(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get());
+        this.workloadGroupsStateAccessor = workloadGroupsStateAccessor;
+        activeWorkloadGroups.forEach(workloadGroup -> this.workloadGroupsStateAccessor.addNewWorkloadGroup(workloadGroup.get_id()));
+        this.workloadGroupsStateAccessor.addNewWorkloadGroup(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get());
         this.clusterService.addListener(this);
     }
 
@@ -161,66 +161,66 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         Metadata currentMetadata = event.state().metadata();
 
         // Extract the query groups from both the current and previous cluster states
-        Map<String, WorkloadGroup> previousWorkloadGroups = previousMetadata.queryGroups();
-        Map<String, WorkloadGroup> currentWorkloadGroups = currentMetadata.queryGroups();
+        Map<String, WorkloadGroup> previousWorkloadGroups = previousMetadata.workloadGroups();
+        Map<String, WorkloadGroup> currentWorkloadGroups = currentMetadata.workloadGroups();
 
         // Detect new query groups added in the current cluster state
-        for (String queryGroupName : currentWorkloadGroups.keySet()) {
-            if (!previousWorkloadGroups.containsKey(queryGroupName)) {
+        for (String workloadGroupName : currentWorkloadGroups.keySet()) {
+            if (!previousWorkloadGroups.containsKey(workloadGroupName)) {
                 // New query group detected
-                WorkloadGroup newWorkloadGroup = currentWorkloadGroups.get(queryGroupName);
+                WorkloadGroup newWorkloadGroup = currentWorkloadGroups.get(workloadGroupName);
                 // Perform any necessary actions with the new query group
-                queryGroupsStateAccessor.addNewWorkloadGroup(newWorkloadGroup.get_id());
+                workloadGroupsStateAccessor.addNewWorkloadGroup(newWorkloadGroup.get_id());
             }
         }
 
         // Detect query groups deleted in the current cluster state
-        for (String queryGroupName : previousWorkloadGroups.keySet()) {
-            if (!currentWorkloadGroups.containsKey(queryGroupName)) {
+        for (String workloadGroupName : previousWorkloadGroups.keySet()) {
+            if (!currentWorkloadGroups.containsKey(workloadGroupName)) {
                 // Query group deleted
-                WorkloadGroup deletedWorkloadGroup = previousWorkloadGroups.get(queryGroupName);
+                WorkloadGroup deletedWorkloadGroup = previousWorkloadGroups.get(workloadGroupName);
                 // Perform any necessary actions with the deleted query group
                 this.deletedWorkloadGroups.add(deletedWorkloadGroup);
-                queryGroupsStateAccessor.removeWorkloadGroup(deletedWorkloadGroup.get_id());
+                workloadGroupsStateAccessor.removeWorkloadGroup(deletedWorkloadGroup.get_id());
             }
         }
-        this.activeWorkloadGroups = new HashSet<>(currentMetadata.queryGroups().values());
+        this.activeWorkloadGroups = new HashSet<>(currentMetadata.workloadGroups().values());
     }
 
     /**
      * updates the failure stats for the query group
      *
-     * @param queryGroupId query group identifier
+     * @param workloadGroupId query group identifier
      */
-    public void incrementFailuresFor(final String queryGroupId) {
-        WorkloadGroupState queryGroupState = queryGroupsStateAccessor.getWorkloadGroupState(queryGroupId);
+    public void incrementFailuresFor(final String workloadGroupId) {
+        WorkloadGroupState workloadGroupState = workloadGroupsStateAccessor.getWorkloadGroupState(workloadGroupId);
         // This can happen if the request failed for a deleted query group
-        // or new queryGroup is being created and has not been acknowledged yet
-        if (queryGroupState == null) {
+        // or new workloadGroup is being created and has not been acknowledged yet
+        if (workloadGroupState == null) {
             return;
         }
-        queryGroupState.failures.inc();
+        workloadGroupState.failures.inc();
     }
 
     /**
      * @return node level query group stats
      */
-    public WorkloadGroupStats nodeStats(Set<String> queryGroupIds, Boolean requestedBreached) {
+    public WorkloadGroupStats nodeStats(Set<String> workloadGroupIds, Boolean requestedBreached) {
         final Map<String, WorkloadGroupStatsHolder> statsHolderMap = new HashMap<>();
-        Map<String, WorkloadGroupState> existingStateMap = queryGroupsStateAccessor.getWorkloadGroupStateMap();
-        if (!queryGroupIds.contains("_all")) {
-            for (String id : queryGroupIds) {
+        Map<String, WorkloadGroupState> existingStateMap = workloadGroupsStateAccessor.getWorkloadGroupStateMap();
+        if (!workloadGroupIds.contains("_all")) {
+            for (String id : workloadGroupIds) {
                 if (!existingStateMap.containsKey(id)) {
                     throw new ResourceNotFoundException("WorkloadGroup with id " + id + " does not exist");
                 }
             }
         }
         if (existingStateMap != null) {
-            existingStateMap.forEach((queryGroupId, currentState) -> {
-                boolean shouldInclude = queryGroupIds.contains("_all") || queryGroupIds.contains(queryGroupId);
+            existingStateMap.forEach((workloadGroupId, currentState) -> {
+                boolean shouldInclude = workloadGroupIds.contains("_all") || workloadGroupIds.contains(workloadGroupId);
                 if (shouldInclude) {
-                    if (requestedBreached == null || requestedBreached == resourceLimitBreached(queryGroupId, currentState)) {
-                        statsHolderMap.put(queryGroupId, WorkloadGroupStatsHolder.from(currentState));
+                    if (requestedBreached == null || requestedBreached == resourceLimitBreached(workloadGroupId, currentState)) {
+                        statsHolderMap.put(workloadGroupId, WorkloadGroupStatsHolder.from(currentState));
                     }
                 }
             });
@@ -232,14 +232,14 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
      * @return if the WorkloadGroup breaches any resource limit based on the LastRecordedUsage
      */
     public boolean resourceLimitBreached(String id, WorkloadGroupState currentState) {
-        WorkloadGroup queryGroup = clusterService.state().metadata().queryGroups().get(id);
-        if (queryGroup == null) {
+        WorkloadGroup workloadGroup = clusterService.state().metadata().workloadGroups().get(id);
+        if (workloadGroup == null) {
             throw new ResourceNotFoundException("WorkloadGroup with id " + id + " does not exist");
         }
 
         for (ResourceType resourceType : TRACKED_RESOURCES) {
-            if (queryGroup.getResourceLimits().containsKey(resourceType)) {
-                final double threshold = getNormalisedRejectionThreshold(queryGroup.getResourceLimits().get(resourceType), resourceType);
+            if (workloadGroup.getResourceLimits().containsKey(resourceType)) {
+                final double threshold = getNormalisedRejectionThreshold(workloadGroup.getResourceLimits().get(resourceType), resourceType);
                 final double lastRecordedUsage = currentState.getResourceState().get(resourceType).getLastRecordedUsage();
                 if (threshold < lastRecordedUsage) {
                     return true;
@@ -250,39 +250,41 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     }
 
     /**
-     * @param queryGroupId query group identifier
+     * @param workloadGroupId query group identifier
      */
-    public void rejectIfNeeded(String queryGroupId) {
+    public void rejectIfNeeded(String workloadGroupId) {
         if (workloadManagementSettings.getWlmMode() != WlmMode.ENABLED) {
             return;
         }
 
-        if (queryGroupId == null || queryGroupId.equals(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get())) return;
-        WorkloadGroupState queryGroupState = queryGroupsStateAccessor.getWorkloadGroupState(queryGroupId);
+        if (workloadGroupId == null || workloadGroupId.equals(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get())) return;
+        WorkloadGroupState workloadGroupState = workloadGroupsStateAccessor.getWorkloadGroupState(workloadGroupId);
 
         // This can happen if the request failed for a deleted query group
-        // or new queryGroup is being created and has not been acknowledged yet or invalid query group id
-        if (queryGroupState == null) {
+        // or new workloadGroup is being created and has not been acknowledged yet or invalid query group id
+        if (workloadGroupState == null) {
             return;
         }
 
         // rejections will not happen for SOFT mode WorkloadGroups unless node is in duress
-        Optional<WorkloadGroup> optionalWorkloadGroup = activeWorkloadGroups.stream().filter(x -> x.get_id().equals(queryGroupId)).findFirst();
+        Optional<WorkloadGroup> optionalWorkloadGroup = activeWorkloadGroups.stream()
+            .filter(x -> x.get_id().equals(workloadGroupId))
+            .findFirst();
 
         if (optionalWorkloadGroup.isPresent()
             && (optionalWorkloadGroup.get().getResiliencyMode() == MutableWorkloadGroupFragment.ResiliencyMode.SOFT
                 && !nodeDuressTrackers.isNodeInDuress())) return;
 
-        optionalWorkloadGroup.ifPresent(queryGroup -> {
+        optionalWorkloadGroup.ifPresent(workloadGroup -> {
             boolean reject = false;
             final StringBuilder reason = new StringBuilder();
             for (ResourceType resourceType : TRACKED_RESOURCES) {
-                if (queryGroup.getResourceLimits().containsKey(resourceType)) {
+                if (workloadGroup.getResourceLimits().containsKey(resourceType)) {
                     final double threshold = getNormalisedRejectionThreshold(
-                        queryGroup.getResourceLimits().get(resourceType),
+                        workloadGroup.getResourceLimits().get(resourceType),
                         resourceType
                     );
-                    final double lastRecordedUsage = queryGroupState.getResourceState().get(resourceType).getLastRecordedUsage();
+                    final double lastRecordedUsage = workloadGroupState.getResourceState().get(resourceType).getLastRecordedUsage();
                     if (threshold < lastRecordedUsage) {
                         reject = true;
                         reason.append(resourceType)
@@ -291,16 +293,16 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                             .append(" < ")
                             .append(lastRecordedUsage)
                             .append("). ");
-                        queryGroupState.getResourceState().get(resourceType).rejections.inc();
+                        workloadGroupState.getResourceState().get(resourceType).rejections.inc();
                         // should not double count even if both the resource limits are breaching
                         break;
                     }
                 }
             }
             if (reject) {
-                queryGroupState.totalRejections.inc();
+                workloadGroupState.totalRejections.inc();
                 throw new OpenSearchRejectedExecutionException(
-                    "WorkloadGroup " + queryGroupId + " is already contended. " + reason.toString()
+                    "WorkloadGroup " + workloadGroupId + " is already contended. " + reason.toString()
                 );
             }
         });
@@ -333,7 +335,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         boolean isInvalidWorkloadGroupTask = true;
         if (task.isWorkloadGroupSet() && !WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get().equals(task.getWorkloadGroupId())) {
             isInvalidWorkloadGroupTask = activeWorkloadGroups.stream()
-                .noneMatch(queryGroup -> queryGroup.get_id().equals(task.getWorkloadGroupId()));
+                .noneMatch(workloadGroup -> workloadGroup.get_id().equals(task.getWorkloadGroupId()));
         }
         return workloadManagementSettings.getWlmMode() != WlmMode.ENABLED || isInvalidWorkloadGroupTask;
     }
@@ -343,17 +345,17 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         if (!(task instanceof WorkloadGroupTask) || !((WorkloadGroupTask) task).isWorkloadGroupSet()) {
             return;
         }
-        final WorkloadGroupTask queryGroupTask = (WorkloadGroupTask) task;
-        String queryGroupId = queryGroupTask.getWorkloadGroupId();
+        final WorkloadGroupTask workloadGroupTask = (WorkloadGroupTask) task;
+        String workloadGroupId = workloadGroupTask.getWorkloadGroupId();
 
-        // set the default queryGroupId if not existing in the active query groups
-        String finalWorkloadGroupId = queryGroupId;
-        boolean exists = activeWorkloadGroups.stream().anyMatch(queryGroup -> queryGroup.get_id().equals(finalWorkloadGroupId));
+        // set the default workloadGroupId if not existing in the active query groups
+        String finalWorkloadGroupId = workloadGroupId;
+        boolean exists = activeWorkloadGroups.stream().anyMatch(workloadGroup -> workloadGroup.get_id().equals(finalWorkloadGroupId));
 
         if (!exists) {
-            queryGroupId = WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get();
+            workloadGroupId = WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get();
         }
 
-        queryGroupsStateAccessor.getWorkloadGroupState(queryGroupId).totalCompletions.inc();
+        workloadGroupsStateAccessor.getWorkloadGroupState(workloadGroupId).totalCompletions.inc();
     }
 }

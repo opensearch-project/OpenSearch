@@ -15,15 +15,15 @@ import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
+import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadGroupLevelResourceUsageView;
 import org.opensearch.wlm.WorkloadGroupTask;
 import org.opensearch.wlm.WorkloadGroupsStateAccessor;
-import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.stats.WorkloadGroupState;
-import org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService;
 import org.opensearch.wlm.tracker.ResourceUsageCalculatorTrackerServiceTests.TestClock;
+import org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -42,12 +42,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCase {
-    private static final String queryGroupId1 = "queryGroup1";
-    private static final String queryGroupId2 = "queryGroup2";
+    private static final String workloadGroupId1 = "workloadGroup1";
+    private static final String workloadGroupId2 = "workloadGroup2";
 
     private TestClock clock;
 
-    private Map<String, WorkloadGroupLevelResourceUsageView> queryGroupLevelViews;
+    private Map<String, WorkloadGroupLevelResourceUsageView> workloadGroupLevelViews;
     private Set<WorkloadGroup> activeWorkloadGroups;
     private Set<WorkloadGroup> deletedWorkloadGroups;
     private WorkloadGroupTaskCancellationService taskCancellation;
@@ -58,7 +58,7 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
     @Before
     public void setup() {
         workloadManagementSettings = mock(WorkloadManagementSettings.class);
-        queryGroupLevelViews = new HashMap<>();
+        workloadGroupLevelViews = new HashMap<>();
         activeWorkloadGroups = new HashSet<>();
         deletedWorkloadGroups = new HashSet<>();
 
@@ -82,9 +82,9 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         double memoryUsage = 0.0;
         Double threshold = 0.1;
 
-        WorkloadGroup queryGroup1 = new WorkloadGroup(
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
@@ -92,10 +92,10 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
 
         WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
         when(mockView.getResourceUsageData()).thenReturn(Map.of(resourceType, cpuUsage, ResourceType.MEMORY, memoryUsage));
-        queryGroupLevelViews.put(queryGroupId1, mockView);
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        workloadGroupLevelViews.put(workloadGroupId1, mockView);
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(List.of(queryGroup1));
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(List.of(workloadGroup1));
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
@@ -108,19 +108,19 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         double memoryUsage = 0.0;
         Double threshold = 0.1;
 
-        WorkloadGroup queryGroup1 = new WorkloadGroup(
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
         WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
         when(mockView.getResourceUsageData()).thenReturn(Map.of(resourceType, cpuUsage, ResourceType.MEMORY, memoryUsage));
-        queryGroupLevelViews.put(queryGroupId1, mockView);
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        workloadGroupLevelViews.put(workloadGroupId1, mockView);
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(List.of(queryGroup1));
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(List.of(workloadGroup1));
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
@@ -132,9 +132,9 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         double memoryUsage = 0.11;
         Double threshold = 0.1;
 
-        WorkloadGroup queryGroup1 = new WorkloadGroup(
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
@@ -142,11 +142,14 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
         when(mockView.getResourceUsageData()).thenReturn(Map.of(ResourceType.CPU, cpuUsage, resourceType, memoryUsage));
 
-        queryGroupLevelViews.put(queryGroupId1, mockView);
-        activeWorkloadGroups.add(queryGroup1);
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        workloadGroupLevelViews.put(workloadGroupId1, mockView);
+        activeWorkloadGroups.add(workloadGroup1);
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeWorkloadGroups);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(
+            ResiliencyMode.ENFORCED,
+            activeWorkloadGroups
+        );
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
@@ -157,20 +160,20 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         double cpuUsage = 0.81;
         double memoryUsage = 0.0;
         Double threshold = 0.9;
-        WorkloadGroup queryGroup1 = new WorkloadGroup(
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
         WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
         when(mockView.getResourceUsageData()).thenReturn(Map.of(ResourceType.CPU, cpuUsage, ResourceType.MEMORY, memoryUsage));
-        queryGroupLevelViews.put(queryGroupId1, mockView);
-        activeWorkloadGroups.add(queryGroup1);
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        workloadGroupLevelViews.put(workloadGroupId1, mockView);
+        activeWorkloadGroups.add(workloadGroup1);
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(List.of(queryGroup1));
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(List.of(workloadGroup1));
         assertTrue(cancellableTasksFrom.isEmpty());
     }
 
@@ -179,17 +182,17 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         double usage = 0.02;
         Double threshold = 0.01;
 
-        WorkloadGroup queryGroup1 = new WorkloadGroup(
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
         WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
-        queryGroupLevelViews.put(queryGroupId1, mockView);
-        activeWorkloadGroups.add(queryGroup1);
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        workloadGroupLevelViews.put(workloadGroupId1, mockView);
+        activeWorkloadGroups.add(workloadGroup1);
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
         WorkloadGroupTaskCancellationService taskCancellation = new WorkloadGroupTaskCancellationService(
             workloadManagementSettings,
@@ -209,9 +212,9 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
 
         Double threshold = 0.01;
 
-        WorkloadGroup queryGroup1 = new WorkloadGroup(
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold, ResourceType.MEMORY, threshold)),
             1L
         );
@@ -219,8 +222,8 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
         when(mockView.getResourceUsageData()).thenReturn(Map.of(ResourceType.CPU, cpuUsage, ResourceType.MEMORY, memoryUsage));
 
-        queryGroupLevelViews.put(queryGroupId1, mockView);
-        activeWorkloadGroups.add(queryGroup1);
+        workloadGroupLevelViews.put(workloadGroupId1, mockView);
+        activeWorkloadGroups.add(workloadGroup1);
 
         WorkloadGroupTaskCancellationService taskCancellation = new WorkloadGroupTaskCancellationService(
             workloadManagementSettings,
@@ -229,14 +232,17 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
             stateAccessor
         );
 
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeWorkloadGroups);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(
+            ResiliencyMode.ENFORCED,
+            activeWorkloadGroups
+        );
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
 
-        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
+        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(workloadGroupLevelViews);
         when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         taskCancellation.cancelTasks(() -> false, activeWorkloadGroups, deletedWorkloadGroups);
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
@@ -253,14 +259,14 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
 
         WorkloadGroup activeWorkloadGroup = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
         WorkloadGroup deletedWorkloadGroup = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId2,
+            workloadGroupId2,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
@@ -278,8 +284,8 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         when(mockView2.getResourceUsageData()).thenReturn(
             Map.of(ResourceType.CPU, deletedWorkloadGroupCpuUsage, ResourceType.MEMORY, deletedWorkloadGroupMemoryUsage)
         );
-        queryGroupLevelViews.put(queryGroupId1, mockView1);
-        queryGroupLevelViews.put(queryGroupId2, mockView2);
+        workloadGroupLevelViews.put(workloadGroupId1, mockView1);
+        workloadGroupLevelViews.put(workloadGroupId2, mockView2);
 
         activeWorkloadGroups.add(activeWorkloadGroup);
         deletedWorkloadGroups.add(deletedWorkloadGroup);
@@ -290,19 +296,24 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
             resourceUsageTrackerService,
             stateAccessor
         );
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeWorkloadGroups);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(
+            ResiliencyMode.ENFORCED,
+            activeWorkloadGroups
+        );
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
 
-        List<TaskCancellation> cancellableTasksFromDeletedWorkloadGroups = taskCancellation.getAllCancellableTasks(List.of(deletedWorkloadGroup));
+        List<TaskCancellation> cancellableTasksFromDeletedWorkloadGroups = taskCancellation.getAllCancellableTasks(
+            List.of(deletedWorkloadGroup)
+        );
         assertEquals(2, cancellableTasksFromDeletedWorkloadGroups.size());
         assertEquals(1000, cancellableTasksFromDeletedWorkloadGroups.get(0).getTask().getId());
         assertEquals(1001, cancellableTasksFromDeletedWorkloadGroups.get(1).getTask().getId());
 
-        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
+        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(workloadGroupLevelViews);
         when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         taskCancellation.cancelTasks(() -> true, activeWorkloadGroups, deletedWorkloadGroups);
 
@@ -323,14 +334,14 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
 
         WorkloadGroup activeWorkloadGroup = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
         WorkloadGroup deletedWorkloadGroup = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId2,
+            workloadGroupId2,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
@@ -349,8 +360,8 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
             Map.of(ResourceType.CPU, deletedWorkloadGroupCpuUsage, ResourceType.MEMORY, deletedWorkloadGroupMemoryUsage)
         );
 
-        queryGroupLevelViews.put(queryGroupId1, mockView1);
-        queryGroupLevelViews.put(queryGroupId2, mockView2);
+        workloadGroupLevelViews.put(workloadGroupId1, mockView1);
+        workloadGroupLevelViews.put(workloadGroupId2, mockView2);
         activeWorkloadGroups.add(activeWorkloadGroup);
         deletedWorkloadGroups.add(deletedWorkloadGroup);
 
@@ -360,19 +371,24 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
             resourceUsageTrackerService,
             stateAccessor
         );
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeWorkloadGroups);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(
+            ResiliencyMode.ENFORCED,
+            activeWorkloadGroups
+        );
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
 
-        List<TaskCancellation> cancellableTasksFromDeletedWorkloadGroups = taskCancellation.getAllCancellableTasks(List.of(deletedWorkloadGroup));
+        List<TaskCancellation> cancellableTasksFromDeletedWorkloadGroups = taskCancellation.getAllCancellableTasks(
+            List.of(deletedWorkloadGroup)
+        );
         assertEquals(2, cancellableTasksFromDeletedWorkloadGroups.size());
         assertEquals(1000, cancellableTasksFromDeletedWorkloadGroups.get(0).getTask().getId());
         assertEquals(1001, cancellableTasksFromDeletedWorkloadGroups.get(1).getTask().getId());
 
-        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
+        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(workloadGroupLevelViews);
         when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         taskCancellation.cancelTasks(() -> false, activeWorkloadGroups, deletedWorkloadGroups);
 
@@ -390,28 +406,28 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         double memoryUsage2 = 0.0;
         Double threshold = 0.01;
 
-        WorkloadGroup queryGroup1 = new WorkloadGroup(
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
-        WorkloadGroup queryGroup2 = new WorkloadGroup(
+        WorkloadGroup workloadGroup2 = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId2,
+            workloadGroupId2,
             new MutableWorkloadGroupFragment(ResiliencyMode.SOFT, Map.of(resourceType, threshold)),
             1L
         );
 
         WorkloadGroupLevelResourceUsageView mockView1 = createResourceUsageViewMock();
         when(mockView1.getResourceUsageData()).thenReturn(Map.of(ResourceType.CPU, cpuUsage1, ResourceType.MEMORY, memoryUsage1));
-        queryGroupLevelViews.put(queryGroupId1, mockView1);
+        workloadGroupLevelViews.put(workloadGroupId1, mockView1);
         WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
         when(mockView.getActiveTasks()).thenReturn(List.of(getRandomSearchTask(5678), getRandomSearchTask(8765)));
         when(mockView.getResourceUsageData()).thenReturn(Map.of(ResourceType.CPU, cpuUsage2, ResourceType.MEMORY, memoryUsage2));
-        queryGroupLevelViews.put(queryGroupId2, mockView);
-        Collections.addAll(activeWorkloadGroups, queryGroup1, queryGroup2);
+        workloadGroupLevelViews.put(workloadGroupId2, mockView);
+        Collections.addAll(activeWorkloadGroups, workloadGroup1, workloadGroup2);
 
         WorkloadGroupTaskCancellationService taskCancellation = new WorkloadGroupTaskCancellationService(
             workloadManagementSettings,
@@ -420,9 +436,12 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
             stateAccessor
         );
 
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeWorkloadGroups);
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(
+            ResiliencyMode.ENFORCED,
+            activeWorkloadGroups
+        );
         assertEquals(2, cancellableTasksFrom.size());
         assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
         assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
@@ -432,7 +451,7 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         assertEquals(5678, cancellableTasksFrom1.get(0).getTask().getId());
         assertEquals(8765, cancellableTasksFrom1.get(1).getTask().getId());
 
-        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(queryGroupLevelViews);
+        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(workloadGroupLevelViews);
         when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         taskCancellation.cancelTasks(() -> true, activeWorkloadGroups, deletedWorkloadGroups);
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
@@ -443,24 +462,24 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
 
     public void testGetAllCancellableTasks_ReturnsNoTasksWhenNotBreachingThresholds() {
         ResourceType resourceType = ResourceType.CPU;
-        double queryGroupCpuUsage = 0.09;
-        double queryGroupMemoryUsage = 0.0;
+        double workloadGroupCpuUsage = 0.09;
+        double workloadGroupMemoryUsage = 0.0;
         Double threshold = 0.1;
 
-        WorkloadGroup queryGroup1 = new WorkloadGroup(
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
         WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
         when(mockView.getResourceUsageData()).thenReturn(
-            Map.of(ResourceType.CPU, queryGroupCpuUsage, ResourceType.MEMORY, queryGroupMemoryUsage)
+            Map.of(ResourceType.CPU, workloadGroupCpuUsage, ResourceType.MEMORY, workloadGroupMemoryUsage)
         );
-        queryGroupLevelViews.put(queryGroupId1, mockView);
-        activeWorkloadGroups.add(queryGroup1);
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        workloadGroupLevelViews.put(workloadGroupId1, mockView);
+        activeWorkloadGroups.add(workloadGroup1);
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
         List<TaskCancellation> allCancellableTasks = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeWorkloadGroups);
         assertTrue(allCancellableTasks.isEmpty());
@@ -472,18 +491,18 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         double memoryUsage = 0.0;
         Double threshold = 0.01;
 
-        WorkloadGroup queryGroup1 = new WorkloadGroup(
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
             "testWorkloadGroup",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
         WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
         when(mockView.getResourceUsageData()).thenReturn(Map.of(ResourceType.CPU, cpuUsage, ResourceType.MEMORY, memoryUsage));
-        queryGroupLevelViews.put(queryGroupId1, mockView);
-        activeWorkloadGroups.add(queryGroup1);
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        workloadGroupLevelViews.put(workloadGroupId1, mockView);
+        activeWorkloadGroups.add(workloadGroup1);
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
         List<TaskCancellation> allCancellableTasks = taskCancellation.getAllCancellableTasks(ResiliencyMode.ENFORCED, activeWorkloadGroups);
         assertEquals(2, allCancellableTasks.size());
@@ -496,45 +515,45 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         double usage = 0.11;
         Double threshold = 0.01;
 
-        WorkloadGroup queryGroup1 = new WorkloadGroup(
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
             "testWorkloadGroup1",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
-        WorkloadGroup queryGroup2 = new WorkloadGroup(
+        WorkloadGroup workloadGroup2 = new WorkloadGroup(
             "testWorkloadGroup2",
-            queryGroupId2,
+            workloadGroupId2,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
             1L
         );
 
         WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
-        queryGroupLevelViews.put(queryGroupId1, mockView);
-        activeWorkloadGroups.add(queryGroup1);
-        activeWorkloadGroups.add(queryGroup2);
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        workloadGroupLevelViews.put(workloadGroupId1, mockView);
+        activeWorkloadGroups.add(workloadGroup1);
+        activeWorkloadGroups.add(workloadGroup2);
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
-        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(List.of(queryGroup2));
+        List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(List.of(workloadGroup2));
         assertEquals(0, cancellableTasksFrom.size());
     }
 
     public void testPruneDeletedWorkloadGroups() {
-        WorkloadGroup queryGroup1 = new WorkloadGroup(
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
             "testWorkloadGroup1",
-            queryGroupId1,
+            workloadGroupId1,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.2)),
             1L
         );
-        WorkloadGroup queryGroup2 = new WorkloadGroup(
+        WorkloadGroup workloadGroup2 = new WorkloadGroup(
             "testWorkloadGroup2",
-            queryGroupId2,
+            workloadGroupId2,
             new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.1)),
             1L
         );
         List<WorkloadGroup> deletedWorkloadGroups = new ArrayList<>();
-        deletedWorkloadGroups.add(queryGroup1);
-        deletedWorkloadGroups.add(queryGroup2);
+        deletedWorkloadGroups.add(workloadGroup1);
+        deletedWorkloadGroups.add(workloadGroup2);
         WorkloadGroupLevelResourceUsageView resourceUsageView1 = createResourceUsageViewMock();
 
         List<WorkloadGroupTask> activeTasks = IntStream.range(0, 5).mapToObj(this::getRandomSearchTask).collect(Collectors.toList());
@@ -543,8 +562,8 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         WorkloadGroupLevelResourceUsageView resourceUsageView2 = createResourceUsageViewMock();
         when(resourceUsageView2.getActiveTasks()).thenReturn(new ArrayList<>());
 
-        queryGroupLevelViews.put(queryGroupId1, resourceUsageView1);
-        queryGroupLevelViews.put(queryGroupId2, resourceUsageView2);
+        workloadGroupLevelViews.put(workloadGroupId1, resourceUsageView1);
+        workloadGroupLevelViews.put(workloadGroupId2, resourceUsageView2);
 
         WorkloadGroupTaskCancellationService taskCancellation = new WorkloadGroupTaskCancellationService(
             workloadManagementSettings,
@@ -552,12 +571,12 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
             resourceUsageTrackerService,
             stateAccessor
         );
-        taskCancellation.workloadGroupLevelResourceUsageViews = queryGroupLevelViews;
+        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
         taskCancellation.pruneDeletedWorkloadGroups(deletedWorkloadGroups);
 
         assertEquals(1, deletedWorkloadGroups.size());
-        assertEquals(queryGroupId1, deletedWorkloadGroups.get(0).get_id());
+        assertEquals(workloadGroupId1, deletedWorkloadGroups.get(0).get_id());
 
     }
 
@@ -567,7 +586,11 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         return mockView;
     }
 
-    private WorkloadGroupLevelResourceUsageView createResourceUsageViewMock(ResourceType resourceType, double usage, Collection<Integer> ids) {
+    private WorkloadGroupLevelResourceUsageView createResourceUsageViewMock(
+        ResourceType resourceType,
+        double usage,
+        Collection<Integer> ids
+    ) {
         WorkloadGroupLevelResourceUsageView mockView = mock(WorkloadGroupLevelResourceUsageView.class);
         when(mockView.getResourceUsageData()).thenReturn(Collections.singletonMap(resourceType, usage));
         when(mockView.getActiveTasks()).thenReturn(ids.stream().map(this::getRandomSearchTask).collect(Collectors.toList()));

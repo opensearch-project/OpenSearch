@@ -34,14 +34,14 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 public class CreateWorkloadGroupRequest extends ClusterManagerNodeRequest<CreateWorkloadGroupRequest> {
-    private final WorkloadGroup queryGroup;
+    private final WorkloadGroup workloadGroup;
 
     /**
      * Constructor for CreateWorkloadGroupRequest
-     * @param queryGroup - A {@link WorkloadGroup} object
+     * @param workloadGroup - A {@link WorkloadGroup} object
      */
-    CreateWorkloadGroupRequest(WorkloadGroup queryGroup) {
-        this.queryGroup = queryGroup;
+    CreateWorkloadGroupRequest(WorkloadGroup workloadGroup) {
+        this.workloadGroup = workloadGroup;
     }
 
     /**
@@ -50,7 +50,7 @@ public class CreateWorkloadGroupRequest extends ClusterManagerNodeRequest<Create
      */
     CreateWorkloadGroupRequest(StreamInput in) throws IOException {
         super(in);
-        queryGroup = new WorkloadGroup(in);
+        workloadGroup = new WorkloadGroup(in);
     }
 
     /**
@@ -70,13 +70,13 @@ public class CreateWorkloadGroupRequest extends ClusterManagerNodeRequest<Create
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        queryGroup.writeTo(out);
+        workloadGroup.writeTo(out);
     }
 
     /**
      * WorkloadGroup getter
      */
     public WorkloadGroup getWorkloadGroup() {
-        return queryGroup;
+        return workloadGroup;
     }
 }

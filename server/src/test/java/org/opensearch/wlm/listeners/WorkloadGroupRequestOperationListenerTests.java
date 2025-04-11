@@ -16,10 +16,10 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
 import org.opensearch.wlm.WorkloadGroupsStateAccessor;
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
 import org.opensearch.wlm.stats.WorkloadGroupState;
@@ -41,11 +41,11 @@ import static org.mockito.Mockito.when;
 public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCase {
     public static final int ITERATIONS = 20;
     ThreadPool testThreadPool;
-    WorkloadGroupService queryGroupService;
+    WorkloadGroupService workloadGroupService;
     private WorkloadGroupTaskCancellationService taskCancellationService;
     private ClusterService mockClusterService;
     private WorkloadManagementSettings mockWorkloadManagementSettings;
-    Map<String, WorkloadGroupState> queryGroupStateMap;
+    Map<String, WorkloadGroupState> workloadGroupStateMap;
     String testWorkloadGroupId;
     WorkloadGroupRequestOperationListener sut;
 
@@ -54,15 +54,15 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         taskCancellationService = mock(WorkloadGroupTaskCancellationService.class);
         mockClusterService = mock(ClusterService.class);
         mockWorkloadManagementSettings = mock(WorkloadManagementSettings.class);
-        queryGroupStateMap = new HashMap<>();
+        workloadGroupStateMap = new HashMap<>();
         testWorkloadGroupId = "safjgagnakg-3r3fads";
         testThreadPool = new TestThreadPool("RejectionTestThreadPool");
         ClusterState mockClusterState = mock(ClusterState.class);
         when(mockClusterService.state()).thenReturn(mockClusterState);
         Metadata mockMetaData = mock(Metadata.class);
         when(mockClusterState.metadata()).thenReturn(mockMetaData);
-        queryGroupService = mock(WorkloadGroupService.class);
-        sut = new WorkloadGroupRequestOperationListener(queryGroupService, testThreadPool);
+        workloadGroupService = mock(WorkloadGroupService.class);
+        sut = new WorkloadGroupRequestOperationListener(workloadGroupService, testThreadPool);
     }
 
     public void tearDown() throws Exception {
@@ -73,14 +73,14 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
     public void testRejectionCase() {
         final String testWorkloadGroupId = "asdgasgkajgkw3141_3rt4t";
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, testWorkloadGroupId);
-        doThrow(OpenSearchRejectedExecutionException.class).when(queryGroupService).rejectIfNeeded(testWorkloadGroupId);
+        doThrow(OpenSearchRejectedExecutionException.class).when(workloadGroupService).rejectIfNeeded(testWorkloadGroupId);
         assertThrows(OpenSearchRejectedExecutionException.class, () -> sut.onRequestStart(null));
     }
 
     public void testNonRejectionCase() {
         final String testWorkloadGroupId = "asdgasgkajgkw3141_3rt4t";
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, testWorkloadGroupId);
-        doNothing().when(queryGroupService).rejectIfNeeded(testWorkloadGroupId);
+        doNothing().when(workloadGroupService).rejectIfNeeded(testWorkloadGroupId);
 
         sut.onRequestStart(null);
     }
@@ -118,15 +118,15 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
             )
         );
 
-        assertSuccess(testWorkloadGroupId, queryGroupStateMap, expectedStats, testWorkloadGroupId);
+        assertSuccess(testWorkloadGroupId, workloadGroupStateMap, expectedStats, testWorkloadGroupId);
     }
 
     public void testMultiThreadedValidWorkloadGroupRequestFailures() {
 
-        queryGroupStateMap.put(testWorkloadGroupId, new WorkloadGroupState());
-        WorkloadGroupsStateAccessor accessor = new WorkloadGroupsStateAccessor(queryGroupStateMap);
+        workloadGroupStateMap.put(testWorkloadGroupId, new WorkloadGroupState());
+        WorkloadGroupsStateAccessor accessor = new WorkloadGroupsStateAccessor(workloadGroupStateMap);
         setupMockedWorkloadGroupsFromClusterState();
-        queryGroupService = new WorkloadGroupService(
+        workloadGroupService = new WorkloadGroupService(
             taskCancellationService,
             mockClusterService,
             testThreadPool,
@@ -137,7 +137,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
             Collections.emptySet()
         );
 
-        sut = new WorkloadGroupRequestOperationListener(queryGroupService, testThreadPool);
+        sut = new WorkloadGroupRequestOperationListener(workloadGroupService, testThreadPool);
 
         List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < ITERATIONS; i++) {
@@ -160,7 +160,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         HashSet<String> set = new HashSet<>();
         set.add("_all");
-        WorkloadGroupStats actualStats = queryGroupService.nodeStats(set, null);
+        WorkloadGroupStats actualStats = workloadGroupService.nodeStats(set, null);
 
         WorkloadGroupStats expectedStats = new WorkloadGroupStats(
             Map.of(
@@ -228,24 +228,24 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
             )
         );
 
-        assertSuccess(testWorkloadGroupId, queryGroupStateMap, expectedStats, "dummy-invalid-qg-id");
+        assertSuccess(testWorkloadGroupId, workloadGroupStateMap, expectedStats, "dummy-invalid-qg-id");
 
     }
 
     private void assertSuccess(
         String testWorkloadGroupId,
-        Map<String, WorkloadGroupState> queryGroupStateMap,
+        Map<String, WorkloadGroupState> workloadGroupStateMap,
         WorkloadGroupStats expectedStats,
         String threadContextQG_Id
     ) {
-        WorkloadGroupsStateAccessor stateAccessor = new WorkloadGroupsStateAccessor(queryGroupStateMap);
+        WorkloadGroupsStateAccessor stateAccessor = new WorkloadGroupsStateAccessor(workloadGroupStateMap);
         try (ThreadContext.StoredContext currentContext = testThreadPool.getThreadContext().stashContext()) {
             testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, threadContextQG_Id);
-            queryGroupStateMap.put(testWorkloadGroupId, new WorkloadGroupState());
+            workloadGroupStateMap.put(testWorkloadGroupId, new WorkloadGroupState());
 
             setupMockedWorkloadGroupsFromClusterState();
 
-            queryGroupService = new WorkloadGroupService(
+            workloadGroupService = new WorkloadGroupService(
                 taskCancellationService,
                 mockClusterService,
                 testThreadPool,
@@ -255,12 +255,12 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                 Collections.emptySet(),
                 Collections.emptySet()
             );
-            sut = new WorkloadGroupRequestOperationListener(queryGroupService, testThreadPool);
+            sut = new WorkloadGroupRequestOperationListener(workloadGroupService, testThreadPool);
             sut.onRequestFailure(null, null);
 
             HashSet<String> set = new HashSet<>();
             set.add("_all");
-            WorkloadGroupStats actualStats = queryGroupService.nodeStats(set, null);
+            WorkloadGroupStats actualStats = workloadGroupService.nodeStats(set, null);
             assertEquals(expectedStats, actualStats);
         }
 
@@ -271,6 +271,6 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         Metadata metadata = mock(Metadata.class);
         when(mockClusterService.state()).thenReturn(state);
         when(state.metadata()).thenReturn(metadata);
-        when(metadata.queryGroups()).thenReturn(Collections.emptyMap());
+        when(metadata.workloadGroups()).thenReturn(Collections.emptyMap());
     }
 }

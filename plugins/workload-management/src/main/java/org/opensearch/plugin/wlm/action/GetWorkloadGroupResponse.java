@@ -26,16 +26,16 @@ import java.util.Collection;
  * @opensearch.experimental
  */
 public class GetWorkloadGroupResponse extends ActionResponse implements ToXContent, ToXContentObject {
-    private final Collection<WorkloadGroup> queryGroups;
+    private final Collection<WorkloadGroup> workloadGroups;
     private final RestStatus restStatus;
 
     /**
      * Constructor for GetWorkloadGroupResponse
-     * @param queryGroups - The WorkloadGroup list to be fetched
+     * @param workloadGroups - The WorkloadGroup list to be fetched
      * @param restStatus - The rest status of the request
      */
-    public GetWorkloadGroupResponse(final Collection<WorkloadGroup> queryGroups, RestStatus restStatus) {
-        this.queryGroups = queryGroups;
+    public GetWorkloadGroupResponse(final Collection<WorkloadGroup> workloadGroups, RestStatus restStatus) {
+        this.workloadGroups = workloadGroups;
         this.restStatus = restStatus;
     }
 
@@ -44,13 +44,13 @@ public class GetWorkloadGroupResponse extends ActionResponse implements ToXConte
      * @param in - A {@link StreamInput} object
      */
     public GetWorkloadGroupResponse(StreamInput in) throws IOException {
-        this.queryGroups = in.readList(WorkloadGroup::new);
+        this.workloadGroups = in.readList(WorkloadGroup::new);
         restStatus = RestStatus.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(queryGroups);
+        out.writeCollection(workloadGroups);
         RestStatus.writeTo(out, restStatus);
     }
 
@@ -58,7 +58,7 @@ public class GetWorkloadGroupResponse extends ActionResponse implements ToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray("workload_groups");
-        for (WorkloadGroup group : queryGroups) {
+        for (WorkloadGroup group : workloadGroups) {
             group.toXContent(builder, params);
         }
         builder.endArray();
@@ -67,10 +67,10 @@ public class GetWorkloadGroupResponse extends ActionResponse implements ToXConte
     }
 
     /**
-     * queryGroups getter
+     * workloadGroups getter
      */
     public Collection<WorkloadGroup> getWorkloadGroups() {
-        return queryGroups;
+        return workloadGroups;
     }
 
     /**

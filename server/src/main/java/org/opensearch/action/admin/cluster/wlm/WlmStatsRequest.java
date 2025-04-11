@@ -23,12 +23,12 @@ import java.util.Set;
 @ExperimentalApi
 public class WlmStatsRequest extends BaseNodesRequest<WlmStatsRequest> {
 
-    private final Set<String> queryGroupIds;
+    private final Set<String> workloadGroupIds;
     private final Boolean breach;
 
     public WlmStatsRequest(StreamInput in) throws IOException {
         super(in);
-        this.queryGroupIds = new HashSet<>(Set.of(in.readStringArray()));
+        this.workloadGroupIds = new HashSet<>(Set.of(in.readStringArray()));
         this.breach = in.readOptionalBoolean();
     }
 
@@ -36,27 +36,27 @@ public class WlmStatsRequest extends BaseNodesRequest<WlmStatsRequest> {
      * Get WorkloadGroup stats from nodes based on the nodes ids specified. If none are passed, stats
      * for all nodes will be returned.
      */
-    public WlmStatsRequest(String[] nodesIds, Set<String> queryGroupIds, Boolean breach) {
+    public WlmStatsRequest(String[] nodesIds, Set<String> workloadGroupIds, Boolean breach) {
         super(false, nodesIds);
-        this.queryGroupIds = queryGroupIds;
+        this.workloadGroupIds = workloadGroupIds;
         this.breach = breach;
     }
 
     public WlmStatsRequest() {
         super(false, (String[]) null);
-        queryGroupIds = new HashSet<>();
+        workloadGroupIds = new HashSet<>();
         this.breach = false;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArray(queryGroupIds.toArray(new String[0]));
+        out.writeStringArray(workloadGroupIds.toArray(new String[0]));
         out.writeOptionalBoolean(breach);
     }
 
     public Set<String> getWorkloadGroupIds() {
-        return queryGroupIds;
+        return workloadGroupIds;
     }
 
     public Boolean isBreach() {

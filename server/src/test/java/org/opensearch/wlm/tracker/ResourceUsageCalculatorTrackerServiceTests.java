@@ -16,9 +16,9 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadGroupLevelResourceUsageView;
 import org.opensearch.wlm.WorkloadGroupTask;
-import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.junit.After;
 import org.junit.Before;
@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
 public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCase {
     TestThreadPool threadPool;
     TaskResourceTrackingService mockTaskResourceTrackingService;
-    WorkloadGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService;
+    WorkloadGroupResourceUsageTrackerService workloadGroupResourceUsageTrackerService;
     WorkloadManagementSettings settings;
 
     public static class TestClock {
@@ -64,7 +64,7 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
         settings = mock(WorkloadManagementSettings.class);
         threadPool = new TestThreadPool(getTestName());
         mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
-        queryGroupResourceUsageTrackerService = new WorkloadGroupResourceUsageTrackerService(mockTaskResourceTrackingService);
+        workloadGroupResourceUsageTrackerService = new WorkloadGroupResourceUsageTrackerService(mockTaskResourceTrackingService);
     }
 
     @After
@@ -73,73 +73,73 @@ public class ResourceUsageCalculatorTrackerServiceTests extends OpenSearchTestCa
     }
 
     public void testConstructWorkloadGroupLevelViews_CreatesWorkloadGroupLevelUsageView_WhenTasksArePresent() {
-        List<String> queryGroupIds = List.of("queryGroup1", "queryGroup2", "queryGroup3");
+        List<String> workloadGroupIds = List.of("workloadGroup1", "workloadGroup2", "workloadGroup3");
         clock.fastForwardBy(2000);
 
-        Map<Long, Task> activeSearchShardTasks = createActiveSearchShardTasks(queryGroupIds);
+        Map<Long, Task> activeSearchShardTasks = createActiveSearchShardTasks(workloadGroupIds);
         when(mockTaskResourceTrackingService.getResourceAwareTasks()).thenReturn(activeSearchShardTasks);
 
-        Map<String, WorkloadGroupLevelResourceUsageView> stringWorkloadGroupLevelResourceUsageViewMap = queryGroupResourceUsageTrackerService
-            .constructWorkloadGroupLevelUsageViews();
+        Map<String, WorkloadGroupLevelResourceUsageView> stringWorkloadGroupLevelResourceUsageViewMap =
+            workloadGroupResourceUsageTrackerService.constructWorkloadGroupLevelUsageViews();
 
-        for (String queryGroupId : queryGroupIds) {
+        for (String workloadGroupId : workloadGroupIds) {
             assertEquals(
                 (400 * 1.0f) / HEAP_SIZE_BYTES,
-                stringWorkloadGroupLevelResourceUsageViewMap.get(queryGroupId).getResourceUsageData().get(ResourceType.MEMORY),
+                stringWorkloadGroupLevelResourceUsageViewMap.get(workloadGroupId).getResourceUsageData().get(ResourceType.MEMORY),
                 MIN_VALUE
             );
             assertEquals(
                 (200 * 1.0f) / (PROCESSOR_COUNT * 2000),
-                stringWorkloadGroupLevelResourceUsageViewMap.get(queryGroupId).getResourceUsageData().get(ResourceType.CPU),
+                stringWorkloadGroupLevelResourceUsageViewMap.get(workloadGroupId).getResourceUsageData().get(ResourceType.CPU),
                 MIN_VALUE
             );
-            assertEquals(2, stringWorkloadGroupLevelResourceUsageViewMap.get(queryGroupId).getActiveTasks().size());
+            assertEquals(2, stringWorkloadGroupLevelResourceUsageViewMap.get(workloadGroupId).getActiveTasks().size());
         }
     }
 
     public void testConstructWorkloadGroupLevelViews_CreatesWorkloadGroupLevelUsageView_WhenTasksAreNotPresent() {
-        Map<String, WorkloadGroupLevelResourceUsageView> stringWorkloadGroupLevelResourceUsageViewMap = queryGroupResourceUsageTrackerService
-            .constructWorkloadGroupLevelUsageViews();
+        Map<String, WorkloadGroupLevelResourceUsageView> stringWorkloadGroupLevelResourceUsageViewMap =
+            workloadGroupResourceUsageTrackerService.constructWorkloadGroupLevelUsageViews();
         assertTrue(stringWorkloadGroupLevelResourceUsageViewMap.isEmpty());
     }
 
     public void testConstructWorkloadGroupLevelUsageViews_WithTasksHavingDifferentResourceUsage() {
         Map<Long, Task> activeSearchShardTasks = new HashMap<>();
         clock.fastForwardBy(2000);
-        activeSearchShardTasks.put(1L, createMockTask(SearchShardTask.class, 100, 200, "queryGroup1"));
-        activeSearchShardTasks.put(2L, createMockTask(SearchShardTask.class, 200, 400, "queryGroup1"));
+        activeSearchShardTasks.put(1L, createMockTask(SearchShardTask.class, 100, 200, "workloadGroup1"));
+        activeSearchShardTasks.put(2L, createMockTask(SearchShardTask.class, 200, 400, "workloadGroup1"));
         when(mockTaskResourceTrackingService.getResourceAwareTasks()).thenReturn(activeSearchShardTasks);
-        Map<String, WorkloadGroupLevelResourceUsageView> queryGroupViews = queryGroupResourceUsageTrackerService
+        Map<String, WorkloadGroupLevelResourceUsageView> workloadGroupViews = workloadGroupResourceUsageTrackerService
             .constructWorkloadGroupLevelUsageViews();
 
         assertEquals(
             (double) 600 / HEAP_SIZE_BYTES,
-            queryGroupViews.get("queryGroup1").getResourceUsageData().get(ResourceType.MEMORY),
+            workloadGroupViews.get("workloadGroup1").getResourceUsageData().get(ResourceType.MEMORY),
             MIN_VALUE
         );
         assertEquals(
             ((double) 300) / (PROCESSOR_COUNT * 2000),
-            queryGroupViews.get("queryGroup1").getResourceUsageData().get(ResourceType.CPU),
+            workloadGroupViews.get("workloadGroup1").getResourceUsageData().get(ResourceType.CPU),
             MIN_VALUE
         );
-        assertEquals(2, queryGroupViews.get("queryGroup1").getActiveTasks().size());
+        assertEquals(2, workloadGroupViews.get("workloadGroup1").getActiveTasks().size());
     }
 
-    private Map<Long, Task> createActiveSearchShardTasks(List<String> queryGroupIds) {
+    private Map<Long, Task> createActiveSearchShardTasks(List<String> workloadGroupIds) {
         Map<Long, Task> activeSearchShardTasks = new HashMap<>();
         long task_id = 0;
-        for (String queryGroupId : queryGroupIds) {
+        for (String workloadGroupId : workloadGroupIds) {
             for (int i = 0; i < 2; i++) {
-                activeSearchShardTasks.put(++task_id, createMockTask(SearchShardTask.class, 100, 200, queryGroupId));
+                activeSearchShardTasks.put(++task_id, createMockTask(SearchShardTask.class, 100, 200, workloadGroupId));
             }
         }
         return activeSearchShardTasks;
     }
 
-    private <T extends WorkloadGroupTask> T createMockTask(Class<T> type, long cpuUsage, long heapUsage, String queryGroupId) {
+    private <T extends WorkloadGroupTask> T createMockTask(Class<T> type, long cpuUsage, long heapUsage, String workloadGroupId) {
         T task = mock(type);
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            threadPool.getThreadContext().putHeader(WORKLOAD_GROUP_ID_HEADER, queryGroupId);
+            threadPool.getThreadContext().putHeader(WORKLOAD_GROUP_ID_HEADER, workloadGroupId);
             task.setWorkloadGroupId(threadPool.getThreadContext());
         }
         when(task.getTotalResourceUtilization(ResourceStats.CPU)).thenReturn(cpuUsage);

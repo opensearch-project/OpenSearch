@@ -93,7 +93,10 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         this(in.readString(), in.readString(), new MutableWorkloadGroupFragment(in), in.readLong());
     }
 
-    public static WorkloadGroup updateExistingWorkloadGroup(WorkloadGroup existingGroup, MutableWorkloadGroupFragment mutableWorkloadGroupFragment) {
+    public static WorkloadGroup updateExistingWorkloadGroup(
+        WorkloadGroup existingGroup,
+        MutableWorkloadGroupFragment mutableWorkloadGroupFragment
+    ) {
         final Map<ResourceType, Double> updatedResourceLimits = new HashMap<>(existingGroup.getResourceLimits());
         final Map<ResourceType, Double> mutableFragmentResourceLimits = mutableWorkloadGroupFragment.getResourceLimits();
         if (mutableFragmentResourceLimits != null && !mutableFragmentResourceLimits.isEmpty()) {

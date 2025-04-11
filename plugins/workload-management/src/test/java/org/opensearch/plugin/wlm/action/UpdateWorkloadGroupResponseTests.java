@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.queryGroupOne;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
 import static org.mockito.Mockito.mock;
 
 public class UpdateWorkloadGroupResponseTests extends OpenSearchTestCase {
@@ -31,7 +31,7 @@ public class UpdateWorkloadGroupResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of UpdateWorkloadGroupResponse.
      */
     public void testSerialization() throws IOException {
-        UpdateWorkloadGroupResponse response = new UpdateWorkloadGroupResponse(queryGroupOne, RestStatus.OK);
+        UpdateWorkloadGroupResponse response = new UpdateWorkloadGroupResponse(workloadGroupOne, RestStatus.OK);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
@@ -51,7 +51,7 @@ public class UpdateWorkloadGroupResponseTests extends OpenSearchTestCase {
      */
     public void testToXContentUpdateSingleWorkloadGroup() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        UpdateWorkloadGroupResponse otherResponse = new UpdateWorkloadGroupResponse(queryGroupOne, RestStatus.OK);
+        UpdateWorkloadGroupResponse otherResponse = new UpdateWorkloadGroupResponse(workloadGroupOne, RestStatus.OK);
         String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
             + "  \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"

@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.assertEqualWorkloadGroups;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.queryGroupOne;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
 
 public class CreateWorkloadGroupRequestTests extends OpenSearchTestCase {
 
@@ -26,14 +26,14 @@ public class CreateWorkloadGroupRequestTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of CreateWorkloadGroupRequest.
      */
     public void testSerialization() throws IOException {
-        CreateWorkloadGroupRequest request = new CreateWorkloadGroupRequest(queryGroupOne);
+        CreateWorkloadGroupRequest request = new CreateWorkloadGroupRequest(workloadGroupOne);
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
         CreateWorkloadGroupRequest otherRequest = new CreateWorkloadGroupRequest(streamInput);
         List<WorkloadGroup> list1 = new ArrayList<>();
         List<WorkloadGroup> list2 = new ArrayList<>();
-        list1.add(queryGroupOne);
+        list1.add(workloadGroupOne);
         list2.add(otherRequest.getWorkloadGroup());
         assertEqualWorkloadGroups(list1, list2, false);
     }

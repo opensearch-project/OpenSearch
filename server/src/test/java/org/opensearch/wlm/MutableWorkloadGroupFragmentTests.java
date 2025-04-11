@@ -55,12 +55,12 @@ public class MutableWorkloadGroupFragmentTests extends OpenSearchTestCase {
     }
 
     public void testSetMethodsWithNullAndEmptyValues() {
-        MutableWorkloadGroupFragment queryGroup = new MutableWorkloadGroupFragment();
-        queryGroup.setResiliencyMode(null);
-        assertNull(queryGroup.getResiliencyMode());
-        queryGroup.setResourceLimits(null);
-        assertNull(queryGroup.getResourceLimits());
-        queryGroup.setResourceLimits(new HashMap<>());
-        assertEquals(0, queryGroup.getResourceLimits().size());
+        MutableWorkloadGroupFragment workloadGroup = new MutableWorkloadGroupFragment();
+        workloadGroup.setResiliencyMode(null);
+        assertNull(workloadGroup.getResiliencyMode());
+        workloadGroup.setResourceLimits(null);
+        assertNull(workloadGroup.getResourceLimits());
+        workloadGroup.setResourceLimits(new HashMap<>());
+        assertEquals(0, workloadGroup.getResourceLimits().size());
     }
 }

@@ -16,31 +16,31 @@ import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 /**
- * This listener is used to listen for request lifecycle events for a queryGroup
+ * This listener is used to listen for request lifecycle events for a workloadGroup
  */
 public class WorkloadGroupRequestOperationListener extends SearchRequestOperationsListener {
 
-    private final WorkloadGroupService queryGroupService;
+    private final WorkloadGroupService workloadGroupService;
     private final ThreadPool threadPool;
 
-    public WorkloadGroupRequestOperationListener(WorkloadGroupService queryGroupService, ThreadPool threadPool) {
-        this.queryGroupService = queryGroupService;
+    public WorkloadGroupRequestOperationListener(WorkloadGroupService workloadGroupService, ThreadPool threadPool) {
+        this.workloadGroupService = workloadGroupService;
         this.threadPool = threadPool;
     }
 
     /**
-     * This method assumes that the queryGroupId is already populated in the thread context
+     * This method assumes that the workloadGroupId is already populated in the thread context
      * @param searchRequestContext SearchRequestContext instance
      */
     @Override
     protected void onRequestStart(SearchRequestContext searchRequestContext) {
-        final String queryGroupId = threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
-        queryGroupService.rejectIfNeeded(queryGroupId);
+        final String workloadGroupId = threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
+        workloadGroupService.rejectIfNeeded(workloadGroupId);
     }
 
     @Override
     protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-        final String queryGroupId = threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
-        queryGroupService.incrementFailuresFor(queryGroupId);
+        final String workloadGroupId = threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
+        workloadGroupService.incrementFailuresFor(workloadGroupId);
     }
 }

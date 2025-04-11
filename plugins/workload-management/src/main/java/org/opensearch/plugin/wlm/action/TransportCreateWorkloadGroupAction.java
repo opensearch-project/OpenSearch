@@ -30,9 +30,11 @@ import static org.opensearch.threadpool.ThreadPool.Names.SAME;
  *
  * @opensearch.experimental
  */
-public class TransportCreateWorkloadGroupAction extends TransportClusterManagerNodeAction<CreateWorkloadGroupRequest, CreateWorkloadGroupResponse> {
+public class TransportCreateWorkloadGroupAction extends TransportClusterManagerNodeAction<
+    CreateWorkloadGroupRequest,
+    CreateWorkloadGroupResponse> {
 
-    private final WorkloadGroupPersistenceService queryGroupPersistenceService;
+    private final WorkloadGroupPersistenceService workloadGroupPersistenceService;
 
     /**
      * Constructor for TransportCreateWorkloadGroupAction
@@ -41,7 +43,7 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
      * @param transportService - a {@link TransportService} object
      * @param actionFilters - a {@link ActionFilters} object
      * @param indexNameExpressionResolver - {@link IndexNameExpressionResolver} object
-     * @param queryGroupPersistenceService - a {@link WorkloadGroupPersistenceService} object
+     * @param workloadGroupPersistenceService - a {@link WorkloadGroupPersistenceService} object
      */
     @Inject
     public TransportCreateWorkloadGroupAction(
@@ -49,18 +51,18 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
         TransportService transportService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        WorkloadGroupPersistenceService queryGroupPersistenceService
+        WorkloadGroupPersistenceService workloadGroupPersistenceService
     ) {
         super(
             CreateWorkloadGroupAction.NAME,
             transportService,
-            queryGroupPersistenceService.getClusterService(),
+            workloadGroupPersistenceService.getClusterService(),
             threadPool,
             actionFilters,
             CreateWorkloadGroupRequest::new,
             indexNameExpressionResolver
         );
-        this.queryGroupPersistenceService = queryGroupPersistenceService;
+        this.workloadGroupPersistenceService = workloadGroupPersistenceService;
     }
 
     @Override
@@ -69,7 +71,7 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
         ClusterState clusterState,
         ActionListener<CreateWorkloadGroupResponse> listener
     ) {
-        queryGroupPersistenceService.persistInClusterStateMetadata(request.getWorkloadGroup(), listener);
+        workloadGroupPersistenceService.persistInClusterStateMetadata(request.getWorkloadGroup(), listener);
     }
 
     @Override

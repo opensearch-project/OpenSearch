@@ -31,9 +31,9 @@ public class WlmStatsTests extends AbstractWireSerializingTestCase<WlmStats> {
 
     public void testToXContent() throws IOException {
         final Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> stats = new HashMap<>();
-        final String queryGroupId = "afakjklaj304041-afaka";
+        final String workloadGroupId = "afakjklaj304041-afaka";
         stats.put(
-            queryGroupId,
+            workloadGroupId,
             new WorkloadGroupStats.WorkloadGroupStatsHolder(
                 123456789,
                 13,
@@ -43,8 +43,8 @@ public class WlmStatsTests extends AbstractWireSerializingTestCase<WlmStats> {
             )
         );
         XContentBuilder builder = JsonXContent.contentBuilder();
-        WorkloadGroupStats queryGroupStats = new WorkloadGroupStats(stats);
-        WlmStats wlmStats = new WlmStats(mock(DiscoveryNode.class), queryGroupStats);
+        WorkloadGroupStats workloadGroupStats = new WorkloadGroupStats(stats);
+        WlmStats wlmStats = new WlmStats(mock(DiscoveryNode.class), workloadGroupStats);
         builder.startObject();
         wlmStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -68,7 +68,7 @@ public class WlmStatsTests extends AbstractWireSerializingTestCase<WlmStats> {
             DiscoveryNodeRole.BUILT_IN_ROLES,
             VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
         );
-        WorkloadGroupStatsTests queryGroupStatsTests = new WorkloadGroupStatsTests();
-        return new WlmStats(discoveryNode, queryGroupStatsTests.createTestInstance());
+        WorkloadGroupStatsTests workloadGroupStatsTests = new WorkloadGroupStatsTests();
+        return new WlmStats(discoveryNode, workloadGroupStatsTests.createTestInstance());
     }
 }

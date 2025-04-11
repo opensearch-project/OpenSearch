@@ -25,7 +25,7 @@ import java.util.Map;
 
 public class WorkloadGroupTaskResourceTrackingTests extends OpenSearchTestCase {
     ThreadPool threadPool;
-    WorkloadGroupResourceUsageTrackerService queryGroupResourceUsageTrackerService;
+    WorkloadGroupResourceUsageTrackerService workloadGroupResourceUsageTrackerService;
     TaskResourceTrackingService taskResourceTrackingService;
 
     @Override
@@ -37,7 +37,7 @@ public class WorkloadGroupTaskResourceTrackingTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
-        queryGroupResourceUsageTrackerService = new WorkloadGroupResourceUsageTrackerService(taskResourceTrackingService);
+        workloadGroupResourceUsageTrackerService = new WorkloadGroupResourceUsageTrackerService(taskResourceTrackingService);
     }
 
     public void tearDown() throws Exception {
@@ -51,15 +51,15 @@ public class WorkloadGroupTaskResourceTrackingTests extends OpenSearchTestCase {
         taskResourceTrackingService.startTracking(task);
 
         // since the query group id is not set we should not track this task
-        Map<String, WorkloadGroupLevelResourceUsageView> resourceUsageViewMap = queryGroupResourceUsageTrackerService
+        Map<String, WorkloadGroupLevelResourceUsageView> resourceUsageViewMap = workloadGroupResourceUsageTrackerService
             .constructWorkloadGroupLevelUsageViews();
         assertTrue(resourceUsageViewMap.isEmpty());
 
-        // Now since this task has a valid queryGroupId header it should be tracked
+        // Now since this task has a valid workloadGroupId header it should be tracked
         try (ThreadContext.StoredContext context = threadPool.getThreadContext().stashContext()) {
             threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "testHeader");
             task.setWorkloadGroupId(threadPool.getThreadContext());
-            resourceUsageViewMap = queryGroupResourceUsageTrackerService.constructWorkloadGroupLevelUsageViews();
+            resourceUsageViewMap = workloadGroupResourceUsageTrackerService.constructWorkloadGroupLevelUsageViews();
             assertFalse(resourceUsageViewMap.isEmpty());
         }
     }

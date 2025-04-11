@@ -25,16 +25,16 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 public class CreateWorkloadGroupResponse extends ActionResponse implements ToXContent, ToXContentObject {
-    private final WorkloadGroup queryGroup;
+    private final WorkloadGroup workloadGroup;
     private final RestStatus restStatus;
 
     /**
      * Constructor for CreateWorkloadGroupResponse
-     * @param queryGroup - The WorkloadGroup to be included in the response
+     * @param workloadGroup - The WorkloadGroup to be included in the response
      * @param restStatus - The restStatus for the response
      */
-    public CreateWorkloadGroupResponse(final WorkloadGroup queryGroup, RestStatus restStatus) {
-        this.queryGroup = queryGroup;
+    public CreateWorkloadGroupResponse(final WorkloadGroup workloadGroup, RestStatus restStatus) {
+        this.workloadGroup = workloadGroup;
         this.restStatus = restStatus;
     }
 
@@ -43,26 +43,26 @@ public class CreateWorkloadGroupResponse extends ActionResponse implements ToXCo
      * @param in - A {@link StreamInput} object
      */
     public CreateWorkloadGroupResponse(StreamInput in) throws IOException {
-        queryGroup = new WorkloadGroup(in);
+        workloadGroup = new WorkloadGroup(in);
         restStatus = RestStatus.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        queryGroup.writeTo(out);
+        workloadGroup.writeTo(out);
         RestStatus.writeTo(out, restStatus);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return queryGroup.toXContent(builder, params);
+        return workloadGroup.toXContent(builder, params);
     }
 
     /**
-     * queryGroup getter
+     * workloadGroup getter
      */
     public WorkloadGroup getWorkloadGroup() {
-        return queryGroup;
+        return workloadGroup;
     }
 
     /**

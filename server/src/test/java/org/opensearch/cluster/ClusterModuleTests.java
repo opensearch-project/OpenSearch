@@ -33,8 +33,8 @@
 package org.opensearch.cluster;
 
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.WorkloadGroupMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.WorkloadGroupMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -341,7 +341,8 @@ public class ClusterModuleTests extends ModuleTestCase {
         assertTrue(
             customXEntries.stream()
                 .anyMatch(
-                    entry -> entry.categoryClass == Metadata.Custom.class && entry.name.getPreferredName().equals(WorkloadGroupMetadata.TYPE)
+                    entry -> entry.categoryClass == Metadata.Custom.class
+                        && entry.name.getPreferredName().equals(WorkloadGroupMetadata.TYPE)
                 )
         );
     }

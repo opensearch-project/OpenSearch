@@ -10,8 +10,8 @@ package org.opensearch.wlm.tracker;
 
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.wlm.WorkloadGroupTask;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupTask;
 import org.opensearch.wlm.tracker.ResourceUsageCalculatorTrackerServiceTests.TestClock;
 
 import java.util.List;

@@ -9,9 +9,9 @@
 package org.opensearch.wlm.tracker;
 
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadGroupLevelResourceUsageView;
 import org.opensearch.wlm.WorkloadGroupTask;
-import org.opensearch.wlm.ResourceType;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -43,26 +43,26 @@ public class WorkloadGroupResourceUsageTrackerService {
      */
     public Map<String, WorkloadGroupLevelResourceUsageView> constructWorkloadGroupLevelUsageViews() {
         final Map<String, List<WorkloadGroupTask>> tasksByWorkloadGroup = getTasksGroupedByWorkloadGroup();
-        final Map<String, WorkloadGroupLevelResourceUsageView> queryGroupViews = new HashMap<>();
+        final Map<String, WorkloadGroupLevelResourceUsageView> workloadGroupViews = new HashMap<>();
 
         // Iterate over each WorkloadGroup entry
-        for (Map.Entry<String, List<WorkloadGroupTask>> queryGroupEntry : tasksByWorkloadGroup.entrySet()) {
+        for (Map.Entry<String, List<WorkloadGroupTask>> workloadGroupEntry : tasksByWorkloadGroup.entrySet()) {
             // refresh the resource stats
-            taskResourceTrackingService.refreshResourceStats(queryGroupEntry.getValue().toArray(new WorkloadGroupTask[0]));
+            taskResourceTrackingService.refreshResourceStats(workloadGroupEntry.getValue().toArray(new WorkloadGroupTask[0]));
             // Compute the WorkloadGroup resource usage
-            final Map<ResourceType, Double> queryGroupUsage = new EnumMap<>(ResourceType.class);
+            final Map<ResourceType, Double> workloadGroupUsage = new EnumMap<>(ResourceType.class);
             for (ResourceType resourceType : TRACKED_RESOURCES) {
-                double usage = resourceType.getResourceUsageCalculator().calculateResourceUsage(queryGroupEntry.getValue());
-                queryGroupUsage.put(resourceType, usage);
+                double usage = resourceType.getResourceUsageCalculator().calculateResourceUsage(workloadGroupEntry.getValue());
+                workloadGroupUsage.put(resourceType, usage);
             }
 
             // Add to the WorkloadGroup View
-            queryGroupViews.put(
-                queryGroupEntry.getKey(),
-                new WorkloadGroupLevelResourceUsageView(queryGroupUsage, queryGroupEntry.getValue())
+            workloadGroupViews.put(
+                workloadGroupEntry.getKey(),
+                new WorkloadGroupLevelResourceUsageView(workloadGroupUsage, workloadGroupEntry.getValue())
             );
         }
-        return queryGroupViews;
+        return workloadGroupViews;
     }
 
     /**

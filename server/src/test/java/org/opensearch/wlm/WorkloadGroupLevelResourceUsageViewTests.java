@@ -39,20 +39,20 @@ public class WorkloadGroupLevelResourceUsageViewTests extends OpenSearchTestCase
     }
 
     public void testGetResourceUsageData() {
-        WorkloadGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new WorkloadGroupLevelResourceUsageView(
+        WorkloadGroupLevelResourceUsageView workloadGroupLevelResourceUsageView = new WorkloadGroupLevelResourceUsageView(
             resourceUsage,
             activeTasks
         );
-        Map<ResourceType, Double> resourceUsageData = queryGroupLevelResourceUsageView.getResourceUsageData();
+        Map<ResourceType, Double> resourceUsageData = workloadGroupLevelResourceUsageView.getResourceUsageData();
         assertTrue(assertResourceUsageData(resourceUsageData));
     }
 
     public void testGetActiveTasks() {
-        WorkloadGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new WorkloadGroupLevelResourceUsageView(
+        WorkloadGroupLevelResourceUsageView workloadGroupLevelResourceUsageView = new WorkloadGroupLevelResourceUsageView(
             resourceUsage,
             activeTasks
         );
-        List<WorkloadGroupTask> activeTasks = queryGroupLevelResourceUsageView.getActiveTasks();
+        List<WorkloadGroupTask> activeTasks = workloadGroupLevelResourceUsageView.getActiveTasks();
         assertEquals(1, activeTasks.size());
         assertEquals(1, activeTasks.get(0).getId());
     }

@@ -31,7 +31,7 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
      */
     public void testSerializationSingleWorkloadGroup() throws IOException {
         List<WorkloadGroup> list = new ArrayList<>();
-        list.add(WorkloadGroupTestUtils.queryGroupOne);
+        list.add(WorkloadGroupTestUtils.workloadGroupOne);
         GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(list, RestStatus.OK);
         assertEquals(response.getWorkloadGroups(), list);
 
@@ -48,8 +48,8 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetWorkloadGroupResponse when the result contains multiple WorkloadGroups.
      */
     public void testSerializationMultipleWorkloadGroup() throws IOException {
-        GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(WorkloadGroupTestUtils.queryGroupList(), RestStatus.OK);
-        assertEquals(response.getWorkloadGroups(), WorkloadGroupTestUtils.queryGroupList());
+        GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(WorkloadGroupTestUtils.workloadGroupList(), RestStatus.OK);
+        assertEquals(response.getWorkloadGroups(), WorkloadGroupTestUtils.workloadGroupList());
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
@@ -82,10 +82,10 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
      * Test case to verify the toXContent of GetWorkloadGroupResponse.
      */
     public void testToXContentGetSingleWorkloadGroup() throws IOException {
-        List<WorkloadGroup> queryGroupList = new ArrayList<>();
-        queryGroupList.add(WorkloadGroupTestUtils.queryGroupOne);
+        List<WorkloadGroup> workloadGroupList = new ArrayList<>();
+        workloadGroupList.add(WorkloadGroupTestUtils.workloadGroupOne);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(queryGroupList, RestStatus.OK);
+        GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(workloadGroupList, RestStatus.OK);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
             + "  \"workload_groups\" : [\n"
@@ -107,11 +107,11 @@ public class GetWorkloadGroupResponseTests extends OpenSearchTestCase {
      * Test case to verify the toXContent of GetWorkloadGroupResponse when the result contains multiple WorkloadGroups.
      */
     public void testToXContentGetMultipleWorkloadGroup() throws IOException {
-        List<WorkloadGroup> queryGroupList = new ArrayList<>();
-        queryGroupList.add(WorkloadGroupTestUtils.queryGroupOne);
-        queryGroupList.add(WorkloadGroupTestUtils.queryGroupTwo);
+        List<WorkloadGroup> workloadGroupList = new ArrayList<>();
+        workloadGroupList.add(WorkloadGroupTestUtils.workloadGroupOne);
+        workloadGroupList.add(WorkloadGroupTestUtils.workloadGroupTwo);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(queryGroupList, RestStatus.OK);
+        GetWorkloadGroupResponse response = new GetWorkloadGroupResponse(workloadGroupList, RestStatus.OK);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
             + "  \"workload_groups\" : [\n"

@@ -54,10 +54,10 @@ import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.clusterSettings;
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.clusterSettingsSet;
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.clusterState;
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.preparePersistenceServiceSetup;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.queryGroupList;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.queryGroupOne;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.queryGroupPersistenceService;
-import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.queryGroupTwo;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupList;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupPersistenceService;
+import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupTwo;
 import static org.opensearch.plugin.wlm.action.WorkloadGroupActionTestUtils.updateWorkloadGroupRequest;
 import static org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService.QUERY_GROUP_COUNT_SETTING_NAME;
 import static org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService.SOURCE;
@@ -77,15 +77,15 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
      */
     public void testCreateWorkloadGroup() {
         Tuple<WorkloadGroupPersistenceService, ClusterState> setup = preparePersistenceServiceSetup(new HashMap<>());
-        WorkloadGroupPersistenceService queryGroupPersistenceService1 = setup.v1();
+        WorkloadGroupPersistenceService workloadGroupPersistenceService1 = setup.v1();
         ClusterState clusterState = setup.v2();
-        ClusterState newClusterState = queryGroupPersistenceService1.saveWorkloadGroupInClusterState(queryGroupOne, clusterState);
-        Map<String, WorkloadGroup> updatedGroupsMap = newClusterState.getMetadata().queryGroups();
+        ClusterState newClusterState = workloadGroupPersistenceService1.saveWorkloadGroupInClusterState(workloadGroupOne, clusterState);
+        Map<String, WorkloadGroup> updatedGroupsMap = newClusterState.getMetadata().workloadGroups();
         assertEquals(1, updatedGroupsMap.size());
         assertTrue(updatedGroupsMap.containsKey(_ID_ONE));
         List<WorkloadGroup> listOne = new ArrayList<>();
         List<WorkloadGroup> listTwo = new ArrayList<>();
-        listOne.add(queryGroupOne);
+        listOne.add(workloadGroupOne);
         listTwo.add(updatedGroupsMap.get(_ID_ONE));
         assertEqualWorkloadGroups(listOne, listTwo, false);
     }
@@ -95,30 +95,33 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
      * an existing WorkloadGroup
      */
     public void testCreateAnotherWorkloadGroup() {
-        Tuple<WorkloadGroupPersistenceService, ClusterState> setup = preparePersistenceServiceSetup(Map.of(_ID_ONE, queryGroupOne));
-        WorkloadGroupPersistenceService queryGroupPersistenceService1 = setup.v1();
+        Tuple<WorkloadGroupPersistenceService, ClusterState> setup = preparePersistenceServiceSetup(Map.of(_ID_ONE, workloadGroupOne));
+        WorkloadGroupPersistenceService workloadGroupPersistenceService1 = setup.v1();
         ClusterState clusterState = setup.v2();
-        ClusterState newClusterState = queryGroupPersistenceService1.saveWorkloadGroupInClusterState(queryGroupTwo, clusterState);
-        Map<String, WorkloadGroup> updatedGroups = newClusterState.getMetadata().queryGroups();
+        ClusterState newClusterState = workloadGroupPersistenceService1.saveWorkloadGroupInClusterState(workloadGroupTwo, clusterState);
+        Map<String, WorkloadGroup> updatedGroups = newClusterState.getMetadata().workloadGroups();
         assertEquals(2, updatedGroups.size());
         assertTrue(updatedGroups.containsKey(_ID_TWO));
         Collection<WorkloadGroup> values = updatedGroups.values();
-        assertEqualWorkloadGroups(queryGroupList(), new ArrayList<>(values), false);
+        assertEqualWorkloadGroups(workloadGroupList(), new ArrayList<>(values), false);
     }
 
     /**
      * Test case to ensure the error is thrown when we try to create another WorkloadGroup with duplicate name
      */
     public void testCreateWorkloadGroupDuplicateName() {
-        Tuple<WorkloadGroupPersistenceService, ClusterState> setup = preparePersistenceServiceSetup(Map.of(_ID_ONE, queryGroupOne));
-        WorkloadGroupPersistenceService queryGroupPersistenceService1 = setup.v1();
+        Tuple<WorkloadGroupPersistenceService, ClusterState> setup = preparePersistenceServiceSetup(Map.of(_ID_ONE, workloadGroupOne));
+        WorkloadGroupPersistenceService workloadGroupPersistenceService1 = setup.v1();
         ClusterState clusterState = setup.v2();
         WorkloadGroup toCreate = builder().name(NAME_ONE)
             ._id("W5iIqHyhgi4K1qIAAAAIHw==")
             .mutableWorkloadGroupFragment(new MutableWorkloadGroupFragment(ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.3)))
             .updatedAt(1690934400000L)
             .build();
-        assertThrows(RuntimeException.class, () -> queryGroupPersistenceService1.saveWorkloadGroupInClusterState(toCreate, clusterState));
+        assertThrows(
+            RuntimeException.class,
+            () -> workloadGroupPersistenceService1.saveWorkloadGroupInClusterState(toCreate, clusterState)
+        );
     }
 
     /**
@@ -126,16 +129,19 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
      * the total resource limits go above 1
      */
     public void testCreateWorkloadGroupOverflowAllocation() {
-        Tuple<WorkloadGroupPersistenceService, ClusterState> setup = preparePersistenceServiceSetup(Map.of(_ID_TWO, queryGroupTwo));
+        Tuple<WorkloadGroupPersistenceService, ClusterState> setup = preparePersistenceServiceSetup(Map.of(_ID_TWO, workloadGroupTwo));
         WorkloadGroup toCreate = builder().name(NAME_ONE)
             ._id("W5iIqHyhgi4K1qIAAAAIHw==")
             .mutableWorkloadGroupFragment(new MutableWorkloadGroupFragment(ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.41)))
             .updatedAt(1690934400000L)
             .build();
 
-        WorkloadGroupPersistenceService queryGroupPersistenceService1 = setup.v1();
+        WorkloadGroupPersistenceService workloadGroupPersistenceService1 = setup.v1();
         ClusterState clusterState = setup.v2();
-        assertThrows(RuntimeException.class, () -> queryGroupPersistenceService1.saveWorkloadGroupInClusterState(toCreate, clusterState));
+        assertThrows(
+            RuntimeException.class,
+            () -> workloadGroupPersistenceService1.saveWorkloadGroupInClusterState(toCreate, clusterState)
+        );
     }
 
     /**
@@ -148,17 +154,20 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             .mutableWorkloadGroupFragment(new MutableWorkloadGroupFragment(ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.5)))
             .updatedAt(1690934400000L)
             .build();
-        Metadata metadata = Metadata.builder().queryGroups(Map.of(_ID_ONE, queryGroupOne, _ID_TWO, queryGroupTwo)).build();
+        Metadata metadata = Metadata.builder().workloadGroups(Map.of(_ID_ONE, workloadGroupOne, _ID_TWO, workloadGroupTwo)).build();
         Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 2).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
         ClusterService clusterService = new ClusterService(settings, clusterSettings, mock(ThreadPool.class));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
-        WorkloadGroupPersistenceService queryGroupPersistenceService1 = new WorkloadGroupPersistenceService(
+        WorkloadGroupPersistenceService workloadGroupPersistenceService1 = new WorkloadGroupPersistenceService(
             clusterService,
             settings,
             clusterSettings
         );
-        assertThrows(RuntimeException.class, () -> queryGroupPersistenceService1.saveWorkloadGroupInClusterState(toCreate, clusterState));
+        assertThrows(
+            RuntimeException.class,
+            () -> workloadGroupPersistenceService1.saveWorkloadGroupInClusterState(toCreate, clusterState)
+        );
     }
 
     /**
@@ -168,12 +177,12 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 2).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
         ClusterService clusterService = new ClusterService(settings, clusterSettings, mock(ThreadPool.class));
-        WorkloadGroupPersistenceService queryGroupPersistenceService = new WorkloadGroupPersistenceService(
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             settings,
             clusterSettings
         );
-        assertThrows(IllegalArgumentException.class, () -> queryGroupPersistenceService.setMaxWorkloadGroupCount(-1));
+        assertThrows(IllegalArgumentException.class, () -> workloadGroupPersistenceService.setMaxWorkloadGroupCount(-1));
     }
 
     /**
@@ -182,13 +191,13 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
     public void testValidMaxSandboxCountSetting() {
         Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 100).build();
         ClusterService clusterService = new ClusterService(settings, clusterSettings(), mock(ThreadPool.class));
-        WorkloadGroupPersistenceService queryGroupPersistenceService = new WorkloadGroupPersistenceService(
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             settings,
             clusterSettings()
         );
-        queryGroupPersistenceService.setMaxWorkloadGroupCount(50);
-        assertEquals(50, queryGroupPersistenceService.getMaxWorkloadGroupCount());
+        workloadGroupPersistenceService.setMaxWorkloadGroupCount(50);
+        assertEquals(50, workloadGroupPersistenceService.getMaxWorkloadGroupCount());
     }
 
     /**
@@ -198,12 +207,12 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         @SuppressWarnings("unchecked")
         ActionListener<CreateWorkloadGroupResponse> listener = mock(ActionListener.class);
-        WorkloadGroupPersistenceService queryGroupPersistenceService = new WorkloadGroupPersistenceService(
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadGroupTestUtils.settings(),
             clusterSettings()
         );
-        queryGroupPersistenceService.persistInClusterStateMetadata(queryGroupOne, listener);
+        workloadGroupPersistenceService.persistInClusterStateMetadata(workloadGroupOne, listener);
         verify(clusterService).submitStateUpdateTask(eq(SOURCE), any());
     }
 
@@ -214,23 +223,23 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         @SuppressWarnings("unchecked")
         ActionListener<CreateWorkloadGroupResponse> listener = mock(ActionListener.class);
-        WorkloadGroupPersistenceService queryGroupPersistenceService = new WorkloadGroupPersistenceService(
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadGroupTestUtils.settings(),
             clusterSettings()
         );
         ArgumentCaptor<ClusterStateUpdateTask> captor = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        queryGroupPersistenceService.persistInClusterStateMetadata(queryGroupOne, listener);
+        workloadGroupPersistenceService.persistInClusterStateMetadata(workloadGroupOne, listener);
         verify(clusterService, times(1)).submitStateUpdateTask(eq(SOURCE), captor.capture());
         ClusterStateUpdateTask capturedTask = captor.getValue();
-        assertEquals(queryGroupPersistenceService.createWorkloadGroupThrottlingKey, capturedTask.getClusterManagerThrottlingKey());
+        assertEquals(workloadGroupPersistenceService.createWorkloadGroupThrottlingKey, capturedTask.getClusterManagerThrottlingKey());
 
         doAnswer(invocation -> {
             ClusterStateUpdateTask task = invocation.getArgument(1);
             task.clusterStateProcessed(SOURCE, mock(ClusterState.class), mock(ClusterState.class));
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any());
-        queryGroupPersistenceService.persistInClusterStateMetadata(queryGroupOne, listener);
+        workloadGroupPersistenceService.persistInClusterStateMetadata(workloadGroupOne, listener);
         verify(listener).onResponse(any(CreateWorkloadGroupResponse.class));
     }
 
@@ -241,7 +250,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         @SuppressWarnings("unchecked")
         ActionListener<CreateWorkloadGroupResponse> listener = mock(ActionListener.class);
-        WorkloadGroupPersistenceService queryGroupPersistenceService = new WorkloadGroupPersistenceService(
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadGroupTestUtils.settings(),
             clusterSettings()
@@ -252,7 +261,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             task.onFailure(SOURCE, exception);
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any());
-        queryGroupPersistenceService.persistInClusterStateMetadata(queryGroupOne, listener);
+        workloadGroupPersistenceService.persistInClusterStateMetadata(workloadGroupOne, listener);
         verify(listener).onFailure(any(RuntimeException.class));
     }
 
@@ -263,11 +272,11 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         Collection<WorkloadGroup> groupsCollections = WorkloadGroupPersistenceService.getFromClusterStateMetadata(NAME_ONE, clusterState());
         List<WorkloadGroup> groups = new ArrayList<>(groupsCollections);
         assertEquals(1, groups.size());
-        WorkloadGroup queryGroup = groups.get(0);
+        WorkloadGroup workloadGroup = groups.get(0);
         List<WorkloadGroup> listOne = new ArrayList<>();
         List<WorkloadGroup> listTwo = new ArrayList<>();
-        listOne.add(WorkloadGroupTestUtils.queryGroupOne);
-        listTwo.add(queryGroup);
+        listOne.add(WorkloadGroupTestUtils.workloadGroupOne);
+        listTwo.add(workloadGroup);
         WorkloadGroupTestUtils.assertEqualWorkloadGroups(listOne, listTwo, false);
     }
 
@@ -275,14 +284,14 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
      * Tests getting all WorkloadGroups
      */
     public void testGetAllWorkloadGroups() {
-        assertEquals(2, WorkloadGroupTestUtils.clusterState().metadata().queryGroups().size());
+        assertEquals(2, WorkloadGroupTestUtils.clusterState().metadata().workloadGroups().size());
         Collection<WorkloadGroup> groupsCollections = WorkloadGroupPersistenceService.getFromClusterStateMetadata(null, clusterState());
         List<WorkloadGroup> res = new ArrayList<>(groupsCollections);
         assertEquals(2, res.size());
         Set<String> currentNAME = res.stream().map(WorkloadGroup::getName).collect(Collectors.toSet());
         assertTrue(currentNAME.contains(WorkloadGroupTestUtils.NAME_ONE));
         assertTrue(currentNAME.contains(WorkloadGroupTestUtils.NAME_TWO));
-        WorkloadGroupTestUtils.assertEqualWorkloadGroups(WorkloadGroupTestUtils.queryGroupList(), res, false);
+        WorkloadGroupTestUtils.assertEqualWorkloadGroups(WorkloadGroupTestUtils.workloadGroupList(), res, false);
     }
 
     /**
@@ -301,22 +310,25 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
      * Tests setting maxWorkloadGroupCount
      */
     public void testMaxWorkloadGroupCount() {
-        assertThrows(IllegalArgumentException.class, () -> WorkloadGroupTestUtils.queryGroupPersistenceService().setMaxWorkloadGroupCount(-1));
-        WorkloadGroupPersistenceService queryGroupPersistenceService = WorkloadGroupTestUtils.queryGroupPersistenceService();
-        queryGroupPersistenceService.setMaxWorkloadGroupCount(50);
-        assertEquals(50, queryGroupPersistenceService.getMaxWorkloadGroupCount());
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> WorkloadGroupTestUtils.workloadGroupPersistenceService().setMaxWorkloadGroupCount(-1)
+        );
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = WorkloadGroupTestUtils.workloadGroupPersistenceService();
+        workloadGroupPersistenceService.setMaxWorkloadGroupCount(50);
+        assertEquals(50, workloadGroupPersistenceService.getMaxWorkloadGroupCount());
     }
 
     /**
      * Tests delete a single WorkloadGroup
      */
     public void testDeleteSingleWorkloadGroup() {
-        ClusterState newClusterState = queryGroupPersistenceService().deleteWorkloadGroupInClusterState(NAME_TWO, clusterState());
-        Map<String, WorkloadGroup> afterDeletionGroups = newClusterState.getMetadata().queryGroups();
+        ClusterState newClusterState = workloadGroupPersistenceService().deleteWorkloadGroupInClusterState(NAME_TWO, clusterState());
+        Map<String, WorkloadGroup> afterDeletionGroups = newClusterState.getMetadata().workloadGroups();
         assertFalse(afterDeletionGroups.containsKey(_ID_TWO));
         assertEquals(1, afterDeletionGroups.size());
         List<WorkloadGroup> oldWorkloadGroups = new ArrayList<>();
-        oldWorkloadGroups.add(queryGroupOne);
+        oldWorkloadGroups.add(workloadGroupOne);
         assertEqualWorkloadGroups(new ArrayList<>(afterDeletionGroups.values()), oldWorkloadGroups, false);
     }
 
@@ -326,7 +338,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
     public void testDeleteNonExistedWorkloadGroup() {
         assertThrows(
             ResourceNotFoundException.class,
-            () -> queryGroupPersistenceService().deleteWorkloadGroupInClusterState(NAME_NONE_EXISTED, clusterState())
+            () -> workloadGroupPersistenceService().deleteWorkloadGroupInClusterState(NAME_NONE_EXISTED, clusterState())
         );
     }
 
@@ -339,7 +351,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ClusterService clusterService = mock(ClusterService.class);
 
         ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
-        WorkloadGroupPersistenceService queryGroupPersistenceService = new WorkloadGroupPersistenceService(
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadGroupTestUtils.settings(),
             clusterSettings()
@@ -349,12 +361,12 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             ClusterState initialState = clusterState();
             ClusterState newState = task.execute(initialState);
             assertNotNull(newState);
-            assertEquals(queryGroupPersistenceService.deleteWorkloadGroupThrottlingKey, task.getClusterManagerThrottlingKey());
+            assertEquals(workloadGroupPersistenceService.deleteWorkloadGroupThrottlingKey, task.getClusterManagerThrottlingKey());
             task.onAllNodesAcked(null);
             verify(listener).onResponse(argThat(response -> response.isAcknowledged()));
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any());
-        queryGroupPersistenceService.deleteInClusterStateMetadata(request, listener);
+        workloadGroupPersistenceService.deleteInClusterStateMetadata(request, listener);
         verify(clusterService).submitStateUpdateTask(eq(SOURCE), any(AckedClusterStateUpdateTask.class));
     }
 
@@ -367,15 +379,18 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             .mutableWorkloadGroupFragment(new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(ResourceType.MEMORY, 0.15)))
             .updatedAt(1690934400000L)
             .build();
-        UpdateWorkloadGroupRequest updateWorkloadGroupRequest = updateWorkloadGroupRequest(NAME_ONE, updated.getMutableWorkloadGroupFragment());
-        ClusterState newClusterState = queryGroupPersistenceService().updateWorkloadGroupInClusterState(
+        UpdateWorkloadGroupRequest updateWorkloadGroupRequest = updateWorkloadGroupRequest(
+            NAME_ONE,
+            updated.getMutableWorkloadGroupFragment()
+        );
+        ClusterState newClusterState = workloadGroupPersistenceService().updateWorkloadGroupInClusterState(
             updateWorkloadGroupRequest,
             clusterState()
         );
-        List<WorkloadGroup> updatedWorkloadGroups = new ArrayList<>(newClusterState.getMetadata().queryGroups().values());
+        List<WorkloadGroup> updatedWorkloadGroups = new ArrayList<>(newClusterState.getMetadata().workloadGroups().values());
         assertEquals(2, updatedWorkloadGroups.size());
         List<WorkloadGroup> expectedList = new ArrayList<>();
-        expectedList.add(queryGroupTwo);
+        expectedList.add(workloadGroupTwo);
         expectedList.add(updated);
         assertEqualWorkloadGroups(expectedList, updatedWorkloadGroups, true);
     }
@@ -389,21 +404,24 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             .mutableWorkloadGroupFragment(new MutableWorkloadGroupFragment(ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.15)))
             .updatedAt(1690934400000L)
             .build();
-        UpdateWorkloadGroupRequest updateWorkloadGroupRequest = updateWorkloadGroupRequest(NAME_ONE, updated.getMutableWorkloadGroupFragment());
-        ClusterState newClusterState = queryGroupPersistenceService().updateWorkloadGroupInClusterState(
+        UpdateWorkloadGroupRequest updateWorkloadGroupRequest = updateWorkloadGroupRequest(
+            NAME_ONE,
+            updated.getMutableWorkloadGroupFragment()
+        );
+        ClusterState newClusterState = workloadGroupPersistenceService().updateWorkloadGroupInClusterState(
             updateWorkloadGroupRequest,
             clusterState()
         );
-        List<WorkloadGroup> updatedWorkloadGroups = new ArrayList<>(newClusterState.getMetadata().queryGroups().values());
+        List<WorkloadGroup> updatedWorkloadGroups = new ArrayList<>(newClusterState.getMetadata().workloadGroups().values());
         assertEquals(2, updatedWorkloadGroups.size());
         Optional<WorkloadGroup> findUpdatedGroupOne = newClusterState.metadata()
-            .queryGroups()
+            .workloadGroups()
             .values()
             .stream()
             .filter(group -> group.getName().equals(NAME_ONE))
             .findFirst();
         Optional<WorkloadGroup> findUpdatedGroupTwo = newClusterState.metadata()
-            .queryGroups()
+            .workloadGroups()
             .values()
             .stream()
             .filter(group -> group.getName().equals(NAME_TWO))
@@ -421,22 +439,22 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
      * Tests updating a WorkloadGroup with invalid name
      */
     public void testUpdateWorkloadGroupNonExistedName() {
-        WorkloadGroupPersistenceService queryGroupPersistenceService = queryGroupPersistenceService();
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = workloadGroupPersistenceService();
         UpdateWorkloadGroupRequest updateWorkloadGroupRequest = updateWorkloadGroupRequest(
             NAME_NONE_EXISTED,
             new MutableWorkloadGroupFragment(ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.15))
         );
         assertThrows(
             RuntimeException.class,
-            () -> queryGroupPersistenceService.updateWorkloadGroupInClusterState(updateWorkloadGroupRequest, clusterState())
+            () -> workloadGroupPersistenceService.updateWorkloadGroupInClusterState(updateWorkloadGroupRequest, clusterState())
         );
         List<WorkloadGroup> updatedWorkloadGroups = new ArrayList<>(
-            queryGroupPersistenceService.getClusterService().state().metadata().queryGroups().values()
+            workloadGroupPersistenceService.getClusterService().state().metadata().workloadGroups().values()
         );
         assertEquals(2, updatedWorkloadGroups.size());
         List<WorkloadGroup> expectedList = new ArrayList<>();
-        expectedList.add(queryGroupTwo);
-        expectedList.add(queryGroupOne);
+        expectedList.add(workloadGroupTwo);
+        expectedList.add(workloadGroupOne);
         assertEqualWorkloadGroups(expectedList, updatedWorkloadGroups, true);
     }
 
@@ -447,12 +465,12 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         @SuppressWarnings("unchecked")
         ActionListener<UpdateWorkloadGroupResponse> listener = mock(ActionListener.class);
-        WorkloadGroupPersistenceService queryGroupPersistenceService = new WorkloadGroupPersistenceService(
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadGroupTestUtils.settings(),
             clusterSettings()
         );
-        queryGroupPersistenceService.updateInClusterStateMetadata(null, listener);
+        workloadGroupPersistenceService.updateInClusterStateMetadata(null, listener);
         verify(clusterService).submitStateUpdateTask(eq(SOURCE), any());
     }
 
@@ -463,7 +481,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         @SuppressWarnings("unchecked")
         ActionListener<UpdateWorkloadGroupResponse> listener = mock(ActionListener.class);
-        WorkloadGroupPersistenceService queryGroupPersistenceService = new WorkloadGroupPersistenceService(
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadGroupTestUtils.settings(),
             clusterSettings()
@@ -473,17 +491,17 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             new MutableWorkloadGroupFragment(ResiliencyMode.SOFT, new HashMap<>())
         );
         ArgumentCaptor<ClusterStateUpdateTask> captor = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        queryGroupPersistenceService.updateInClusterStateMetadata(updateWorkloadGroupRequest, listener);
+        workloadGroupPersistenceService.updateInClusterStateMetadata(updateWorkloadGroupRequest, listener);
         verify(clusterService, times(1)).submitStateUpdateTask(eq(SOURCE), captor.capture());
         ClusterStateUpdateTask capturedTask = captor.getValue();
-        assertEquals(queryGroupPersistenceService.updateWorkloadGroupThrottlingKey, capturedTask.getClusterManagerThrottlingKey());
+        assertEquals(workloadGroupPersistenceService.updateWorkloadGroupThrottlingKey, capturedTask.getClusterManagerThrottlingKey());
 
         doAnswer(invocation -> {
             ClusterStateUpdateTask task = invocation.getArgument(1);
             task.clusterStateProcessed(SOURCE, clusterState(), clusterState());
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any());
-        queryGroupPersistenceService.updateInClusterStateMetadata(updateWorkloadGroupRequest, listener);
+        workloadGroupPersistenceService.updateInClusterStateMetadata(updateWorkloadGroupRequest, listener);
         verify(listener).onResponse(any(UpdateWorkloadGroupResponse.class));
     }
 
@@ -494,7 +512,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         @SuppressWarnings("unchecked")
         ActionListener<UpdateWorkloadGroupResponse> listener = mock(ActionListener.class);
-        WorkloadGroupPersistenceService queryGroupPersistenceService = new WorkloadGroupPersistenceService(
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadGroupTestUtils.settings(),
             clusterSettings()
@@ -509,7 +527,7 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
             task.onFailure(SOURCE, exception);
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any());
-        queryGroupPersistenceService.updateInClusterStateMetadata(updateWorkloadGroupRequest, listener);
+        workloadGroupPersistenceService.updateInClusterStateMetadata(updateWorkloadGroupRequest, listener);
         verify(listener).onFailure(any(RuntimeException.class));
     }
 }

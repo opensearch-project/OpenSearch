@@ -15,34 +15,34 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class WorkloadGroupStateTests extends OpenSearchTestCase {
-    WorkloadGroupState queryGroupState;
+    WorkloadGroupState workloadGroupState;
 
     public void testRandomWorkloadGroupsStateUpdates() {
-        queryGroupState = new WorkloadGroupState();
+        workloadGroupState = new WorkloadGroupState();
         List<Thread> updaterThreads = new ArrayList<>();
 
         for (int i = 0; i < 25; i++) {
             if (i % 5 == 0) {
-                updaterThreads.add(new Thread(() -> { queryGroupState.totalCompletions.inc(); }));
+                updaterThreads.add(new Thread(() -> { workloadGroupState.totalCompletions.inc(); }));
             } else if (i % 5 == 1) {
                 updaterThreads.add(new Thread(() -> {
-                    queryGroupState.totalRejections.inc();
+                    workloadGroupState.totalRejections.inc();
                     if (randomBoolean()) {
-                        queryGroupState.getResourceState().get(ResourceType.CPU).rejections.inc();
+                        workloadGroupState.getResourceState().get(ResourceType.CPU).rejections.inc();
                     } else {
-                        queryGroupState.getResourceState().get(ResourceType.MEMORY).rejections.inc();
+                        workloadGroupState.getResourceState().get(ResourceType.MEMORY).rejections.inc();
                     }
                 }));
             } else if (i % 5 == 2) {
-                updaterThreads.add(new Thread(() -> queryGroupState.failures.inc()));
+                updaterThreads.add(new Thread(() -> workloadGroupState.failures.inc()));
             } else if (i % 5 == 3) {
-                updaterThreads.add(new Thread(() -> queryGroupState.getResourceState().get(ResourceType.CPU).cancellations.inc()));
+                updaterThreads.add(new Thread(() -> workloadGroupState.getResourceState().get(ResourceType.CPU).cancellations.inc()));
             } else {
-                updaterThreads.add(new Thread(() -> queryGroupState.getResourceState().get(ResourceType.MEMORY).cancellations.inc()));
+                updaterThreads.add(new Thread(() -> workloadGroupState.getResourceState().get(ResourceType.MEMORY).cancellations.inc()));
             }
 
             if (i % 5 == 3 || i % 5 == 4) {
-                updaterThreads.add(new Thread(() -> queryGroupState.totalCancellations.inc()));
+                updaterThreads.add(new Thread(() -> workloadGroupState.totalCancellations.inc()));
             }
         }
 
@@ -57,17 +57,17 @@ public class WorkloadGroupStateTests extends OpenSearchTestCase {
             }
         });
 
-        assertEquals(5, queryGroupState.getTotalCompletions());
-        assertEquals(5, queryGroupState.getTotalRejections());
+        assertEquals(5, workloadGroupState.getTotalCompletions());
+        assertEquals(5, workloadGroupState.getTotalRejections());
 
-        final long sumOfRejectionsDueToResourceTypes = queryGroupState.getResourceState().get(ResourceType.CPU).rejections.count()
-            + queryGroupState.getResourceState().get(ResourceType.MEMORY).rejections.count();
-        assertEquals(sumOfRejectionsDueToResourceTypes, queryGroupState.getTotalRejections());
+        final long sumOfRejectionsDueToResourceTypes = workloadGroupState.getResourceState().get(ResourceType.CPU).rejections.count()
+            + workloadGroupState.getResourceState().get(ResourceType.MEMORY).rejections.count();
+        assertEquals(sumOfRejectionsDueToResourceTypes, workloadGroupState.getTotalRejections());
 
-        assertEquals(5, queryGroupState.getFailures());
-        assertEquals(10, queryGroupState.getTotalCancellations());
-        assertEquals(5, queryGroupState.getResourceState().get(ResourceType.CPU).cancellations.count());
-        assertEquals(5, queryGroupState.getResourceState().get(ResourceType.MEMORY).cancellations.count());
+        assertEquals(5, workloadGroupState.getFailures());
+        assertEquals(10, workloadGroupState.getTotalCancellations());
+        assertEquals(5, workloadGroupState.getResourceState().get(ResourceType.CPU).cancellations.count());
+        assertEquals(5, workloadGroupState.getResourceState().get(ResourceType.MEMORY).cancellations.count());
     }
 
 }

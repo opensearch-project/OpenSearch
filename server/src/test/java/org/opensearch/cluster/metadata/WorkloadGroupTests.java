@@ -125,7 +125,10 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testWorkloadGroupInitiation() {
-        WorkloadGroup workloadGroup = new WorkloadGroup("analytics", new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, 0.4)));
+        WorkloadGroup workloadGroup = new WorkloadGroup(
+            "analytics",
+            new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, 0.4))
+        );
         assertNotNull(workloadGroup.getName());
         assertNotNull(workloadGroup.get_id());
         assertNotNull(workloadGroup.getResourceLimits());

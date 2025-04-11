@@ -56,11 +56,11 @@ public class WorkloadGroupPersistenceService {
      */
     public static final String QUERY_GROUP_COUNT_SETTING_NAME = "node.workload_group.max_count";
     /**
-     * default max queryGroup count on any node at any given point in time
+     * default max workloadGroup count on any node at any given point in time
      */
     private static final int DEFAULT_MAX_QUERY_GROUP_COUNT_VALUE = 100;
     /**
-     * min queryGroup count on any node at any given point in time
+     * min workloadGroup count on any node at any given point in time
      */
     private static final int MIN_QUERY_GROUP_COUNT_VALUE = 1;
     /**
@@ -122,14 +122,14 @@ public class WorkloadGroupPersistenceService {
 
     /**
      * Update cluster state to include the new WorkloadGroup
-     * @param queryGroup {@link WorkloadGroup} - the WorkloadGroup we're currently creating
+     * @param workloadGroup {@link WorkloadGroup} - the WorkloadGroup we're currently creating
      * @param listener - ActionListener for CreateWorkloadGroupResponse
      */
-    public void persistInClusterStateMetadata(WorkloadGroup queryGroup, ActionListener<CreateWorkloadGroupResponse> listener) {
+    public void persistInClusterStateMetadata(WorkloadGroup workloadGroup, ActionListener<CreateWorkloadGroupResponse> listener) {
         clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask(Priority.NORMAL) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return saveWorkloadGroupInClusterState(queryGroup, currentState);
+                return saveWorkloadGroupInClusterState(workloadGroup, currentState);
             }
 
             @Override
@@ -145,7 +145,7 @@ public class WorkloadGroupPersistenceService {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                CreateWorkloadGroupResponse response = new CreateWorkloadGroupResponse(queryGroup, RestStatus.OK);
+                CreateWorkloadGroupResponse response = new CreateWorkloadGroupResponse(workloadGroup, RestStatus.OK);
                 listener.onResponse(response);
             }
         });
@@ -153,12 +153,12 @@ public class WorkloadGroupPersistenceService {
 
     /**
      * This method will be executed before we submit the new cluster state
-     * @param queryGroup - the WorkloadGroup we're currently creating
+     * @param workloadGroup - the WorkloadGroup we're currently creating
      * @param currentClusterState - the cluster state before the update
      */
-    ClusterState saveWorkloadGroupInClusterState(final WorkloadGroup queryGroup, final ClusterState currentClusterState) {
-        final Map<String, WorkloadGroup> existingWorkloadGroups = currentClusterState.metadata().queryGroups();
-        String groupName = queryGroup.getName();
+    ClusterState saveWorkloadGroupInClusterState(final WorkloadGroup workloadGroup, final ClusterState currentClusterState) {
+        final Map<String, WorkloadGroup> existingWorkloadGroups = currentClusterState.metadata().workloadGroups();
+        String groupName = workloadGroup.getName();
 
         // check if maxWorkloadGroupCount will breach
         if (existingWorkloadGroups.size() == maxWorkloadGroupCount) {
@@ -177,10 +177,10 @@ public class WorkloadGroupPersistenceService {
         }
 
         // check if there's any resource allocation that exceed limit of 1.0
-        validateTotalUsage(existingWorkloadGroups, groupName, queryGroup.getResourceLimits());
+        validateTotalUsage(existingWorkloadGroups, groupName, workloadGroup.getResourceLimits());
 
         return ClusterState.builder(currentClusterState)
-            .metadata(Metadata.builder(currentClusterState.metadata()).put(queryGroup).build())
+            .metadata(Metadata.builder(currentClusterState.metadata()).put(workloadGroup).build())
             .build();
     }
 
@@ -190,7 +190,7 @@ public class WorkloadGroupPersistenceService {
      * @param currentState - current cluster state
      */
     public static Collection<WorkloadGroup> getFromClusterStateMetadata(String name, ClusterState currentState) {
-        final Map<String, WorkloadGroup> currentGroups = currentState.getMetadata().queryGroups();
+        final Map<String, WorkloadGroup> currentGroups = currentState.getMetadata().workloadGroups();
         if (name == null || name.isEmpty()) {
             return currentGroups.values();
         }
@@ -236,14 +236,14 @@ public class WorkloadGroupPersistenceService {
      */
     ClusterState deleteWorkloadGroupInClusterState(final String name, final ClusterState currentClusterState) {
         final Metadata metadata = currentClusterState.metadata();
-        final WorkloadGroup queryGroupToRemove = metadata.queryGroups()
+        final WorkloadGroup workloadGroupToRemove = metadata.workloadGroups()
             .values()
             .stream()
-            .filter(queryGroup -> queryGroup.getName().equals(name))
+            .filter(workloadGroup -> workloadGroup.getName().equals(name))
             .findAny()
             .orElseThrow(() -> new ResourceNotFoundException("No WorkloadGroup exists with the provided name: " + name));
 
-        return ClusterState.builder(currentClusterState).metadata(Metadata.builder(metadata).remove(queryGroupToRemove).build()).build();
+        return ClusterState.builder(currentClusterState).metadata(Metadata.builder(metadata).remove(workloadGroupToRemove).build()).build();
     }
 
     /**
@@ -251,7 +251,10 @@ public class WorkloadGroupPersistenceService {
      * @param toUpdateGroup {@link WorkloadGroup} - the WorkloadGroup that we want to update
      * @param listener - ActionListener for UpdateWorkloadGroupResponse
      */
-    public void updateInClusterStateMetadata(UpdateWorkloadGroupRequest toUpdateGroup, ActionListener<UpdateWorkloadGroupResponse> listener) {
+    public void updateInClusterStateMetadata(
+        UpdateWorkloadGroupRequest toUpdateGroup,
+        ActionListener<UpdateWorkloadGroupResponse> listener
+    ) {
         clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask(Priority.NORMAL) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -273,7 +276,7 @@ public class WorkloadGroupPersistenceService {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 String name = toUpdateGroup.getName();
                 Optional<WorkloadGroup> findUpdatedGroup = newState.metadata()
-                    .queryGroups()
+                    .workloadGroups()
                     .values()
                     .stream()
                     .filter(group -> group.getName().equals(name))
@@ -293,7 +296,7 @@ public class WorkloadGroupPersistenceService {
      */
     ClusterState updateWorkloadGroupInClusterState(UpdateWorkloadGroupRequest updateWorkloadGroupRequest, ClusterState currentState) {
         final Metadata metadata = currentState.metadata();
-        final Map<String, WorkloadGroup> existingGroups = currentState.metadata().queryGroups();
+        final Map<String, WorkloadGroup> existingGroups = currentState.metadata().workloadGroups();
         String name = updateWorkloadGroupRequest.getName();
         MutableWorkloadGroupFragment mutableWorkloadGroupFragment = updateWorkloadGroupRequest.getmMutableWorkloadGroupFragment();
 
@@ -319,7 +322,11 @@ public class WorkloadGroupPersistenceService {
      * @param existingWorkloadGroups - existing WorkloadGroups in the system
      * @param resourceLimits - the WorkloadGroup we're creating or updating
      */
-    private void validateTotalUsage(Map<String, WorkloadGroup> existingWorkloadGroups, String name, Map<ResourceType, Double> resourceLimits) {
+    private void validateTotalUsage(
+        Map<String, WorkloadGroup> existingWorkloadGroups,
+        String name,
+        Map<ResourceType, Double> resourceLimits
+    ) {
         if (resourceLimits == null || resourceLimits.isEmpty()) {
             return;
         }

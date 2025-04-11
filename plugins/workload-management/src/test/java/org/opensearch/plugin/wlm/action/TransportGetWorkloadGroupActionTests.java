@@ -40,7 +40,11 @@ public class TransportGetWorkloadGroupActionTests extends OpenSearchTestCase {
         );
         assertThrows(
             ResourceNotFoundException.class,
-            () -> transportGetWorkloadGroupAction.clusterManagerOperation(getWorkloadGroupRequest1, clusterState(), mock(ActionListener.class))
+            () -> transportGetWorkloadGroupAction.clusterManagerOperation(
+                getWorkloadGroupRequest1,
+                clusterState(),
+                mock(ActionListener.class)
+            )
         );
         transportGetWorkloadGroupAction.clusterManagerOperation(getWorkloadGroupRequest2, clusterState(), mock(ActionListener.class));
     }

@@ -46,7 +46,7 @@ public class WorkloadGroupTestUtils {
     public static final String NAME_NONE_EXISTED = "workload_group_none_existed";
     public static final long TIMESTAMP_ONE = 4513232413L;
     public static final long TIMESTAMP_TWO = 4513232415L;
-    public static final WorkloadGroup queryGroupOne = builder().name(NAME_ONE)
+    public static final WorkloadGroup workloadGroupOne = builder().name(NAME_ONE)
         ._id(_ID_ONE)
         .mutableWorkloadGroupFragment(
             new MutableWorkloadGroupFragment(MutableWorkloadGroupFragment.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.3))
@@ -54,7 +54,7 @@ public class WorkloadGroupTestUtils {
         .updatedAt(TIMESTAMP_ONE)
         .build();
 
-    public static final WorkloadGroup queryGroupTwo = builder().name(NAME_TWO)
+    public static final WorkloadGroup workloadGroupTwo = builder().name(NAME_TWO)
         ._id(_ID_TWO)
         .mutableWorkloadGroupFragment(
             new MutableWorkloadGroupFragment(MutableWorkloadGroupFragment.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.6))
@@ -62,15 +62,15 @@ public class WorkloadGroupTestUtils {
         .updatedAt(TIMESTAMP_TWO)
         .build();
 
-    public static List<WorkloadGroup> queryGroupList() {
+    public static List<WorkloadGroup> workloadGroupList() {
         List<WorkloadGroup> list = new ArrayList<>();
-        list.add(queryGroupOne);
-        list.add(queryGroupTwo);
+        list.add(workloadGroupOne);
+        list.add(workloadGroupTwo);
         return list;
     }
 
     public static ClusterState clusterState() {
-        final Metadata metadata = Metadata.builder().queryGroups(Map.of(_ID_ONE, queryGroupOne, _ID_TWO, queryGroupTwo)).build();
+        final Metadata metadata = Metadata.builder().workloadGroups(Map.of(_ID_ONE, workloadGroupOne, _ID_TWO, workloadGroupTwo)).build();
         return ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
     }
 
@@ -89,7 +89,7 @@ public class WorkloadGroupTestUtils {
         return new ClusterSettings(settings(), clusterSettingsSet());
     }
 
-    public static WorkloadGroupPersistenceService queryGroupPersistenceService() {
+    public static WorkloadGroupPersistenceService workloadGroupPersistenceService() {
         ClusterApplierService clusterApplierService = new ClusterApplierService(
             "name",
             settings(),
@@ -106,8 +106,10 @@ public class WorkloadGroupTestUtils {
         return new WorkloadGroupPersistenceService(clusterService, settings(), clusterSettings());
     }
 
-    public static Tuple<WorkloadGroupPersistenceService, ClusterState> preparePersistenceServiceSetup(Map<String, WorkloadGroup> queryGroups) {
-        Metadata metadata = Metadata.builder().queryGroups(queryGroups).build();
+    public static Tuple<WorkloadGroupPersistenceService, ClusterState> preparePersistenceServiceSetup(
+        Map<String, WorkloadGroup> workloadGroups
+    ) {
+        Metadata metadata = Metadata.builder().workloadGroups(workloadGroups).build();
         Settings settings = Settings.builder().build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
@@ -124,12 +126,12 @@ public class WorkloadGroupTestUtils {
             mock(ClusterManagerService.class),
             clusterApplierService
         );
-        WorkloadGroupPersistenceService queryGroupPersistenceService = new WorkloadGroupPersistenceService(
+        WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             settings,
             clusterSettings
         );
-        return new Tuple<WorkloadGroupPersistenceService, ClusterState>(queryGroupPersistenceService, clusterState);
+        return new Tuple<WorkloadGroupPersistenceService, ClusterState>(workloadGroupPersistenceService, clusterState);
     }
 
     public static void assertEqualResourceLimits(

@@ -32,7 +32,7 @@ import static org.opensearch.cluster.metadata.Metadata.ALL_CONTEXTS;
  * This class holds the WorkloadGroupMetadata
  * sample schema
  * {
- *     "queryGroups": {
+ *     "workloadGroup": {
  *         "_id": {
  *             {@link WorkloadGroup}
  *         },
@@ -54,7 +54,7 @@ public class WorkloadGroupMetadata implements Metadata.Custom {
         this.workloadGroups = in.readMap(StreamInput::readString, WorkloadGroup::new);
     }
 
-    public Map<String, WorkloadGroup> queryGroups() {
+    public Map<String, WorkloadGroup> workloadGroups() {
         return this.workloadGroups;
     }
 
@@ -88,7 +88,7 @@ public class WorkloadGroupMetadata implements Metadata.Custom {
     }
 
     public static WorkloadGroupMetadata fromXContent(XContentParser parser) throws IOException {
-        Map<String, WorkloadGroup> queryGroupMap = new HashMap<>();
+        Map<String, WorkloadGroup> workloadGroupMap = new HashMap<>();
 
         if (parser.currentToken() == null) {
             parser.nextToken();
@@ -105,12 +105,12 @@ public class WorkloadGroupMetadata implements Metadata.Custom {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else {
-                WorkloadGroup queryGroup = WorkloadGroup.fromXContent(parser);
-                queryGroupMap.put(fieldName, queryGroup);
+                WorkloadGroup workloadGroup = WorkloadGroup.fromXContent(parser);
+                workloadGroupMap.put(fieldName, workloadGroup);
             }
         }
 
-        return new WorkloadGroupMetadata(queryGroupMap);
+        return new WorkloadGroupMetadata(workloadGroupMap);
     }
 
     @Override

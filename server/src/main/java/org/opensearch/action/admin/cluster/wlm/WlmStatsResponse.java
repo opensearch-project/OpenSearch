@@ -17,8 +17,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.wlm.stats.WorkloadGroupStats;
 import org.opensearch.wlm.stats.WlmStats;
+import org.opensearch.wlm.stats.WorkloadGroupStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,8 +51,8 @@ public class WlmStatsResponse extends BaseNodesResponse<WlmStats> implements ToX
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (WlmStats wlmStats : getNodes()) {
             builder.startObject(wlmStats.getNode().getId());
-            WorkloadGroupStats queryGroupStats = wlmStats.getWorkloadGroupStats();
-            queryGroupStats.toXContent(builder, params);
+            WorkloadGroupStats workloadGroupStats = wlmStats.getWorkloadGroupStats();
+            workloadGroupStats.toXContent(builder, params);
             builder.endObject();
         }
         return builder;

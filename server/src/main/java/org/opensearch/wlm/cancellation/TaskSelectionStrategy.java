@@ -8,8 +8,8 @@
 
 package org.opensearch.wlm.cancellation;
 
-import org.opensearch.wlm.WorkloadGroupTask;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.List;
 

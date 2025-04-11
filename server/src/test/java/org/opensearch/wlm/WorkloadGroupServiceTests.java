@@ -22,8 +22,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
 import org.opensearch.wlm.cancellation.TaskSelectionStrategy;
+import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
 import org.opensearch.wlm.stats.WorkloadGroupState;
 import org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService;
 
@@ -48,8 +48,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class WorkloadGroupServiceTests extends OpenSearchTestCase {
-    public static final String QUERY_GROUP_ID = "queryGroupId1";
-    private WorkloadGroupService queryGroupService;
+    public static final String WORKLOAD_GROUP_ID = "workloadGroupId1";
+    private WorkloadGroupService workloadGroupService;
     private WorkloadGroupTaskCancellationService mockCancellationService;
     private ClusterService mockClusterService;
     private ThreadPool mockThreadPool;
@@ -71,7 +71,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor();
         when(mockNodeDuressTrackers.isNodeInDuress()).thenReturn(false);
 
-        queryGroupService = new WorkloadGroupService(
+        workloadGroupService = new WorkloadGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
@@ -115,29 +115,29 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         when(mockClusterChangedEvent.state()).thenReturn(mockClusterState);
         when(mockPreviousClusterState.metadata()).thenReturn(mockPreviousMetadata);
         when(mockClusterState.metadata()).thenReturn(mockMetadata);
-        when(mockPreviousMetadata.queryGroups()).thenReturn(previousWorkloadGroups);
-        when(mockMetadata.queryGroups()).thenReturn(currentWorkloadGroups);
-        queryGroupService.clusterChanged(mockClusterChangedEvent);
+        when(mockPreviousMetadata.workloadGroups()).thenReturn(previousWorkloadGroups);
+        when(mockMetadata.workloadGroups()).thenReturn(currentWorkloadGroups);
+        workloadGroupService.clusterChanged(mockClusterChangedEvent);
 
         Set<WorkloadGroup> currentWorkloadGroupsExpected = Set.of(currentWorkloadGroups.get("4241"));
         Set<WorkloadGroup> previousWorkloadGroupsExpected = Set.of(previousWorkloadGroups.get("4242"));
 
-        assertEquals(currentWorkloadGroupsExpected, queryGroupService.getActiveWorkloadGroups());
-        assertEquals(previousWorkloadGroupsExpected, queryGroupService.getDeletedWorkloadGroups());
+        assertEquals(currentWorkloadGroupsExpected, workloadGroupService.getActiveWorkloadGroups());
+        assertEquals(previousWorkloadGroupsExpected, workloadGroupService.getDeletedWorkloadGroups());
     }
 
     public void testDoStart_SchedulesTask() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         when(mockWorkloadManagementSettings.getWorkloadGroupServiceRunInterval()).thenReturn(TimeValue.timeValueSeconds(1));
-        queryGroupService.doStart();
+        workloadGroupService.doStart();
         Mockito.verify(mockThreadPool).scheduleWithFixedDelay(any(Runnable.class), any(TimeValue.class), eq(ThreadPool.Names.GENERIC));
     }
 
     public void testDoStop_CancelsScheduledTask() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         when(mockThreadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(mockScheduledFuture);
-        queryGroupService.doStart();
-        queryGroupService.doStop();
+        workloadGroupService.doStart();
+        workloadGroupService.doStop();
         Mockito.verify(mockScheduledFuture).cancel();
     }
 
@@ -145,7 +145,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         when(mockNodeDuressTrackers.isNodeInDuress()).thenReturn(true);
         // Call the method
-        queryGroupService.doRun();
+        workloadGroupService.doRun();
 
         // Verify that refreshWorkloadGroups was called
 
@@ -162,7 +162,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testDoRun_WhenModeDisabled() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
         when(mockNodeDuressTrackers.isNodeInDuress()).thenReturn(false);
-        queryGroupService.doRun();
+        workloadGroupService.doRun();
         // Verify that refreshWorkloadGroups was called
 
         Mockito.verify(mockCancellationService, never()).cancelTasks(any(), any(), any());
@@ -172,7 +172,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testRejectIfNeeded_whenWorkloadGroupIdIsNullOrDefaultOne() {
         WorkloadGroup testWorkloadGroup = new WorkloadGroup(
             "testWorkloadGroup",
-            "queryGroupId1",
+            "workloadGroupId1",
             new MutableWorkloadGroupFragment(MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.10)),
             1L
         );
@@ -183,11 +183,11 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         };
         mockWorkloadGroupStateMap = new HashMap<>();
         mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
-        mockWorkloadGroupStateMap.put("queryGroupId1", new WorkloadGroupState());
+        mockWorkloadGroupStateMap.put("workloadGroupId1", new WorkloadGroupState());
 
         Map<String, WorkloadGroupState> spyMap = spy(mockWorkloadGroupStateMap);
 
-        queryGroupService = new WorkloadGroupService(
+        workloadGroupService = new WorkloadGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
@@ -197,33 +197,33 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
             activeWorkloadGroups,
             new HashSet<>()
         );
-        queryGroupService.rejectIfNeeded(null);
+        workloadGroupService.rejectIfNeeded(null);
 
         verify(spyMap, never()).get(any());
 
-        queryGroupService.rejectIfNeeded(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get());
+        workloadGroupService.rejectIfNeeded(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get());
         verify(spyMap, never()).get(any());
     }
 
     public void testRejectIfNeeded_whenSoftModeWorkloadGroupIsContendedAndNodeInDuress() {
         Set<WorkloadGroup> activeWorkloadGroups = getActiveWorkloadGroups(
             "testWorkloadGroup",
-            QUERY_GROUP_ID,
+            WORKLOAD_GROUP_ID,
             MutableWorkloadGroupFragment.ResiliencyMode.SOFT,
             Map.of(ResourceType.CPU, 0.10)
         );
         mockWorkloadGroupStateMap = new HashMap<>();
-        mockWorkloadGroupStateMap.put("queryGroupId1", new WorkloadGroupState());
+        mockWorkloadGroupStateMap.put("workloadGroupId1", new WorkloadGroupState());
         WorkloadGroupState state = new WorkloadGroupState();
         WorkloadGroupState.ResourceTypeState cpuResourceState = new WorkloadGroupState.ResourceTypeState(ResourceType.CPU);
         cpuResourceState.setLastRecordedUsage(0.10);
         state.getResourceState().put(ResourceType.CPU, cpuResourceState);
         WorkloadGroupState spyState = spy(state);
-        mockWorkloadGroupStateMap.put(QUERY_GROUP_ID, spyState);
+        mockWorkloadGroupStateMap.put(WORKLOAD_GROUP_ID, spyState);
 
         mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
 
-        queryGroupService = new WorkloadGroupService(
+        workloadGroupService = new WorkloadGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
@@ -235,23 +235,23 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         );
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         when(mockNodeDuressTrackers.isNodeInDuress()).thenReturn(true);
-        assertThrows(OpenSearchRejectedExecutionException.class, () -> queryGroupService.rejectIfNeeded("queryGroupId1"));
+        assertThrows(OpenSearchRejectedExecutionException.class, () -> workloadGroupService.rejectIfNeeded("workloadGroupId1"));
     }
 
     public void testRejectIfNeeded_whenWorkloadGroupIsSoftMode() {
         Set<WorkloadGroup> activeWorkloadGroups = getActiveWorkloadGroups(
             "testWorkloadGroup",
-            QUERY_GROUP_ID,
+            WORKLOAD_GROUP_ID,
             MutableWorkloadGroupFragment.ResiliencyMode.SOFT,
             Map.of(ResourceType.CPU, 0.10)
         );
         mockWorkloadGroupStateMap = new HashMap<>();
         WorkloadGroupState spyState = spy(new WorkloadGroupState());
-        mockWorkloadGroupStateMap.put("queryGroupId1", spyState);
+        mockWorkloadGroupStateMap.put("workloadGroupId1", spyState);
 
         mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
 
-        queryGroupService = new WorkloadGroupService(
+        workloadGroupService = new WorkloadGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
@@ -261,7 +261,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
             activeWorkloadGroups,
             new HashSet<>()
         );
-        queryGroupService.rejectIfNeeded("queryGroupId1");
+        workloadGroupService.rejectIfNeeded("workloadGroupId1");
 
         verify(spyState, never()).getResourceState();
     }
@@ -269,7 +269,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testRejectIfNeeded_whenWorkloadGroupIsEnforcedMode_andNotBreaching() {
         WorkloadGroup testWorkloadGroup = getWorkloadGroup(
             "testWorkloadGroup",
-            "queryGroupId1",
+            "workloadGroupId1",
             MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
             Map.of(ResourceType.CPU, 0.10)
         );
@@ -280,14 +280,14 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
             }
         };
         mockWorkloadGroupStateMap = new HashMap<>();
-        WorkloadGroupState queryGroupState = new WorkloadGroupState();
-        queryGroupState.getResourceState().get(ResourceType.CPU).setLastRecordedUsage(0.05);
+        WorkloadGroupState workloadGroupState = new WorkloadGroupState();
+        workloadGroupState.getResourceState().get(ResourceType.CPU).setLastRecordedUsage(0.05);
 
-        mockWorkloadGroupStateMap.put("queryGroupId1", queryGroupState);
+        mockWorkloadGroupStateMap.put("workloadGroupId1", workloadGroupState);
 
         mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
 
-        queryGroupService = new WorkloadGroupService(
+        workloadGroupService = new WorkloadGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
@@ -299,19 +299,19 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         );
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         when(mockWorkloadManagementSettings.getNodeLevelCpuRejectionThreshold()).thenReturn(0.8);
-        queryGroupService.rejectIfNeeded("queryGroupId1");
+        workloadGroupService.rejectIfNeeded("workloadGroupId1");
 
         // verify the check to compare the current usage and limit
         // this should happen 3 times => 2 to check whether the resource limit has the TRACKED resource type and 1 to get the value
         verify(spuWorkloadGroup, times(3)).getResourceLimits();
-        assertEquals(0, queryGroupState.getResourceState().get(ResourceType.CPU).rejections.count());
-        assertEquals(0, queryGroupState.totalRejections.count());
+        assertEquals(0, workloadGroupState.getResourceState().get(ResourceType.CPU).rejections.count());
+        assertEquals(0, workloadGroupState.totalRejections.count());
     }
 
     public void testRejectIfNeeded_whenWorkloadGroupIsEnforcedMode_andBreaching() {
         WorkloadGroup testWorkloadGroup = new WorkloadGroup(
             "testWorkloadGroup",
-            "queryGroupId1",
+            "workloadGroupId1",
             new MutableWorkloadGroupFragment(
                 MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
                 Map.of(ResourceType.CPU, 0.10, ResourceType.MEMORY, 0.10)
@@ -325,16 +325,16 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
             }
         };
         mockWorkloadGroupStateMap = new HashMap<>();
-        WorkloadGroupState queryGroupState = new WorkloadGroupState();
-        queryGroupState.getResourceState().get(ResourceType.CPU).setLastRecordedUsage(0.18);
-        queryGroupState.getResourceState().get(ResourceType.MEMORY).setLastRecordedUsage(0.18);
-        WorkloadGroupState spyState = spy(queryGroupState);
+        WorkloadGroupState workloadGroupState = new WorkloadGroupState();
+        workloadGroupState.getResourceState().get(ResourceType.CPU).setLastRecordedUsage(0.18);
+        workloadGroupState.getResourceState().get(ResourceType.MEMORY).setLastRecordedUsage(0.18);
+        WorkloadGroupState spyState = spy(workloadGroupState);
 
         mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
 
-        mockWorkloadGroupStateMap.put("queryGroupId1", spyState);
+        mockWorkloadGroupStateMap.put("workloadGroupId1", spyState);
 
-        queryGroupService = new WorkloadGroupService(
+        workloadGroupService = new WorkloadGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
@@ -345,7 +345,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
             new HashSet<>()
         );
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
-        assertThrows(OpenSearchRejectedExecutionException.class, () -> queryGroupService.rejectIfNeeded("queryGroupId1"));
+        assertThrows(OpenSearchRejectedExecutionException.class, () -> workloadGroupService.rejectIfNeeded("workloadGroupId1"));
 
         // verify the check to compare the current usage and limit
         // this should happen 3 times => 1 to check whether the resource limit has the TRACKED resource type and 1 to get the value
@@ -353,16 +353,16 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         verify(spuWorkloadGroup, times(2)).getResourceLimits();
         assertEquals(
             1,
-            queryGroupState.getResourceState().get(ResourceType.CPU).rejections.count() + queryGroupState.getResourceState()
+            workloadGroupState.getResourceState().get(ResourceType.CPU).rejections.count() + workloadGroupState.getResourceState()
                 .get(ResourceType.MEMORY).rejections.count()
         );
-        assertEquals(1, queryGroupState.totalRejections.count());
+        assertEquals(1, workloadGroupState.totalRejections.count());
     }
 
     public void testRejectIfNeeded_whenFeatureIsNotEnabled() {
         WorkloadGroup testWorkloadGroup = new WorkloadGroup(
             "testWorkloadGroup",
-            "queryGroupId1",
+            "workloadGroupId1",
             new MutableWorkloadGroupFragment(MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.10)),
             1L
         );
@@ -372,13 +372,13 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
             }
         };
         mockWorkloadGroupStateMap = new HashMap<>();
-        mockWorkloadGroupStateMap.put("queryGroupId1", new WorkloadGroupState());
+        mockWorkloadGroupStateMap.put("workloadGroupId1", new WorkloadGroupState());
 
         Map<String, WorkloadGroupState> spyMap = spy(mockWorkloadGroupStateMap);
 
         mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
 
-        queryGroupService = new WorkloadGroupService(
+        workloadGroupService = new WorkloadGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
@@ -390,18 +390,18 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         );
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
 
-        queryGroupService.rejectIfNeeded(testWorkloadGroup.get_id());
+        workloadGroupService.rejectIfNeeded(testWorkloadGroup.get_id());
         verify(spyMap, never()).get(any());
     }
 
     public void testOnTaskCompleted() {
         Task task = new SearchTask(12, "", "", () -> "", null, null);
-        mockThreadPool = new TestThreadPool("queryGroupServiceTests");
+        mockThreadPool = new TestThreadPool("workloadGroupServiceTests");
         mockThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "testId");
-        WorkloadGroupState queryGroupState = new WorkloadGroupState();
-        mockWorkloadGroupStateMap.put("testId", queryGroupState);
+        WorkloadGroupState workloadGroupState = new WorkloadGroupState();
+        mockWorkloadGroupStateMap.put("testId", workloadGroupState);
         mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
-        queryGroupService = new WorkloadGroupService(
+        workloadGroupService = new WorkloadGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
@@ -427,27 +427,27 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         );
 
         ((WorkloadGroupTask) task).setWorkloadGroupId(mockThreadPool.getThreadContext());
-        queryGroupService.onTaskCompleted(task);
+        workloadGroupService.onTaskCompleted(task);
 
-        assertEquals(1, queryGroupState.totalCompletions.count());
+        assertEquals(1, workloadGroupState.totalCompletions.count());
 
         // test non WorkloadGroupTask
         task = new Task(1, "simple", "test", "mock task", null, null);
-        queryGroupService.onTaskCompleted(task);
+        workloadGroupService.onTaskCompleted(task);
 
         // It should still be 1
-        assertEquals(1, queryGroupState.totalCompletions.count());
+        assertEquals(1, workloadGroupState.totalCompletions.count());
 
         mockThreadPool.shutdown();
     }
 
     public void testShouldSBPHandle() {
         SearchTask task = createMockTaskWithResourceStats(SearchTask.class, 100, 200, 0, 12);
-        WorkloadGroupState queryGroupState = new WorkloadGroupState();
+        WorkloadGroupState workloadGroupState = new WorkloadGroupState();
         Set<WorkloadGroup> activeWorkloadGroups = new HashSet<>();
-        mockWorkloadGroupStateMap.put("testId", queryGroupState);
+        mockWorkloadGroupStateMap.put("testId", workloadGroupState);
         mockWorkloadGroupsStateAccessor = new WorkloadGroupsStateAccessor(mockWorkloadGroupStateMap);
-        queryGroupService = new WorkloadGroupService(
+        workloadGroupService = new WorkloadGroupService(
             mockCancellationService,
             mockClusterService,
             mockThreadPool,
@@ -460,22 +460,22 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
 
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
 
-        // Default queryGroupId
-        mockThreadPool = new TestThreadPool("queryGroupServiceTests");
+        // Default workloadGroupId
+        mockThreadPool = new TestThreadPool("workloadGroupServiceTests");
         mockThreadPool.getThreadContext()
             .putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get());
-        // we haven't set the queryGroupId yet SBP should still track the task for cancellation
-        assertTrue(queryGroupService.shouldSBPHandle(task));
+        // we haven't set the workloadGroupId yet SBP should still track the task for cancellation
+        assertTrue(workloadGroupService.shouldSBPHandle(task));
         task.setWorkloadGroupId(mockThreadPool.getThreadContext());
-        assertTrue(queryGroupService.shouldSBPHandle(task));
+        assertTrue(workloadGroupService.shouldSBPHandle(task));
 
         mockThreadPool.shutdownNow();
 
-        // invalid queryGroup task
-        mockThreadPool = new TestThreadPool("queryGroupServiceTests");
+        // invalid workloadGroup task
+        mockThreadPool = new TestThreadPool("workloadGroupServiceTests");
         mockThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "testId");
         task.setWorkloadGroupId(mockThreadPool.getThreadContext());
-        assertTrue(queryGroupService.shouldSBPHandle(task));
+        assertTrue(workloadGroupService.shouldSBPHandle(task));
 
         // Valid query group task but wlm not enabled
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
@@ -490,17 +490,17 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
                 1L
             )
         );
-        assertTrue(queryGroupService.shouldSBPHandle(task));
+        assertTrue(workloadGroupService.shouldSBPHandle(task));
 
         mockThreadPool.shutdownNow();
 
         // test the case when SBP should not track the task
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         task = new SearchTask(1, "", "test", () -> "", null, null);
-        mockThreadPool = new TestThreadPool("queryGroupServiceTests");
+        mockThreadPool = new TestThreadPool("workloadGroupServiceTests");
         mockThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "testId");
         task.setWorkloadGroupId(mockThreadPool.getThreadContext());
-        assertFalse(queryGroupService.shouldSBPHandle(task));
+        assertFalse(workloadGroupService.shouldSBPHandle(task));
     }
 
     private static Set<WorkloadGroup> getActiveWorkloadGroups(
@@ -534,11 +534,11 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
             WorkloadManagementSettings workloadManagementSettings,
             TaskSelectionStrategy taskSelectionStrategy,
             WorkloadGroupResourceUsageTrackerService resourceUsageTrackerService,
-            WorkloadGroupsStateAccessor queryGroupsStateAccessor,
+            WorkloadGroupsStateAccessor workloadGroupsStateAccessor,
             Collection<WorkloadGroup> activeWorkloadGroups,
             Collection<WorkloadGroup> deletedWorkloadGroups
         ) {
-            super(workloadManagementSettings, taskSelectionStrategy, resourceUsageTrackerService, queryGroupsStateAccessor);
+            super(workloadManagementSettings, taskSelectionStrategy, resourceUsageTrackerService, workloadGroupsStateAccessor);
         }
 
         @Override

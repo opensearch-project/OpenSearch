@@ -30,9 +30,11 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerNodeAction<DeleteWorkloadGroupRequest, AcknowledgedResponse> {
+public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerNodeAction<
+    DeleteWorkloadGroupRequest,
+    AcknowledgedResponse> {
 
-    private final WorkloadGroupPersistenceService queryGroupPersistenceService;
+    private final WorkloadGroupPersistenceService workloadGroupPersistenceService;
 
     /**
      * Constructor for TransportDeleteWorkloadGroupAction
@@ -42,7 +44,7 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
      * @param actionFilters - a {@link ActionFilters} object
      * @param threadPool - a {@link ThreadPool} object
      * @param indexNameExpressionResolver - a {@link IndexNameExpressionResolver} object
-     * @param queryGroupPersistenceService - a {@link WorkloadGroupPersistenceService} object
+     * @param workloadGroupPersistenceService - a {@link WorkloadGroupPersistenceService} object
      */
     @Inject
     public TransportDeleteWorkloadGroupAction(
@@ -51,7 +53,7 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
         ActionFilters actionFilters,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        WorkloadGroupPersistenceService queryGroupPersistenceService
+        WorkloadGroupPersistenceService workloadGroupPersistenceService
     ) {
         super(
             DeleteWorkloadGroupAction.NAME,
@@ -62,7 +64,7 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
             DeleteWorkloadGroupRequest::new,
             indexNameExpressionResolver
         );
-        this.queryGroupPersistenceService = queryGroupPersistenceService;
+        this.workloadGroupPersistenceService = workloadGroupPersistenceService;
     }
 
     @Override
@@ -71,7 +73,7 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        queryGroupPersistenceService.deleteInClusterStateMetadata(request, listener);
+        workloadGroupPersistenceService.deleteInClusterStateMetadata(request, listener);
     }
 
     @Override

@@ -30,9 +30,9 @@ public class WorkloadGroupStatsTests extends AbstractWireSerializingTestCase<Wor
 
     public void testToXContent() throws IOException {
         final Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> stats = new HashMap<>();
-        final String queryGroupId = "afakjklaj304041-afaka";
+        final String workloadGroupId = "afakjklaj304041-afaka";
         stats.put(
-            queryGroupId,
+            workloadGroupId,
             new WorkloadGroupStats.WorkloadGroupStatsHolder(
                 123456789,
                 13,
@@ -42,9 +42,9 @@ public class WorkloadGroupStatsTests extends AbstractWireSerializingTestCase<Wor
             )
         );
         XContentBuilder builder = JsonXContent.contentBuilder();
-        WorkloadGroupStats queryGroupStats = new WorkloadGroupStats(stats);
+        WorkloadGroupStats workloadGroupStats = new WorkloadGroupStats(stats);
         builder.startObject();
-        queryGroupStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        workloadGroupStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals(
             "{\"workload_groups\":{\"afakjklaj304041-afaka\":{\"total_completions\":123456789,\"total_rejections\":13,\"total_cancellations\":0,\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
