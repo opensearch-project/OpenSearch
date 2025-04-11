@@ -59,7 +59,10 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.approximate.ApproximateMatchAllQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.geo.RandomGeoGenerator;
+import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -544,7 +547,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         Nested nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertThat(nested.getInnerQuery(), CoreMatchers.instanceOf(ApproximateScoreQuery.class));
+        ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) nested.getInnerQuery();
+        assertThat(approxQuery.getOriginalQuery(), CoreMatchers.instanceOf(MatchAllDocsQuery.class));
+        assertThat(approxQuery.getApproximationQuery(), CoreMatchers.instanceOf(ApproximateMatchAllQuery.class));
 
         sortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0).setNestedPath("path");
         sortField = sortBuilder.build(shardContextMock).field;
@@ -561,7 +567,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertThat(nested.getInnerQuery(), CoreMatchers.instanceOf(ApproximateScoreQuery.class));
+        approxQuery = (ApproximateScoreQuery) nested.getInnerQuery();
+        assertThat(approxQuery.getOriginalQuery(), CoreMatchers.instanceOf(MatchAllDocsQuery.class));
+        assertThat(approxQuery.getApproximationQuery(), CoreMatchers.instanceOf(ApproximateMatchAllQuery.class));
 
         // if nested path is missing, we omit any filter and return a regular SortField
         // (LatLonSortField)
