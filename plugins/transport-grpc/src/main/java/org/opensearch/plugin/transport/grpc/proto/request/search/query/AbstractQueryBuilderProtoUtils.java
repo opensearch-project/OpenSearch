@@ -42,6 +42,8 @@ public class AbstractQueryBuilderProtoUtils {
             result = MatchNoneQueryBuilderProtoUtils.fromProto(queryContainer.getMatchNone());
         } else if (queryContainer.getTermCount() > 0) {
             result = TermQueryBuilderProtoUtils.fromProto(queryContainer.getTermMap());
+        } else if (queryContainer.hasTerms()) {
+            result = TermsQueryBuilderProtoUtils.fromProto(queryContainer.getTerms());
         }
         // TODO add more query types
         else {
