@@ -64,11 +64,6 @@ import static org.opensearch.search.aggregations.AggregationBuilders.range;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
-import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
-import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
-import static org.apache.lucene.tests.util.LuceneTestCase.newIndexWriterConfig;
-import static org.apache.lucene.tests.util.LuceneTestCase.newLogMergePolicy;
-import static org.apache.lucene.tests.util.LuceneTestCase.random;
 
 /**
  * Tests for aggregations with date-range query
