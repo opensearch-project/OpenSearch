@@ -36,6 +36,11 @@ import java.util.Optional;
  * for Arrow Flight in OpenSearch. This class handles data streaming based on tickets,
  * manages backpressure, and coordinates between stream providers and server stream listeners.
  * It runs on the gRPC transport thread.
+ * <p>
+ * Error handling strategy:
+ * 1. Add all errors to listener.
+ * 2. All FlightRuntimeException which are not INTERNAL should not be logged.
+ * 3. All FlightRuntimeException which are INTERNAL should be logged with error or warn (depending on severity).
  */
 public class BaseFlightProducer extends NoOpFlightProducer {
     private static final Logger logger = LogManager.getLogger(BaseFlightProducer.class);
@@ -142,9 +147,7 @@ public class BaseFlightProducer extends NoOpFlightProducer {
                 });
         } catch (Exception e) {
             logger.warn("Failed to create proxy producer for remote stream", e);
-            throw CallStatus.UNAVAILABLE.withCause(e)
-                .withDescription("Unable to create proxy stream: " + e.getMessage())
-                .toRuntimeException();
+            throw CallStatus.INTERNAL.withCause(e).withDescription("Unable to create proxy stream: " + e.getMessage()).toRuntimeException();
         }
     }
 
@@ -207,14 +210,10 @@ public class BaseFlightProducer extends NoOpFlightProducer {
     private void handleCancellation(StreamProducer.BatchedJob<VectorSchemaRoot> batchedJob, ServerStreamListener listener) {
         try {
             batchedJob.onCancel();
-            FlightRuntimeException ex = CallStatus.CANCELLED.withDescription("Stream cancelled before processing").toRuntimeException();
-            throw ex;
+            throw CallStatus.CANCELLED.withDescription("Stream cancelled before processing").toRuntimeException();
         } catch (Exception e) {
             logger.error("Unexpected error during cancellation", e);
-            FlightRuntimeException fre = CallStatus.INTERNAL.withCause(e)
-                .withDescription("Error during cancellation: " + e.getMessage())
-                .toRuntimeException();
-            throw fre;
+            throw CallStatus.INTERNAL.withCause(e).withDescription("Error during cancellation: " + e.getMessage()).toRuntimeException();
         }
     }
 
@@ -225,8 +224,8 @@ public class BaseFlightProducer extends NoOpFlightProducer {
         });
 
         Location location = flightClientManager.getFlightClientLocation(streamTicket.getNodeId()).orElseThrow(() -> {
-            logger.debug("Failed to determine location for node: {}", streamTicket.getNodeId());
-            return CallStatus.UNAVAILABLE.withDescription("Internal error determining location").toRuntimeException();
+            logger.warn("Failed to determine location for node: {}", streamTicket.getNodeId());
+            return CallStatus.INTERNAL.withDescription("Internal error determining location").toRuntimeException();
         });
 
         try {
@@ -245,7 +244,7 @@ public class BaseFlightProducer extends NoOpFlightProducer {
     private FlightInfo getRemoteFlightInfo(StreamTicket streamTicket, FlightDescriptor descriptor) {
         FlightClient remoteClient = flightClientManager.getFlightClient(streamTicket.getNodeId()).orElseThrow(() -> {
             logger.warn("No remote client available for node: {}", streamTicket.getNodeId());
-            return CallStatus.UNAVAILABLE.withDescription("Client doesn't support Stream").toRuntimeException();
+            return CallStatus.INTERNAL.withDescription("Client doesn't support Stream").toRuntimeException();
         });
 
         try {
