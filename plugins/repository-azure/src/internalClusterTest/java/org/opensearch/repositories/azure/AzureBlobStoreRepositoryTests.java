@@ -60,9 +60,11 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import fixture.azure.AzureHttpHandler;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import reactor.core.scheduler.Schedulers;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
     @AfterClass
     public static void shutdownSchedulers() {
