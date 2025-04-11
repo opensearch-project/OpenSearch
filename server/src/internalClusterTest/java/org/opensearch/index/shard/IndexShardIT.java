@@ -725,7 +725,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             new MergedSegmentWarmerFactory(null, null, null),
             false,
             OpenSearchTestCase::randomBoolean,
-            () -> indexService.getIndexSettings().getRefreshInterval()
+            () -> indexService.getIndexSettings().getRefreshInterval(),
+            indexService.getRefreshMutex()
         );
     }
 

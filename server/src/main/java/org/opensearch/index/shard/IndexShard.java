@@ -373,6 +373,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
     private final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled;
     private final Supplier<TimeValue> refreshInterval;
+    private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
 
     public IndexShard(
@@ -409,7 +410,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
         final boolean shardLevelRefreshEnabled,
         final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
-        final Supplier<TimeValue> refreshInterval
+        final Supplier<TimeValue> refreshInterval,
+        final Object refreshMutex
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -515,8 +517,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.mergedSegmentWarmerFactory = mergedSegmentWarmerFactory;
         this.fixedRefreshIntervalSchedulingEnabled = fixedRefreshIntervalSchedulingEnabled;
         this.refreshInterval = refreshInterval;
-        if (shardLevelRefreshEnabled) {
-            startRefreshTask();
+        this.refreshMutex = Objects.requireNonNull(refreshMutex);
+        synchronized (this.refreshMutex) {
+            if (shardLevelRefreshEnabled) {
+                startRefreshTask();
+            }
         }
     }
 
@@ -5550,12 +5555,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void startRefreshTask() {
+        assert Thread.holdsLock(refreshMutex);
         // The refresh task is expected to be null at this point.
         assert Objects.isNull(refreshTask);
         refreshTask = new AsyncShardRefreshTask(this);
     }
 
     public void stopRefreshTask() {
+        assert Thread.holdsLock(refreshMutex);
         // The refresh task is expected to be non-null at this point.
         assert Objects.nonNull(refreshTask);
         refreshTask.close();

@@ -334,9 +334,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
         updateFsyncTaskIfNecessary();
-        if (shardLevelRefreshEnabled == false) {
-            logger.debug("shard level refresh is disabled for index [{}]", indexSettings.getIndex().getName());
-            startIndexLevelRefreshTask();
+        synchronized (refreshMutex) {
+            if (shardLevelRefreshEnabled == false) {
+                logger.debug("shard level refresh is disabled for index [{}]", indexSettings.getIndex().getName());
+                startIndexLevelRefreshTask();
+            }
         }
     }
 
@@ -722,7 +724,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mergedSegmentWarmerFactory,
                 shardLevelRefreshEnabled,
                 fixedRefreshIntervalSchedulingEnabled,
-                this::getRefreshInterval
+                this::getRefreshInterval,
+                refreshMutex
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -1646,6 +1649,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void stopIndexLevelRefreshTask() {
+        assert Thread.holdsLock(refreshMutex);
         // The refresh task is expected to be non-null at this point.
         assert Objects.nonNull(refreshTask);
         refreshTask.close();
@@ -1653,18 +1657,21 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void startShardLevelRefreshTasks() {
+        assert Thread.holdsLock(refreshMutex);
         for (IndexShard shard : this.shards.values()) {
             shard.startRefreshTask();
         }
     }
 
     private void stopShardLevelRefreshTasks() {
+        assert Thread.holdsLock(refreshMutex);
         for (IndexShard shard : this.shards.values()) {
             shard.stopRefreshTask();
         }
     }
 
     private void startIndexLevelRefreshTask() {
+        assert Thread.holdsLock(refreshMutex);
         // The refresh task is expected to be null at this point.
         assert Objects.isNull(refreshTask);
         refreshTask = new AsyncRefreshTask(this);
@@ -1673,5 +1680,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     // Visible for testing
     boolean isShardLevelRefreshEnabled() {
         return shardLevelRefreshEnabled;
+    }
+
+    // Visible for testing
+    public Object getRefreshMutex() {
+        return refreshMutex;
     }
 }
