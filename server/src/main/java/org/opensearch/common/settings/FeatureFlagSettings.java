@@ -39,6 +39,7 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
         FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
         FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING,
         FeatureFlags.TERM_VERSION_PRECOMMIT_ENABLE_SETTING,
-        FeatureFlags.ARROW_STREAMS_SETTING
+        FeatureFlags.ARROW_STREAMS_SETTING,
+        FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING
     );
 }
