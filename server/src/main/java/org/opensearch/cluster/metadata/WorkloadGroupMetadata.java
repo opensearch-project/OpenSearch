@@ -32,7 +32,7 @@ import static org.opensearch.cluster.metadata.Metadata.ALL_CONTEXTS;
  * This class holds the WorkloadGroupMetadata
  * sample schema
  * {
- *     "workloadGroup": {
+ *     "queryGroups": {
  *         "_id": {
  *             {@link WorkloadGroup}
  *         },
@@ -41,8 +41,10 @@ import static org.opensearch.cluster.metadata.Metadata.ALL_CONTEXTS;
  * }
  */
 public class WorkloadGroupMetadata implements Metadata.Custom {
-    public static final String TYPE = "workloadGroups";
-    private static final ParseField WORKLOAD_GROUP_FIELD = new ParseField("workloadGroups");
+    // We are not changing this name to ensure the cluster state restore works when a OS version < 3.0 writes it to
+    // either a remote store or on local disk and OS version >= 3.0 reads it
+    public static final String TYPE = "queryGroups";
+    private static final ParseField WORKLOAD_GROUP_FIELD = new ParseField("queryGroups");
 
     private final Map<String, WorkloadGroup> workloadGroups;
 

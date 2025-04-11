@@ -1,7 +1,7 @@
-"test CRUD Operations for WorkloadGroup API ":
+"test CRUD Operations for QueryGroup API ":
   - skip:
       version: " - 2.16.99"
-      reason: "WorkloadGroup WorkloadManagement feature was added in 2.17"
+      reason: "QueryGroup WorkloadManagement feature was added in 2.17"
 
   - do:
       create_workload_group_context:
