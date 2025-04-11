@@ -210,6 +210,7 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.ingest.SystemIngestPipelineCache;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.ResponseCollectorService;
@@ -2267,7 +2268,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                             Collections.emptyList(),
                             client,
-                            indicesService
+                            indicesService,
+                            namedXContentRegistry,
+                            new SystemIngestPipelineCache()
                         ),
                         transportShardBulkAction,
                         client,
