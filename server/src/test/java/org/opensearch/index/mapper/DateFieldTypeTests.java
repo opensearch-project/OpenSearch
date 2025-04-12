@@ -585,16 +585,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null
         );
 
-        Query rangeQuery = ft.rangeQuery(
-            "-9999-05-16T16:47:04.192Z",
-            "9999-08-17T07:12:55.807Z",
-            true,
-            true,
-            null,
-            null,
-            null,
-            context
-        );
+        Query rangeQuery = ft.rangeQuery("-9999-05-16T16:47:04.192Z", "9999-08-17T07:12:55.807Z", true, true, null, null, null, context);
 
         TopDocs topDocs = searcher.search(rangeQuery, dates.size());
         assertEquals("Number of non-null date documents", dates.size() - numNullDates, topDocs.totalHits.value());

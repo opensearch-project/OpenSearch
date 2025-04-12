@@ -87,8 +87,12 @@ public class DateFormatters {
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT);
 
-    private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_PRINTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 9, SignStyle.EXCEEDS_PAD)
+    private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_PRINTER = new DateTimeFormatterBuilder().appendValue(
+        ChronoField.YEAR,
+        4,
+        9,
+        SignStyle.EXCEEDS_PAD
+    )
         .optionalStart()
         .appendLiteral("-")
         .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
