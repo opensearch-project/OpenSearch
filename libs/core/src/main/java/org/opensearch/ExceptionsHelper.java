@@ -93,20 +93,15 @@ public final class ExceptionsHelper {
     }
 
     public static RestStatus status(Throwable t) {
-        if (t != null) {
-            if (t instanceof OpenSearchException) {
-                return ((OpenSearchException) t).status();
-            } else if (t instanceof IllegalArgumentException) {
-                return RestStatus.BAD_REQUEST;
-            } else if (t instanceof JsonParseException) {
-                return RestStatus.BAD_REQUEST;
-            } else if (t instanceof OpenSearchRejectedExecutionException) {
-                return RestStatus.TOO_MANY_REQUESTS;
-            } else if (t instanceof NotXContentException) {
-                return RestStatus.BAD_REQUEST;
-            }
-        }
-        return RestStatus.INTERNAL_SERVER_ERROR;
+        return switch (t) {
+            case OpenSearchException ose -> ose.status();
+            case IllegalArgumentException iae -> RestStatus.BAD_REQUEST;
+            case JsonParseException jpe -> RestStatus.BAD_REQUEST;
+            case OpenSearchRejectedExecutionException osre -> RestStatus.TOO_MANY_REQUESTS;
+            case NotXContentException nxce -> RestStatus.BAD_REQUEST;
+            case null -> RestStatus.INTERNAL_SERVER_ERROR;
+            default -> RestStatus.INTERNAL_SERVER_ERROR;
+        };
     }
 
     public static String summaryMessage(Throwable t) {
