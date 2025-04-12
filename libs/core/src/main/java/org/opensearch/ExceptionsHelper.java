@@ -105,18 +105,14 @@ public final class ExceptionsHelper {
     }
 
     public static String summaryMessage(Throwable t) {
-        if (t != null) {
-            if (t instanceof OpenSearchException) {
-                return getExceptionSimpleClassName(t) + "[" + t.getMessage() + "]";
-            } else if (t instanceof IllegalArgumentException) {
-                return "Invalid argument";
-            } else if (t instanceof JsonParseException) {
-                return "Failed to parse JSON";
-            } else if (t instanceof OpenSearchRejectedExecutionException) {
-                return "Too many requests";
-            }
-        }
-        return "Internal failure";
+        return switch (t) {
+            case OpenSearchException ose -> getExceptionSimpleClassName(t) + "[" + t.getMessage() + "]";
+            case IllegalArgumentException iae -> "Invalid argument";
+            case JsonParseException jpe -> "Failed to parse JSON";
+            case OpenSearchRejectedExecutionException osre -> "Too many requests";
+            case null -> "Internal failure";
+            default -> "Internal failure";
+        };
     }
 
     public static Throwable unwrapCause(Throwable t) {
