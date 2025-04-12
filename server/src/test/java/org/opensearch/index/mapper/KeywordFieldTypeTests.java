@@ -86,6 +86,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.SortedSet;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.mockito.MockedConstruction;
@@ -211,8 +212,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermsSortedQuery() {
         String[] seedStrings = generateRandomStringArray(10, 10, false, true);
-        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).toList();
-        List<String> sortedStrings = bytesRefList.stream().sorted().map(BytesRef::utf8ToString).toList();
+        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).collect(Collectors.toList());
+        List<String> sortedStrings = bytesRefList.stream().sorted().map(BytesRef::utf8ToString).collect(Collectors.toList());
 
         MappedFieldType ft = new KeywordFieldType("field");
         Query expected = new IndexOrDocValuesQuery(
@@ -237,8 +238,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             seedStrings = Stream.concat(Arrays.stream(seedStrings), Arrays.stream(generateRandomStringArray(10, 10, false, false)))
                 .toArray(String[]::new);
         }
-        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).toList();
-        List<String> sortedStrings = bytesRefList.stream().sorted().map(BytesRef::utf8ToString).toList();
+        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).collect(Collectors.toList());
+        List<String> sortedStrings = bytesRefList.stream().sorted().map(BytesRef::utf8ToString).collect(Collectors.toList());
         Answer asseretSortedSetArg = invocationOnMock -> {
             Object[] args = invocationOnMock.getArguments();
             for (int i = 0; i < args.length; i++) {

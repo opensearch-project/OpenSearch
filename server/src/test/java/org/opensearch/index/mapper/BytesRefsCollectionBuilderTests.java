@@ -16,34 +16,35 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class BytesRefsCollectionBuilderTests extends OpenSearchTestCase {
 
     public void testBuildSortedNotSorted() {
         String[] seedStrings = generateRandomStringArray(10, 10, false, true);
-        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).toList();
-        List<BytesRef> sortedBytesRefs = bytesRefList.stream().sorted().toList();
+        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).collect(Collectors.toList());
+        List<BytesRef> sortedBytesRefs = bytesRefList.stream().sorted().collect(Collectors.toList());
 
         Collection<BytesRef> sortedSet = assertCollectionBuilt(sortedBytesRefs);
         assertCollectionBuilt(bytesRefList);
 
-        assertTrue(sortedSet instanceof SortedSet<BytesRef>);
+        assertTrue(sortedSet instanceof SortedSet);
         assertNull(((SortedSet<BytesRef>) sortedSet).comparator());
     }
 
     public void testBuildFooBar() {
         String[] reverseOrderStrings = new String[] { "foo", "bar" };
-        List<BytesRef> bytesRefList = Arrays.stream(reverseOrderStrings).map(BytesRef::new).toList();
-        List<BytesRef> sortedBytesRefs = bytesRefList.stream().sorted().toList();
+        List<BytesRef> bytesRefList = Arrays.stream(reverseOrderStrings).map(BytesRef::new).collect(Collectors.toList());
+        List<BytesRef> sortedBytesRefs = bytesRefList.stream().sorted().collect(Collectors.toList());
 
         Collection<BytesRef> sortedSet = assertCollectionBuilt(sortedBytesRefs);
         Collection<BytesRef> reverseList = assertCollectionBuilt(bytesRefList);
 
-        assertTrue(sortedSet instanceof SortedSet<BytesRef>);
+        assertTrue(sortedSet instanceof SortedSet);
         assertNull(((SortedSet<BytesRef>) sortedSet).comparator());
 
-        assertTrue(reverseList instanceof List<BytesRef>);
+        assertTrue(reverseList instanceof List);
     }
 
     public void testFrozen() {
