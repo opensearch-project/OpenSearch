@@ -58,7 +58,8 @@ public class MessageProcessorRunnable implements Runnable {
     private volatile IngestionErrorStrategy errorStrategy;
     private final BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
     private final MessageProcessor messageProcessor;
-    private final CounterMetric stats = new CounterMetric();
+    private final CounterMetric processedCounter = new CounterMetric();
+    private final CounterMetric skippedCounter = new CounterMetric();
 
     // tracks the most recent pointer that is being processed
     @Nullable
@@ -119,12 +120,13 @@ public class MessageProcessorRunnable implements Runnable {
          *
          * @param message the message to process
          * @param pointer the pointer to the message
+         * @param skippedCounter the counter for skipped messages
          */
-        protected void process(Message message, IngestionShardPointer pointer) {
+        protected void process(Message message, IngestionShardPointer pointer, CounterMetric skippedCounter) {
             byte[] payload = (byte[]) message.getPayload();
 
             try {
-                Engine.Operation operation = getOperation(payload, pointer);
+                Engine.Operation operation = getOperation(payload, pointer, skippedCounter);
                 switch (operation.operationType()) {
                     case INDEX:
                         engine.indexInternal((Engine.Index) operation);
@@ -147,13 +149,15 @@ public class MessageProcessorRunnable implements Runnable {
          * Visible for testing. Get the engine operation from the message.
          * @param payload the payload of the message
          * @param pointer the pointer to the message
+         * @param skippedCounter the counter for skipped messages
          * @return the engine operation
          */
-        protected Engine.Operation getOperation(byte[] payload, IngestionShardPointer pointer) throws IOException {
+        protected Engine.Operation getOperation(byte[] payload, IngestionShardPointer pointer, CounterMetric skippedCounter)
+            throws IOException {
             Map<String, Object> payloadMap = getParsedPayloadMap(payload);
 
             if (payloadMap.containsKey(OP_TYPE) && !(payloadMap.get(OP_TYPE) instanceof String)) {
-                // TODO: add metric
+                skippedCounter.inc();
                 logger.error("_op_type field is of type {} but not string, skipping the message", payloadMap.get(OP_TYPE).getClass());
                 return null;
             }
@@ -174,12 +178,12 @@ public class MessageProcessorRunnable implements Runnable {
             switch (opType) {
                 case INDEX:
                     if (!payloadMap.containsKey(SOURCE)) {
-                        // TODO: add metric
+                        skippedCounter.inc();
                         logger.error("missing _source field, skipping the message");
                         return null;
                     }
                     if (!(payloadMap.get(SOURCE) instanceof Map)) {
-                        // TODO: add metric
+                        skippedCounter.inc();
                         logger.error("_source field does not contain a map, skipping the message");
                         return null;
                     }
@@ -278,9 +282,9 @@ public class MessageProcessorRunnable implements Runnable {
             }
             if (readResult != null) {
                 try {
-                    stats.inc();
+                    processedCounter.inc();
                     currentShardPointer = readResult.getPointer();
-                    messageProcessor.process(readResult.getMessage(), readResult.getPointer());
+                    messageProcessor.process(readResult.getMessage(), readResult.getPointer(), skippedCounter);
                     readResult = null;
                 } catch (Exception e) {
                     errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.PROCESSING);
@@ -303,8 +307,12 @@ public class MessageProcessorRunnable implements Runnable {
         }
     }
 
-    public CounterMetric getStats() {
-        return stats;
+    public CounterMetric getProcessedCounter() {
+        return processedCounter;
+    }
+
+    public CounterMetric getSkippedCounter() {
+        return skippedCounter;
     }
 
     public IngestionErrorStrategy getErrorStrategy() {

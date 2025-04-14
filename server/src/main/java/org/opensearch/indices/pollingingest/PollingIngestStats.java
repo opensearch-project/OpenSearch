@@ -34,25 +34,28 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
 
     public PollingIngestStats(StreamInput in) throws IOException {
         long totalProcessedCount = in.readLong();
-        this.messageProcessorStats = new MessageProcessorStats(totalProcessedCount);
+        long totalSkippedCount = in.readLong();
+        this.messageProcessorStats = new MessageProcessorStats(totalProcessedCount, totalSkippedCount);
         long totalPolledCount = in.readLong();
         this.consumerStats = new ConsumerStats(totalPolledCount);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(messageProcessorStats.getTotalProcessedCount());
-        out.writeLong(consumerStats.getTotalPolledCount());
+        out.writeLong(messageProcessorStats.totalProcessedCount);
+        out.writeLong(messageProcessorStats.totalSkippedCount);
+        out.writeLong(consumerStats.totalPolledCount);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("polling_ingest_stats");
         builder.startObject("message_processor_stats");
-        builder.field("total_processed_count", messageProcessorStats.getTotalProcessedCount());
+        builder.field("total_processed_count", messageProcessorStats.totalProcessedCount);
+        builder.field("total_skipped_count", messageProcessorStats.totalSkippedCount);
         builder.endObject();
         builder.startObject("consumer_stats");
-        builder.field("total_polled_count", consumerStats.getTotalPolledCount());
+        builder.field("total_polled_count", consumerStats.totalPolledCount);
         builder.endObject();
         builder.endObject();
         return builder;
@@ -83,58 +86,14 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
      * Stats for message processor
      */
     @ExperimentalApi
-    public static class MessageProcessorStats {
-        private final long totalProcessedCount;
-
-        public MessageProcessorStats(long totalProcessedCount) {
-            this.totalProcessedCount = totalProcessedCount;
-        }
-
-        public long getTotalProcessedCount() {
-            return totalProcessedCount;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof MessageProcessorStats)) return false;
-            MessageProcessorStats that = (MessageProcessorStats) o;
-            return totalProcessedCount == that.totalProcessedCount;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(totalProcessedCount);
-        }
+    public record MessageProcessorStats(long totalProcessedCount, long totalSkippedCount) {
     }
 
     /**
      * Stats for consumer (poller)
      */
     @ExperimentalApi
-    public static class ConsumerStats {
-        private final long totalPolledCount;
-
-        public ConsumerStats(long totalPolledCount) {
-            this.totalPolledCount = totalPolledCount;
-        }
-
-        public long getTotalPolledCount() {
-            return totalPolledCount;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof ConsumerStats)) return false;
-            ConsumerStats that = (ConsumerStats) o;
-            return totalPolledCount == that.totalPolledCount;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(totalPolledCount);
-        }
+    public record ConsumerStats(long totalPolledCount) {
     }
 
     /**
@@ -143,6 +102,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
     @ExperimentalApi
     public static class Builder {
         private long totalProcessedCount;
+        private long totalSkippedCount;
         private long totalPolledCount;
 
         public Builder() {}
@@ -157,8 +117,13 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             return this;
         }
 
+        public Builder setTotalSkippedCount(long totalSkippedCount) {
+            this.totalSkippedCount = totalSkippedCount;
+            return this;
+        }
+
         public PollingIngestStats build() {
-            MessageProcessorStats messageProcessorStats = new MessageProcessorStats(totalProcessedCount);
+            MessageProcessorStats messageProcessorStats = new MessageProcessorStats(totalProcessedCount, totalSkippedCount);
             ConsumerStats consumerStats = new ConsumerStats(totalPolledCount);
             return new PollingIngestStats(messageProcessorStats, consumerStats);
         }
