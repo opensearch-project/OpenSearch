@@ -163,7 +163,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
         // check requests were only sent to data nodes
         for (String nodeTarget : capturedRequests.keySet()) {
-            assertTrue(clusterService.state().nodes().get(nodeTarget).isDataNode());
+            assertTrue(clusterService.state().nodes().get(nodeTarget).canContainData());
         }
         assertEquals(clusterService.state().nodes().getDataNodes().size(), capturedRequests.size());
     }

@@ -441,7 +441,7 @@ public class InternalTestClusterTests extends OpenSearchTestCase {
                 List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
                 if (node.isClusterManagerNode()) {
                     result.computeIfAbsent(clusterManagerRole, k -> new HashSet<>()).addAll(paths);
-                } else if (node.isDataNode()) {
+                } else if (node.canContainData()) {
                     result.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else {
                     result.computeIfAbsent(DiscoveryNodeRole.INGEST_ROLE, k -> new HashSet<>()).addAll(paths);

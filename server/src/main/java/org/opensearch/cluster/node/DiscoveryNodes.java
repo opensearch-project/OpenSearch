@@ -816,7 +816,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     clusterManagerNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
                 }
                 final Version version = nodeEntry.getValue().getVersion();
-                if (nodeEntry.getValue().isDataNode() || nodeEntry.getValue().isClusterManagerNode()) {
+                if (nodeEntry.getValue().canContainData() || nodeEntry.getValue().isClusterManagerNode()) {
                     if (minNonClientNodeVersion == null) {
                         minNonClientNodeVersion = version;
                         maxNonClientNodeVersion = version;
