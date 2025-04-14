@@ -8,7 +8,6 @@
 
 package org.opensearch.arrow.flight.bootstrap;
 
-import org.apache.arrow.flight.NoOpFlightProducer;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.util.AutoCloseables;
@@ -17,6 +16,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.flight.bootstrap.tls.DefaultSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
+import org.opensearch.arrow.flight.impl.BaseFlightProducer;
+import org.opensearch.arrow.flight.impl.FlightStreamManager;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
@@ -39,7 +40,7 @@ import java.util.Objects;
 public class FlightService extends NetworkPlugin.AuxTransport {
     private static final Logger logger = LogManager.getLogger(FlightService.class);
     private final ServerComponents serverComponents;
-    private StreamManager streamManager;
+    private FlightStreamManager streamManager;
     private Client client;
     private FlightClientManager clientManager;
     private SecureTransportSettingsProvider secureTransportSettingsProvider;
@@ -58,6 +59,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
             throw new RuntimeException("Failed to initialize Arrow Flight server", e);
         }
         this.serverComponents = new ServerComponents(settings);
+        this.streamManager = new FlightStreamManager();
     }
 
     void setClusterService(ClusterService clusterService) {
@@ -104,7 +106,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
                 client
             );
             initializeStreamManager(clientManager);
-            serverComponents.setFlightProducer(new NoOpFlightProducer());
+            serverComponents.setFlightProducer(new BaseFlightProducer(clientManager, streamManager, allocator));
             serverComponents.start();
 
         } catch (Exception e) {
@@ -166,6 +168,7 @@ public class FlightService extends NetworkPlugin.AuxTransport {
     }
 
     private void initializeStreamManager(FlightClientManager clientManager) {
-        streamManager = null;
+        streamManager.setAllocatorSupplier(() -> allocator);
+        streamManager.setClientManager(clientManager);
     }
 }
