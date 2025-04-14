@@ -33,8 +33,6 @@ package org.opensearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
@@ -45,6 +43,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -79,18 +78,9 @@ import org.opensearch.index.mapper.MappedFieldType.Relation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
-import java.util.SortedSet;
-import java.util.stream.Stream;
-
-import org.mockito.MockedConstruction;
-import org.mockito.stubbing.Answer;
-
-import static org.mockito.Mockito.mockConstructionWithAnswer;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
@@ -140,10 +130,16 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        assertEquals(
+            new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))),
+            ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+        );
 
         ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        assertEquals(
+            new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))),
+            ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+        );
 
         ft = new KeywordFieldType("field", false, true, Collections.emptyMap());
         Query expected = SortedSetDocValuesField.newSlowRangeQuery("field", new BytesRef("foo"), new BytesRef("foo"), true, true);
@@ -158,6 +154,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
             e.getMessage()
         );
+        // backwards compatible enaled with useSimilarity=true
+        ft = new KeywordFieldType("field", true, false, true, Collections.emptyMap());
+        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
     }
 
     public void testTermQueryWithNormalizer() {
@@ -175,7 +175,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             }
         };
         MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
-        assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("fOo BaR", null));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo bar"))), ft.termQuery("fOo BaR", null));
     }
 
     public void testTermsQuery() {
@@ -227,57 +227,6 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
         Query expectedDocValues = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", bytesRefList);
         assertEquals(expectedDocValues, onlyDocValues.termsQuery(sortedStrings, null));
-    }
-
-    @AwaitsFix(bugUrl = "no commit")
-    public void testMockTermsSortedQuery() {
-        String[] seedStrings = generateRandomStringArray(10, 10, false, false);
-        if (seedStrings.length == 1) {
-            seedStrings = Stream.concat(Arrays.stream(seedStrings), Arrays.stream(generateRandomStringArray(10, 10, false, false)))
-                .toArray(String[]::new);
-        }
-        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).toList();
-        List<String> sortedStrings = bytesRefList.stream().sorted().map(BytesRef::utf8ToString).toList();
-        Answer asseretSortedSetArg = invocationOnMock -> {
-            Object[] args = invocationOnMock.getArguments();
-            for (int i = 0; i < args.length; i++) {
-                if (args[i] instanceof Collection<?>) {
-                    assertTrue(args[i] instanceof SortedSet<?>);
-                    return invocationOnMock.callRealMethod();
-                }
-            }
-            fail();
-            return null;
-        };
-        try (MockedConstruction<TermInSetQuery> ignored = mockConstructionWithAnswer(TermInSetQuery.class, asseretSortedSetArg)) {
-            MappedFieldType ft = new KeywordFieldType("field");
-            assertNotNull(ft.termsQuery(sortedStrings, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
-            MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
-            assertNotNull(onlyIndexed.termsQuery(sortedStrings, null));
-            MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
-            assertNotNull(onlyDocValues.termsQuery(sortedStrings, null));
-        }
-    }
-
-    @AwaitsFix(bugUrl = "no commit")
-    public void testHeavyWeight() {
-        int arraySize = 10000000;
-        BytesRef[] array = new BytesRef[arraySize];
-        Random random = random();
-        for (int i = 0; i < arraySize; i++) {
-            String str = RandomStrings.randomAsciiOfLength(random, 10);
-            array[i] = new BytesRef(str);
-        }
-        BytesRefsCollectionBuilder outofOrder = new BytesRefsCollectionBuilder(arraySize);
-        BytesRefsCollectionBuilder inOrder = new BytesRefsCollectionBuilder(arraySize);
-        Arrays.stream(array).forEach(outofOrder);
-        Arrays.stream(array).sorted().forEachOrdered(inOrder);
-        Logger logger = LogManager.getLogger(KeywordFieldTypeTests.class);
-        long start = System.currentTimeMillis(), intermid;
-        new TermInSetQuery("foo", outofOrder.get());
-        logger.info("out of order {} ms", (intermid = System.currentTimeMillis()) - start);
-        new TermInSetQuery("foo", inOrder.get());
-        logger.info("in order{} ms", System.currentTimeMillis() - intermid);
     }
 
     public void testExistsQuery() {
@@ -475,9 +424,9 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testNormalizeQueries() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", new BytesRef("FOO")))), ft.termQuery("FOO", null));
         ft = new KeywordFieldType("field", Lucene.STANDARD_ANALYZER);
-        assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", new BytesRef("foo")))), ft.termQuery("FOO", null));
     }
 
     public void testFetchSourceValue() throws IOException {

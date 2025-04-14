@@ -49,6 +49,5 @@ public class ProtoActionsProtoUtils {
         searchResponseBodyProtoBuilder.setShards(
             ShardStatisticsProtoUtils.getShardStats(total, successful, skipped, failed, shardFailures)
         );
-
     }
 }
