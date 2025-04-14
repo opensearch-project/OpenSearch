@@ -94,12 +94,14 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             actionFilters,
             PublishCheckpointRequest::new,
             PublishCheckpointRequest::new,
-            ThreadPool.Names.REFRESH,
-            false,
-            false,
-            PUBLISH_CHECK_POINT_RETRY_TIMEOUT
+            ThreadPool.Names.REFRESH
         );
         this.replicationService = targetService;
+    }
+
+    @Override
+    protected Setting<TimeValue> getRetryTimeoutSetting() {
+        return PUBLISH_CHECK_POINT_RETRY_TIMEOUT;
     }
 
     @Override

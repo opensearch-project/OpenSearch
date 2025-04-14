@@ -1528,8 +1528,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
                 Request::new,
                 ThreadPool.Names.SAME,
                 false,
-                forceExecute,
-                null
+                forceExecute
             );
         }
 
