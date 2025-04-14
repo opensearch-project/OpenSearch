@@ -53,7 +53,6 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.StoreStats;
@@ -602,11 +601,10 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         assertEquals(request.waitForActiveShards(), activeShardCount);
     }
 
+    @LockFeatureFlag(REMOTE_STORE_MIGRATION_EXPERIMENTAL)
     public void testResizeFailuresDuringMigration() {
         // We will keep all other settings correct for resize request,
         // So we only need to test for the failures due to cluster setting validation while migration
-        final Settings directionEnabledNodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(directionEnabledNodeSettings);
         boolean isRemoteStoreEnabled = randomBoolean();
         CompatibilityMode compatibilityMode = randomFrom(CompatibilityMode.values());
         RemoteStoreNodeService.Direction migrationDirection = randomFrom(RemoteStoreNodeService.Direction.values());

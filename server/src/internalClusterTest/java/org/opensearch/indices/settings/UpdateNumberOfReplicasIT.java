@@ -739,4 +739,49 @@ public class UpdateNumberOfReplicasIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testSkipSearchOnlyIndexForAutoExpandReplicasIT() throws Exception {
+        final String TEST_INDEX = "test";
+
+        // Create index with auto expand replicas
+        assertAcked(prepareCreate(TEST_INDEX, 2, Settings.builder().put("auto_expand_replicas", "0-all")));
+
+        int initialReplicas = client().admin().cluster().prepareState().get().getState().metadata().index(TEST_INDEX).getNumberOfReplicas();
+        assertEquals(1, initialReplicas);
+
+        // This adds 2 data nodes
+        allowNodes(TEST_INDEX, 3);
+        ensureGreen(TEST_INDEX);
+
+        // Verify replicas were expanded
+        int afterExpansionReplicas = client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .index(TEST_INDEX)
+            .getNumberOfReplicas();
+
+        assertEquals(2, afterExpansionReplicas);
+
+        // Add the search_only block
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(TEST_INDEX)
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), true))
+                .execute()
+                .actionGet()
+        );
+        // This adds 3 data nodes
+        allowNodes(TEST_INDEX, 4);
+        ensureGreen(TEST_INDEX);
+
+        // Verify same replicas
+        int finalReplicas = client().admin().cluster().prepareState().get().getState().metadata().index(TEST_INDEX).getNumberOfReplicas();
+
+        // Assert that replica count didn't change after enabling search-only mode
+        assertEquals("Replica count should not change for search_only index", afterExpansionReplicas, finalReplicas);
+    }
+
 }

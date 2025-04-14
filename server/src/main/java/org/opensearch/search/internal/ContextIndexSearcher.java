@@ -191,6 +191,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
+        if (original instanceof ApproximateScoreQuery) {
+            ((ApproximateScoreQuery) original).setContext(searchContext);
+        }
         if (profiler != null) {
             profiler.startRewriteTime();
         }
@@ -221,9 +224,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 profiler.pollLastElement();
             }
             return new ProfileWeight(query, weight, profile);
-        } else if (query instanceof ApproximateScoreQuery) {
-            ((ApproximateScoreQuery) query).setContext(searchContext);
-            return super.createWeight(query, scoreMode, boost);
         } else {
             return super.createWeight(query, scoreMode, boost);
         }

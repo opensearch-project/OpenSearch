@@ -166,6 +166,24 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
     );
 
+    // Block ID and block for scale operations (IDs 20-29 reserved for scaling)
+    public static final int INDEX_SEARCH_ONLY_BLOCK_ID = 20;
+
+    /**
+     * Permanent cluster block applied to indices in search-only mode.
+     * <p>
+     * This block prevents write operations to the index while allowing read operations.
+     */
+    public static final ClusterBlock INDEX_SEARCH_ONLY_BLOCK = new ClusterBlock(
+        INDEX_SEARCH_ONLY_BLOCK_ID,
+        "index scaled down",
+        false,
+        false,
+        false,
+        RestStatus.FORBIDDEN,
+        EnumSet.of(ClusterBlockLevel.WRITE)
+    );
+
     /**
      * The state of the index.
      *
@@ -264,7 +282,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * with their primary.  Search replicas require the use of Segment Replication on the index and poll their {@link SegmentReplicationSource} for
      * updates.  //TODO: Once physical isolation is introduced, reference the setting here.
      */
-    public static final String SETTING_NUMBER_OF_SEARCH_REPLICAS = "index.number_of_search_only_replicas";
+    public static final String SETTING_NUMBER_OF_SEARCH_REPLICAS = "index.number_of_search_replicas";
     public static final Setting<Integer> INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING = Setting.intSetting(
         SETTING_NUMBER_OF_SEARCH_REPLICAS,
         0,
@@ -492,7 +510,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
+    public static final String SETTING_AUTO_EXPAND_SEARCH_REPLICAS = "index.auto_expand_search_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
+    public static final Setting<AutoExpandSearchReplicas> INDEX_AUTO_EXPAND_SEARCH_REPLICAS_SETTING = AutoExpandSearchReplicas.SETTING;
 
     /**
      * Blocks the API.
@@ -505,7 +525,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         READ("read", INDEX_READ_BLOCK),
         WRITE("write", INDEX_WRITE_BLOCK),
         METADATA("metadata", INDEX_METADATA_BLOCK),
-        READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+        READ_ONLY_ALLOW_DELETE("read_only_allow_delete", INDEX_READ_ONLY_ALLOW_DELETE_BLOCK),
+        SEARCH_ONLY("search_only", INDEX_SEARCH_ONLY_BLOCK);
 
         final String name;
         final String settingName;
@@ -573,6 +594,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_READ_ONLY_ALLOW_DELETE = APIBlock.READ_ONLY_ALLOW_DELETE.settingName();
     public static final Setting<Boolean> INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING = APIBlock.READ_ONLY_ALLOW_DELETE.setting();
+
+    public static final Setting<Boolean> INDEX_BLOCKS_SEARCH_ONLY_SETTING = APIBlock.SEARCH_ONLY.setting();
 
     public static final String SETTING_VERSION_CREATED = "index.version.created";
 
@@ -780,6 +803,30 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         IngestionErrorStrategy.ErrorStrategy.DROP.name(),
         IngestionErrorStrategy.ErrorStrategy::parseFromString,
         (errorStrategy) -> {},
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Defines the max poll size per batch for pull-based ingestion.
+     */
+    public static final String SETTING_INGESTION_SOURCE_MAX_POLL_SIZE = "index.ingestion_source.poll.max_batch_size";
+    public static final Setting<Long> INGESTION_SOURCE_MAX_POLL_SIZE = Setting.longSetting(
+        SETTING_INGESTION_SOURCE_MAX_POLL_SIZE,
+        1000,
+        0,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Defines the poll timeout for pull-based ingestion in milliseconds.
+     */
+    public static final String SETTING_INGESTION_SOURCE_POLL_TIMEOUT = "index.ingestion_source.poll.timeout";
+    public static final Setting<Integer> INGESTION_SOURCE_POLL_TIMEOUT = Setting.intSetting(
+        SETTING_INGESTION_SOURCE_POLL_TIMEOUT,
+        1000,
+        0,
         Property.IndexScope,
         Property.Dynamic
     );
@@ -1024,7 +1071,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final IngestionErrorStrategy.ErrorStrategy errorStrategy = INGESTION_SOURCE_ERROR_STRATEGY_SETTING.get(settings);
             final Map<String, Object> ingestionSourceParams = INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings);
-            return new IngestionSource(ingestionSourceType, pointerInitReset, errorStrategy, ingestionSourceParams);
+            final long maxPollSize = INGESTION_SOURCE_MAX_POLL_SIZE.get(settings);
+            final int pollTimeout = INGESTION_SOURCE_POLL_TIMEOUT.get(settings);
+            return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
+                .setPointerInitReset(pointerInitReset)
+                .setErrorStrategy(errorStrategy)
+                .setMaxPollSize(maxPollSize)
+                .setPollTimeout(pollTimeout)
+                .build();
         }
         return null;
     }

@@ -28,7 +28,6 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -55,6 +54,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.util.NettyRuntime;
 
 import static org.opensearch.arrow.flight.bootstrap.FlightClientManager.LOCATION_TIMEOUT_MS;
+import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -64,6 +64,7 @@ import static org.mockito.Mockito.when;
 
 @SuppressWarnings("unchecked")
 public class FlightClientManagerTests extends OpenSearchTestCase {
+    private static FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
 
     private static BufferAllocator allocator;
     private static EventLoopGroup elg;
@@ -78,6 +79,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
     @BeforeClass
     public static void setupClass() throws Exception {
+        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(ARROW_STREAMS);
         ServerConfig.init(Settings.EMPTY);
         allocator = new RootAllocator();
         elg = ServerConfig.createELG("test-grpc-worker-elg", NettyRuntime.availableProcessors() * 2);
@@ -89,7 +91,6 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         super.setUp();
         locationUpdaterExecutor = Executors.newScheduledThreadPool(1);
 
-        FeatureFlagSetter.set(FeatureFlags.ARROW_STREAMS_SETTING.getKey());
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
         state = getDefaultState();
@@ -176,6 +177,7 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
     @AfterClass
     public static void tearClass() {
         allocator.close();
+        ffLock.close();
     }
 
     public void testGetFlightClientForExistingNode() {

@@ -93,6 +93,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         numberOfDataNodes = clusterState.nodes().getDataNodes().size();
         hasDiscoveredClusterManager = clusterState.nodes().getClusterManagerNodeId() != null;
         indices = new HashMap<>();
+
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
             IndexMetadata indexMetadata = clusterState.metadata().index(index);
@@ -101,7 +102,6 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             }
 
             ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable);
-
             indices.put(indexHealth.getIndex(), indexHealth);
         }
 
@@ -121,6 +121,21 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             computeUnassignedShards += indexHealth.getUnassignedShards();
             computeDelayedUnassignedShards += indexHealth.getDelayedUnassignedShards();
             computeStatus = getClusterHealthStatus(indexHealth, computeStatus);
+        }
+
+        Map<String, ClusterIndexHealth> searchOnlyIndices = collectSearchOnlyIndices(clusterState, concreteIndices, indices);
+
+        if (searchOnlyIndices.isEmpty() == false) {
+            for (ClusterIndexHealth indexHealth : searchOnlyIndices.values()) {
+                if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
+                    computeStatus = ClusterHealthStatus.RED;
+                    break;
+                }
+                if (indexHealth.getUnassignedShards() > 0 && indexHealth.getActiveShards() == 0) {
+                    computeStatus = ClusterHealthStatus.RED;
+                    break;
+                }
+            }
         }
 
         if (clusterState.blocks().hasGlobalBlockWithStatus(RestStatus.SERVICE_UNAVAILABLE)) {
@@ -177,7 +192,12 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
                 continue;
             }
 
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable, healthLevel);
+            ClusterHealthRequest.Level indexHealthLevel = healthLevel;
+            if (healthLevel == ClusterHealthRequest.Level.CLUSTER && isSearchOnlyClusterBlockEnabled(indexMetadata)) {
+                indexHealthLevel = ClusterHealthRequest.Level.SHARDS;
+            }
+
+            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable, indexHealthLevel);
             computeActivePrimaryShards += indexHealth.getActivePrimaryShards();
             computeActiveShards += indexHealth.getActiveShards();
             computeRelocatingShards += indexHealth.getRelocatingShards();
@@ -186,9 +206,22 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             computeDelayedUnassignedShards += indexHealth.getDelayedUnassignedShards();
             computeStatus = getClusterHealthStatus(indexHealth, computeStatus);
 
-            if (isIndexOrShardLevelHealthRequired) {
-                // Store ClusterIndexHealth only when the health is requested at Index or Shard level
+            if (isIndexOrShardLevelHealthRequired
+                || (isSearchOnlyClusterBlockEnabled(indexMetadata) && indexHealthLevel == ClusterHealthRequest.Level.SHARDS)) {
+                // Store ClusterIndexHealth when:
+                // 1. Health is requested at Index or Shard level, OR
+                // 2. This is a search_only index we're examining at SHARDS level
                 indices.put(indexHealth.getIndex(), indexHealth);
+            }
+        }
+
+        Map<String, ClusterIndexHealth> searchOnlyIndices = collectSearchOnlyIndices(clusterState, concreteIndices, indices);
+        if (searchOnlyIndices.isEmpty() == false) {
+            for (ClusterIndexHealth indexHealth : searchOnlyIndices.values()) {
+                if (indexHealth.getUnassignedShards() > 0 && indexHealth.getActiveShards() == 0) {
+                    computeStatus = ClusterHealthStatus.RED;
+                    break;
+                }
             }
         }
 
@@ -217,6 +250,46 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             }
             this.activeShardsPercent = (((double) activeShardCount) / totalShardCount) * 100;
         }
+    }
+
+    /**
+     * Checks if an index has search-only mode enabled.
+     *
+     * @param indexMetadata The index metadata
+     * @return true if search-only mode is enabled, false otherwise
+     */
+    private static boolean isSearchOnlyClusterBlockEnabled(IndexMetadata indexMetadata) {
+        return indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+    }
+
+    /**
+     * Collects health information for search-only indices.
+     *
+     * @param clusterState The current cluster state
+     * @param concreteIndices Array of index names
+     * @param healthIndices Map of existing index health objects
+     * @return Map of index health objects for search-only indices
+     */
+    private static Map<String, ClusterIndexHealth> collectSearchOnlyIndices(
+        final ClusterState clusterState,
+        final String[] concreteIndices,
+        final Map<String, ClusterIndexHealth> healthIndices
+    ) {
+
+        Map<String, ClusterIndexHealth> searchOnlyIndices = new HashMap<>();
+        for (String index : concreteIndices) {
+            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            if (indexMetadata == null) continue;
+
+            if (isSearchOnlyClusterBlockEnabled(indexMetadata)) {
+                String indexName = indexMetadata.getIndex().getName();
+                ClusterIndexHealth indexHealth = healthIndices.get(indexName);
+                if (indexHealth != null) {
+                    searchOnlyIndices.put(indexName, indexHealth);
+                }
+            }
+        }
+        return searchOnlyIndices;
     }
 
     private static ClusterHealthStatus getClusterHealthStatus(ClusterIndexHealth indexHealth, ClusterHealthStatus computeStatus) {

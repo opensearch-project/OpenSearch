@@ -1941,17 +1941,29 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // index a doc.
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
         refresh(INDEX_NAME);
+        waitForSearchableDocs(1, primaryNode, replicaNode, replicaNode2);
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        IndexShard replica_1 = getIndexShard(replicaNode, INDEX_NAME);
-        IndexShard replica_2 = getIndexShard(replicaNode2, INDEX_NAME);
+        AtomicReference<IndexShard> replica_1 = new AtomicReference<>();
+        AtomicReference<IndexShard> replica_2 = new AtomicReference<>();
         // wait until a replica is promoted & finishes engine flip, we don't care which one
         AtomicReference<IndexShard> primary = new AtomicReference<>();
         assertBusy(() -> {
-            assertTrue("replica should be promoted as a primary", replica_1.routingEntry().primary() || replica_2.routingEntry().primary());
-            primary.set(replica_1.routingEntry().primary() ? replica_1 : replica_2);
-        });
+            IndexShard replicaShard1 = getIndexShard(replicaNode, INDEX_NAME);
+            IndexShard replicaShard2 = getIndexShard(replicaNode2, INDEX_NAME);
+
+            assertNotNull("Replica shard 1 should not be null", replicaShard1);
+            assertNotNull("Replica shard 2 should not be null", replicaShard2);
+
+            replica_1.set(replicaShard1);
+            replica_2.set(replicaShard2);
+            assertTrue(
+                "replica should be promoted as a primary",
+                replica_1.get().routingEntry().primary() || replica_2.get().routingEntry().primary()
+            );
+            primary.set(replica_1.get().routingEntry().primary() ? replica_1.get() : replica_2.get());
+        }, 60, TimeUnit.SECONDS);
 
         FlushRequest request = new FlushRequest(INDEX_NAME);
         request.force(true);
@@ -1959,8 +1971,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         assertBusy(() -> {
             assertEquals(
-                replica_1.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
-                replica_2.getLatestReplicationCheckpoint().getSegmentInfosVersion()
+                replica_1.get().getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+                replica_2.get().getLatestReplicationCheckpoint().getSegmentInfosVersion()
             );
         });
 
