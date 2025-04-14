@@ -111,13 +111,13 @@ public class TransferManager {
         try {
             // This local file cache is ref counted and may not strictly enforce configured capacity.
             // If we find available capacity is exceeded, deny further BlobFetchRequests.
-            if (fileCache.capacity() < fileCache.usage().usage()) {
+            if (fileCache.capacity() < fileCache.usage()) {
                 fileCache.prune();
                 throw new IOException(
                     "Local file cache capacity ("
                         + fileCache.capacity()
                         + ") exceeded ("
-                        + fileCache.usage().usage()
+                        + fileCache.usage()
                         + ") - BlobFetchRequest failed: "
                         + request.getFilePath()
                 );
