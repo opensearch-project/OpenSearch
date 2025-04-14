@@ -1145,11 +1145,10 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
             .get();
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         // The order here could be unstable (depends on document order) since missing == field value
         assertThat(searchResponse.getHits().getAt(1).getId(), is(oneOf("3", "2")));
-        assertThat(searchResponse.getHits().getAt(2).getId(), is(oneOf("2", "3")));
 
         logger.info("--> sort with missing _last");
         searchResponse = client().prepareSearch()

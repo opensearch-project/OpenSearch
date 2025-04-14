@@ -51,9 +51,6 @@ public final class ApproximateScoreQuery extends Query {
     }
 
     public void setContext(SearchContext context) {
-        if (resolvedQuery != null) {
-            throw new IllegalStateException("Query already resolved, duplicate call to setContext");
-        }
         resolvedQuery = approximationQuery.canApproximate(context) ? approximationQuery : originalQuery;
     };
 

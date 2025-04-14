@@ -8,16 +8,23 @@
 
 package org.opensearch.search.aggregations.bucket.filterrewrite;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.aggregations.bucket.filterrewrite.rangecollector.RangeCollector;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
+
+import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.createCollector;
+import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.multiRangesTraverse;
 
 /**
  * This interface provides a bridge between an aggregator and the optimization context, allowing
@@ -34,6 +41,8 @@ import java.util.function.Consumer;
  * @opensearch.internal
  */
 public abstract class AggregatorBridge {
+
+    static final Logger logger = LogManager.getLogger(Helper.loggerName);
 
     /**
      * The field type associated with this aggregator bridge.
@@ -75,15 +84,50 @@ public abstract class AggregatorBridge {
     /**
      * Attempts to build aggregation results for a segment
      *
-     * @param values            the point values (index structure for numeric values) for a segment
-     * @param incrementDocCount a consumer to increment the document count for a range bucket. The First parameter is document count, the second is the key of the bucket
+     * @param values               the point values (index structure for numeric values) for a segment
+     * @param incrementDocCount    a consumer to increment the document count for a range bucket. The First parameter is document count, the second is the key of the bucket
      * @param ranges
+     * @param subAggCollectorParam
      */
-    abstract FilterRewriteOptimizationContext.DebugInfo tryOptimize(
+    abstract FilterRewriteOptimizationContext.OptimizeResult tryOptimize(
         PointValues values,
         BiConsumer<Long, Long> incrementDocCount,
-        Ranges ranges
+        Ranges ranges,
+        FilterRewriteOptimizationContext.SubAggCollectorParam subAggCollectorParam
     ) throws IOException;
+
+    static FilterRewriteOptimizationContext.OptimizeResult getResult(
+        PointValues values,
+        BiConsumer<Long, Long> incrementDocCount,
+        Ranges ranges,
+        Function<Integer, Long> getBucketOrd,
+        int size,
+        FilterRewriteOptimizationContext.SubAggCollectorParam subAggCollectorParam
+    ) throws IOException {
+        BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
+            long bucketOrd = getBucketOrd.apply(activeIndex);
+            incrementDocCount.accept(bucketOrd, (long) docCount);
+        };
+
+        PointValues.PointTree tree = values.getPointTree();
+        FilterRewriteOptimizationContext.OptimizeResult optimizeResult = new FilterRewriteOptimizationContext.OptimizeResult();
+        int activeIndex = ranges.firstRangeIndex(tree.getMinPackedValue(), tree.getMaxPackedValue());
+        if (activeIndex < 0) {
+            logger.debug("No ranges match the query, skip the fast filter optimization");
+            return optimizeResult;
+        }
+        RangeCollector collector = createCollector(
+            ranges,
+            incrementFunc,
+            size,
+            activeIndex,
+            getBucketOrd,
+            optimizeResult,
+            subAggCollectorParam
+        );
+
+        return multiRangesTraverse(tree, collector);
+    }
 
     /**
      * Checks whether the top level query matches all documents on the segment

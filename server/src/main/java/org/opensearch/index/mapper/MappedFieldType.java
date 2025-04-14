@@ -497,6 +497,9 @@ public abstract class MappedFieldType {
                 return new Term(tisQuery.getField(), term);
             }
         }
+        if (termQuery instanceof ConstantScoreQuery) {
+            termQuery = ((ConstantScoreQuery) termQuery).getQuery();
+        }
         if (termQuery instanceof TermQuery == false) {
             throw new IllegalArgumentException("Cannot extract a term from a query of type " + termQuery.getClass() + ": " + termQuery);
         }
