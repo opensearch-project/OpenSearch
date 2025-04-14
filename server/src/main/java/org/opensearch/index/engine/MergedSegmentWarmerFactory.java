@@ -67,8 +67,7 @@ public class MergedSegmentWarmerFactory {
             // IndexWriter.IndexReaderWarmer should be null.
             return null;
         }
-        // If a caller calls MergedSegmentWarmerFactory#get, then we know that they are expecting a non-null value to be returned. We just
-        // handle known cases and throw exception at the last. This will allow predictability on the IndexReaderWarmer behaviour.
+        // We just handle known cases and throw exception at the last. This will allow predictability on the IndexReaderWarmer behaviour.
         throw new IllegalStateException(shard.shardId() + " can't determine IndexReaderWarmer");
     }
 }
