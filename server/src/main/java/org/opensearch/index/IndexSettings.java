@@ -1340,6 +1340,10 @@ public final class IndexSettings {
         return ReplicationType.SEGMENT.equals(replicationType) && !isRemoteStoreEnabled();
     }
 
+    public boolean isDocumentReplication() {
+        return ReplicationType.DOCUMENT.equals(replicationType);
+    }
+
     /**
      * Returns if remote store is enabled for this index.
      */
