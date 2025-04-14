@@ -130,6 +130,10 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         return getRolesFromSettings(settings).stream().allMatch(DiscoveryNodeRole.WARM_ROLE::equals);
     }
 
+    public static boolean isOfflineNode(Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.OFFLINE_ROLE);
+    }
+
     private final String nodeName;
     private final String nodeId;
     private final String ephemeralId;
