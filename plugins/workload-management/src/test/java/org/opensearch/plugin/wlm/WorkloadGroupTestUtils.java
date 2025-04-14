@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.querygroup;
+package org.opensearch.plugin.wlm;
 
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
