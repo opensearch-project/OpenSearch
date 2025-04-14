@@ -2385,6 +2385,7 @@ public class InternalEngine extends Engine {
         }
         if (FeatureFlags.isEnabled(FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING)
             && config().getIndexSettings().isSegRepEnabledOrRemoteNode()) {
+            assert null != config().getIndexReaderWarmer();
             iwc.setMergedSegmentWarmer(config().getIndexReaderWarmer());
         }
         return iwc;
