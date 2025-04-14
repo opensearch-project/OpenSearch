@@ -136,9 +136,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         return randomBoolean() ? INDEX_NAME : "alias";
     }
 
-    public void testPublishCheckPointFail() throws Exception {
+    public void testRetryPublishCheckPoint() throws Exception {
+        // Reproduce the situation where the replica shard cannot synchronize data from the primary shard when there is a network exception.
+        // Test update of configuration PublishCheckpointAction#PUBLISH_CHECK_POINT_RETRY_TIMEOUT.
         Settings mockNodeSetting = Settings.builder()
             .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(0))
+            .put(PublishCheckpointAction.PUBLISH_CHECK_POINT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(0))
             .build();
 
         final String primaryNode = internalCluster().startDataOnlyNode(mockNodeSetting);
@@ -147,6 +150,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final String replicaNode = internalCluster().startDataOnlyNode(mockNodeSetting);
         ensureGreen(INDEX_NAME);
 
+        // update publish checkpoint retry time out
         client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -155,6 +159,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             )
             .get();
 
+        // mock network exception
         MockTransportService replicaTransportService = ((MockTransportService) internalCluster().getInstance(
             TransportService.class,
             replicaNode
@@ -173,6 +178,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         );
 
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        waitForSearchableDocs(0, replicaNode);
         logger.info("ensure publish checkpoint request can be process");
         mockReplicaReceivePublishCheckpointException.set(false);
 
