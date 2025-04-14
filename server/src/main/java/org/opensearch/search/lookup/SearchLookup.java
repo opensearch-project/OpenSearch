@@ -165,6 +165,13 @@ public class SearchLookup {
         );
     }
 
+    /**
+     * Creates a new LeafSearchLookup using the existing sourceLookup. This is to be used in cases where multiple script instances are processing the same document (non-concurrently).
+     */
+    public LeafSearchLookup getLeafSearchLookupWithCachedSourceLookup(LeafReaderContext context) {
+        return new LeafSearchLookup(context, docMap.getLeafDocLookup(context), sourceLookup, fieldsLookup.getLeafFieldsLookup(context));
+    }
+
     public DocLookup doc() {
         return docMap;
     }
