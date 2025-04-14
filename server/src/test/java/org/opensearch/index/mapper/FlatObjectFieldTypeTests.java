@@ -13,6 +13,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -182,7 +183,9 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 true,
                 false
             );
-            Query expected = new TermQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field1=fOo")));
+            Query expected = new ConstantScoreQuery(
+                new TermQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field1=fOo")))
+            );
 
             assertEquals(expected, ft.termQuery("fOo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
@@ -275,7 +278,10 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             String searchFieldName = flatParentFieldType.getSearchField();
             String searchValues = flatParentFieldType.rewriteSearchValue("foo");
             assertEquals("foo", searchValues);
-            assertEquals(new TermQuery(new Term(searchFieldName, searchValues)), flatParentFieldType.termQuery(searchValues, null));
+            assertEquals(
+                new ConstantScoreQuery(new TermQuery(new Term(searchFieldName, searchValues))),
+                flatParentFieldType.termQuery(searchValues, null)
+            );
 
             FlatObjectFieldType dynamicMappedFieldType = new FlatObjectFieldMapper.FlatObjectFieldType(
                 "field.bar",
@@ -289,7 +295,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
             String searchValuesDocPath = dynamicMappedFieldType.rewriteSearchValue("foo");
             assertEquals("field.bar=foo", searchValuesDocPath);
             assertEquals(
-                new TermQuery(new Term(searchFieldNameDocPath, searchValuesDocPath)),
+                new ConstantScoreQuery(new TermQuery(new Term(searchFieldNameDocPath, searchValuesDocPath))),
                 dynamicMappedFieldType.termQuery("foo", null)
             );
         }
@@ -302,7 +308,7 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 true,
                 false
             );
-            Query expected = new TermQuery(new Term("field" + VALUE_SUFFIX, new BytesRef("foo")));
+            Query expected = new ConstantScoreQuery(new TermQuery(new Term("field" + VALUE_SUFFIX, new BytesRef("foo"))));
             assertEquals(expected, ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }
 
@@ -314,7 +320,9 @@ public class FlatObjectFieldTypeTests extends FieldTypeTestCase {
                 true,
                 false
             );
-            Query expected = new TermQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field1=foo")));
+            Query expected = new ConstantScoreQuery(
+                new TermQuery(new Term("field" + VALUE_AND_PATH_SUFFIX, new BytesRef("field.field1=foo")))
+            );
 
             assertEquals(expected, ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
         }

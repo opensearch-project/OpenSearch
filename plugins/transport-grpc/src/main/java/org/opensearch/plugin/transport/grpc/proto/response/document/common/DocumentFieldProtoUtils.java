@@ -7,11 +7,11 @@
  */
 package org.opensearch.plugin.transport.grpc.proto.response.document.common;
 
-import com.google.protobuf.Value;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.transport.grpc.proto.response.common.StructProtoUtils;
+import org.opensearch.plugin.transport.grpc.proto.response.common.ObjectMapProtoUtils;
+import org.opensearch.protobufs.ObjectMap;
 
 import java.util.List;
 
@@ -33,8 +33,8 @@ public class DocumentFieldProtoUtils {
      * @param fieldValues The list of DocumentField values to convert
      * @return A Protobuf Value representation
      */
-    public static Value toProto(List<Object> fieldValues) {
-        return StructProtoUtils.toProto(fieldValues);
+    public static ObjectMap.Value toProto(List<Object> fieldValues) {
+        return ObjectMapProtoUtils.toProto(fieldValues);
     }
 
     /**
@@ -44,8 +44,8 @@ public class DocumentFieldProtoUtils {
      * @param fieldValue The DocumentField value to convert
      * @return A Protobuf Value representation
      */
-    public static Value toProto(Object fieldValue) {
-        return StructProtoUtils.toProto(fieldValue);
+    public static ObjectMap.Value toProto(Object fieldValue) {
+        return ObjectMapProtoUtils.toProto(fieldValue);
     }
 
 }

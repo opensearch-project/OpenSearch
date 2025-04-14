@@ -294,7 +294,10 @@ public class SimpleValidateQueryIT extends OpenSearchIntegTestCase {
         assertThat(validateQueryResponse.isValid(), equalTo(true));
         assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getIndex(), equalTo("test"));
-        assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), equalTo("*:*"));
+        assertThat(
+            validateQueryResponse.getQueryExplanation().get(0).getExplanation(),
+            equalTo("ApproximateScoreQuery(originalQuery=*:*, approximationQuery=Approximate(*:*))")
+        );
     }
 
     public void testExplainFilteredAlias() {

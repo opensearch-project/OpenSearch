@@ -162,6 +162,7 @@ public class InternalEngine extends Engine {
     protected final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     protected final SoftDeletesPolicy softDeletesPolicy;
     protected final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
+    protected final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
 
     @Nullable
     protected final String historyUUID;
@@ -199,7 +200,6 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocDeletes = new CounterMetric();
     private final CounterMetric numDocAppends = new CounterMetric();
     private final CounterMetric numDocUpdates = new CounterMetric();
-    private final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
     private final CompletionStatsCache completionStatsCache;

@@ -105,7 +105,7 @@ public class SearchOnlyReplicaTests extends OpenSearchSingleNodeTestCase {
             )
         );
         assertEquals(
-            "To set index.number_of_search_only_replicas, index.remote_store.enabled must be set to true",
+            "To set index.number_of_search_replicas, index.remote_store.enabled must be set to true",
             exception.getCause().getMessage()
         );
     }

@@ -42,17 +42,15 @@ public final class ApproximateScoreQuery extends Query {
     }
 
     @Override
-    public final Query rewrite(IndexSearcher indexSearcher) throws IOException {
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         if (resolvedQuery == null) {
-            throw new IllegalStateException("Cannot rewrite resolved query without setContext being called");
+            // Default to the original query. This suggests that we were not called from ContextIndexSearcher.
+            return originalQuery.rewrite(indexSearcher);
         }
         return resolvedQuery.rewrite(indexSearcher);
     }
 
     public void setContext(SearchContext context) {
-        if (resolvedQuery != null) {
-            throw new IllegalStateException("Query already resolved, duplicate call to setContext");
-        }
         resolvedQuery = approximationQuery.canApproximate(context) ? approximationQuery : originalQuery;
     };
 

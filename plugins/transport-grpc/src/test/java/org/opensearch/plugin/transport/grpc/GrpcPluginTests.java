@@ -18,6 +18,7 @@ import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.junit.Before;
 
 import java.util.List;
@@ -34,6 +35,9 @@ import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SET
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_HOST;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT;
+import static org.opensearch.plugin.transport.grpc.ssl.SecureSettingsHelpers.getServerClientAuthNone;
+import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.GRPC_SECURE_TRANSPORT_SETTING_KEY;
+import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT;
 
 public class GrpcPluginTests extends OpenSearchTestCase {
 
@@ -87,6 +91,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         // Verify that all expected settings are returned
         assertTrue("SETTING_GRPC_PORT should be included", settings.contains(SETTING_GRPC_PORT));
+        assertTrue("SETTING_GRPC_SECURE_PORT should be included", settings.contains(SETTING_GRPC_SECURE_PORT));
         assertTrue("SETTING_GRPC_HOST should be included", settings.contains(SETTING_GRPC_HOST));
         assertTrue("SETTING_GRPC_PUBLISH_HOST should be included", settings.contains(SETTING_GRPC_PUBLISH_HOST));
         assertTrue("SETTING_GRPC_BIND_HOST should be included", settings.contains(SETTING_GRPC_BIND_HOST));
@@ -94,7 +99,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         assertTrue("SETTING_GRPC_PUBLISH_PORT should be included", settings.contains(SETTING_GRPC_PUBLISH_PORT));
 
         // Verify the number of settings
-        assertEquals("Should return 6 settings", 6, settings.size());
+        assertEquals("Should return 7 settings", 7, settings.size());
     }
 
     public void testGetAuxTransports() {
@@ -115,5 +120,26 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         // Verify that the supplier returns a Netty4GrpcServerTransport instance
         NetworkPlugin.AuxTransport transport = transports.get(GRPC_TRANSPORT_SETTING_KEY).get();
         assertTrue("Should return a Netty4GrpcServerTransport instance", transport instanceof Netty4GrpcServerTransport);
+    }
+
+    public void testGetSecureAuxTransports() {
+        Settings settings = Settings.builder().put(SETTING_GRPC_SECURE_PORT.getKey(), "9200-9300").build();
+
+        Map<String, Supplier<NetworkPlugin.AuxTransport>> transports = plugin.getSecureAuxTransports(
+            settings,
+            threadPool,
+            circuitBreakerService,
+            networkService,
+            clusterSettings,
+            getServerClientAuthNone(),
+            tracer
+        );
+
+        // Verify that the transport map contains the expected key
+        assertTrue("Should contain GRPC_SECURE_TRANSPORT_SETTING_KEY", transports.containsKey(GRPC_SECURE_TRANSPORT_SETTING_KEY));
+
+        // Verify that the supplier returns a Netty4GrpcServerTransport instance
+        NetworkPlugin.AuxTransport transport = transports.get(GRPC_SECURE_TRANSPORT_SETTING_KEY).get();
+        assertTrue("Should return a SecureNetty4GrpcServerTransport instance", transport instanceof SecureNetty4GrpcServerTransport);
     }
 }

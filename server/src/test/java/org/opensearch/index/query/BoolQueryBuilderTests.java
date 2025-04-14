@@ -42,6 +42,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.approximate.ApproximateMatchAllQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -208,7 +210,10 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertThat(innerBooleanQuery.clauses().size(), equalTo(1));
         BooleanClause innerBooleanClause = innerBooleanQuery.clauses().get(0);
         assertThat(innerBooleanClause.occur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(innerBooleanClause.query(), instanceOf(MatchAllDocsQuery.class));
+        assertThat(innerBooleanClause.query(), instanceOf(ApproximateScoreQuery.class));
+        ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) innerBooleanClause.query();
+        assertThat(approxQuery.getOriginalQuery(), instanceOf(MatchAllDocsQuery.class));
+        assertThat(approxQuery.getApproximationQuery(), instanceOf(ApproximateMatchAllQuery.class));
     }
 
     public void testMinShouldMatchBiggerThanNumberOfShouldClauses() throws Exception {

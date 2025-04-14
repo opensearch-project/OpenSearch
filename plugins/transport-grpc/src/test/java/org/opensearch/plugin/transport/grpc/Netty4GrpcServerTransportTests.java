@@ -12,6 +12,7 @@ import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.plugin.transport.grpc.ssl.NettyGrpcClient;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.Before;
@@ -19,6 +20,7 @@ import org.junit.Before;
 import java.util.List;
 
 import io.grpc.BindableService;
+import io.grpc.health.v1.HealthCheckResponse;
 
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.not;
@@ -38,10 +40,36 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService)) {
             transport.start();
 
-            MatcherAssert.assertThat(transport.boundAddress().boundAddresses(), not(emptyArray()));
-            assertNotNull(transport.boundAddress().publishAddress().address());
+            MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
+            assertNotNull(transport.getBoundAddress().publishAddress().address());
 
             transport.stop();
+        }
+    }
+
+    public void testGrpcTransportHealthcheck() {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService)) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.getBoundAddress().boundAddresses());
+            try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(remoteAddress).build()) {
+                assertEquals(client.checkHealth(), HealthCheckResponse.ServingStatus.SERVING);
+            }
+            transport.stop();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void testGrpcTransportListServices() {
+        try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(createSettings(), services, networkService)) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.getBoundAddress().boundAddresses());
+            try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(remoteAddress).build()) {
+                assertTrue(client.listServices().get().size() > 1);
+            }
+            transport.stop();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -52,8 +80,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService)) {
             transport.start();
 
-            MatcherAssert.assertThat(transport.boundAddress().boundAddresses(), not(emptyArray()));
-            TransportAddress publishAddress = transport.boundAddress().publishAddress();
+            MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
+            TransportAddress publishAddress = transport.getBoundAddress().publishAddress();
             assertNotNull(publishAddress.address());
             assertTrue("Port should be in the specified range", publishAddress.getPort() >= 9000 && publishAddress.getPort() <= 9010);
 
@@ -71,8 +99,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService)) {
             transport.start();
 
-            MatcherAssert.assertThat(transport.boundAddress().boundAddresses(), not(emptyArray()));
-            TransportAddress publishAddress = transport.boundAddress().publishAddress();
+            MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
+            TransportAddress publishAddress = transport.getBoundAddress().publishAddress();
             assertNotNull(publishAddress.address());
             assertEquals("Publish port should match the specified value", 9000, publishAddress.getPort());
 
@@ -90,8 +118,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService)) {
             transport.start();
 
-            MatcherAssert.assertThat(transport.boundAddress().boundAddresses(), not(emptyArray()));
-            TransportAddress publishAddress = transport.boundAddress().publishAddress();
+            MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
+            TransportAddress publishAddress = transport.getBoundAddress().publishAddress();
             assertNotNull(publishAddress.address());
             assertEquals(
                 "Host should match the specified value",
@@ -113,8 +141,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService)) {
             transport.start();
 
-            MatcherAssert.assertThat(transport.boundAddress().boundAddresses(), not(emptyArray()));
-            TransportAddress boundAddress = transport.boundAddress().boundAddresses()[0];
+            MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
+            TransportAddress boundAddress = transport.getBoundAddress().boundAddresses()[0];
             assertNotNull(boundAddress.address());
             assertEquals(
                 "Bind host should match the specified value",
@@ -136,8 +164,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService)) {
             transport.start();
 
-            MatcherAssert.assertThat(transport.boundAddress().boundAddresses(), not(emptyArray()));
-            TransportAddress publishAddress = transport.boundAddress().publishAddress();
+            MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
+            TransportAddress publishAddress = transport.getBoundAddress().publishAddress();
             assertNotNull(publishAddress.address());
             assertEquals(
                 "Publish host should match the specified value",
@@ -159,8 +187,8 @@ public class Netty4GrpcServerTransportTests extends OpenSearchTestCase {
         try (Netty4GrpcServerTransport transport = new Netty4GrpcServerTransport(settings, services, networkService)) {
             transport.start();
 
-            MatcherAssert.assertThat(transport.boundAddress().boundAddresses(), not(emptyArray()));
-            assertNotNull(transport.boundAddress().publishAddress().address());
+            MatcherAssert.assertThat(transport.getBoundAddress().boundAddresses(), not(emptyArray()));
+            assertNotNull(transport.getBoundAddress().publishAddress().address());
 
             transport.stop();
         }

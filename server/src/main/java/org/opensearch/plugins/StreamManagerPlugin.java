@@ -10,11 +10,13 @@ package org.opensearch.plugins;
 
 import org.opensearch.arrow.spi.StreamManager;
 
-import java.util.function.Supplier;
+import java.util.Optional;
 
 /**
  * An interface for OpenSearch plugins to implement to provide a StreamManager.
- * Plugins can implement this interface to provide custom StreamManager implementation.
+ * Plugins can implement this interface to provide custom StreamManager implementation
+ * or get a reference to the StreamManager instance provided by OpenSearch.
+ *
  * @see StreamManager
  */
 public interface StreamManagerPlugin {
@@ -23,5 +25,13 @@ public interface StreamManagerPlugin {
      *
      * @return The StreamManager instance
      */
-    Supplier<StreamManager> getStreamManager();
+    default Optional<StreamManager> getStreamManager() {
+        return Optional.empty();
+    }
+
+    /**
+     * Called when the StreamManager is initialized.
+     * @param streamManager Supplier of the StreamManager instance
+     */
+    default void onStreamManagerInitialized(StreamManager streamManager) {}
 }

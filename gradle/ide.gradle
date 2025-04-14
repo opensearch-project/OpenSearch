@@ -81,9 +81,13 @@ if (System.getProperty('idea.active') == 'true') {
         }
         runConfigurations {
           defaults(JUnit) {
-            vmParameters = '-ea -Djava.locale.providers=SPI,CLDR'
-            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
-              vmParameters += ' -Djava.security.manager=allow'
+            project(':libs:agent-sm:agent').afterEvaluate { agentProject ->
+              vmParameters = '-ea -Djava.locale.providers=SPI,CLDR'
+              def jarName = "${agentProject.base.archivesName.get()}-${project.version}.jar"
+              vmParameters += ' -javaagent:' + agentProject.layout.buildDirectory
+                .dir('distributions')
+                .map { it.file(jarName) }
+                .get()
             }
           }
         }

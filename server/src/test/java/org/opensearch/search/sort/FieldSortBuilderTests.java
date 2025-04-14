@@ -45,6 +45,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
@@ -320,7 +321,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         Nested nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new TermQuery(new Term(MAPPED_STRING_FIELDNAME, "value")), nested.getInnerQuery());
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term(MAPPED_STRING_FIELDNAME, "value"))), nested.getInnerQuery());
 
         sortBuilder = new FieldSortBuilder("fieldName").setNestedPath("path");
         sortField = sortBuilder.build(shardContextMock).field;
@@ -337,7 +338,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new TermQuery(new Term(MAPPED_STRING_FIELDNAME, "value")), nested.getInnerQuery());
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term(MAPPED_STRING_FIELDNAME, "value"))), nested.getInnerQuery());
 
         // if nested path is missing, we omit any filter and return a SortedNumericSortField
         sortBuilder = new FieldSortBuilder("fieldName").setNestedFilter(QueryBuilders.termQuery(MAPPED_STRING_FIELDNAME, "value"));

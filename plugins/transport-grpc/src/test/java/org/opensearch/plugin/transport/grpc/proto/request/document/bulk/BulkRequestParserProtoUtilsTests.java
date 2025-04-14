@@ -21,6 +21,7 @@ import org.opensearch.protobufs.BulkRequestBody;
 import org.opensearch.protobufs.CreateOperation;
 import org.opensearch.protobufs.DeleteOperation;
 import org.opensearch.protobufs.IndexOperation;
+import org.opensearch.protobufs.OpType;
 import org.opensearch.protobufs.UpdateOperation;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -128,7 +129,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexOperation indexOperation = IndexOperation.newBuilder()
             .setIndex("test-index")
             .setId("test-id")
-            .setOpType(IndexOperation.OpType.OP_TYPE_CREATE)
+            .setOpType(OpType.OP_TYPE_CREATE)
             .build();
 
         // Create document content
@@ -138,7 +139,7 @@ public class BulkRequestParserProtoUtilsTests extends OpenSearchTestCase {
         IndexRequest indexRequest = BulkRequestParserProtoUtils.buildIndexRequest(
             indexOperation,
             document,
-            IndexOperation.OpType.OP_TYPE_CREATE,
+            OpType.OP_TYPE_CREATE,
             "default-index",
             "default-id",
             "default-routing",
