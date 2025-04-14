@@ -42,6 +42,8 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.BoostQuery;
@@ -51,6 +53,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.lucene.Lucene;
@@ -59,6 +62,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
@@ -1789,5 +1793,53 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault).init(this);
+    }
+
+    @Override
+    protected void doValidateDerivedSource() {
+        checkDocValuesForDerivedSource();
+    }
+
+    @Override
+    public void fillSource(LeafReader reader, int docID, XContentBuilder builder) throws IOException {
+        CheckedFunction<Long, ?, IOException> converter;
+        switch (type) {
+            case HALF_FLOAT:
+                converter = n -> HalfFloatPoint.sortableShortToHalfFloat(n.shortValue());
+                break;
+            case FLOAT:
+                converter = n -> NumericUtils.sortableIntToFloat(n.intValue());
+                break;
+            case DOUBLE:
+                converter = NumericUtils::sortableLongToDouble;
+                break;
+            case BYTE:
+            case SHORT:
+            case INTEGER:
+            case LONG:
+                converter = n -> n;
+                break;
+            case UNSIGNED_LONG:
+                SortedNumericDocValues raw = reader.getSortedNumericDocValues(name());
+                if (raw == null || raw.advanceExact(docID) == false) {
+                    return;
+                }
+                final int valueCount = raw.docValueCount();
+                if (valueCount == 1) {
+                    builder.field(simpleName(), Numbers.toUnsignedBigInteger(raw.nextValue()));
+                } else {
+                    List<BigInteger> values = new ArrayList<>(valueCount);
+                    for (int i = 0; i < valueCount; i++) {
+                        values.add(Numbers.toUnsignedBigInteger(raw.nextValue()));
+                    }
+                    // the unsigned long is sorted according to the signed long order, so we need to resort it
+                    Collections.sort(values);
+                    builder.field(simpleName(), values);
+                }
+                return;
+            default:
+                throw new IllegalStateException("unknown number type [" + type + "]");
+        }
+        fillSourceFromSortedNumericDV(reader, docID, converter, builder);
     }
 }

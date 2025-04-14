@@ -37,6 +37,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -55,6 +56,7 @@ import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -793,5 +795,21 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     public Long getNullValue() {
         return nullValue;
+    }
+
+    protected void doValidateDerivedSource() {
+        checkDocValuesForDerivedSource();
+    }
+
+    @Override
+    public void fillSource(LeafReader reader, int docID, XContentBuilder builder) throws IOException {
+        final Resolution resolution = fieldType().resolution();
+        final DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
+        fillSourceFromSortedNumericDV(
+            reader,
+            docID,
+            n -> dateTimeFormatter.format(resolution.toInstant(n).atZone(ZoneOffset.UTC)),
+            builder
+        );
     }
 }

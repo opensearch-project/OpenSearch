@@ -250,6 +250,10 @@ public class DocumentMapper implements ToXContentFragment {
         return documentParser.parseDocument(source, mapping.metadataMappers);
     }
 
+    public ParsedDocument parseRequiredSourceField(SourceToParse source) throws MapperParsingException {
+        return documentParser.parseDocumentRequiredSourceField(source, mapping.metadataMappers);
+    }
+
     public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {
         final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), MediaTypeRegistry.JSON);
         return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();

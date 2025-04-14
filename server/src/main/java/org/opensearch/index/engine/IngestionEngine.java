@@ -22,6 +22,7 @@ import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
@@ -232,6 +233,7 @@ public class IngestionEngine extends InternalEngine {
     @Override
     public Translog.Snapshot newChangesSnapshot(
         String source,
+        MapperService mapperService,
         long fromSeqNo,
         long toSeqNo,
         boolean requiredFullRange,

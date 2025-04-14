@@ -38,6 +38,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -58,6 +59,7 @@ import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -852,5 +854,24 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers).init(this);
+    }
+
+    @Override
+    protected void doValidateDerivedSource() {
+        checkDocValuesAndStoredForDerivedSource();
+    }
+
+    @Override
+    public void fillSource(LeafReader reader, int docID, XContentBuilder builder) throws IOException {
+        doFillSource(reader, docID, fieldType(), simpleName(), builder);
+    }
+
+    static void doFillSource(LeafReader reader, int docID, MappedFieldType fieldType, String fieldName, XContentBuilder builder)
+        throws IOException {
+        if (fieldType.isStored()) {
+            fillSourceFromStoredField(reader, docID, fieldType, fieldName, builder);
+        } else {
+            fillSourceFromSortedSetDV(reader, docID, fieldType, fieldName, BytesRef::utf8ToString, builder);
+        }
     }
 }

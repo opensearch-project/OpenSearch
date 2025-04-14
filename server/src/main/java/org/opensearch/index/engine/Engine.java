@@ -80,6 +80,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -856,6 +857,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
      */
     public abstract Translog.Snapshot newChangesSnapshot(
         String source,
+        MapperService mapperService,
         long fromSeqNo,
         long toSeqNo,
         boolean requiredFullRange,
