@@ -153,7 +153,7 @@ public class InternalEngine extends Engine {
     /**
      * When we last pruned expired tombstones from versionMap.deletes:
      */
-    private volatile long lastDeleteVersionPruneTimeMSec;
+    protected volatile long lastDeleteVersionPruneTimeMSec;
 
     protected final TranslogManager translogManager;
     protected final IndexWriter indexWriter;
@@ -162,6 +162,10 @@ public class InternalEngine extends Engine {
     protected final SoftDeletesPolicy softDeletesPolicy;
     protected final AtomicBoolean shouldPeriodicallyFlushAfterBigMerge = new AtomicBoolean(false);
     protected final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
+
+    // A uid (in the form of BytesRef) to the version map
+    // we use the hashed variant since we iterate over it and check removal and additions on existing keys
+    protected final LiveVersionMap versionMap = new LiveVersionMap();
 
     @Nullable
     protected final String historyUUID;
@@ -172,10 +176,6 @@ public class InternalEngine extends Engine {
 
     private final Lock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
-
-    // A uid (in the form of BytesRef) to the version map
-    // we use the hashed variant since we iterate over it and check removal and additions on existing keys
-    private final LiveVersionMap versionMap = new LiveVersionMap();
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -745,7 +745,7 @@ public class InternalEngine extends Engine {
     }
 
     /** resolves the current version of the document, returning null if not found */
-    private VersionValue resolveDocVersion(final Operation op, boolean loadSeqNo) throws IOException {
+    protected VersionValue resolveDocVersion(final Operation op, boolean loadSeqNo) throws IOException {
         assert incrementVersionLookup(); // used for asserting in tests
         VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         if (versionValue == null) {
@@ -1974,7 +1974,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void pruneDeletedTombstones() {
+    protected void pruneDeletedTombstones() {
         /*
          * We need to deploy two different trimming strategies for GC deletes on primary and replicas. Delete operations on primary
          * are remembered for at least one GC delete cycle and trimmed periodically. This is, at the moment, the best we can do on
