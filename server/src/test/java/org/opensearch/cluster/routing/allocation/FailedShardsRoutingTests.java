@@ -860,13 +860,11 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
             REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
             "REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_VALUE"
         );
-        Set<DiscoveryNodeRole> nodeRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES);
-        nodeRoles.remove(DiscoveryNodeRole.SEARCH_ROLE);
         DiscoveryNode remoteNode1 = new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),
             remoteStoreNodeAttributes,
-            nodeRoles,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT
         );
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(remoteNode1)).build();
@@ -883,30 +881,18 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),
             remoteStoreNodeAttributes,
-            nodeRoles,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT
         );
         DiscoveryNode remoteNode3 = new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),
             remoteStoreNodeAttributes,
-            nodeRoles,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT
         );
-        DiscoveryNode nonRemoteNode1 = new DiscoveryNode(
-            UUIDs.base64UUID(),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            nodeRoles,
-            Version.CURRENT
-        );
-        DiscoveryNode nonRemoteNode2 = new DiscoveryNode(
-            UUIDs.base64UUID(),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            nodeRoles,
-            Version.CURRENT
-        );
+        DiscoveryNode nonRemoteNode1 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode nonRemoteNode2 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
         List<DiscoveryNode> replicaShardNodes = List.of(remoteNode2, remoteNode3, nonRemoteNode1, nonRemoteNode2);
 
         for (int i = 0; i < 4; i++) {
