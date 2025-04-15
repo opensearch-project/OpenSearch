@@ -46,6 +46,9 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.telemetry.metrics.Counter;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -63,6 +66,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.opensearch.telemetry.tracing.AttributeNames.NODE_ID;
 
 /**
  * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the
@@ -74,6 +78,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
     private final ThreadPool threadPool;
+    private final Counter fsHealthFailCounter;
     private volatile boolean enabled;
     private volatile boolean brokenLock;
     private final TimeValue refreshInterval;
@@ -115,7 +120,13 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         Setting.Property.Dynamic
     );
 
-    public FsHealthService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, NodeEnvironment nodeEnv) {
+    public FsHealthService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        NodeEnvironment nodeEnv,
+        MetricsRegistry metricsRegistry
+    ) {
         this.threadPool = threadPool;
         this.enabled = ENABLED_SETTING.get(settings);
         this.refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
@@ -123,6 +134,11 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
         this.healthyTimeoutThreshold = HEALTHY_TIMEOUT_SETTING.get(settings);
         this.nodeEnv = nodeEnv;
+        this.fsHealthFailCounter = metricsRegistry.createCounter(
+            "fsHealth.failure.count",
+            "Counter for number of times FS health check has failed",
+            "1"
+        );
         clusterSettings.addSettingsUpdateConsumer(SLOW_PATH_LOGGING_THRESHOLD_SETTING, this::setSlowPathLoggingThreshold);
         clusterSettings.addSettingsUpdateConsumer(HEALTHY_TIMEOUT_SETTING, this::setHealthyTimeoutThreshold);
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
@@ -213,6 +229,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             } catch (IllegalStateException e) {
                 logger.error("health check failed", e);
                 brokenLock = true;
+                fsHealthFailCounter.add(1.0, Tags.create().addTag(NODE_ID, nodeEnv.nodeId()));
                 return;
             }
 
@@ -259,6 +276,10 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             }
             unhealthyPaths = currentUnhealthyPaths;
             brokenLock = false;
+
+            if (currentUnhealthyPaths != null && !currentUnhealthyPaths.isEmpty()) {
+                fsHealthFailCounter.add(1.0, Tags.create().addTag(NODE_ID, nodeEnv.nodeId()));
+            }
         }
     }
 
