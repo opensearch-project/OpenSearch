@@ -49,18 +49,18 @@ public final class HybridQueryExecutor {
         );
     }
 
-    /**
-     * Initialize @{@link TaskExecutor} to run tasks concurrently using {@link ThreadPool}
-     * @param threadPool OpenSearch's thread pool instance
-     */
-    public static void initialize(ThreadPool threadPool) {
-        if (threadPool == null) {
-            throw new IllegalArgumentException(
-                "Argument thread-pool to Hybrid Query Executor cannot be null. This is required to build executor to run actions in parallel"
-            );
-        }
-        taskExecutor = new TaskExecutor(threadPool.executor(HYBRID_QUERY_EXEC_THREAD_POOL_NAME));
-    }
+//    /**
+//     * Initialize @{@link TaskExecutor} to run tasks concurrently using {@link ThreadPool}
+//     * @param threadPool OpenSearch's thread pool instance
+//     */
+//    public static void initialize(ThreadPool threadPool) {
+//        if (threadPool == null) {
+//            throw new IllegalArgumentException(
+//                "Argument thread-pool to Hybrid Query Executor cannot be null. This is required to build executor to run actions in parallel"
+//            );
+//        }
+//        taskExecutor = new TaskExecutor(threadPool.executor(HYBRID_QUERY_EXEC_THREAD_POOL_NAME));
+//    }
 
     /**
      * Return TaskExecutor Wrapper that helps runs tasks concurrently
@@ -70,9 +70,9 @@ public final class HybridQueryExecutor {
         return taskExecutor != null ? taskExecutor : new TaskExecutor(Runnable::run);
     }
 
-    static String getThreadPoolName() {
-        return HYBRID_QUERY_EXEC_THREAD_POOL_NAME;
-    }
+//    static String getThreadPoolName() {
+//        return HYBRID_QUERY_EXEC_THREAD_POOL_NAME;
+//    }
 
     /**
      * Will use thread size as twice the default allocated processor. We selected twice allocated processor

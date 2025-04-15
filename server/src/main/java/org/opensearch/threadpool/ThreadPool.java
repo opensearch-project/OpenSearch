@@ -56,6 +56,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.gateway.remote.ClusterStateChecksum;
 import org.opensearch.node.Node;
+import org.opensearch.search.query.HybridQueryExecutor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,6 +125,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String REMOTE_STATE_READ = "remote_state_read";
         public static final String INDEX_SEARCHER = "index_searcher";
         public static final String REMOTE_STATE_CHECKSUM = "remote_state_checksum";
+        public static final String HYBRID_QUERY_EXEC_THREAD_POOL_NAME = "_plugin_neural_search_hybrid_query_executor";
     }
 
     static Set<String> scalingThreadPoolKeys = new HashSet<>(Arrays.asList("max", "core"));
@@ -326,6 +328,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new FixedExecutorBuilder(settings, Names.REMOTE_STATE_CHECKSUM, ClusterStateChecksum.COMPONENT_SIZE, 1000)
         );
 
+        builders.put(Names.HYBRID_QUERY_EXEC_THREAD_POOL_NAME,HybridQueryExecutor.getExecutorBuilder(settings));
+
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
                 throw new IllegalArgumentException("builder with name [" + builder.name() + "] already exists");
@@ -348,6 +352,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
 
         executors.put(Names.SAME, new ExecutorHolder(DIRECT_EXECUTOR, new Info(Names.SAME, ThreadPoolType.DIRECT)));
+
         this.executors = unmodifiableMap(executors);
 
         final List<Info> infos = executors.values()
