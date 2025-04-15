@@ -607,7 +607,8 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     }
 
     private static Map<String, DiscoveryNodeRole> rolesToMap(final Stream<DiscoveryNodeRole> roles) {
-        return Collections.unmodifiableMap(roles.collect(Collectors.toMap(DiscoveryNodeRole::roleName, Function.identity())));
+        Stream<DiscoveryNodeRole> rolesWithSearch = Stream.concat(roles, Stream.of(DiscoveryNodeRole.SEARCH_ROLE));
+        return Collections.unmodifiableMap(rolesWithSearch.collect(Collectors.toMap(DiscoveryNodeRole::roleName, Function.identity())));
     }
 
     private static Map<String, DiscoveryNodeRole> roleMap = rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream());

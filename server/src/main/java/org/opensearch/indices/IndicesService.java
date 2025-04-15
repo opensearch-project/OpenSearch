@@ -114,6 +114,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
@@ -1205,7 +1206,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final DiscoveryNode targetNode,
         final DiscoveryNode sourceNode,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        final DiscoveryNodes discoveryNodes
+        final DiscoveryNodes discoveryNodes,
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
@@ -1221,7 +1223,8 @@ public class IndicesService extends AbstractLifecycleComponent
             repositoriesService,
             targetNode,
             sourceNode,
-            discoveryNodes
+            discoveryNodes,
+            mergedSegmentWarmerFactory
         );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {

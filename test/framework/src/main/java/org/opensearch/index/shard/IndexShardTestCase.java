@@ -96,6 +96,7 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
@@ -722,7 +723,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 DefaultRemoteStoreSettings.INSTANCE,
                 false,
                 discoveryNodes,
-                mockReplicationStatsProvider
+                mockReplicationStatsProvider,
+                new MergedSegmentWarmerFactory(null, null, null)
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

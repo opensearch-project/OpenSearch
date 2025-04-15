@@ -8,7 +8,7 @@
 
 package org.opensearch.plugin.transport.grpc.proto.response.document.common;
 
-import com.google.protobuf.Value;
+import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
@@ -22,7 +22,7 @@ public class DocumentFieldProtoUtilsTests extends OpenSearchTestCase {
         List<Object> fieldValues = Collections.emptyList();
 
         // Convert to Protocol Buffer
-        Value value = DocumentFieldProtoUtils.toProto(fieldValues);
+        ObjectMap.Value value = DocumentFieldProtoUtils.toProto(fieldValues);
 
         // Verify the conversion
         assertNotNull("Value should not be null", value);
@@ -33,7 +33,7 @@ public class DocumentFieldProtoUtilsTests extends OpenSearchTestCase {
         List<Object> fieldValues = Arrays.asList("value1", "value2");
 
         // Convert to Protocol Buffer
-        Value value = DocumentFieldProtoUtils.toProto(fieldValues);
+        ObjectMap.Value value = DocumentFieldProtoUtils.toProto(fieldValues);
 
         // Verify the conversion
         assertNotNull("Value should not be null", value);
@@ -44,7 +44,7 @@ public class DocumentFieldProtoUtilsTests extends OpenSearchTestCase {
 
     public void testToProtoWithNullList() {
         // Convert null to Protocol Buffer
-        Value value = DocumentFieldProtoUtils.toProto(null);
+        ObjectMap.Value value = DocumentFieldProtoUtils.toProto(null);
 
         // Verify the conversion
         assertNotNull("Value should not be null", value);

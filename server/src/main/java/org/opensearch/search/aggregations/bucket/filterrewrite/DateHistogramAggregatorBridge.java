@@ -23,8 +23,6 @@ import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.multiRangesTraverse;
-
 /**
  * For date histogram aggregation
  */
@@ -127,27 +125,31 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
         return (DateFieldMapper.DateFieldType) fieldType;
     }
 
+    /**
+     * Get the size of buckets to stop early
+     */
     protected int getSize() {
         return Integer.MAX_VALUE;
     }
 
     @Override
-    final FilterRewriteOptimizationContext.DebugInfo tryOptimize(
+    final FilterRewriteOptimizationContext.OptimizeResult tryOptimize(
         PointValues values,
         BiConsumer<Long, Long> incrementDocCount,
-        Ranges ranges
+        Ranges ranges,
+        FilterRewriteOptimizationContext.SubAggCollectorParam subAggCollectorParam
     ) throws IOException {
         int size = getSize();
 
         DateFieldMapper.DateFieldType fieldType = getFieldType();
-        BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
+
+        Function<Integer, Long> getBucketOrd = (activeIndex) -> {
             long rangeStart = LongPoint.decodeDimension(ranges.lowers[activeIndex], 0);
             rangeStart = fieldType.convertNanosToMillis(rangeStart);
-            long bucketOrd = getBucketOrd(bucketOrdProducer().apply(rangeStart));
-            incrementDocCount.accept(bucketOrd, (long) docCount);
+            return getBucketOrd(bucketOrdProducer().apply(rangeStart));
         };
 
-        return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
+        return getResult(values, incrementDocCount, ranges, getBucketOrd, size, subAggCollectorParam);
     }
 
     private static long getBucketOrd(long bucketOrd) {
