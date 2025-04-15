@@ -69,8 +69,8 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
             assertNotNull(stats);
-            assertThat(stats.getMessageProcessorStats().getTotalProcessedCount(), is(2L));
-            assertThat(stats.getConsumerStats().getTotalPolledCount(), is(2L));
+            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(2L));
+            assertThat(stats.getConsumerStats().totalPolledCount(), is(2L));
         });
     }
 
