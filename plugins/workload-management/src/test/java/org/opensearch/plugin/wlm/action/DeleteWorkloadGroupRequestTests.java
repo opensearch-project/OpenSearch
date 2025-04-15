@@ -12,7 +12,6 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
-import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

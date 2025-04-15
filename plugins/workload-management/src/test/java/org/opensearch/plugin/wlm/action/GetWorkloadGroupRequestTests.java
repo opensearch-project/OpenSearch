@@ -11,7 +11,6 @@ package org.opensearch.plugin.wlm.action;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
-import org.opensearch.plugin.wlm.action.GetWorkloadGroupRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

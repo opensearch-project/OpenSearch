@@ -59,7 +59,6 @@ import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupPersistenceService;
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupTwo;
 import static org.opensearch.plugin.wlm.action.WorkloadGroupActionTestUtils.updateWorkloadGroupRequest;
-import static org.opensearch.plugin.wlm.querygroup.WorkloadGroupTestUtils.workloadGroupPersistenceService;
 import static org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService.QUERY_GROUP_COUNT_SETTING_NAME;
 import static org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService.SOURCE;
 import static org.mockito.ArgumentMatchers.any;
