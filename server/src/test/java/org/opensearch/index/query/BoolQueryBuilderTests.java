@@ -95,7 +95,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     @Override
     protected void doAssertLuceneQuery(BoolQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (!queryBuilder.hasClauses()) {
-            assertThat(query, instanceOf(MatchAllDocsQuery.class));
+            assertThat(query, instanceOf(ApproximateScoreQuery.class));
+            assertThat(((ApproximateScoreQuery) query).getOriginalQuery(), instanceOf(MatchAllDocsQuery.class));
         } else {
             List<BooleanClause> clauses = new ArrayList<>();
             clauses.addAll(getBooleanClauses(queryBuilder.must(), BooleanClause.Occur.MUST, context));
@@ -104,7 +105,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             clauses.addAll(getBooleanClauses(queryBuilder.filter(), BooleanClause.Occur.FILTER, context));
 
             if (clauses.isEmpty()) {
-                assertThat(query, instanceOf(MatchAllDocsQuery.class));
+                assertThat(query, instanceOf(ApproximateScoreQuery.class));
+                assertThat(((ApproximateScoreQuery) query).getOriginalQuery(), instanceOf(MatchAllDocsQuery.class));
             } else if (query instanceof MatchNoDocsQuery == false) {
                 assertThat(query, instanceOf(BooleanQuery.class));
                 BooleanQuery booleanQuery = (BooleanQuery) query;
