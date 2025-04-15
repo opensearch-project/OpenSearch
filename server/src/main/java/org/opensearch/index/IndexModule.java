@@ -76,6 +76,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -133,12 +134,22 @@ public final class IndexModule {
     public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP = Setting.boolSetting("node.store.allow_mmap", true, Property.NodeScope);
 
     private static final FsDirectoryFactory DEFAULT_DIRECTORY_FACTORY = new FsDirectoryFactory();
+    private static final IndexStorePlugin.CompositeDirectoryFactory DEFAULT_COMPOSITE_DIRECTORY_FACTORY =
+        new DefaultCompositeDirectoryFactory();
 
     private static final IndexStorePlugin.RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;
 
     public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>(
         "index.store.type",
         "",
+        Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    public static final Setting<String> INDEX_COMPOSITE_STORE_TYPE_SETTING = new Setting<>(
+        "index.composite_store.type",
+        "default",
         Function.identity(),
         Property.IndexScope,
         Property.NodeScope
@@ -240,6 +251,7 @@ public final class IndexModule {
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
+    private final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories;
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
@@ -265,6 +277,7 @@ public final class IndexModule {
         final EngineFactory engineFactory,
         final EngineConfigFactory engineConfigFactory,
         final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories,
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
@@ -278,6 +291,7 @@ public final class IndexModule {
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
+        this.compositeDirectoryFactories = Collections.unmodifiableMap(compositeDirectoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
@@ -301,6 +315,7 @@ public final class IndexModule {
             engineFactory,
             engineConfigFactory,
             directoryFactories,
+            null,
             allowExpensiveQueries,
             expressionResolver,
             recoveryStateFactories,
@@ -699,6 +714,10 @@ public final class IndexModule {
             .get() == null ? (shard) -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
+        final IndexStorePlugin.CompositeDirectoryFactory compositeDirectoryFactory = getCompositeDirectoryFactory(
+            indexSettings,
+            compositeDirectoryFactories
+        );
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);
         QueryCache queryCache = null;
         IndexAnalyzers indexAnalyzers = null;
@@ -735,6 +754,7 @@ public final class IndexModule {
                 client,
                 queryCache,
                 directoryFactory,
+                compositeDirectoryFactory,
                 remoteDirectoryFactory,
                 eventListener,
                 readerWrapperFactory,
@@ -795,6 +815,23 @@ public final class IndexModule {
             factory = indexStoreFactories.get(storeType);
             if (factory == null) {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
+            }
+        }
+        return factory;
+    }
+
+    private static IndexStorePlugin.CompositeDirectoryFactory getCompositeDirectoryFactory(
+        final IndexSettings indexSettings,
+        final Map<String, IndexStorePlugin.CompositeDirectoryFactory> indexStoreFactories
+    ) {
+        final String compositeStoreType = indexSettings.getValue(INDEX_COMPOSITE_STORE_TYPE_SETTING);
+        final IndexStorePlugin.CompositeDirectoryFactory factory;
+        if (compositeStoreType.isEmpty()) {
+            factory = DEFAULT_COMPOSITE_DIRECTORY_FACTORY;
+        } else {
+            factory = indexStoreFactories.get(compositeStoreType);
+            if (factory == null) {
+                throw new IllegalArgumentException("Unknown composite store type [" + compositeStoreType + "]");
             }
         }
         return factory;
