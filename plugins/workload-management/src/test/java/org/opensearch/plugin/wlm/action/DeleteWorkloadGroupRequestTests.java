@@ -11,12 +11,7 @@ package org.opensearch.plugin.wlm.action;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-<<<<<<<< HEAD:plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/action/DeleteWorkloadGroupRequestTests.java
 import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
-========
-import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
-import org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils;
->>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/action/DeleteQueryGroupRequestTests.java
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

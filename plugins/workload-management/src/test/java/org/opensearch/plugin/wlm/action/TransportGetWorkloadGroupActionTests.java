@@ -19,15 +19,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
-<<<<<<<< HEAD:plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/action/TransportGetWorkloadGroupActionTests.java
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_NONE_EXISTED;
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_ONE;
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.clusterState;
-========
-import static org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils.NAME_NONE_EXISTED;
-import static org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils.NAME_ONE;
-import static org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils.clusterState;
->>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/action/TransportGetQueryGroupActionTests.java
 import static org.mockito.Mockito.mock;
 
 public class TransportGetWorkloadGroupActionTests extends OpenSearchTestCase {

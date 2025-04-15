@@ -14,13 +14,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
-<<<<<<<< HEAD:plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/action/TransportDeleteWorkloadGroupActionTests.java
-import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
-import org.opensearch.plugin.wlm.action.TransportDeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
-========
-import org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService;
->>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/action/TransportDeleteQueryGroupActionTests.java
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
