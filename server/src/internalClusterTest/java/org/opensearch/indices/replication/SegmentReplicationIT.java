@@ -41,6 +41,7 @@ import org.opensearch.action.search.PitTestsUtil;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.action.termvectors.TermVectorsRequestBuilder;
 import org.opensearch.action.termvectors.TermVectorsResponse;
 import org.opensearch.action.update.UpdateResponse;
@@ -59,6 +60,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
@@ -72,6 +74,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.FileChunkRequest;
+import org.opensearch.indices.replication.checkpoint.PublishCheckpointAction;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.search.SearchService;
@@ -83,6 +86,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Requests;
 import org.junit.Before;
@@ -98,6 +102,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -129,6 +134,56 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     private static String indexOrAlias() {
         return randomBoolean() ? INDEX_NAME : "alias";
+    }
+
+    public void testRetryPublishCheckPoint() throws Exception {
+        // Reproduce the case where the replica shard cannot synchronize data from the primary shard when there is a network exception.
+        // Test update of configuration PublishCheckpointAction#PUBLISH_CHECK_POINT_RETRY_TIMEOUT.
+        Settings mockNodeSetting = Settings.builder()
+            .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(0))
+            .put(PublishCheckpointAction.PUBLISH_CHECK_POINT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(0))
+            .build();
+
+        final String primaryNode = internalCluster().startDataOnlyNode(mockNodeSetting);
+        createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).build());
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startDataOnlyNode(mockNodeSetting);
+        ensureGreen(INDEX_NAME);
+
+        // update publish checkpoint retry time out
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder().put(PublishCheckpointAction.PUBLISH_CHECK_POINT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueMinutes(10))
+            )
+            .get();
+
+        // mock network exception
+        MockTransportService replicaTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            replicaNode
+        ));
+        AtomicBoolean mockReplicaReceivePublishCheckpointException = new AtomicBoolean(true);
+        replicaTransportService.addRequestHandlingBehavior(
+            PublishCheckpointAction.ACTION_NAME + TransportReplicationAction.REPLICA_ACTION_SUFFIX,
+            (handler, request, channel, task) -> {
+                if (mockReplicaReceivePublishCheckpointException.get()) {
+                    logger.info("mock remote transport exception");
+                    throw new RemoteTransportException("mock remote transport exception", new OpenSearchRejectedExecutionException());
+                }
+                logger.info("replica receive publish checkpoint request");
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        waitForSearchableDocs(0, replicaNode);
+        logger.info("ensure publish checkpoint request can be process");
+        mockReplicaReceivePublishCheckpointException.set(false);
+
+        waitForSearchableDocs(1, primaryNode, replicaNode);
+        replicaTransportService.clearAllRules();
     }
 
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {
