@@ -137,7 +137,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testRetryPublishCheckPoint() throws Exception {
-        // Reproduce the situation where the replica shard cannot synchronize data from the primary shard when there is a network exception.
+        // Reproduce the case where the replica shard cannot synchronize data from the primary shard when there is a network exception.
         // Test update of configuration PublishCheckpointAction#PUBLISH_CHECK_POINT_RETRY_TIMEOUT.
         Settings mockNodeSetting = Settings.builder()
             .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(0))
