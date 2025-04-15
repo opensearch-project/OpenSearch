@@ -11,15 +11,9 @@ package org.opensearch.plugin.wlm.rest;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-<<<<<<<< HEAD:plugins/workload-management/src/main/java/org/opensearch/plugin/wlm/querygroup/rest/RestUpdateWorkloadGroupAction.java
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupResponse;
-========
-import org.opensearch.plugin.wlm.querygroup.action.CreateQueryGroupAction;
-import org.opensearch.plugin.wlm.querygroup.action.CreateQueryGroupRequest;
-import org.opensearch.plugin.wlm.querygroup.action.CreateQueryGroupResponse;
->>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/main/java/org/opensearch/plugin/wlm/querygroup/rest/RestCreateQueryGroupAction.java
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;

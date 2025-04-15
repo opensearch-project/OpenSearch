@@ -8,13 +8,8 @@
 
 package org.opensearch.plugin.wlm.rest;
 
-<<<<<<<< HEAD:plugins/workload-management/src/main/java/org/opensearch/plugin/wlm/querygroup/rest/RestDeleteWorkloadGroupAction.java
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
-========
-import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupAction;
-import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupRequest;
->>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/main/java/org/opensearch/plugin/wlm/querygroup/rest/RestDeleteQueryGroupAction.java
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
