@@ -181,6 +181,16 @@ public class FeatureFlags {
         }
 
         /**
+         * Enables plugins to provide their own feature flags
+         * by registering new flags. New flags should be registered statically
+         * to ensure they are known previous to initializeFeatureFlags().
+         * @param newFeatureFlag Feature flag to register.
+         */
+        void registerFeatureFlag(Setting<Boolean> newFeatureFlag) {
+            featureFlags.put(newFeatureFlag, newFeatureFlag.getDefault(Settings.EMPTY));
+        }
+
+        /**
          * Initialize feature flags map from the following sources:
          * (Each source overwrites previous feature flags)
          * - Set from setting default
@@ -272,6 +282,10 @@ public class FeatureFlags {
     /**
      * Server module public API.
      */
+    public static void registerFeatureFlag(Setting<Boolean> newFeatureFlag) {
+        featureFlagsImpl.registerFeatureFlag(newFeatureFlag);
+    }
+
     public static void initializeFeatureFlags(Settings openSearchSettings) {
         featureFlagsImpl.initializeFeatureFlags(openSearchSettings);
     }
