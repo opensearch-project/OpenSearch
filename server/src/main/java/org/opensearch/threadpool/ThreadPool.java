@@ -328,7 +328,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new FixedExecutorBuilder(settings, Names.REMOTE_STATE_CHECKSUM, ClusterStateChecksum.COMPONENT_SIZE, 1000)
         );
 
-        builders.put(Names.HYBRID_QUERY_EXEC_THREAD_POOL_NAME,HybridQueryExecutor.getExecutorBuilder(settings));
+        builders.put(Names.HYBRID_QUERY_EXEC_THREAD_POOL_NAME, HybridQueryExecutor.getExecutorBuilder(settings));
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {

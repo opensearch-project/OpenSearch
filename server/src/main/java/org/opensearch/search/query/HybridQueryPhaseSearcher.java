@@ -8,12 +8,6 @@
 
 package org.opensearch.search.query;
 
-import java.io.IOException;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.BooleanClause;
@@ -27,6 +21,12 @@ import org.opensearch.search.aggregations.AggregationProcessor;
 import org.opensearch.search.aggregations.HybridAggregationProcessor;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Custom search implementation to be used at {@link QueryPhase} for Hybrid Query search. For queries other than Hybrid the
@@ -165,8 +165,7 @@ public class HybridQueryPhaseSearcher extends QueryPhaseSearcherWrapper {
      * empty query collector context
      */
     final class ConcurrentQueryPhaseSearcherWithEmptyQueryCollectorContext extends ConcurrentQueryPhaseSearcher {
-        private ConcurrentQueryPhaseSearcherWithEmptyQueryCollectorContext() {
-        }
+        private ConcurrentQueryPhaseSearcherWithEmptyQueryCollectorContext() {}
 
         @Override
         protected boolean searchWithCollector(
@@ -194,8 +193,7 @@ public class HybridQueryPhaseSearcher extends QueryPhaseSearcherWrapper {
      * empty query collector context
      */
     final class DefaultQueryPhaseSearcherWithEmptyQueryCollectorContext extends QueryPhase.DefaultQueryPhaseSearcher {
-        private DefaultQueryPhaseSearcherWithEmptyQueryCollectorContext() {
-        }
+        private DefaultQueryPhaseSearcherWithEmptyQueryCollectorContext() {}
 
         @Override
         protected boolean searchWithCollector(

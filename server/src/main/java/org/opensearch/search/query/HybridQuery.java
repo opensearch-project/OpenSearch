@@ -17,7 +17,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.opensearch.search.internal.HybridQueryContext;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.AbstractMap;

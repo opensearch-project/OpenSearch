@@ -9,9 +9,7 @@
 package org.opensearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
-import org.opensearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -144,7 +142,6 @@ class HybridQueryScoreDocsMerger<T extends ScoreDoc> {
         }
         return !isHybridQuerySpecialElement(scoreDoc);
     }
-
 
     /**
      * Checking if passed scoreDocs object is a start/stop element in the list of hybrid query result scores
