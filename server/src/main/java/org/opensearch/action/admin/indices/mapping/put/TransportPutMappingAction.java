@@ -50,7 +50,9 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -72,6 +74,7 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
 
     private final MetadataMappingService metadataMappingService;
     private final RequestValidators<PutMappingRequest> requestValidators;
+    private final MappingTransformerRegistry mappingTransformerRegistry;
 
     @Inject
     public TransportPutMappingAction(
@@ -81,7 +84,8 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
         final MetadataMappingService metadataMappingService,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final RequestValidators<PutMappingRequest> requestValidators
+        final RequestValidators<PutMappingRequest> requestValidators,
+        final MappingTransformerRegistry mappingTransformerRegistry
     ) {
         super(
             PutMappingAction.NAME,
@@ -94,6 +98,7 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
         );
         this.metadataMappingService = metadataMappingService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
+        this.mappingTransformerRegistry = mappingTransformerRegistry;
     }
 
     @Override
@@ -132,7 +137,13 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
                 listener.onFailure(maybeValidationException.get());
                 return;
             }
-            performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
+
+            final ActionListener<String> mappingTransformListener = ActionListener.wrap(transformedMapping -> {
+                request.source(transformedMapping, MediaTypeRegistry.JSON);
+                performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
+            }, listener::onFailure);
+
+            mappingTransformerRegistry.applyTransformers(request.source(), null, mappingTransformListener);
         } catch (IndexNotFoundException ex) {
             logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]", Arrays.asList(request.indices())), ex);
             throw ex;
