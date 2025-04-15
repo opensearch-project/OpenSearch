@@ -102,7 +102,7 @@ public class DateRangeQueryTests extends AggregatorTestCase {
         return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
-    public void testStarTreeDValidDateRangeQuery() throws IOException {
+    public void testStarTreeValidDateRangeQuery() throws IOException {
         Directory directory = newDirectory();
         IndexWriterConfig conf = newIndexWriterConfig(null);
         conf.setCodec(getCodec());

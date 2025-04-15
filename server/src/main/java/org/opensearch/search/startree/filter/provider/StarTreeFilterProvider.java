@@ -139,10 +139,13 @@ public interface StarTreeFilterProvider {
                 return null;
             }
             DimensionFilter dimensionFilter = dimensionFilterMapper.getRangeMatchFilter(mappedFieldType, rangeQueryBuilder);
+            if (dimensionFilter == null) {
+                return null;
+            }
             String dimensionField = dimensionFilterMapper.getSubDimension().isPresent()
                 ? dimensionFilterMapper.getSubDimension().get()
                 : field;
-            return dimensionFilter == null ? null : new StarTreeFilter(Map.of(dimensionField, List.of(dimensionFilter)));
+            return new StarTreeFilter(Map.of(dimensionField, List.of(dimensionFilter)));
         }
     }
 }

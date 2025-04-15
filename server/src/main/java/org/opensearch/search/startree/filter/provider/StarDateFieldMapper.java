@@ -148,7 +148,7 @@ class StarDateFieldMapper implements DimensionFilterMapper {
 
     @Override
     public Optional<String> getSubDimension() {
-        return Optional.of(subDimensionField);
+        return Optional.ofNullable(subDimensionField);
     }
 
     @Override
