@@ -50,6 +50,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Random;
@@ -73,12 +74,12 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     @Before
     public void setup() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build(), Collections.emptyList());
     }
 
     @After
     public void teardown() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY, Collections.emptyList());
     }
 
     protected Codec getCodec() {

@@ -13,6 +13,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -181,24 +182,18 @@ public class FeatureFlags {
         }
 
         /**
-         * Enables plugins to provide their own feature flags
-         * by registering new flags. New flags should be registered statically
-         * to ensure they are known previous to initializeFeatureFlags().
-         * @param newFeatureFlag Feature flag to register.
-         */
-        void registerFeatureFlag(Setting<Boolean> newFeatureFlag) {
-            featureFlags.put(newFeatureFlag, newFeatureFlag.getDefault(Settings.EMPTY));
-        }
-
-        /**
          * Initialize feature flags map from the following sources:
          * (Each source overwrites previous feature flags)
          * - Set from setting default
          * - Set from JVM system property if flag exists
          * - Set from provided settings if flag exists
          * @param openSearchSettings The settings stored in opensearch.yml.
+         * @param registerFlags new feature flags to register on initialization.
          */
-        void initializeFeatureFlags(Settings openSearchSettings) {
+        void initializeFeatureFlags(Settings openSearchSettings, List<Setting<Boolean>> registerFlags) {
+            for (Setting<Boolean> flag : registerFlags) {
+                featureFlags.put(flag, flag.getDefault(Settings.EMPTY));
+            }
             initFromDefaults();
             initFromSysProperties();
             initFromSettings(openSearchSettings);
@@ -282,12 +277,8 @@ public class FeatureFlags {
     /**
      * Server module public API.
      */
-    public static void registerFeatureFlag(Setting<Boolean> newFeatureFlag) {
-        featureFlagsImpl.registerFeatureFlag(newFeatureFlag);
-    }
-
-    public static void initializeFeatureFlags(Settings openSearchSettings) {
-        featureFlagsImpl.initializeFeatureFlags(openSearchSettings);
+    public static void initializeFeatureFlags(Settings openSearchSettings, List<Setting<Boolean>> registerFlags) {
+        featureFlagsImpl.initializeFeatureFlags(openSearchSettings, registerFlags);
     }
 
     public static boolean isEnabled(String featureFlagName) {

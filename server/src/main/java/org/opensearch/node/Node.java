@@ -537,7 +537,7 @@ public class Node implements Closeable {
             final Settings settings = pluginsService.updatedSettings();
 
             // Ensure to initialize Feature Flags via the settings from opensearch.yml
-            FeatureFlags.initializeFeatureFlags(settings);
+            FeatureFlags.initializeFeatureFlags(settings, pluginsService.getPluginFeatureFlags());
 
             final List<IdentityPlugin> identityPlugins = new ArrayList<>();
             identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
@@ -626,9 +626,6 @@ public class Node implements Closeable {
             additionalSettings.add(NODE_MASTER_SETTING);
             additionalSettings.add(NODE_REMOTE_CLUSTER_CLIENT);
             additionalSettings.addAll(pluginsService.getPluginSettings());
-            for (Setting<Boolean> ff : pluginsService.getPluginFeatureFlags()) {
-                FeatureFlags.registerFeatureFlag(ff);
-            }
 
             final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {

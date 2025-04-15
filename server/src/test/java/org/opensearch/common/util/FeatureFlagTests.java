@@ -13,11 +13,18 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Collections;
+import java.util.List;
+
 import static org.opensearch.common.util.FeatureFlags.FEATURE_FLAG_PREFIX;
 
 public class FeatureFlagTests extends OpenSearchTestCase {
     // Evergreen test flag
     private static final String TEST_FLAG = "test.flag.enabled";
+
+    // For testing registration of new feature flags
+    final String NEW_FLAG = FEATURE_FLAG_PREFIX + "newflag";
+    Setting<Boolean> NEW_FLAG_SETTING = Setting.boolSetting(NEW_FLAG, false, Setting.Property.NodeScope);
 
     public void testFeatureFlagsNotInitialized() {
         FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
@@ -31,15 +38,15 @@ public class FeatureFlagTests extends OpenSearchTestCase {
 
     public void testFeatureFlagFromEmpty() {
         FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
-        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY);
+        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY, Collections.emptyList());
         assertFalse(testFlagsImpl.isEnabled(TEST_FLAG));
     }
 
     public void testFeatureFlagFromSettings() {
         FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
-        testFlagsImpl.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, true).build());
+        testFlagsImpl.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, true).build(), Collections.emptyList());
         assertTrue(testFlagsImpl.isEnabled(TEST_FLAG));
-        testFlagsImpl.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build());
+        testFlagsImpl.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build(), Collections.emptyList());
         assertFalse(testFlagsImpl.isEnabled(TEST_FLAG));
     }
 
@@ -79,11 +86,11 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
         synchronized (TEST_FLAG) { // sync for sys property
             setSystemPropertyTrue(TEST_FLAG);
-            testFlagsImpl.initializeFeatureFlags(Settings.EMPTY);
+            testFlagsImpl.initializeFeatureFlags(Settings.EMPTY, Collections.emptyList());
             assertTrue(testFlagsImpl.isEnabled(TEST_FLAG));
             clearSystemProperty(TEST_FLAG);
         }
-        testFlagsImpl.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build());
+        testFlagsImpl.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build(), Collections.emptyList());
         assertFalse(testFlagsImpl.isEnabled(TEST_FLAG));
     }
 
@@ -93,35 +100,29 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
         assertFalse(testFlagsImpl.isEnabled(DNE_FF));
         setSystemPropertyTrue(DNE_FF);
-        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY);
+        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY, Collections.emptyList());
         assertFalse(testFlagsImpl.isEnabled(DNE_FF));
         clearSystemProperty(DNE_FF);
-        testFlagsImpl.initializeFeatureFlags(Settings.builder().put(DNE_FF, true).build());
+        testFlagsImpl.initializeFeatureFlags(Settings.builder().put(DNE_FF, true).build(), Collections.emptyList());
         assertFalse(testFlagsImpl.isEnabled(DNE_FF));
     }
 
-    @SuppressForbidden(reason = "Testing with system property")
-    public void testRegisterNewFlag() {
+    public void testRegisterNewFlagSetWithSettings() {
         final String NEW_FLAG = FEATURE_FLAG_PREFIX + "newflag";
         Setting<Boolean> NEW_FLAG_SETTING = Setting.boolSetting(NEW_FLAG, false, Setting.Property.NodeScope);
-
         FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
-        testFlagsImpl.registerFeatureFlag(NEW_FLAG_SETTING);
-        assertFalse(testFlagsImpl.isEnabled(NEW_FLAG));
+        testFlagsImpl.initializeFeatureFlags(Settings.builder().put(NEW_FLAG, true).build(), List.of(NEW_FLAG_SETTING));
+        assertTrue(testFlagsImpl.isEnabled(NEW_FLAG));
+    }
 
-        // set with sys prop
+    @SuppressForbidden(reason = "Testing with system property")
+    public void testRegisterNewFlagSetWithSysProp() {
+        final String NEW_FLAG = FEATURE_FLAG_PREFIX + "newflag";
+        Setting<Boolean> NEW_FLAG_SETTING = Setting.boolSetting(NEW_FLAG, false, Setting.Property.NodeScope);
+        FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
         setSystemPropertyTrue(NEW_FLAG);
-        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY);
+        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY, List.of(NEW_FLAG_SETTING));
         assertTrue(testFlagsImpl.isEnabled(NEW_FLAG));
-        clearSystemProperty(NEW_FLAG);
-        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY);
-        assertFalse(testFlagsImpl.isEnabled(NEW_FLAG));
-
-        // set with settings
-        testFlagsImpl.initializeFeatureFlags(Settings.builder().put(NEW_FLAG, true).build());
-        assertTrue(testFlagsImpl.isEnabled(NEW_FLAG));
-        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY);
-        assertFalse(testFlagsImpl.isEnabled(NEW_FLAG));
     }
 
     /**
@@ -131,7 +132,7 @@ public class FeatureFlagTests extends OpenSearchTestCase {
     public void testLockFeatureFlagWithFlagLock() {
         try (FeatureFlags.TestUtils.FlagWriteLock ignore = new FeatureFlags.TestUtils.FlagWriteLock(TEST_FLAG)) {
             assertTrue(FeatureFlags.isEnabled(TEST_FLAG));
-            FeatureFlags.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build());
+            FeatureFlags.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build(), Collections.emptyList());
             assertTrue(FeatureFlags.isEnabled(TEST_FLAG)); // flag is locked
         }
     }
@@ -139,7 +140,7 @@ public class FeatureFlagTests extends OpenSearchTestCase {
     public void testLockFeatureFlagWithHelper() throws Exception {
         FeatureFlags.TestUtils.with(TEST_FLAG, () -> {
             assertTrue(FeatureFlags.isEnabled(TEST_FLAG));
-            FeatureFlags.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build());
+            FeatureFlags.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build(), Collections.emptyList());
             assertTrue(FeatureFlags.isEnabled(TEST_FLAG)); // flag is locked
         });
     }
@@ -147,7 +148,14 @@ public class FeatureFlagTests extends OpenSearchTestCase {
     @LockFeatureFlag(TEST_FLAG)
     public void testLockFeatureFlagAnnotation() {
         assertTrue(FeatureFlags.isEnabled(TEST_FLAG));
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build());
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build(), Collections.emptyList());
         assertTrue(FeatureFlags.isEnabled(TEST_FLAG)); // flag is locked
+    }
+
+    public void testRegisterNewFlagSetWithWriteLock() {
+        FeatureFlags.initializeFeatureFlags(Settings.EMPTY, List.of(NEW_FLAG_SETTING));
+        try (FeatureFlags.TestUtils.FlagWriteLock ignore = new FeatureFlags.TestUtils.FlagWriteLock(NEW_FLAG)) {
+            assertTrue(FeatureFlags.isEnabled(NEW_FLAG));
+        }
     }
 }
