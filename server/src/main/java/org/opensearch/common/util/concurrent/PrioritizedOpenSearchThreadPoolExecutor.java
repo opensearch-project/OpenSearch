@@ -60,7 +60,7 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
 
     private static final TimeValue NO_WAIT_TIME_VALUE = TimeValue.timeValueMillis(0);
     private final AtomicLong insertionOrder = new AtomicLong();
-    private final Queue<Runnable> current = ConcurrentCollections.newQueue();
+    private final Queue<ExecutingRunnable> current = ConcurrentCollections.newQueue();
     private final ScheduledExecutorService timer;
 
     public PrioritizedOpenSearchThreadPoolExecutor(
@@ -114,6 +114,13 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
 
     private void addPending(List<Runnable> runnables, List<Pending> pending, boolean executing) {
         for (Runnable runnable : runnables) {
+            long executionTimeInMillis = 0;
+
+            if (executing && runnable instanceof ExecutingRunnable executingRunnable) {
+                executionTimeInMillis = executingRunnable.getExecutionTimeMillis();
+                runnable = executingRunnable.unwrap();
+            }
+
             if (runnable instanceof TieBreakingPrioritizedRunnable) {
                 TieBreakingPrioritizedRunnable t = (TieBreakingPrioritizedRunnable) runnable;
                 Runnable innerRunnable = t.runnable;
@@ -122,7 +129,7 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
                       innerRunnable can be null if task is finished but not removed from executor yet,
                       see {@link TieBreakingPrioritizedRunnable#run} and {@link TieBreakingPrioritizedRunnable#runAndClean}
                      */
-                    pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing));
+                    pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing, executionTimeInMillis));
                 }
             } else if (runnable instanceof PrioritizedFutureTask) {
                 PrioritizedFutureTask t = (PrioritizedFutureTask) runnable;
@@ -130,20 +137,22 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
                 if (t.task instanceof Runnable) {
                     task = super.unwrap((Runnable) t.task);
                 }
-                pending.add(new Pending(task, t.priority, t.insertionOrder, executing));
+                pending.add(new Pending(task, t.priority, t.insertionOrder, executing, executionTimeInMillis));
             }
         }
     }
 
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
-        current.add(r);
+        ExecutingRunnable executingRunnable = new ExecutingRunnable(r);
+        current.add(executingRunnable);
     }
 
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
-        current.remove(r);
+        // Since, there is only one task under execution at a time
+        current.remove(current.peek());
     }
 
     public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
@@ -211,12 +220,14 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
         public final Priority priority;
         public final long insertionOrder;
         public final boolean executing;
+        public final long executionTimeInMillis;
 
-        public Pending(Object task, Priority priority, long insertionOrder, boolean executing) {
+        public Pending(Object task, Priority priority, long insertionOrder, boolean executing, long executionTimeInMillis) {
             this.task = task;
             this.priority = priority;
             this.insertionOrder = insertionOrder;
             this.executing = executing;
+            this.executionTimeInMillis = executionTimeInMillis;
         }
     }
 
@@ -321,6 +332,30 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
                 return res;
             }
             return insertionOrder < pft.insertionOrder ? -1 : 1;
+        }
+    }
+
+    private static class ExecutingRunnable implements WrappedRunnable {
+        private final Runnable runnable;
+        private final long startTimeNanos;
+
+        ExecutingRunnable(Runnable task) {
+            this.runnable = task;
+            this.startTimeNanos = System.nanoTime();
+        }
+
+        @Override
+        public void run() {
+            runnable.run();
+        }
+
+        @Override
+        public Runnable unwrap() {
+            return runnable;
+        }
+
+        long getExecutionTimeMillis() {
+            return TimeUnit.MILLISECONDS.convert(System.nanoTime() - startTimeNanos, TimeUnit.NANOSECONDS);
         }
     }
 
