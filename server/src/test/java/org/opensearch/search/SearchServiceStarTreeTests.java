@@ -888,6 +888,27 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             -1
         );
 
+        // Query cannot be resolved by star-tree
+        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, true)
+            .to(toDateString, true)
+            .format("strict_date_optional_time||epoch_second");
+        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Query cannot be resolved by star-tree
+        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, false)
+            .to(toDateString, false)
+            .format("strict_date_optional_time||epoch_second");
+        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Query cannot be resolved by star-tree
+        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, false)
+            .to(toDateString, true)
+            .format("strict_date_optional_time||epoch_second");
+        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
         // Query resolves to MatchNoneQuery, star-tree query context will not be created
         from = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(240);
         to = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(200);

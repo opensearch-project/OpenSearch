@@ -139,26 +139,10 @@ public interface StarTreeFilterProvider {
                 return null;
             }
             DimensionFilter dimensionFilter = dimensionFilterMapper.getRangeMatchFilter(mappedFieldType, rangeQueryBuilder);
-            ;
-            // if (matchedDimension instanceof DateDimension) {
-            // if (!(mappedFieldType instanceof DateFieldMapper.DateFieldType)) {
-            // return null;
-            // }
-            // StarDateFieldMapper dateFieldMapper = (StarDateFieldMapper) dimensionFilterMapper;
-            // dimensionFilter = dimensionFilterMapper.getRangeMatchFilter(mappedFieldType, rangeQueryBuilder);
-            // field = dateFieldMapper.getSubDimensionField();
-            //
-            // } else {
-            // dimensionFilter = dimensionFilterMapper.getRangeMatchFilter(mappedFieldType, rangeQueryBuilder);
-            // }
-            return dimensionFilter != null
-                ? new StarTreeFilter(
-                    Map.of(
-                        dimensionFilterMapper.getSubDimension().isPresent() ? dimensionFilterMapper.getSubDimension().get() : field,
-                        List.of(dimensionFilter)
-                    )
-                )
-                : new StarTreeFilter(Collections.emptyMap());
+            String dimensionField = dimensionFilterMapper.getSubDimension().isPresent()
+                ? dimensionFilterMapper.getSubDimension().get()
+                : field;
+            return dimensionFilter == null ? null : new StarTreeFilter(Map.of(dimensionField, List.of(dimensionFilter)));
         }
     }
 }

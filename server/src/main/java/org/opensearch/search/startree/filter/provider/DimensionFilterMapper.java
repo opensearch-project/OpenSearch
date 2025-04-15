@@ -15,6 +15,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.compositeindex.datacube.DimensionDataType;
@@ -52,6 +53,7 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.signum;
 /**
  * Generates the @{@link DimensionFilter} raw values and the @{@link MappedFieldType} of the dimension.
  */
+@ExperimentalApi
 public interface DimensionFilterMapper {
     /**
      * Generates @{@link ExactMatchDimFilter} from Term/Terms query input.
@@ -83,7 +85,6 @@ public interface DimensionFilterMapper {
         StarTreeValues starTreeValues,
         DimensionFilter.MatchType matchType
     );
-
 
     default Comparator<Long> comparator() {
         return DimensionDataType.LONG::compare;
