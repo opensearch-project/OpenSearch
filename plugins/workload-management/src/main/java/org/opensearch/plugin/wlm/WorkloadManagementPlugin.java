@@ -41,8 +41,6 @@ import org.opensearch.plugin.wlm.rule.action.CreateWlmRuleAction;
 import org.opensearch.plugin.wlm.rule.action.GetRuleAction;
 import org.opensearch.plugin.wlm.rule.action.TransportCreateWlmRuleAction;
 import org.opensearch.plugin.wlm.rule.action.TransportGetRuleAction;
-import org.opensearch.plugin.wlm.rule.rest.RestCreateWlmRuleAction;
-import org.opensearch.plugin.wlm.rule.rest.RestGetRuleAction;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
