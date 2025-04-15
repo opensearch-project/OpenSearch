@@ -43,6 +43,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.telemetry.metrics.Counter;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
@@ -62,20 +64,34 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.mockito.Mock;
+
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class FsHealthServiceTests extends OpenSearchTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
+    @Mock
+    private MetricsRegistry metricsRegistry;
+    @Mock
+    private Counter fsHealthFailCounter;
 
     @Before
     public void createObjects() {
         Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+
+        when(metricsRegistry.createCounter(any(), any(), any())).thenReturn(fsHealthFailCounter);
+        doNothing().when(fsHealthFailCounter).add(any());
     }
 
     public void testSchedulesHealthCheckAtRefreshIntervals() throws Exception {
@@ -83,7 +99,13 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         final Settings settings = Settings.builder().put(FsHealthService.REFRESH_INTERVAL_SETTING.getKey(), refreshInterval + "ms").build();
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         try (NodeEnvironment env = newNodeEnvironment()) {
-            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, deterministicTaskQueue.getThreadPool(), env);
+            FsHealthService fsHealthService = new FsHealthService(
+                settings,
+                clusterSettings,
+                deterministicTaskQueue.getThreadPool(),
+                env,
+                metricsRegistry
+            );
             final long startTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
             fsHealthService.doStart();
             assertFalse(deterministicTaskQueue.hasRunnableTasks());
@@ -117,7 +139,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
         try (NodeEnvironment env = newNodeEnvironment()) {
-            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env, metricsRegistry);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
             assertEquals("health check passed", fsHealthService.getHealth().getInfo());
@@ -125,9 +147,10 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             // disrupt file system
             disruptFileSystemProvider.restrictPathPrefix(""); // disrupt all paths
             disruptFileSystemProvider.injectIOException.set(true);
-            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env, metricsRegistry);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
+            verify(fsHealthFailCounter, times(1)).add(1.0);
             for (Path path : env.nodeDataPaths()) {
                 assertTrue(fsHealthService.getHealth().getInfo().contains(path.toString()));
             }
@@ -160,7 +183,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(FsHealthService.class));
             NodeEnvironment env = newNodeEnvironment()
         ) {
-            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env, metricsRegistry);
             int counter = 0;
             for (Path path : env.nodeDataPaths()) {
                 mockAppender.addExpectation(
@@ -202,7 +225,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         PathUtilsForTesting.installMock(fileSystem);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         try (NodeEnvironment env = newNodeEnvironment()) {
-            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env, metricsRegistry);
             logger.info("--> Initial health status prior to the first monitor run");
             StatusInfo fsHealth = fsHealthService.getHealth();
             assertEquals(HEALTHY, fsHealth.getStatus());
@@ -214,7 +237,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             assertEquals("health check passed", fsHealth.getInfo());
             logger.info("--> Disrupt file system");
             disruptFileSystemProvider.injectIODelay.set(true);
-            final FsHealthService fsHealthSrvc = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            final FsHealthService fsHealthSrvc = new FsHealthService(settings, clusterSettings, testThreadPool, env, metricsRegistry);
             fsHealthSrvc.doStart();
             waitUntil(
                 () -> fsHealthSrvc.getHealth().getStatus() == UNHEALTHY,
@@ -223,6 +246,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             );
             fsHealth = fsHealthSrvc.getHealth();
             assertEquals(UNHEALTHY, fsHealth.getStatus());
+            verify(fsHealthFailCounter, times(1)).add(1.0);
             assertEquals("healthy threshold breached", fsHealth.getInfo());
             int disruptedPathCount = disruptFileSystemProvider.getInjectedPathCount();
             assertThat(disruptedPathCount, equalTo(1));
@@ -254,7 +278,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
         try (NodeEnvironment env = newNodeEnvironment()) {
             Path[] paths = env.nodeDataPaths();
-            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env, metricsRegistry);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
             assertEquals("health check passed", fsHealthService.getHealth().getInfo());
@@ -263,9 +287,10 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             disruptFsyncFileSystemProvider.injectIOException.set(true);
             String disruptedPath = randomFrom(paths).toString();
             disruptFsyncFileSystemProvider.restrictPathPrefix(disruptedPath);
-            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env, metricsRegistry);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
+            verify(fsHealthFailCounter, times(1)).add(1.0);
             assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on [" + disruptedPath + "]"));
             assertEquals(1, disruptFsyncFileSystemProvider.getInjectedPathCount());
         } finally {
@@ -285,7 +310,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         TestThreadPool testThreadPool = new TestThreadPool(getClass().getName(), settings);
         try (NodeEnvironment env = newNodeEnvironment()) {
             Path[] paths = env.nodeDataPaths();
-            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env, metricsRegistry);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
             assertEquals("health check passed", fsHealthService.getHealth().getInfo());
@@ -294,9 +319,10 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             String disruptedPath = randomFrom(paths).toString();
             disruptWritesFileSystemProvider.restrictPathPrefix(disruptedPath);
             disruptWritesFileSystemProvider.injectIOException.set(true);
-            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env, metricsRegistry);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
+            verify(fsHealthFailCounter, times(1)).add(1.0);
             assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on [" + disruptedPath + "]"));
             assertEquals(1, disruptWritesFileSystemProvider.getInjectedPathCount());
         } finally {
@@ -319,7 +345,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
         PathUtilsForTesting.installMock(fileSystem);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         try (NodeEnvironment env = newNodeEnvironment()) {
-            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env, metricsRegistry);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(HEALTHY, fsHealthService.getHealth().getStatus());
             assertEquals("health check passed", fsHealthService.getHealth().getInfo());
@@ -327,9 +353,10 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             // enabling unexpected file size injection
             unexpectedLockFileSizeFileSystemProvider.injectUnexpectedFileSize.set(true);
 
-            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
+            fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env, metricsRegistry);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
+            verify(fsHealthFailCounter, times(1)).add(1.0);
             assertThat(fsHealthService.getHealth().getInfo(), is("health check failed due to broken node lock"));
             assertEquals(1, unexpectedLockFileSizeFileSystemProvider.getInjectedPathCount());
         } finally {
