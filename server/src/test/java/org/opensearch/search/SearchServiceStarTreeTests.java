@@ -40,6 +40,7 @@ import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.aggregations.AggregationBuilders;
@@ -907,6 +908,14 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .to(toDateString, true)
             .format("strict_date_optional_time||epoch_second");
         sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder(TIMESTAMP_FIELD, fromDateString);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(termQueryBuilder).aggregation(sumAggNoSub);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(TIMESTAMP_FIELD, List.of(fromDateString, toDateString));
+        sourceBuilder = new SearchSourceBuilder().size(0).query(termsQueryBuilder).aggregation(sumAggNoSub);
         assertStarTreeContext(request, sourceBuilder, null, -1);
 
         // Query resolves to MatchNoneQuery, star-tree query context will not be created

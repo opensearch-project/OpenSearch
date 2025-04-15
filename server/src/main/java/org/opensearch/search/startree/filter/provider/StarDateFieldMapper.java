@@ -20,11 +20,9 @@ import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.DimensionFilter;
-import org.opensearch.search.startree.filter.ExactMatchDimFilter;
 import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.LongSupplier;
@@ -45,12 +43,8 @@ class StarDateFieldMapper implements DimensionFilterMapper {
 
     @Override
     public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
-        DateFieldType dateFieldType = (DateFieldType) mappedFieldType;
-        List<Object> convertedValues = new ArrayList<>(rawValues.size());
-        for (Object rawValue : rawValues) {
-            convertedValues.add(dateFieldType.parse(rawValue.toString()));
-        }
-        return new ExactMatchDimFilter(mappedFieldType.name(), convertedValues);
+        // TODO: implement term/terms query on date field to be resolved with star-tree
+        return null;
     }
 
     @Override

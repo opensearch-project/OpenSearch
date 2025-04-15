@@ -49,7 +49,7 @@ public class ExactMatchDimFilter implements DimensionFilter {
             dimensionName,
             starTreeValues.getStarTreeField().getDimensionsOrder()
         );
-        DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
+        this.dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
             searchContext.mapperService().fieldType(dimensionName),
             searchContext
         );

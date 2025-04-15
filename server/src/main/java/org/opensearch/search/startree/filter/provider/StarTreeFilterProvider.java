@@ -88,11 +88,9 @@ public interface StarTreeFilterProvider {
             Dimension matchedDimension = StarTreeQueryHelper.getMatchingDimensionOrNull(field, compositeFieldType.getDimensions());
             if (matchedDimension == null || mappedFieldType == null || dimensionFilterMapper == null) {
                 return null; // Indicates Aggregators to fallback to default implementation.
-            } else {
-                return new StarTreeFilter(
-                    Map.of(field, List.of(dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of(termQueryBuilder.value()))))
-                );
             }
+            DimensionFilter dimensionFilter = dimensionFilterMapper.getExactMatchFilter(mappedFieldType, List.of(termQueryBuilder.value()));
+            return (dimensionFilter == null) ? null : new StarTreeFilter(Map.of(field, List.of(dimensionFilter)));
         }
     }
 
@@ -112,11 +110,9 @@ public interface StarTreeFilterProvider {
                 : null;
             if (matchedDimension == null || mappedFieldType == null || dimensionFilterMapper == null) {
                 return null; // Indicates Aggregators to fallback to default implementation.
-            } else {
-                return new StarTreeFilter(
-                    Map.of(field, List.of(dimensionFilterMapper.getExactMatchFilter(mappedFieldType, termsQueryBuilder.values())))
-                );
             }
+            DimensionFilter dimensionFilter = dimensionFilterMapper.getExactMatchFilter(mappedFieldType, termsQueryBuilder.values());
+            return (dimensionFilter == null) ? null : new StarTreeFilter(Map.of(field, List.of(dimensionFilter)));
         }
     }
 
@@ -142,9 +138,7 @@ public interface StarTreeFilterProvider {
             if (dimensionFilter == null) {
                 return null;
             }
-            String dimensionField = dimensionFilterMapper.getSubDimension().isPresent()
-                ? dimensionFilterMapper.getSubDimension().get()
-                : field;
+            String dimensionField = dimensionFilterMapper.getSubDimension().orElse(field);
             return new StarTreeFilter(Map.of(dimensionField, List.of(dimensionFilter)));
         }
     }
