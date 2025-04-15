@@ -844,14 +844,6 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
     }
 
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.getKey(), true)
-            .build();
-    }
-
     private static String createTestMapping(String type) {
         return "  \"properties\": {\n"
             + "    \"test\": {\n"
