@@ -10,7 +10,7 @@ package org.opensearch.plugin.wlm;
 
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.Singleton;
-import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;;
+import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.plugin.wlm.rule.service.WlmRulePersistenceService;
 import org.opensearch.plugin.wlm.rule.service.WlmRuleProcessingService;
 import org.opensearch.plugin.wlm.rule.service.WlmRuleResponseBuilder;
