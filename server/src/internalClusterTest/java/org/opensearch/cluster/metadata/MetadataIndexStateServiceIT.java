@@ -11,7 +11,6 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -27,11 +26,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 public class MetadataIndexStateServiceIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String TEST_INDEX = "test_open_close_index";
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, Boolean.TRUE).build();
-    }
 
     public void testIndexCloseAndOpen() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
