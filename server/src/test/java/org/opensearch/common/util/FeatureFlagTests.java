@@ -9,6 +9,7 @@
 package org.opensearch.common.util;
 
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -97,6 +98,30 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         clearSystemProperty(DNE_FF);
         testFlagsImpl.initializeFeatureFlags(Settings.builder().put(DNE_FF, true).build());
         assertFalse(testFlagsImpl.isEnabled(DNE_FF));
+    }
+
+    @SuppressForbidden(reason = "Testing with system property")
+    public void testRegisterNewFlag() {
+        final String NEW_FLAG = FEATURE_FLAG_PREFIX + "newflag";
+        Setting<Boolean> NEW_FLAG_SETTING = Setting.boolSetting(NEW_FLAG, false, Setting.Property.NodeScope);
+
+        FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
+        testFlagsImpl.registerFeatureFlag(NEW_FLAG_SETTING);
+        assertFalse(testFlagsImpl.isEnabled(NEW_FLAG));
+
+        // set with sys prop
+        setSystemPropertyTrue(NEW_FLAG);
+        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY);
+        assertTrue(testFlagsImpl.isEnabled(NEW_FLAG));
+        clearSystemProperty(NEW_FLAG);
+        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY);
+        assertFalse(testFlagsImpl.isEnabled(NEW_FLAG));
+
+        // set with settings
+        testFlagsImpl.initializeFeatureFlags(Settings.builder().put(NEW_FLAG, true).build());
+        assertTrue(testFlagsImpl.isEnabled(NEW_FLAG));
+        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY);
+        assertFalse(testFlagsImpl.isEnabled(NEW_FLAG));
     }
 
     /**
