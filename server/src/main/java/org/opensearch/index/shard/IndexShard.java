@@ -129,6 +129,7 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.IngestionEngine;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
@@ -367,6 +368,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ShardMigrationState shardMigrationState;
     private DiscoveryNodes discoveryNodes;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
+    private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -398,7 +400,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RemoteStoreSettings remoteStoreSettings,
         boolean seedRemote,
         final DiscoveryNodes discoveryNodes,
-        final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -501,6 +504,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
         this.discoveryNodes = discoveryNodes;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
+        this.mergedSegmentWarmerFactory = mergedSegmentWarmerFactory;
     }
 
     /**
@@ -4096,7 +4100,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogFactorySupplier.apply(indexSettings, shardRouting),
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for
             // timeseries
-            () -> docMapper()
+            () -> docMapper(),
+            mergedSegmentWarmerFactory.get(this)
         );
     }
 

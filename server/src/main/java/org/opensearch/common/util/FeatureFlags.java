@@ -75,6 +75,12 @@ public class FeatureFlags {
      */
     public static final String BACKGROUND_TASK_EXECUTION_EXPERIMENTAL = FEATURE_FLAG_PREFIX + "task.background.enabled";
 
+    /**
+     * Gates the functionality of merged segment warmer in local/remote segment replication.
+     * Once the feature is ready for release, this feature flag can be removed.
+     */
+    public static final String MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG = "opensearch.experimental.feature.merged_segment_warmer.enabled";
+
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
         false,
@@ -93,6 +99,12 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> WRITABLE_WARM_INDEX_SETTING = Setting.boolSetting(
         WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG,
+        false,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG,
         false,
         Property.NodeScope
     );
@@ -153,6 +165,7 @@ public class FeatureFlags {
                     SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_SETTING,
                     SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_SETTING.getDefault(Settings.EMPTY)
                 );
+                put(MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING, MERGED_SEGMENT_WARMER_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
             }
         };
 

@@ -76,6 +76,7 @@ import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.MapperService;
@@ -574,7 +575,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final RepositoriesService repositoriesService,
         final DiscoveryNode targetNode,
         @Nullable DiscoveryNode sourceNode,
-        DiscoveryNodes discoveryNodes
+        DiscoveryNodes discoveryNodes,
+        MergedSegmentWarmerFactory mergedSegmentWarmerFactory
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -701,7 +703,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 remoteStoreSettings,
                 seedRemote,
                 discoveryNodes,
-                segmentReplicationStatsProvider
+                segmentReplicationStatsProvider,
+                mergedSegmentWarmerFactory
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
