@@ -57,8 +57,6 @@ import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -147,15 +145,11 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool) {
-        // Remove the search role since we don't expect a search role to co-exist with any other role
-        Set<DiscoveryNodeRole> nodeRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES);
-        nodeRoles.remove(DiscoveryNodeRole.SEARCH_ROLE);
-
         DiscoveryNode discoveryNode = new DiscoveryNode(
             "node",
             OpenSearchTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            nodeRoles,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT
         );
         return createClusterService(threadPool, discoveryNode);
