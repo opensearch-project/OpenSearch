@@ -32,30 +32,13 @@
 
 package org.opensearch.repositories.s3;
 
+import org.opensearch.OpenSearchException;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
-import software.amazon.awssdk.services.s3.model.CommonPrefix;
-import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
-import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
-import software.amazon.awssdk.services.s3.model.CompletedPart;
-import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectAttributesRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectAttributesResponse;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
-import software.amazon.awssdk.services.s3.model.ObjectAttributes;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
-import software.amazon.awssdk.services.s3.model.UploadPartRequest;
-import software.amazon.awssdk.services.s3.model.UploadPartResponse;
+import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Publisher;
 import software.amazon.awssdk.utils.CollectionUtils;
@@ -97,12 +80,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.Collections;
 
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -508,6 +493,84 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     private String buildKey(String blobName) {
         return keyPath + blobName;
     }
+    /**
+     * Executes a upload to S3 using a conditional If-Match header.
+     * The upload only proceeds if the existing object's ETag matches the provided value.
+     *
+     * @param blobStore     the S3 blob store
+     * @param blobName      the key (name) of the blob
+     * @param input         the input stream containing the blob data
+     * @param blobSize      the size of the blob in bytes
+     * @param metadata      optional metadata to be associated with the blob
+     * @param ETag          the expected ETag value for conditional upload
+     * @param etagListener  listener to handle the resulting ETag or error notifications
+     * @throws IOException if an error occurs during upload or if validations fail
+     */
+    void executeSingleUploadIfEtagMatches(final S3BlobStore blobStore,
+                                                  final String blobName,
+                                                  final InputStream input,
+                                                  final long blobSize,
+                                                  final Map<String, String> metadata,
+                                                  final String ETag,
+                                                  ActionListener<String> etagListener) throws IOException {
+        // Extra safety checks remain the same.
+        if (blobSize > MAX_FILE_SIZE.getBytes()) {
+            throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than " + MAX_FILE_SIZE);
+        }
+        if (blobSize > blobStore.bufferSizeInBytes()) {
+            throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than buffer size");
+        }
+
+        PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
+            .bucket(blobStore.bucket())
+            .key(blobName)
+            .contentLength(blobSize)
+            .storageClass(blobStore.getStorageClass())
+            .ifMatch(ETag)
+            .acl(blobStore.getCannedACL())
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher));
+
+        if (CollectionUtils.isNotEmpty(metadata)) {
+            putObjectRequestBuilder = putObjectRequestBuilder.metadata(metadata);
+        }
+        if (blobStore.serverSideEncryption()) {
+            putObjectRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
+        }
+
+        PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            final InputStream requestInputStream = blobStore.isUploadRetryEnabled()
+                ? new BufferedInputStream(input, (int) (blobSize + 1))
+                : input;
+
+            PutObjectResponse response = SocketAccess.doPrivileged(() ->
+                clientReference.get().putObject(putObjectRequest, RequestBody.fromInputStream(requestInputStream, blobSize))
+            );
+
+            if(response.eTag()!=null){
+            etagListener.onResponse(response.eTag());
+            }
+
+        }
+        catch (S3Exception e) {
+            if (e.statusCode() == 412) {
+                etagListener.onFailure(new OpenSearchException(
+                    "stale_primary_shard",
+                    "Precondition Failed : Etag Mismatch",
+                    blobName,
+                    e
+                ));
+            } else {
+                etagListener.onFailure(new IOException(
+                    String.format(Locale.ROOT, "S3 error during upload [%s]: %s", blobName, e.getMessage()), e));
+            }
+        } catch (SdkException e) {
+            etagListener.onFailure(new IOException(
+                String.format(Locale.ROOT, "S3 upload failed for [%s]", blobName), e));
+        }
+    }
+
 
     /**
      * Uploads a blob using a single upload request

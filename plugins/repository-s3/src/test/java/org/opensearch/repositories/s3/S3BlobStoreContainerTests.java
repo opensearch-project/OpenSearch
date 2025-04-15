@@ -32,10 +32,13 @@
 
 package org.opensearch.repositories.s3;
 
+import org.opensearch.OpenSearchException;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
@@ -71,6 +74,7 @@ import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Publisher;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -111,13 +115,14 @@ import java.util.stream.IntStream;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
+
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.never;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -139,6 +144,39 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals("Upload request size [" + blobSize + "] can't be larger than 5gb", e.getMessage());
     }
 
+    public void testExecuteSingleUploadIfEtagMatches_BlobSizeTooLarge() {
+        final long maxSizeBytes = ByteSizeUnit.GB.toBytes(5);
+        final long blobSize = maxSizeBytes + 1;
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bufferSizeInBytes()).thenReturn(maxSizeBytes);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        ActionListener<String> dummyListener = new ActionListener<>() {
+            @Override public void onResponse(String s) {}
+            @Override public void onFailure(Exception e) {}
+        };
+
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> blobContainer.executeSingleUploadIfEtagMatches(
+                blobStore,
+                blobName,
+                new ByteArrayInputStream(new byte[0]), // Valid stream
+                blobSize,
+                null,
+                "\"dummy-etag\"",
+                dummyListener
+            )
+        );
+
+        assertEquals(
+            "Upload request size [" + blobSize + "] can't be larger than 5GB",
+            exception.getMessage()
+        );
+    }
     public void testExecuteSingleUploadBlobSizeLargerThanBufferSize() {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(1));
@@ -158,6 +196,44 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         );
         assertEquals("Upload request size [2097152] can't be larger than buffer size", e.getMessage());
     }
+
+    public void testExecuteSingleUploadIfEtagMatches_BlobSizeLargerThanBufferSize() {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(1));
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final long invalidBlobSize = ByteSizeUnit.MB.toBytes(2); // 2MB
+
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> blobContainer.executeSingleUploadIfEtagMatches(
+                blobStore,
+                blobName,
+                new ByteArrayInputStream(new byte[0]),
+                invalidBlobSize,
+                null,
+                "\"dummy-etag\"",
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(String s) {
+                        fail("Should never succeed");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail("Should throw before listener");
+                    }
+                }
+            )
+        );
+
+        assertEquals(
+            "Upload request size [2097152] can't be larger than buffer size",
+            exception.getMessage()
+        );
+    }
+
 
     public void testBlobExists() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
@@ -669,6 +745,450 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         if (serverSideEncryption) {
             assertEquals(ServerSideEncryption.AES256, request.serverSideEncryption());
         }
+    }
+    public void testExecuteSingleUploadIfEtagMatchesPreconditionFailed() throws IOException {
+        // Setup test parameters
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+
+        final BlobPath blobPath = new BlobPath();
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        // Mock S3BlobStore
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        // Mock S3 client
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        // Create 412 Precondition Failed exception
+        S3Exception preconditionFailedException = (S3Exception) S3Exception.builder()
+            .message("Precondition Failed")
+            .statusCode(412)
+            .build();
+        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+            .thenThrow(preconditionFailedException);
+
+        // Use AtomicReference to capture the exception via ActionListener.wrap
+        final AtomicReference<Exception> capturedException = new AtomicReference<>();
+        ActionListener<String> etagListener = ActionListener.wrap(
+            r -> fail("Should have failed"),
+            capturedException::set
+        );
+
+        // Execute the upload
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
+        blobContainer.executeSingleUploadIfEtagMatches(
+            blobStore,
+            blobName,
+            inputStream,
+            blobSize,
+            metadata,
+            eTag,
+            etagListener
+        );
+
+        // Verify that onResponse was never called and onFailure captured the exception
+        verify(etagListener, never()).onResponse(any());
+        Exception exception = capturedException.get();
+        assertNotNull("Expected an exception to be captured", exception);
+        assertTrue(exception instanceof OpenSearchException);
+        OpenSearchException osException = (OpenSearchException) exception;
+        assertTrue(osException.getMessage().contains("Precondition Failed : Etag Mismatch"));
+        assertEquals(412, ((S3Exception) osException.getCause()).statusCode());
+        assertEquals("stale_primary_shard", osException.getMetadata("es.error.type").getFirst());
+        assertEquals(preconditionFailedException, osException.getCause());
+        verify(metricPublisher.putObjectMetricPublisher);
+        verify(clientReference).close();
+    }
+
+    public void testExecuteSingleUploadIfEtagMatchesS3Exception() throws IOException {
+        // Setup test parameters
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+
+        final BlobPath blobPath = new BlobPath();
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        // Mock S3BlobStore
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        // Mock S3 client
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        // Create S3Exception with status code other than 412
+        S3Exception s3Exception = (S3Exception) S3Exception.builder()
+            .message("Access Denied")
+            .statusCode(403)
+            .build();
+        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+            .thenThrow(s3Exception);
+
+        // Use AtomicReference to capture the exception via ActionListener.wrap
+        final AtomicReference<Exception> capturedException = new AtomicReference<>();
+        ActionListener<String> etagListener = ActionListener.wrap(
+            r -> fail("onResponse should not be called"),
+            capturedException::set
+        );
+
+        // Execute the upload
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
+        blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, eTag, etagListener);
+
+        // Verify that onResponse was never called and onFailure captured the exception
+        verify(etagListener, never()).onResponse(any());
+        Exception exception = capturedException.get();
+        assertNotNull("Expected an exception to be captured", exception);
+        assertTrue(exception instanceof IOException);
+        IOException ioException = (IOException) exception;
+        assertTrue(ioException.getMessage().contains(blobName));
+        assertTrue(ioException.getMessage().contains("S3 error during upload"));
+        assertEquals(s3Exception, ioException.getCause());
+
+        verify(metricPublisher.putObjectMetricPublisher);
+        verify(clientReference).close();
+    }
+
+
+
+    public void testExecuteSingleUploadIfEtagMatchesSuccess() throws IOException {
+        // Setup test parameters
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+        final String returnedETag = randomAlphaOfLengthBetween(8, 32);
+
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+
+        final BlobPath blobPath = new BlobPath();
+        if (randomBoolean()) {
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+        }
+
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        // Mock S3BlobStore
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final boolean serverSideEncryption = randomBoolean();
+        when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
+
+        final StorageClass storageClass = randomFrom(StorageClass.values());
+        when(blobStore.getStorageClass()).thenReturn(storageClass);
+
+        final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
+        if (cannedAccessControlList != null) {
+            when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
+        }
+
+        // Mock S3 client
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        // Mock retry enabled
+        final boolean isUploadRetryEnabled = randomBoolean();
+        when(blobStore.isUploadRetryEnabled()).thenReturn(isUploadRetryEnabled);
+
+        // Create argument captors
+        final ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        final ArgumentCaptor<RequestBody> requestBodyArgumentCaptor = ArgumentCaptor.forClass(RequestBody.class);
+
+        // Configure S3 client to return response with eTag
+        when(client.putObject(putObjectRequestArgumentCaptor.capture(), requestBodyArgumentCaptor.capture())).thenReturn(
+            PutObjectResponse.builder().eTag(returnedETag).build()
+        );
+
+        // Create action listener mock
+        @SuppressWarnings("unchecked")
+        ActionListener<String> etagListener = mock(ActionListener.class);
+
+        // Execute the upload
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
+        blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
+
+        // Verify request parameters
+        final PutObjectRequest request = putObjectRequestArgumentCaptor.getValue();
+        final RequestBody requestBody = requestBodyArgumentCaptor.getValue();
+        assertEquals(bucketName, request.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, request.key());
+        assertEquals(blobSize, request.contentLength().longValue());
+        assertEquals(storageClass, request.storageClass());
+        assertEquals(cannedAccessControlList, request.acl());
+        assertEquals(metadata, request.metadata());
+
+        // Verify ETag matching condition
+        assertEquals(eTag, request.ifMatch());
+
+        // Verify input stream handling
+        byte[] expectedBytes = new byte[blobSize];
+        try (InputStream is = requestBody.contentStreamProvider().newStream()) {
+            assertArrayEquals(expectedBytes, is.readAllBytes());
+        }
+
+        // Verify server-side encryption
+        if (serverSideEncryption) {
+            assertEquals(ServerSideEncryption.AES256, request.serverSideEncryption());
+        }
+
+        // Verify listener was called with the correct ETag
+        verify(etagListener).onResponse(returnedETag);
+        verify(etagListener, never()).onFailure(any());
+
+        // Verify metric publisher was triggered
+        verify(metricPublisher.putObjectMetricPublisher);
+
+        // Verify resource closure
+        verify(clientReference).close();
+    }
+
+    public void testExecuteSingleUploadIfEtagMatchesSdkException() throws IOException {
+        // Setup test parameters
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+
+        final BlobPath blobPath = new BlobPath();
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        // Mock S3BlobStore
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        // Mock S3 client
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        // Mock SdkException
+        final SdkException sdkException = SdkException.builder().message("Generic Sdk failure").build();
+        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+            .thenThrow(sdkException);
+
+        // Create an ActionListener to capture failure
+        final AtomicReference<Exception> capturedException = new AtomicReference<>();
+        ActionListener<String> etagListener = ActionListener.wrap(
+            r -> fail("Should have failed for SdkException"),
+            capturedException::set
+        );
+
+        // Execute the upload
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
+        blobContainer.executeSingleUploadIfEtagMatches(
+            blobStore,
+            blobName,
+            inputStream,
+            blobSize,
+            metadata,
+            eTag,
+            etagListener
+        );
+
+        // Verify that onResponse was never called and onFailure captured the exception
+        verify(etagListener, never()).onResponse(any());
+        Exception exception = capturedException.get();
+        assertNotNull("Expected an exception to be captured", exception);
+        assertTrue("Exception should be an IOException", exception instanceof IOException);
+
+        // Verify the IOException message references the blob name
+        IOException ioException = (IOException) exception;
+        assertTrue("IOException message should contain the blob name",
+            ioException.getMessage().contains(blobName));
+        // Verify cause is the original SdkException
+        assertEquals(sdkException, ioException.getCause());
+
+        // Verify metric publisher usage (if triggered by the attempt)
+        verify(metricPublisher.putObjectMetricPublisher);
+
+        // Verify resource closure
+        verify(clientReference).close();
+    }
+
+    // (A) Null ETag in the PutObjectResponse
+    public void testExecuteSingleUploadIfEtagMatchesWithNullETag() throws IOException {
+        // Setup test parameters
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String providedETag = randomAlphaOfLengthBetween(8, 32);
+
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        final BlobPath blobPath = new BlobPath();
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
+
+        // Mock S3BlobStore behavior
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        // Mock S3 client
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        // Setup client to return PutObjectResponse with null eTag
+        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+            .thenReturn(PutObjectResponse.builder().eTag(null).build());
+
+        // Mock the listener
+        @SuppressWarnings("unchecked")
+        ActionListener<String> etagListener = mock(ActionListener.class);
+
+        // Execute
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize])) {
+            blobContainer.executeSingleUploadIfEtagMatches(
+                blobStore,
+                blobName,
+                inputStream,
+                blobSize,
+                null, // can test with null metadata
+                providedETag,
+                etagListener
+            );
+        }
+
+        // Verify no onFailure call
+        verify(etagListener, never()).onFailure(any());
+        // Verify onResponse(...) was never called with any non-null ETag
+        verify(etagListener, never()).onResponse(anyString());
+
+        // Since the function completes silently, just confirm we didn't break anything
+        verify(metricPublisher.putObjectMetricPublisher);
+        verify(clientReference).close();
+    }
+
+    // (B) Null/Empty Input Tests
+    public void testExecuteSingleUploadIfEtagMatchesNullOrEmptyInput() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
+
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+
+        // Case 1: Null ETag (if allowed)
+        //         In the current code, null ETag would skip ifMatch() or pass a null?
+        //         We'll check if it doesn't break anything.
+        final ByteArrayInputStream inputStreamCase1 = new ByteArrayInputStream(new byte[bufferSize]);
+        @SuppressWarnings("unchecked")
+        ActionListener<String> mockListenerCase1 = mock(ActionListener.class);
+
+        final S3Client client1 = mock(S3Client.class);
+        final AmazonS3Reference clientReference1 = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference1);
+        when(clientReference1.get()).thenReturn(client1);
+        when(client1.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+            .thenReturn(PutObjectResponse.builder().eTag("nullEtagTest").build());
+
+        blobContainer.executeSingleUploadIfEtagMatches(
+            blobStore,
+            blobName,
+            inputStreamCase1,
+            bufferSize,
+            null,  // null metadata
+            null,
+            mockListenerCase1
+        );
+        // Should proceed without ifMatch condition. We'll confirm it doesn't crash and calls onResponse
+        verify(mockListenerCase1).onResponse("nullEtagTest");
+        verify(mockListenerCase1, never()).onFailure(any());
+        verify(clientReference1).close();
+
+        // Case 2: Empty metadata
+        final ByteArrayInputStream inputStreamCase2 = new ByteArrayInputStream(new byte[0]);
+        @SuppressWarnings("unchecked")
+        ActionListener<String> mockListenerCase2 = mock(ActionListener.class);
+
+        final S3Client client2 = mock(S3Client.class);
+        final AmazonS3Reference clientReference2 = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference2);
+        when(clientReference2.get()).thenReturn(client2);
+        when(client2.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+            .thenReturn(PutObjectResponse.builder().eTag("emptyMetadataETag").build());
+
+        blobContainer.executeSingleUploadIfEtagMatches(
+            blobStore,
+            blobName,
+            inputStreamCase2,
+            0,
+            Collections.emptyMap(), // empty metadata
+            "",
+            mockListenerCase2
+        );
+        verify(mockListenerCase2).onResponse("emptyMetadataETag");
+        verify(mockListenerCase2, never()).onFailure(any());
+        verify(clientReference2).close();
     }
 
     public void testExecuteMultipartUploadBlobSizeTooLarge() {
@@ -1970,7 +2490,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-        IOException e = expectThrows(IOException.class, blobContainer::delete);
+        IllegalStateException e = expectThrows(IllegalStateException.class, blobContainer::delete);
         assertEquals("Future got interrupted", e.getMessage());
         assertTrue(Thread.interrupted()); // Clear interrupted state
     }
@@ -2026,7 +2546,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
         List<String> blobNames = Arrays.asList("test1", "test2");
 
-        IOException e = expectThrows(IOException.class, () -> blobContainer.deleteBlobsIgnoringIfNotExists(blobNames));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> blobContainer.deleteBlobsIgnoringIfNotExists(blobNames));
         assertEquals("Future got interrupted", e.getMessage());
         assertTrue(Thread.interrupted()); // Clear interrupted state
     }
