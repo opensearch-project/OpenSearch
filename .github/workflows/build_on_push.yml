@@ -1,14 +1,18 @@
-name: Build packages (on push)
+name: Build packages 4.x (on push)
 
 # This workflow runs when any of the following occur:
-# - On push to branches named after ci/*
+# - when a pull request is created or updated that targets a branch starting with "4.13.*"
+
 on:
-  push:
-    # Sequence of patterns matched against refs/heads
+  pull_request:
     branches:
-      - "ci/*"
+      - 4.13.*
+    paths-ignore:
+      - '**.md'
 
 jobs:
   call-build-workflow:
     uses: ./.github/workflows/build.yml
     secrets: inherit
+    with:
+      id: ${{ github.ref }}
