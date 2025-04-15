@@ -626,6 +626,10 @@ public class Node implements Closeable {
             additionalSettings.add(NODE_MASTER_SETTING);
             additionalSettings.add(NODE_REMOTE_CLUSTER_CLIENT);
             additionalSettings.addAll(pluginsService.getPluginSettings());
+            for (Setting<Boolean> ff : pluginsService.getPluginFeatureFlags()) {
+                FeatureFlags.registerFeatureFlag(ff);
+            }
+
             final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
