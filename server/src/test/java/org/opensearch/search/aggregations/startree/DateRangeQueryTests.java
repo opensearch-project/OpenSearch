@@ -179,48 +179,57 @@ public class DateRangeQueryTests extends AggregatorTestCase {
         DateTimeFormatter formatter = DateTimeFormatter.ISO_INSTANT;
         Instant startOfTodayUTC = now.truncatedTo(ChronoUnit.DAYS);
 
-        long to = startOfTodayUTC.toEpochMilli();
-        long from = to - TimeUnit.DAYS.toMillis(80);
-        String fromDateString = formatter.format(Instant.ofEpochMilli(from));
-        String toDateString = formatter.format(Instant.ofEpochMilli(to));
+        for (int i = 0; i < 100; i++) {
+            int randomFrom = random.nextInt(80) + 120;
+            int randomTo = random.nextInt(80);
 
-        String fromDateStringNow = "now-80d/d";
-        String toDateStringNow = "now/d";
+            long from = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(randomFrom);
+            long to = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(randomTo);
 
-        Query query = new IndexOrDocValuesQuery(
-            LongPoint.newRangeQuery(TIMESTAMP_FIELD, from, to - 1),
-            SortedNumericDocValuesField.newSlowRangeQuery(TIMESTAMP_FIELD, from, to - 1)
-        );
+            String fromDateString = formatter.format(Instant.ofEpochMilli(from));
+            String toDateString = formatter.format(Instant.ofEpochMilli(to));
 
-        // corresponding queryBuilder for the above query
-        QueryBuilder queryBuilderAbsolute = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString)
-            .includeLower(true)
-            .to(toDateString)
-            .includeUpper(false)
-            .format("strict_date_optional_time||epoch_millis");
+            String fromDateStringNow = "now-" + randomFrom + "d/d";
+            String toDateStringNow = "now-" + randomTo + "d/d";
 
-        QueryBuilder queryBuilderRelative = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateStringNow)
-            .includeLower(true)
-            .to(toDateStringNow)
-            .includeUpper(false)
-            .format("strict_date_optional_time||epoch_millis");
+            Query query = new IndexOrDocValuesQuery(
+                LongPoint.newRangeQuery(TIMESTAMP_FIELD, from, to - 1),
+                SortedNumericDocValuesField.newSlowRangeQuery(TIMESTAMP_FIELD, from, to - 1)
+            );
 
-        AggregationBuilder sumAggregationBuilder = sum("max").field(SIZE);
-        testCase(indexSearcher, query, queryBuilderAbsolute, sumAggregationBuilder, starTree, supportedDimensions);
-        testCase(indexSearcher, query, queryBuilderRelative, sumAggregationBuilder, starTree, supportedDimensions);
+            // corresponding queryBuilder for the above query
+            QueryBuilder queryBuilderAbsolute = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString)
+                .includeLower(true)
+                .to(toDateString)
+                .includeUpper(false)
+                .format("strict_date_optional_time||epoch_millis");
 
-        AggregationBuilder rangeAggregationBuilder = range("range_agg").field(STATUS).addRange(10, 30).addRange(30, 50);
-        testCase(indexSearcher, query, queryBuilderAbsolute, rangeAggregationBuilder, starTree, supportedDimensions);
-        testCase(indexSearcher, query, queryBuilderRelative, rangeAggregationBuilder, starTree, supportedDimensions);
+            QueryBuilder queryBuilderRelative = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateStringNow)
+                .includeLower(true)
+                .to(toDateStringNow)
+                .includeUpper(false)
+                .format("strict_date_optional_time||epoch_millis");
 
-        rangeAggregationBuilder = range("range_agg").field(STATUS).addRange(10, 30).addRange(30, 50).subAggregation(sumAggregationBuilder);
-        testCase(indexSearcher, query, queryBuilderAbsolute, rangeAggregationBuilder, starTree, supportedDimensions);
-        testCase(indexSearcher, query, queryBuilderRelative, rangeAggregationBuilder, starTree, supportedDimensions);
+            AggregationBuilder sumAggregationBuilder = sum("max").field(SIZE);
+            testCase(indexSearcher, query, queryBuilderAbsolute, sumAggregationBuilder, starTree, supportedDimensions);
+            testCase(indexSearcher, query, queryBuilderRelative, sumAggregationBuilder, starTree, supportedDimensions);
 
-        AggregationBuilder termAggregationBuilder = terms("terms_agg").field(STATUS).subAggregation(sumAggregationBuilder);
-        testCase(indexSearcher, query, queryBuilderAbsolute, termAggregationBuilder, starTree, supportedDimensions);
-        testCase(indexSearcher, query, queryBuilderRelative, termAggregationBuilder, starTree, supportedDimensions);
+            AggregationBuilder rangeAggregationBuilder = range("range_agg").field(STATUS).addRange(10, 30).addRange(30, 50);
+            testCase(indexSearcher, query, queryBuilderAbsolute, rangeAggregationBuilder, starTree, supportedDimensions);
+            testCase(indexSearcher, query, queryBuilderRelative, rangeAggregationBuilder, starTree, supportedDimensions);
 
+            rangeAggregationBuilder = range("range_agg").field(STATUS)
+                .addRange(10, 30)
+                .addRange(30, 50)
+                .subAggregation(sumAggregationBuilder);
+            testCase(indexSearcher, query, queryBuilderAbsolute, rangeAggregationBuilder, starTree, supportedDimensions);
+            testCase(indexSearcher, query, queryBuilderRelative, rangeAggregationBuilder, starTree, supportedDimensions);
+
+            AggregationBuilder termAggregationBuilder = terms("terms_agg").field(STATUS).subAggregation(sumAggregationBuilder);
+            testCase(indexSearcher, query, queryBuilderAbsolute, termAggregationBuilder, starTree, supportedDimensions);
+            testCase(indexSearcher, query, queryBuilderRelative, termAggregationBuilder, starTree, supportedDimensions);
+
+        }
         ir.close();
         directory.close();
     }
