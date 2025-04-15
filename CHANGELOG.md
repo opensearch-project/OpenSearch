@@ -42,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Disable scoring of keyword term search by default, fallback logic with new use_similarity:true parameter ([#17889](https://github.com/opensearch-project/OpenSearch/pull/17889))
 - Add versioning support in pull-based ingestion ([#17918](https://github.com/opensearch-project/OpenSearch/pull/17918))
 - Introducing MergedSegmentWarmerFactory to support the extension of IndexWriter.IndexReaderWarmer ([#17881](https://github.com/opensearch-project/OpenSearch/pull/17881))
+- Introduce mapping transformer to allow transform mappings during index create/update or index template create/update ([#17635](https://github.com/opensearch-project/OpenSearch/pull/17635))
 
 ### Changed
 - Migrate BC libs to their FIPS counterparts ([#14912](https://github.com/opensearch-project/OpenSearch/pull/14912))
