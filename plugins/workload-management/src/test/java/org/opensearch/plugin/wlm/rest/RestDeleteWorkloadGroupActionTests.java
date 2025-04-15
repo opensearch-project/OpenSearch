@@ -11,13 +11,8 @@ package org.opensearch.plugin.wlm.rest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;
-<<<<<<<< HEAD:plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/rest/RestDeleteWorkloadGroupActionTests.java
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
-========
-import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupAction;
-import org.opensearch.plugin.wlm.querygroup.action.DeleteQueryGroupRequest;
->>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/rest/RestDeleteQueryGroupActionTests.java
 import org.opensearch.plugin.wlm.rest.RestDeleteWorkloadGroupAction;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestHandler;
@@ -31,11 +26,7 @@ import java.util.List;
 
 import org.mockito.ArgumentCaptor;
 
-<<<<<<<< HEAD:plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/rest/RestDeleteWorkloadGroupActionTests.java
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.NAME_ONE;
-========
-import static org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils.NAME_ONE;
->>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/rest/RestDeleteQueryGroupActionTests.java
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;

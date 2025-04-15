@@ -23,11 +23,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
-<<<<<<<< HEAD:plugins/workload-management/src/main/java/org/opensearch/plugin/wlm/querygroup/action/TransportGetWorkloadGroupAction.java
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
-========
-import org.opensearch.plugin.wlm.querygroup.service.QueryGroupPersistenceService;
->>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/main/java/org/opensearch/plugin/wlm/querygroup/action/TransportGetQueryGroupAction.java
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;

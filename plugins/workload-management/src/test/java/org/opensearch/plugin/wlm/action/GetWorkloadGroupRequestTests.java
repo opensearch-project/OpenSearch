@@ -10,12 +10,7 @@ package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-<<<<<<<< HEAD:plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/action/GetWorkloadGroupRequestTests.java
 import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
-========
-import org.opensearch.plugin.wlm.action.GetWorkloadGroupRequest;
-import org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils;
->>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/action/GetQueryGroupRequestTests.java
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

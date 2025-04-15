@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.querygroup.action;
+package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -18,13 +18,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-<<<<<<<< HEAD:plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/action/CreateWorkloadGroupRequestTests.java
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.assertEqualWorkloadGroups;
 import static org.opensearch.plugin.wlm.WorkloadGroupTestUtils.workloadGroupOne;
-========
-import static org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils.assertEqualQueryGroups;
-import static org.opensearch.plugin.wlm.querygroup.QueryGroupTestUtils.queryGroupOne;
->>>>>>>> c83500db863 (add update rule api logic):plugins/workload-management/src/test/java/org/opensearch/plugin/wlm/querygroup/action/CreateQueryGroupRequestTests.java
 
 public class CreateWorkloadGroupRequestTests extends OpenSearchTestCase {
 
