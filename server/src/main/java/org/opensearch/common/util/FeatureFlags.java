@@ -75,8 +75,6 @@ public class FeatureFlags {
      */
     public static final String BACKGROUND_TASK_EXECUTION_EXPERIMENTAL = FEATURE_FLAG_PREFIX + "task.background.enabled";
 
-    public static final String READER_WRITER_SPLIT_EXPERIMENTAL = FEATURE_FLAG_PREFIX + "read.write.split.enabled";
-
     /**
      * Gates the functionality of merged segment warmer in local/remote segment replication.
      * Once the feature is ready for release, this feature flag can be removed.
@@ -101,12 +99,6 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> WRITABLE_WARM_INDEX_SETTING = Setting.boolSetting(
         WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG,
-        false,
-        Property.NodeScope
-    );
-
-    public static final Setting<Boolean> READER_WRITER_SPLIT_EXPERIMENTAL_SETTING = Setting.boolSetting(
-        READER_WRITER_SPLIT_EXPERIMENTAL,
         false,
         Property.NodeScope
     );
@@ -167,7 +159,6 @@ public class FeatureFlags {
                     APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
                     APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING.getDefault(Settings.EMPTY)
                 );
-                put(READER_WRITER_SPLIT_EXPERIMENTAL_SETTING, READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
                 put(TERM_VERSION_PRECOMMIT_ENABLE_SETTING, TERM_VERSION_PRECOMMIT_ENABLE_SETTING.getDefault(Settings.EMPTY));
                 put(ARROW_STREAMS_SETTING, ARROW_STREAMS_SETTING.getDefault(Settings.EMPTY));
                 put(

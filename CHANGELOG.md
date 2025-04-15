@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add TermsQuery support to Search GRPC endpoint ([#17888](https://github.com/opensearch-project/OpenSearch/pull/17888))
 - Support sub agg in filter rewrite optimization ([#17447](https://github.com/opensearch-project/OpenSearch/pull/17447)
 - Disable scoring of keyword term search by default, fallback logic with new use_similarity:true parameter ([#17889](https://github.com/opensearch-project/OpenSearch/pull/17889))
+- Add versioning support in pull-based ingestion ([#17918](https://github.com/opensearch-project/OpenSearch/pull/17918))
 - Introducing MergedSegmentWarmerFactory to support the extension of IndexWriter.IndexReaderWarmer ([#17881](https://github.com/opensearch-project/OpenSearch/pull/17881))
 
 ### Changed
@@ -51,6 +52,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Avoid skewed segment replication lag metric ([#17831](https://github.com/opensearch-project/OpenSearch/pull/17831))
 - Increase the default segment counter step size when replica promoting ([#17568](https://github.com/opensearch-project/OpenSearch/pull/17568))
 - [WLM] Rename QueryGroup to WorkloadGroup ([#17901](https://github.com/opensearch-project/OpenSearch/pull/17901))
+- Relaxes jarHell check for optionally extended plugins([#17893](https://github.com/opensearch-project/OpenSearch/pull/17893)))
 
 ### Dependencies
 - Bump `com.nimbusds:nimbus-jose-jwt` from 9.41.1 to 10.0.2 ([#17607](https://github.com/opensearch-project/OpenSearch/pull/17607), [#17669](https://github.com/opensearch-project/OpenSearch/pull/17669))
@@ -60,8 +62,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `dangoslen/dependabot-changelog-helper` from 3 to 4 ([#17498](https://github.com/opensearch-project/OpenSearch/pull/17498))
 - Bump `com.google.api:gax` from 2.35.0 to 2.63.1 ([#17465](https://github.com/opensearch-project/OpenSearch/pull/17465))
 - Bump `com.azure:azure-storage-blob` from 12.29.1 to 12.30.0 ([#17667](https://github.com/opensearch-project/OpenSearch/pull/17667))
-- Bump `tj-actions/changed-files` from 46.0.1 to 46.0.4 ([#17666](https://github.com/opensearch-project/OpenSearch/pull/17666), [#17813](https://github.com/opensearch-project/OpenSearch/pull/17813))
-- Bump `com.google.code.gson:gson` from 2.11.0 to 2.12.1 ([#17668](https://github.com/opensearch-project/OpenSearch/pull/17668))
+- Bump `tj-actions/changed-files` from 46.0.1 to 46.0.5 ([#17666](https://github.com/opensearch-project/OpenSearch/pull/17666), [#17813](https://github.com/opensearch-project/OpenSearch/pull/17813), [#17920](https://github.com/opensearch-project/OpenSearch/pull/17920))
+- Bump `com.google.code.gson:gson` from 2.11.0 to 2.13.0 ([#17668](https://github.com/opensearch-project/OpenSearch/pull/17668), [#17921](https://github.com/opensearch-project/OpenSearch/pull/17921)), [#17926](https://github.com/opensearch-project/OpenSearch/pull/17926))
 - Bump `com.github.luben:zstd-jni` from 1.5.5-1 to 1.5.6-1 ([#17674](https://github.com/opensearch-project/OpenSearch/pull/17674))
 - Bump `lycheeverse/lychee-action` from 2.3.0 to 2.4.0 ([#17731](https://github.com/opensearch-project/OpenSearch/pull/17731))
 - Bump `com.netflix.nebula.ospackage-base` from 11.11.1 to 11.11.2 ([#17734](https://github.com/opensearch-project/OpenSearch/pull/17734))
