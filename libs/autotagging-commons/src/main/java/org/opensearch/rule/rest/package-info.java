@@ -7,6 +7,6 @@
  */
 
 /**
- * Package for the rest classes related to query groups in WorkloadManagementPlugin
+ * This package contains abstract rest classes for rules
  */
-package org.opensearch.plugin.wlm.rest;
+package org.opensearch.rule.rest;
