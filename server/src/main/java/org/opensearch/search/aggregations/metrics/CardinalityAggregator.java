@@ -358,7 +358,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 postingMap.put(term, scorer);
             }
 
-            this.queue = new DisiPriorityQueue(postingMap.size());
+            this.queue = DisiPriorityQueue.ofMaxSize(postingMap.size());
             for (Scorer scorer : postingMap.values()) {
                 queue.add(new DisiWrapper(scorer, false));
             }
