@@ -12,7 +12,7 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -20,7 +20,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
@@ -109,16 +108,16 @@ public class BitmapIndexQuery extends Query implements Accountable {
                     throw new IllegalArgumentException("field must have only one dimension");
                 }
 
-                return new ScorerSupplier() {
+                return new ConstantScoreScorerSupplier(score(), scoreMode, reader.maxDoc()) {
                     long cost = -1;
 
                     final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                     final MergePointVisitor visitor = new MergePointVisitor(result);
 
                     @Override
-                    public Scorer get(long leadCost) throws IOException {
+                    public DocIdSetIterator iterator(long leadCost) throws IOException {
                         values.intersect(visitor);
-                        return new ConstantScoreScorer(score(), scoreMode, result.build().iterator());
+                        return result.build().iterator();
                     }
 
                     @Override

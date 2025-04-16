@@ -12,7 +12,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -20,7 +20,6 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
@@ -365,17 +364,16 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     return pointRangeQueryWeight.scorerSupplier(context);
                 } else {
                     if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
-                        return new ScorerSupplier() {
+                        return new ConstantScoreScorerSupplier(score(), scoreMode, reader.maxDoc()) {
 
                             final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                             final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
                             @Override
-                            public Scorer get(long leadCost) throws IOException {
+                            public DocIdSetIterator iterator(long leadCost) throws IOException {
                                 intersectLeft(values.getPointTree(), visitor, docCount);
-                                DocIdSetIterator iterator = result.build().iterator();
-                                return new ConstantScoreScorer(score(), scoreMode, iterator);
+                                return result.build().iterator();
                             }
 
                             @Override
@@ -393,17 +391,16 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                         // than expected
                         final int deletedDocs = reader.numDeletedDocs();
                         size += deletedDocs;
-                        return new ScorerSupplier() {
+                        return new ConstantScoreScorerSupplier(score(), scoreMode, reader.maxDoc()) {
 
                             final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                             final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
                             @Override
-                            public Scorer get(long leadCost) throws IOException {
+                            public DocIdSetIterator iterator(long leadCost) throws IOException {
                                 intersectRight(values.getPointTree(), visitor, docCount);
-                                DocIdSetIterator iterator = result.build().iterator();
-                                return new ConstantScoreScorer(score(), scoreMode, iterator);
+                                return result.build().iterator();
                             }
 
                             @Override
