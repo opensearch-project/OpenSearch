@@ -12,7 +12,7 @@ package org.opensearch.action.pagination;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
 import org.opensearch.wlm.stats.WlmStats;
-import org.opensearch.wlm.stats.QueryGroupStats;
+import org.opensearch.wlm.stats.WorkloadGroupStats;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -47,7 +47,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         this.sortOrder = sortOrder;
 
         this.snapshotQueryGroupCount = response.getNodes().stream()
-            .mapToInt(stat -> stat.getQueryGroupStats().getStats().size())
+            .mapToInt(stat -> stat.getWorkloadGroupStats().getStats().size())
             .sum();
 
         String currentHash = computeQueryGroupHash(response.getNodes());
@@ -69,7 +69,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
     // Compute the hash for all (nodeId|queryGroupId) pairs
     private String computeQueryGroupHash(List<WlmStats> stats) {
         return stats.stream()
-            .flatMap(stat -> stat.getQueryGroupStats().getStats().keySet().stream()
+            .flatMap(stat -> stat.getWorkloadGroupStats().getStats().keySet().stream()
                 .map(queryGroupId -> stat.getNode().getId() + "|" + queryGroupId))
             .sorted()
             .collect(Collectors.collectingAndThen(Collectors.joining(","), this::sha256Hex));
@@ -126,10 +126,10 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
     private List<WlmStats> extractQueryGroupStats(List<WlmStats> rawStats) {
         List<WlmStats> result = new ArrayList<>();
         for (WlmStats stat : rawStats) {
-            Map<String, QueryGroupStats.QueryGroupStatsHolder> queryGroups = stat.getQueryGroupStats().getStats();
-            for (Map.Entry<String, QueryGroupStats.QueryGroupStatsHolder> entry : queryGroups.entrySet()) {
+            Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> queryGroups = stat.getWorkloadGroupStats().getStats();
+            for (Map.Entry<String, WorkloadGroupStats.WorkloadGroupStatsHolder> entry : queryGroups.entrySet()) {
                 String queryGroupId = entry.getKey();
-                QueryGroupStats singleQueryGroupStats = new QueryGroupStats(Map.of(queryGroupId, entry.getValue()));
+                WorkloadGroupStats singleQueryGroupStats = new WorkloadGroupStats(Map.of(queryGroupId, entry.getValue()));
                 result.add(new WlmStats(stat.getNode(), singleQueryGroupStats));
             }
         }
@@ -163,7 +163,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         if (nextIndex < stats.size()) {
             WlmStats lastEntry = stats.get(nextIndex - 1);
             String nodeId = lastEntry.getNode().getId();
-            String queryGroupId = lastEntry.getQueryGroupStats().getStats().keySet().iterator().next();
+            String queryGroupId = lastEntry.getWorkloadGroupStats().getStats().keySet().iterator().next();
 
             this.responseToken = new PageToken(
                     WlmStrategyToken.generateEncryptedToken(nodeId, queryGroupId, snapshotQueryGroupCount, currentHash),
@@ -178,7 +178,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         for (int i = 0; i < stats.size(); i++) {
             WlmStats stat = stats.get(i);
             if (stat.getNode().getId().equals(nodeId)
-                && stat.getQueryGroupStats().getStats().containsKey(queryGroupId)) {
+                && stat.getWorkloadGroupStats().getStats().containsKey(queryGroupId)) {
                 return OptionalInt.of(i + 1);
             }
         }
@@ -199,6 +199,10 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         return paginatedStats;
     }
 
+    /**
+     * Represents a token used in the WLM strategy for pagination.
+     * This class encapsulates the token data required for identifying the current state of pagination.
+     */
     public static class WlmStrategyToken {
         private static final String JOIN_DELIMITER = "|";
         private static final String SPLIT_REGEX = "\\|";
