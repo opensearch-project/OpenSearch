@@ -367,7 +367,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
                         return new ScorerSupplier() {
 
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, pointRangeQuery.getField());
+                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                             final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
@@ -395,7 +395,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                         size += deletedDocs;
                         return new ScorerSupplier() {
 
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, pointRangeQuery.getField());
+                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                             final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
