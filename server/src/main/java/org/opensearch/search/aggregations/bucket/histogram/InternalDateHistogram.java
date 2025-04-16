@@ -323,7 +323,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
-    protected List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<IteratorAndCurrent<Bucket>>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
@@ -422,17 +422,15 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         return 0;
     }
 
-    protected void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
+    void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
         Bucket lastBucket = null;
         LongBounds bounds = emptyBucketInfo.bounds;
-        int preEmptyBucketCount = list.size();
         int emptyBucketCount = getTotalBucketCount() - list.size();
         if (emptyBucketCount > 0) {
             CircuitBreaker breaker = reduceContext.getBreaker();
             if (breaker != null) {
                 breaker.addEstimateBytesAndMaybeBreak(50L * emptyBucketCount, "empty date histogram buckets");
             }
-            preEmptyBucketCount += emptyBucketCount;
             reduceContext.consumeBucketsAndMaybeBreak(emptyBucketCount);
         }
 
@@ -491,7 +489,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                 key = nextKey(key).longValue();
             }
         }
-        int postEmptyBucketCount = list.size() - preEmptyBucketCount;
+        int postEmptyBucketCount = list.size() - getTotalBucketCount();
         reduceContext.consumeBucketsAndMaybeBreak(postEmptyBucketCount);
     }
 
