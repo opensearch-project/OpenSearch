@@ -20,7 +20,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.io.IOException;
 import java.util.Map;
@@ -62,7 +62,7 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
             when(ruleProcessingService.evaluateLabel(anyList())).thenReturn(Optional.of("TestQG_ID"));
             autoTaggingActionFilter.apply(mock(Task.class), "Test", request, null, null);
 
-            assertEquals("TestQG_ID", threadPool.getThreadContext().getHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER));
+            assertEquals("TestQG_ID", threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER));
             verify(ruleProcessingService, times(1)).evaluateLabel(anyList());
         }
     }
