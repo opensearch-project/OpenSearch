@@ -11,27 +11,31 @@ package org.opensearch.plugin.wlm.rule;
 import org.opensearch.autotagging.Attribute;
 import org.opensearch.autotagging.AutoTaggingRegistry;
 import org.opensearch.autotagging.FeatureType;
+import org.opensearch.rule.RuleAttribute;
 
 import java.util.Map;
 
 /**
- * Represents a feature type specific to the query group feature
+ * Represents a feature type specific to the workload group feature
  * @opensearch.experimental
  */
-public class QueryGroupFeatureType implements FeatureType {
+public class WorkloadGroupFeatureType implements FeatureType {
     /**
      * The instance for QueryGroupFeatureType
      */
-    public static final QueryGroupFeatureType INSTANCE = new QueryGroupFeatureType();
+    public static final WorkloadGroupFeatureType INSTANCE = new WorkloadGroupFeatureType();
     /**
-     * Name for QueryGroupFeatureType
+     * Name for WorkloadGroupFeatureType
      */
-    public static final String NAME = "query_group";
+    public static final String NAME = "workload_group";
     private static final int MAX_ATTRIBUTE_VALUES = 10;
     private static final int MAX_ATTRIBUTE_VALUE_LENGTH = 100;
-    private static final Map<String, Attribute> ALLOWED_ATTRIBUTES = QueryGroupAttribute.toMap();
+    private static final Map<String, Attribute> ALLOWED_ATTRIBUTES = Map.of(
+        RuleAttribute.INDEX_PATTERN.getName(),
+        RuleAttribute.INDEX_PATTERN
+    );
 
-    private QueryGroupFeatureType() {}
+    private WorkloadGroupFeatureType() {}
 
     static {
         INSTANCE.registerFeatureType();
