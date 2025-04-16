@@ -355,7 +355,8 @@ public class DefaultStreamPoller implements StreamPoller {
     public PollingIngestStats getStats() {
         PollingIngestStats.Builder builder = new PollingIngestStats.Builder();
         builder.setTotalPolledCount(totalPolledCount.count());
-        builder.setTotalProcessedCount(processorRunnable.getStats().count());
+        builder.setTotalProcessedCount(processorRunnable.getProcessedCounter().count());
+        builder.setTotalSkippedCount(processorRunnable.getSkippedCounter().count());
         return builder.build();
     }
 
