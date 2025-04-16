@@ -50,6 +50,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -1056,40 +1058,59 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Evaluate the concurrentSearchMode based on cluster and index settings if concurrent segment search
-     * should be used for this request context
-     * If the cluster.search.concurrent_segment_search.mode setting
-     * is not explicitly set, the evaluation falls back to the
-     * cluster.search.concurrent_segment_search.enabled boolean setting
-     * which will evaluate to true or false. This is then evaluated to "all" or "none" respectively
-     * @return one of "none", "auto", "all"
+     * Determines the appropriate concurrent segment search mode for the current search request.
+     * <p>
+     * This method evaluates both index-level and cluster-level settings to decide whether
+     * concurrent segment search should be enabled. The resolution logic is as follows:
+     * <ol>
+     *     <li>If the request targets a system index or uses search throttling, concurrent segment search is disabled.</li>
+     *     <li>If a legacy boolean setting is present (cluster or index level), it is honored:
+     *         <ul>
+     *             <li><code>true</code> → enables concurrent segment search ("all")</li>
+     *             <li><code>false</code> → disables it ("none")</li>
+     *         </ul>
+     *     </li>
+     *     <li>Otherwise, the modern string-based setting is used. Allowed values are: "none", "auto", or "all".</li>
+     * </ol>
+     *
+     * @param concurrentSearchExecutor the executor used for concurrent segment search; if null, disables the feature
+     * @return the resolved concurrent segment search mode: "none", "auto", or "all"
      */
     private String evaluateConcurrentSearchMode(Executor concurrentSearchExecutor) {
-        // Do not use concurrent segment search for system indices or throttled requests. See:
-        // https://github.com/opensearch-project/OpenSearch/issues/12951
-        if (indexShard.isSystem() || indexShard.indexSettings().isSearchThrottled()) {
+        // Skip concurrent search for system indices, throttled requests, or if dependencies are missing
+        if (indexShard.isSystem()
+            || indexShard.indexSettings().isSearchThrottled()
+            || clusterService == null
+            || concurrentSearchExecutor == null) {
             return CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
         }
-        if ((clusterService != null) && concurrentSearchExecutor != null) {
-            String concurrentSearchMode = indexService.getIndexSettings()
-                .getSettings()
-                .get(
-                    IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(),
-                    clusterService.getClusterSettings().getOrNull(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE)
-                );
-            if (concurrentSearchMode != null) {
-                return concurrentSearchMode;
-            }
 
-            // mode setting not set, fallback to concurrent_segment_search.enabled setting
-            return indexService.getIndexSettings()
-                .getSettings()
-                .getAsBoolean(
-                    IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(),
-                    clusterService.getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-                ) ? CONCURRENT_SEGMENT_SEARCH_MODE_ALL : CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+        Settings indexSettings = indexService.getIndexSettings().getSettings();
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        final String newConcurrentMode = indexSettings.get(
+            IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(),
+            clusterSettings.getOrNull(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE)
+        );
+
+        // Step 1: New concurrent mode is explicitly set → use it
+        if (newConcurrentMode != null) return newConcurrentMode;
+
+        final Boolean legacySetting = indexSettings.getAsBoolean(
+            IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(),
+            clusterSettings.getOrNull(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
+        );
+
+        // Step 2: If new concurrent setting is not explicitly set
+        // then check if Legacy boolean setting is explicitly set → use it
+        if (legacySetting != null) {
+            return Boolean.TRUE.equals(legacySetting) ? CONCURRENT_SEGMENT_SEARCH_MODE_ALL : CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
         }
-        return CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+
+        // Step 3: Neither explicitly set → use default concurrent mode
+        return indexSettings.get(
+            IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(),
+            clusterSettings.get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE)
+        );
     }
 
     @Override
