@@ -1,8 +1,6 @@
 ---
 setup:
   - skip:
-      version: " - 7.8.99"
-      reason: "resolve index introduced in 7.9"
       features: allowed_warnings
 
   - do:
@@ -34,9 +32,7 @@ setup:
 
 ---
 "Resolve index with indices and aliases":
-  - skip:
-      version: " - 7.8.99"
-      reason: "resolve index introduced in 7.9"
+
 
   - do:
       indices.resolve_index:
@@ -62,9 +58,7 @@ setup:
 
 ---
 "Resolve index with hidden and closed indices":
-  - skip:
-      version: " - 7.8.99"
-      reason: "resolve index introduced in 7.9"
+
 
   - do:
       indices.resolve_index:

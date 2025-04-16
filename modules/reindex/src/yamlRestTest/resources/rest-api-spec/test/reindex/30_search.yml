@@ -34,8 +34,6 @@
 ---
 "Sorting and size combined":
   - skip:
-      version: " - 7.2.99"
-      reason: "size deprecation warnings only emitted on 7.3+, but sort deprecated in 7.6"
       features: allowed_warnings
 
   - do:
@@ -125,8 +123,6 @@
 ---
 "Sorting and max_docs in body combined":
   - skip:
-      version: " - 7.5.99"
-      reason: "max_docs introduced in 7.3.0, but sort deprecated in 7.6"
       features: "allowed_warnings"
 
   - do:
@@ -172,8 +168,6 @@
 ---
 "Sorting deprecated wait_for_completion false":
   - skip:
-      version: " - 7.5.99"
-      reason: "sort deprecated in 7.6"
       features: "allowed_warnings"
 
   - do:
@@ -206,9 +200,6 @@
 
 ---
 "max_docs in URL":
-  - skip:
-      version: " - 7.2.99"
-      reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
