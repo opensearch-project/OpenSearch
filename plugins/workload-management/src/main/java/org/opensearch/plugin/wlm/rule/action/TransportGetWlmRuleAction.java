@@ -11,7 +11,9 @@ package org.opensearch.plugin.wlm.rule.action;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.inject.name.Named;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.rule.service.RulePersistenceService;
@@ -36,7 +38,7 @@ public class TransportGetWlmRuleAction extends HandledTransportAction<GetRuleReq
     public TransportGetWlmRuleAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        RulePersistenceService rulePersistenceService
+        @Named(WorkloadGroupFeatureType.NAME) RulePersistenceService rulePersistenceService
     ) {
         super(GetWlmRuleAction.NAME, transportService, actionFilters, GetRuleRequest::new);
         this.rulePersistenceService = rulePersistenceService;
