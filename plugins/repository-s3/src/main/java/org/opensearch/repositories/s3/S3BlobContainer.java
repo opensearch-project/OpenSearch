@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.OpenSearchException;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkException;
@@ -54,13 +53,11 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectAttributes;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
-import software.amazon.awssdk.services.s3.model.PutObjectResponse;
-import software.amazon.awssdk.services.s3.model.S3Exception;
-import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
-
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Publisher;
 import software.amazon.awssdk.utils.CollectionUtils;
@@ -68,6 +65,7 @@ import software.amazon.awssdk.utils.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -109,7 +107,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.Collections;
 
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -515,6 +512,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     private String buildKey(String blobName) {
         return keyPath + blobName;
     }
+
     /**
      * Executes a upload to S3 using a conditional If-Match header.
      * The upload only proceeds if the existing object's ETag matches the provided value.
@@ -528,13 +526,15 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
      * @param etagListener  listener to handle the resulting ETag or error notifications
      * @throws IOException if an error occurs during upload or if validations fail
      */
-    void executeSingleUploadIfEtagMatches(final S3BlobStore blobStore,
-                                                  final String blobName,
-                                                  final InputStream input,
-                                                  final long blobSize,
-                                                  final Map<String, String> metadata,
-                                                  final String ETag,
-                                                  ActionListener<String> etagListener) throws IOException {
+    void executeSingleUploadIfEtagMatches(
+        final S3BlobStore blobStore,
+        final String blobName,
+        final InputStream input,
+        final long blobSize,
+        final Map<String, String> metadata,
+        final String ETag,
+        ActionListener<String> etagListener
+    ) throws IOException {
         // Extra safety checks remain the same.
         if (blobSize > MAX_FILE_SIZE.getBytes()) {
             throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than " + MAX_FILE_SIZE);
@@ -566,33 +566,26 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 ? new BufferedInputStream(input, (int) (blobSize + 1))
                 : input;
 
-            PutObjectResponse response = SocketAccess.doPrivileged(() ->
-                clientReference.get().putObject(putObjectRequest, RequestBody.fromInputStream(requestInputStream, blobSize))
+            PutObjectResponse response = SocketAccess.doPrivileged(
+                () -> clientReference.get().putObject(putObjectRequest, RequestBody.fromInputStream(requestInputStream, blobSize))
             );
 
-            if(response.eTag()!=null){
-            etagListener.onResponse(response.eTag());
+            if (response.eTag() != null) {
+                etagListener.onResponse(response.eTag());
             }
 
-        }
-        catch (S3Exception e) {
+        } catch (S3Exception e) {
             if (e.statusCode() == 412) {
-                etagListener.onFailure(new OpenSearchException(
-                    "stale_primary_shard",
-                    "Precondition Failed : Etag Mismatch",
-                    blobName,
-                    e
-                ));
+                etagListener.onFailure(new OpenSearchException("stale_primary_shard", "Precondition Failed : Etag Mismatch", blobName, e));
             } else {
-                etagListener.onFailure(new IOException(
-                    String.format(Locale.ROOT, "S3 error during upload [%s]: %s", blobName, e.getMessage()), e));
+                etagListener.onFailure(
+                    new IOException(String.format(Locale.ROOT, "S3 error during upload [%s]: %s", blobName, e.getMessage()), e)
+                );
             }
         } catch (SdkException e) {
-            etagListener.onFailure(new IOException(
-                String.format(Locale.ROOT, "S3 upload failed for [%s]", blobName), e));
+            etagListener.onFailure(new IOException(String.format(Locale.ROOT, "S3 upload failed for [%s]", blobName), e));
         }
     }
-
 
     /**
      * Uploads a blob using a single upload request
