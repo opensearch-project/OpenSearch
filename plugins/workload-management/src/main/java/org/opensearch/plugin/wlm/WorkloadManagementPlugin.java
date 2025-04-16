@@ -10,14 +10,9 @@ package org.opensearch.plugin.wlm;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilter;
-import org.opensearch.autotagging.FeatureType;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.env.Environment;
-import org.opensearch.env.NodeEnvironment;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -25,6 +20,10 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.GetWorkloadGroupAction;
@@ -38,7 +37,6 @@ import org.opensearch.plugin.wlm.rest.RestDeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
-
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -61,14 +59,28 @@ import java.util.function.Supplier;
 public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
 
     private AutoTaggingActionFilter autoTaggingActionFilter;
+
     /**
      * Default constructor
      */
     public WorkloadManagementPlugin() {}
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool, ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry, Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService();
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(null, null); // TODO: change this post
+                                                                                                             // Ruirui's get API PR
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
         return Collections.emptyList();
     }
