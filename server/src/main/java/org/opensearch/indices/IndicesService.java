@@ -114,6 +114,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
@@ -209,6 +210,8 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
 import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
+import static org.opensearch.index.TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE;
+import static org.opensearch.index.TieredMergePolicyProvider.MIN_DEFAULT_MAX_MERGE_AT_ONCE;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
@@ -271,6 +274,21 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexSettings.DEFAULT_REFRESH_INTERVAL,
         IndexSettings.MINIMUM_REFRESH_INTERVAL,
         new ClusterDefaultRefreshIntervalValidator(),
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
+     * This setting is used to set the maxMergeAtOnce parameter for {@code TieredMergePolicy}
+     * when the {@code index.merge.policy.max_merge_at_once} index setting is not provided during index creation
+     * or when the existing {@code index.merge.policy.max_merge_at_once} index setting is set as null.
+     * This comes handy when the user wants to change the maxMergeAtOnce across all indexes created in a cluster
+     * which is different from the default.
+     */
+    public static final Setting<Integer> CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING = Setting.intSetting(
+        "cluster.default.index.max_merge_at_once",
+        DEFAULT_MAX_MERGE_AT_ONCE,
+        MIN_DEFAULT_MAX_MERGE_AT_ONCE,
         Property.NodeScope,
         Property.Dynamic
     );
@@ -381,6 +399,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Consumer<IndexShard> replicator;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
     private volatile int maxSizeInRequestCache;
+    private volatile int defaultMaxMergeAtOnce;
 
     @Override
     protected void doStart() {
@@ -544,6 +563,10 @@ public class IndicesService extends AbstractLifecycleComponent
         this.maxSizeInRequestCache = INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING, this::setMaxSizeInRequestCache);
+
+        this.defaultMaxMergeAtOnce = CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING, this::onDefaultMaxMergeAtOnceUpdate);
     }
 
     public IndicesService(
@@ -625,6 +648,22 @@ public class IndicesService extends AbstractLifecycleComponent
         for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
             IndexService indexService = entry.getValue();
             indexService.onRefreshIntervalChange();
+        }
+    }
+
+    /**
+     * The changes to dynamic cluster setting {@code cluster.default.index.max_merge_at_once} needs to be updated. This
+     * method gets called whenever the setting changes. We set the instance variable with the updated value as this is
+     * also a supplier to all IndexService that have been created on the node. We also notify the change to all
+     * IndexService instances that are created on this node.
+     *
+     * @param newDefaultMaxMergeAtOnce the updated cluster default maxMergeAtOnce.
+     */
+    private void onDefaultMaxMergeAtOnceUpdate(int newDefaultMaxMergeAtOnce) {
+        this.defaultMaxMergeAtOnce = newDefaultMaxMergeAtOnce; // do we need this?
+        for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
+            IndexService indexService = entry.getValue();
+            indexService.onDefaultMaxMergeAtOnceChanged(newDefaultMaxMergeAtOnce);
         }
     }
 
@@ -1031,7 +1070,8 @@ public class IndicesService extends AbstractLifecycleComponent
             this.recoverySettings,
             this.remoteStoreSettings,
             replicator,
-            segmentReplicationStatsProvider
+            segmentReplicationStatsProvider,
+            this::getClusterDefaultMaxMergeAtOnce
         );
     }
 
@@ -1166,7 +1206,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final DiscoveryNode targetNode,
         final DiscoveryNode sourceNode,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        final DiscoveryNodes discoveryNodes
+        final DiscoveryNodes discoveryNodes,
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
@@ -1182,7 +1223,8 @@ public class IndicesService extends AbstractLifecycleComponent
             repositoriesService,
             targetNode,
             sourceNode,
-            discoveryNodes
+            discoveryNodes,
+            mergedSegmentWarmerFactory
         );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
@@ -2175,6 +2217,10 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private TimeValue getClusterDefaultRefreshInterval() {
         return this.clusterDefaultRefreshInterval;
+    }
+
+    private Integer getClusterDefaultMaxMergeAtOnce() {
+        return this.defaultMaxMergeAtOnce;
     }
 
     public RemoteStoreSettings getRemoteStoreSettings() {

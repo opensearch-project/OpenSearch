@@ -76,6 +76,7 @@ import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.MapperService;
@@ -136,7 +137,6 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
-import static org.opensearch.common.util.FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasRemoteStoreSettings;
 
 /**
@@ -239,7 +239,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
-        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -318,9 +319,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
-        if (READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(indexSettings.getNodeSettings())) {
-            this.asyncReplicationTask = new AsyncReplicationTask(this);
-        }
+        this.asyncReplicationTask = new AsyncReplicationTask(this);
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
@@ -328,6 +327,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.fileCache = fileCache;
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
+        indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
         updateFsyncTaskIfNecessary();
     }
 
@@ -366,7 +366,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         RecoverySettings recoverySettings,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnce
     ) {
         this(
             indexSettings,
@@ -407,7 +408,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             null,
             null,
             s -> {},
-            (shardId) -> ReplicationStats.empty()
+            (shardId) -> ReplicationStats.empty(),
+            clusterDefaultMaxMergeAtOnce
         );
     }
 
@@ -577,7 +579,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final RepositoriesService repositoriesService,
         final DiscoveryNode targetNode,
         @Nullable DiscoveryNode sourceNode,
-        DiscoveryNodes discoveryNodes
+        DiscoveryNodes discoveryNodes,
+        MergedSegmentWarmerFactory mergedSegmentWarmerFactory
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -704,7 +707,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 remoteStoreSettings,
                 seedRemote,
                 discoveryNodes,
-                segmentReplicationStatsProvider
+                segmentReplicationStatsProvider,
+                mergedSegmentWarmerFactory
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -1110,9 +1114,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
             onRefreshIntervalChange();
             updateFsyncTaskIfNecessary();
-            if (READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(indexSettings.getNodeSettings())) {
-                updateReplicationTask();
-            }
+            updateReplicationTask();
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
@@ -1124,6 +1126,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         } finally {
             asyncReplicationTask = new AsyncReplicationTask(this);
         }
+    }
+
+    /**
+     * Called whenever the cluster level {@code cluster.default.index.max_merge_at_once} changes.
+     */
+    public void onDefaultMaxMergeAtOnceChanged(int newDefaultMaxMergeAtOnce) {
+        indexSettings.setDefaultMaxMergesAtOnce(newDefaultMaxMergeAtOnce);
     }
 
     /**

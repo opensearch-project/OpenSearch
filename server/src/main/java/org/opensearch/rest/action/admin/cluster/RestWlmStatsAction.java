@@ -36,8 +36,8 @@ public class RestWlmStatsAction extends BaseRestHandler {
             asList(
                 new Route(GET, "_wlm/stats"),
                 new Route(GET, "_wlm/{nodeId}/stats"),
-                new Route(GET, "_wlm/stats/{queryGroupId}"),
-                new Route(GET, "_wlm/{nodeId}/stats/{queryGroupId}")
+                new Route(GET, "_wlm/stats/{workloadGroupId}"),
+                new Route(GET, "_wlm/{nodeId}/stats/{workloadGroupId}")
             )
         );
     }
@@ -50,9 +50,9 @@ public class RestWlmStatsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        Set<String> queryGroupIds = Strings.tokenizeByCommaToSet(request.param("queryGroupId", "_all"));
+        Set<String> workloadGroupIds = Strings.tokenizeByCommaToSet(request.param("workloadGroupId", "_all"));
         Boolean breach = request.hasParam("breach") ? Boolean.parseBoolean(request.param("boolean")) : null;
-        WlmStatsRequest wlmStatsRequest = new WlmStatsRequest(nodesIds, queryGroupIds, breach);
+        WlmStatsRequest wlmStatsRequest = new WlmStatsRequest(nodesIds, workloadGroupIds, breach);
         return channel -> client.admin().cluster().wlmStats(wlmStatsRequest, new RestActions.NodesResponseRestListener<>(channel));
     }
 }
