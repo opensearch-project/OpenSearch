@@ -29,7 +29,7 @@ import java.util.Optional;
  * This class is responsible to evaluate and assign the QUERY_GROUP_ID header in ThreadContext
  */
 public class AutoTaggingActionFilter implements ActionFilter {
-    public static final int LARGE_NUMBER_TO_ENSURE_IT_IS_NOT_FIRST = Integer.MAX_VALUE;
+    private static final int LARGE_NUMBER_TO_ENSURE_IT_IS_NOT_FIRST = Integer.MAX_VALUE;
     private final InMemoryRuleProcessingService ruleProcessingService;
     ThreadPool threadPool;
 
