@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -19,10 +20,13 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -59,7 +63,9 @@ public interface StarTreeFilterProvider {
             TermsQueryBuilder.NAME,
             new TermsStarTreeFilterProvider(),
             RangeQueryBuilder.NAME,
-            new RangeStarTreeFilterProvider()
+            new RangeStarTreeFilterProvider(),
+            BoolQueryBuilder.NAME,
+            new BoolStarTreeFilterProvider()
         );
 
         public static StarTreeFilterProvider getProvider(QueryBuilder query) {
@@ -156,4 +162,91 @@ public interface StarTreeFilterProvider {
 
     }
 
+    /**
+     *
+     */
+    class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
+        @Override
+        public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
+            throws IOException {
+            BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) rawFilter;
+            if (boolQueryBuilder.hasClauses() == false) {
+                return null; // no clause present; fallback to default implementation
+            }
+            Map<String, List<DimensionFilter>> dimensionFilterMap = new HashMap<>();
+
+            List<QueryBuilder> mustClauses = boolQueryBuilder.must();
+            if (mustClauses.isEmpty() == false) {
+                for (QueryBuilder clause : mustClauses) {
+                    StarTreeFilterProvider provider = SingletonFactory.getProvider(clause);
+                    if (provider == null) {
+                        return null; // Unsupported query type; fallback
+                    }
+
+                    StarTreeFilter filter = provider.getFilter(context, clause, compositeFieldType);
+                    if (filter == null) {
+                        return null; // If any clause can't be converted, fallback
+                    }
+
+                    // Merge filters into dimensionFilterMap
+                    for (String dim : filter.getDimensions()) {
+                        dimensionFilterMap.computeIfAbsent(dim, k -> new ArrayList<>()).addAll(filter.getFiltersForDimension(dim));
+                    }
+                }
+            }
+
+            List<QueryBuilder> shouldClauses = boolQueryBuilder.should();
+            if (shouldClauses.isEmpty() == false) {
+                // Group 'should' clauses by dimension
+                Map<String, List<QueryBuilder>> shouldClausesByDimension = new HashMap<>();
+
+                for (QueryBuilder clause : shouldClauses) {
+                    String dimension = getDimensionFromQuery(clause);
+                    if (dimension == null) {
+                        return null; // Unsupported query type
+                    }
+                    shouldClausesByDimension.computeIfAbsent(dimension, k -> new ArrayList<>()).add(clause);
+                }
+                // If SHOULD clauses span multiple dimensions, we don't support it
+                if (shouldClausesByDimension.size() > 1) {
+                    return null;
+                }
+
+                // Process 'should' clauses for the single dimension
+                for (Map.Entry<String, List<QueryBuilder>> entry : shouldClausesByDimension.entrySet()) {
+                    String dimension = entry.getKey();
+                    List<QueryBuilder> clausesForDimension = entry.getValue();
+
+                    List<DimensionFilter> orFilters = new ArrayList<>();
+                    for (QueryBuilder clause : clausesForDimension) {
+                        StarTreeFilterProvider provider = SingletonFactory.getProvider(clause);
+                        if (provider == null) {
+                            return null;
+                        }
+
+                        // TODO - nested boolean queries
+                        StarTreeFilter filter = provider.getFilter(context, clause, compositeFieldType);
+                        if (filter == null) {
+                            return null;
+                        }
+
+                        orFilters.addAll(filter.getFiltersForDimension(dimension));
+                    }
+                    dimensionFilterMap.computeIfAbsent(dimension, k -> new ArrayList<>()).addAll(orFilters);
+                }
+            }
+            return new StarTreeFilter(dimensionFilterMap);
+        }
+
+        private String getDimensionFromQuery(QueryBuilder query) {
+            if (query instanceof TermQueryBuilder) {
+                return ((TermQueryBuilder) query).fieldName();
+            } else if (query instanceof TermsQueryBuilder) {
+                return ((TermsQueryBuilder) query).fieldName();
+            } else if (query instanceof RangeQueryBuilder) {
+                return ((RangeQueryBuilder) query).fieldName();
+            }
+            return null;
+        }
+    }
 }
