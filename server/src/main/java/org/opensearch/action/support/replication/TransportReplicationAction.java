@@ -249,7 +249,7 @@ public abstract class TransportReplicationAction<
         this.transportReplicaAction = actionName + REPLICA_ACTION_SUFFIX;
 
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
-        this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
+        this.retryTimeout = getRetryTimeoutSetting().get(settings);
         this.forceExecutionOnPrimary = forceExecutionOnPrimary;
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
@@ -273,7 +273,11 @@ public abstract class TransportReplicationAction<
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_INITIAL_RETRY_BACKOFF_BOUND, (v) -> initialRetryBackoffBound = v);
-        clusterSettings.addSettingsUpdateConsumer(REPLICATION_RETRY_TIMEOUT, (v) -> retryTimeout = v);
+        clusterSettings.addSettingsUpdateConsumer(getRetryTimeoutSetting(), (v) -> retryTimeout = v);
+    }
+
+    protected Setting<TimeValue> getRetryTimeoutSetting() {
+        return REPLICATION_RETRY_TIMEOUT;
     }
 
     /**

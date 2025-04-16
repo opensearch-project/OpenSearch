@@ -187,6 +187,8 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
@@ -1932,6 +1934,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             private Coordinator coordinator;
             private RemoteStoreNodeService remoteStoreNodeService;
 
+            private final MappingTransformerRegistry mappingTransformerRegistry;
+
             private Map<ActionType, TransportAction> actions = new HashMap<>();
 
             TestClusterNode(DiscoveryNode node) throws IOException {
@@ -2171,7 +2175,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ),
                     RetentionLeaseSyncer.EMPTY,
                     SegmentReplicationCheckpointPublisher.EMPTY,
-                    mock(RemoteStoreStatsTrackerFactory.class)
+                    mock(RemoteStoreStatsTrackerFactory.class),
+                    new MergedSegmentWarmerFactory(null, null, null)
                 );
 
                 final SystemIndices systemIndices = new SystemIndices(emptyMap());
@@ -2193,6 +2198,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     DefaultRemoteStoreSettings.INSTANCE,
                     null
                 );
+
+                mappingTransformerRegistry = new MappingTransformerRegistry(List.of(), namedXContentRegistry);
+
                 actions.put(
                     CreateIndexAction.INSTANCE,
                     new TransportCreateIndexAction(
@@ -2201,7 +2209,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         threadPool,
                         metadataCreateIndexService,
                         actionFilters,
-                        indexNameExpressionResolver
+                        indexNameExpressionResolver,
+                        mappingTransformerRegistry
                     )
                 );
                 final MetadataDeleteIndexService metadataDeleteIndexService = new MetadataDeleteIndexService(
@@ -2307,7 +2316,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         metadataMappingService,
                         actionFilters,
                         indexNameExpressionResolver,
-                        new RequestValidators<>(Collections.emptyList())
+                        new RequestValidators<>(Collections.emptyList()),
+                        mappingTransformerRegistry
                     )
                 );
                 actions.put(

@@ -94,7 +94,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
     @Nullable
     private final Settings settings;
     @Nullable
-    private final CompressedXContent mappings;
+    private CompressedXContent mappings;
     @Nullable
     private final Map<String, AliasMetadata> aliases;
 
@@ -217,5 +217,9 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         } else {
             return mapping;
         }
+    }
+
+    public void setMappings(CompressedXContent mappings) {
+        this.mappings = mappings;
     }
 }

@@ -630,8 +630,10 @@ public final class IndexModule {
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         RecoverySettings recoverySettings,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) throws IOException {
         return newIndexService(
             indexCreationContext,
@@ -653,10 +655,12 @@ public final class IndexModule {
             remoteDirectoryFactory,
             translogFactorySupplier,
             clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
             recoverySettings,
             remoteStoreSettings,
             (s) -> {},
-            shardId -> ReplicationStats.empty()
+            shardId -> ReplicationStats.empty(),
+            clusterDefaultMaxMergeAtOnceSupplier
         );
     }
 
@@ -680,10 +684,12 @@ public final class IndexModule {
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
         Consumer<IndexShard> replicator,
-        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -741,12 +747,14 @@ public final class IndexModule {
                 recoveryStateFactory,
                 translogFactorySupplier,
                 clusterDefaultRefreshIntervalSupplier,
+                fixedRefreshIntervalSchedulingEnabled,
                 recoverySettings,
                 remoteStoreSettings,
                 fileCache,
                 compositeIndexSettings,
                 replicator,
-                segmentReplicationStatsProvider
+                segmentReplicationStatsProvider,
+                clusterDefaultMaxMergeAtOnceSupplier
             );
             success = true;
             return indexService;

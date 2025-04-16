@@ -81,6 +81,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.cache.request.ShardRequestCache;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexShard;
@@ -1420,7 +1421,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             null,
             localNode,
             null,
-            DiscoveryNodes.builder().add(localNode).build()
+            DiscoveryNodes.builder().add(localNode).build(),
+            new MergedSegmentWarmerFactory(null, null, null)
         );
 
         // Verify that the new shard requestStats entries are empty.

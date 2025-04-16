@@ -35,6 +35,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.mockito.Mockito;
+
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -99,7 +101,8 @@ public class IngestionEngineTests extends EngineTestCase {
         Map<String, String> commitData = ingestionEngine.commitDataAsMap();
         // verify the commit data
         Assert.assertEquals(7, commitData.size());
-        Assert.assertEquals("2", commitData.get(StreamPoller.BATCH_START));
+        // the commiit data is the start of the current batch
+        Assert.assertEquals("1", commitData.get(StreamPoller.BATCH_START));
 
         // verify the stored offsets
         var offset = new FakeIngestionSource.FakeIngestionShardPointer(0);
@@ -125,6 +128,13 @@ public class IngestionEngineTests extends EngineTestCase {
         ingestionEngine.close();
         ingestionEngine = buildIngestionEngine(new AtomicLong(0), ingestionEngineStore, indexSettings);
         waitForResults(ingestionEngine, 4);
+    }
+
+    public void testPushAPIFailures() {
+        Engine.Index indexMock = Mockito.mock(Engine.Index.class);
+        assertThrows(IngestionEngineException.class, () -> ingestionEngine.index(indexMock));
+        Engine.Delete deleteMock = Mockito.mock(Engine.Delete.class);
+        assertThrows(IngestionEngineException.class, () -> ingestionEngine.delete(deleteMock));
     }
 
     public void testCreationFailure() throws IOException {

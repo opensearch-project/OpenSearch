@@ -56,7 +56,6 @@
 - Implemented computation of segment replication stats at shard level ([#17055](https://github.com/opensearch-project/OpenSearch/pull/17055))
 - [Rule Based Auto-tagging] Add in-memory attribute value store ([#17342](https://github.com/opensearch-project/OpenSearch/pull/17342))
 
-
 ### Dependencies
 - Bump Apache HttpCore5/HttpClient5 dependencies from 5.2.5/5.3.1 to 5.3.1/5.4.1 to support ExtendedSocketOption in HttpAsyncClient ([#16757](https://github.com/opensearch-project/OpenSearch/pull/16757))
 - Bumps `jetty` version from 9.4.55.v20240627 to 9.4.57.v20241219 ([#17395](https://github.com/opensearch-project/OpenSearch/pull/17395))
