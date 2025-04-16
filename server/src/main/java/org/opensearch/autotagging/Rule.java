@@ -8,6 +8,8 @@
 
 package org.opensearch.autotagging;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -47,6 +49,7 @@ public class Rule implements Writeable, ToXContentObject {
     public static final String _ID_STRING = "_id";
     public static final String DESCRIPTION_STRING = "description";
     public static final String UPDATED_AT_STRING = "updated_at";
+    public static final Logger logger = LogManager.getLogger(Rule.class);
 
     public Rule(
         String description,
