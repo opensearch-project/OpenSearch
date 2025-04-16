@@ -1716,9 +1716,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Optional<NRTReplicationEngine> getReplicationEngine() {
-        if (getEngine() instanceof NRTReplicationEngine) {
-            return Optional.of((NRTReplicationEngine) getEngine());
-        } else {
+        try {
+            if (getEngine() instanceof NRTReplicationEngine) {
+                return Optional.of((NRTReplicationEngine) getEngine());
+            } else {
+                return Optional.empty();
+            }
+        } catch (AlreadyClosedException e) {
+            logger.warn("failed to get ReplicationEngine", e);
             return Optional.empty();
         }
     }
