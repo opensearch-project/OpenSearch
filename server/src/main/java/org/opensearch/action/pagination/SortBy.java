@@ -16,7 +16,7 @@ import java.util.Comparator;
  * Represents the different fields by which WLM statistics can be sorted.
  */
 public enum SortBy {
-    QUERY_GROUP {
+    WORKLOAD_GROUP {
         @Override
         public Comparator<WlmStats> getComparator() {
             return Comparator.comparing(
@@ -46,7 +46,7 @@ public enum SortBy {
             return SortBy.valueOf(input.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
-                    "Invalid sort field: " + input + ". Allowed values: query_group, node_id"
+                    "Invalid sort field: " + input + ". Allowed values: workload_group, node_id"
             );
         }
     }

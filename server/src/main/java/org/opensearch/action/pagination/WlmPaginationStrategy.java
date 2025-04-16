@@ -27,7 +27,7 @@ import java.util.ArrayList;
 
 /**
  * Pagination strategy for Workload Management (WLM) Stats.
- * Paginates based on query group IDs.
+ * Paginates based on workload group IDs.
  */
 public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
     private static final String DEFAULT_PAGINATED_ENTITY = "wlm_stats";
@@ -37,8 +37,9 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
     private final SortBy sortBy;
     private final SortOrder sortOrder;
     private final List<WlmStats> paginatedStats;
-    private final int snapshotQueryGroupCount;
+    private final int snapshotWorkloadGroupCount;
     private PageToken responseToken;
+    private static final String HASH_ALGORITHM = "SHA-256";
 
     public WlmPaginationStrategy(int pageSize, String nextToken, SortBy sortBy, SortOrder sortOrder, WlmStatsResponse response) {
         this.pageSize = pageSize;
@@ -46,38 +47,38 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         this.sortBy = sortBy;
         this.sortOrder = sortOrder;
 
-        this.snapshotQueryGroupCount = response.getNodes().stream()
+        this.snapshotWorkloadGroupCount = response.getNodes().stream()
             .mapToInt(stat -> stat.getWorkloadGroupStats().getStats().size())
             .sum();
 
-        String currentHash = computeQueryGroupHash(response.getNodes());
+        String currentHash = computeWorkloadGroupHash(response.getNodes());
 
         WlmStrategyToken requestedToken = (nextToken == null || nextToken.isEmpty())
             ? null
             : new WlmStrategyToken(nextToken);
 
         if (requestedToken != null) {
-            if (requestedToken.getQueryGroupCount() != snapshotQueryGroupCount ||
+            if (requestedToken.getWorkloadGroupCount() != snapshotWorkloadGroupCount ||
                 !requestedToken.getHash().equals(currentHash)) {
-                throw new OpenSearchParseException("Query group state has changed since the last request. Pagination is invalidated.");
+                throw new OpenSearchParseException("Workload group state has changed since the last request. Pagination is invalidated.");
             }
         }
 
         this.paginatedStats = applyPagination(response.getNodes(), requestedToken, currentHash);
     }
 
-    // Compute the hash for all (nodeId|queryGroupId) pairs
-    private String computeQueryGroupHash(List<WlmStats> stats) {
+    // Compute the hash for all (nodeId|workloadGroupId) pairs
+    private String computeWorkloadGroupHash(List<WlmStats> stats) {
         return stats.stream()
             .flatMap(stat -> stat.getWorkloadGroupStats().getStats().keySet().stream()
-                .map(queryGroupId -> stat.getNode().getId() + "|" + queryGroupId))
+                .map(WorkloadGroupId -> stat.getNode().getId() + "|" + WorkloadGroupId))
             .sorted()
             .collect(Collectors.collectingAndThen(Collectors.joining(","), this::sha256Hex));
     }
 
     private String sha256Hex(String input) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            MessageDigest digest = MessageDigest.getInstance(HASH_ALGORITHM);
             byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
             StringBuilder hexString = new StringBuilder();
             for (byte b : hash) {
@@ -92,7 +93,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
     /**
      * Applies pagination to a list of WlmStats entries.
      *
-     * Flattens stats by query group, sorts them using the specified sortBy and sortOrder,
+     * Flattens stats by workload group, sorts them using the specified sortBy and sortOrder,
      * determines the start index from the given requestedToken, and returns a sublist
      * limited by pageSize. Sets responseToken if more results are available.
      *
@@ -108,29 +109,29 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
             return Collections.emptyList();
         }
 
-        List<WlmStats> perQueryGroupStats = extractQueryGroupStats(rawStats);
+        List<WlmStats> perWorkloadGroupStats = extractWorkloadGroupStats(rawStats);
 
-        perQueryGroupStats = perQueryGroupStats.stream()
+        perWorkloadGroupStats = perWorkloadGroupStats.stream()
                 .sorted(sortOrder.apply(sortBy.getComparator()))
                 .collect(Collectors.toList());
 
-        int startIndex = getStartIndex(perQueryGroupStats, requestedToken);
+        int startIndex = getStartIndex(perWorkloadGroupStats, requestedToken);
 
-        List<WlmStats> page = getPage(perQueryGroupStats, startIndex);
+        List<WlmStats> page = getPage(perWorkloadGroupStats, startIndex);
 
-        setResponseToken(perQueryGroupStats, startIndex + page.size(), currentHash);
+        setResponseToken(perWorkloadGroupStats, startIndex + page.size(), currentHash);
 
         return page;
     }
 
-    private List<WlmStats> extractQueryGroupStats(List<WlmStats> rawStats) {
+    private List<WlmStats> extractWorkloadGroupStats(List<WlmStats> rawStats) {
         List<WlmStats> result = new ArrayList<>();
         for (WlmStats stat : rawStats) {
-            Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> queryGroups = stat.getWorkloadGroupStats().getStats();
-            for (Map.Entry<String, WorkloadGroupStats.WorkloadGroupStatsHolder> entry : queryGroups.entrySet()) {
-                String queryGroupId = entry.getKey();
-                WorkloadGroupStats singleQueryGroupStats = new WorkloadGroupStats(Map.of(queryGroupId, entry.getValue()));
-                result.add(new WlmStats(stat.getNode(), singleQueryGroupStats));
+            Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> WorkloadGroups = stat.getWorkloadGroupStats().getStats();
+            for (Map.Entry<String, WorkloadGroupStats.WorkloadGroupStatsHolder> entry : WorkloadGroups.entrySet()) {
+                String workloadGroupId = entry.getKey();
+                WorkloadGroupStats singleWorkloadGroupStats = new WorkloadGroupStats(Map.of(workloadGroupId, entry.getValue()));
+                result.add(new WlmStats(stat.getNode(), singleWorkloadGroupStats));
             }
         }
         return result;
@@ -144,7 +145,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         OptionalInt index = findIndex(
                 sortedStats,
                 token.getNodeId(),
-                token.getQueryGroupId()
+                token.getWorkloadGroupId()
         );
 
         if (index.isEmpty()) {
@@ -163,10 +164,10 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         if (nextIndex < stats.size()) {
             WlmStats lastEntry = stats.get(nextIndex - 1);
             String nodeId = lastEntry.getNode().getId();
-            String queryGroupId = lastEntry.getWorkloadGroupStats().getStats().keySet().iterator().next();
+            String workloadGroupId = lastEntry.getWorkloadGroupStats().getStats().keySet().iterator().next();
 
             this.responseToken = new PageToken(
-                    WlmStrategyToken.generateEncryptedToken(nodeId, queryGroupId, snapshotQueryGroupCount, currentHash),
+                    WlmStrategyToken.generateEncryptedToken(nodeId, workloadGroupId, snapshotWorkloadGroupCount, currentHash, sortOrder.name(), sortBy.name()),
                     DEFAULT_PAGINATED_ENTITY
             );
         } else {
@@ -174,11 +175,11 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         }
     }
 
-    private OptionalInt findIndex(List<WlmStats> stats, String nodeId, String queryGroupId) {
+    private OptionalInt findIndex(List<WlmStats> stats, String nodeId, String workloadGroupId) {
         for (int i = 0; i < stats.size(); i++) {
             WlmStats stat = stats.get(i);
             if (stat.getNode().getId().equals(nodeId)
-                && stat.getWorkloadGroupStats().getStats().containsKey(queryGroupId)) {
+                && stat.getWorkloadGroupStats().getStats().containsKey(workloadGroupId)) {
                 return OptionalInt.of(i + 1);
             }
         }
@@ -207,14 +208,18 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         private static final String JOIN_DELIMITER = "|";
         private static final String SPLIT_REGEX = "\\|";
         private static final int NODE_ID_POS = 0;
-        private static final int QUERY_GROUP_ID_POS = 1;
-        private static final int QUERY_GROUP_COUNT_POS = 2;
+        private static final int WORKLOAD_GROUP_ID_POS = 1;
+        private static final int WORKLOAD_GROUP_COUNT_POS = 2;
         private static final int HASH_POS = 3;
+        private static final int SORT_ORDER_POS = 4;
+        private static final int SORT_BY_POS = 5;
 
         private final String nodeId;
-        private final String queryGroupId;
-        private final int queryGroupCount;
+        private final String workloadGroupId;
+        private final int workloadGroupCount;
         private final String hash;
+        private final String sortOrder;
+        private final String sortBy;
 
         public WlmStrategyToken(String requestedTokenString) {
             validateToken(requestedTokenString);
@@ -222,13 +227,15 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
             final String[] parts = decryptedToken.split(SPLIT_REGEX);
 
             this.nodeId = parts[NODE_ID_POS];
-            this.queryGroupId = parts[QUERY_GROUP_ID_POS];
-            this.queryGroupCount = Integer.parseInt(parts[QUERY_GROUP_COUNT_POS]);
+            this.workloadGroupId = parts[WORKLOAD_GROUP_ID_POS];
+            this.workloadGroupCount = Integer.parseInt(parts[WORKLOAD_GROUP_COUNT_POS]);
             this.hash = parts[HASH_POS];
+            this.sortOrder = parts[SORT_ORDER_POS];
+            this.sortBy = parts[SORT_BY_POS];
         }
 
-        public static String generateEncryptedToken(String nodeId, String queryGroupId, int queryGroupCount, String hash) {
-            String raw = String.join(JOIN_DELIMITER, nodeId, queryGroupId, String.valueOf(queryGroupCount), hash);
+        public static String generateEncryptedToken(String nodeId, String workloadGroupId, int workloadGroupCount, String hash, String sortOrder, String sortBy) {
+            String raw = String.join(JOIN_DELIMITER, nodeId, workloadGroupId, String.valueOf(workloadGroupCount), hash, sortOrder, sortBy);
             return PaginationStrategy.encryptStringToken(raw);
         }
 
@@ -236,26 +243,36 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
             return nodeId;
         }
 
-        public String getQueryGroupId() {
-            return queryGroupId;
+        public String getWorkloadGroupId() {
+            return workloadGroupId;
         }
 
-        public int getQueryGroupCount() {
-            return queryGroupCount;
+        public int getWorkloadGroupCount() {
+            return workloadGroupCount;
         }
 
         public String getHash() {
             return hash;
         }
 
+        public String getSortOrder() {
+            return sortOrder;
+        }
+
+        public String getSortBy() {
+            return sortBy;
+        }
+
         private static void validateToken(String token) {
             Objects.requireNonNull(token, "Token cannot be null");
             String decrypted = PaginationStrategy.decryptStringToken(token);
             final String[] parts = decrypted.split(SPLIT_REGEX);
-            if (parts.length != 4 ||
-                    parts[NODE_ID_POS].isEmpty() ||
-                    parts[QUERY_GROUP_ID_POS].isEmpty() ||
-                    parts[HASH_POS].isEmpty()) {
+            if (parts.length != 6 ||
+                parts[NODE_ID_POS].isEmpty() ||
+                parts[WORKLOAD_GROUP_ID_POS].isEmpty() ||
+                parts[HASH_POS].isEmpty() ||
+                parts[SORT_ORDER_POS].isEmpty() ||
+                parts[SORT_BY_POS].isEmpty()) {
                 throw new OpenSearchParseException("Invalid pagination token format");
             }
         }

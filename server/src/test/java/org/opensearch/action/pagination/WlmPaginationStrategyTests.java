@@ -44,14 +44,14 @@ public class WlmPaginationStrategyTests {
         this.sortOrder = sortOrder;
     }
 
-    // Parameterized values (ascending and descending order for both node_id and query_group)
+    // Parameterized values (ascending and descending order for both node_id and workload_group)
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][]{
             {SortBy.NODE_ID, SortOrder.ASC}, // Sorting by node_id in ascending order
             {SortBy.NODE_ID, SortOrder.DESC}, // Sorting by node_id in descending order
-            {SortBy.QUERY_GROUP, SortOrder.ASC}, // Sorting by query_group in ascending order
-            {SortBy.QUERY_GROUP, SortOrder.DESC} // Sorting by query_group in descending order
+            {SortBy.WORKLOAD_GROUP, SortOrder.ASC}, // Sorting by workload_group in ascending order
+            {SortBy.WORKLOAD_GROUP, SortOrder.DESC} // Sorting by workload_group in descending order
         });
     }
 
@@ -67,10 +67,10 @@ public class WlmPaginationStrategyTests {
             DiscoveryNode mockNode = DiscoveryNodeMock.createDummyNode(i);
 
             WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder = new WorkloadGroupStats.WorkloadGroupStatsHolder();
-            Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> queryStats = new HashMap<>();
-            queryStats.put("query-group-" + i, statsHolder);
+            Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> workloadStats = new HashMap<>();
+            workloadStats.put("workload-group-" + i, statsHolder);
 
-            WlmStats wlmStats = new WlmStats(mockNode, new WorkloadGroupStats(queryStats));
+            WlmStats wlmStats = new WlmStats(mockNode, new WorkloadGroupStats(workloadStats));
             statsList.add(wlmStats);
         }
         return statsList;
@@ -81,7 +81,7 @@ public class WlmPaginationStrategyTests {
         // Arrange
         int pageSize = 10;
         String nextToken = null;  // First page
-        SortBy sortBy = SortBy.QUERY_GROUP;  // Example sorting criteria
+        SortBy sortBy = SortBy.WORKLOAD_GROUP;  // Example sorting criteria
         SortOrder sortOrder = SortOrder.ASC;  // Example sort order
 
         // Mock response with 5 entries
@@ -99,12 +99,12 @@ public class WlmPaginationStrategyTests {
     public void testTokenGeneration_ShouldGenerateValidToken() {
         // Arrange
         String nodeId = "node1";
-        String queryGroupId = "queryGroup1";
-        int queryGroupCount = 5;
+        String workloadGroupId = "workloadGroup1";
+        int workloadGroupCount = 5;
         String currentHash = "somehashvalue";
 
         // Act
-        String token = WlmPaginationStrategy.WlmStrategyToken.generateEncryptedToken(nodeId, queryGroupId, queryGroupCount, currentHash);
+        String token = WlmPaginationStrategy.WlmStrategyToken.generateEncryptedToken(nodeId, workloadGroupId, workloadGroupCount, currentHash);
 
         // Assert
         assertNotNull(token);
@@ -116,7 +116,7 @@ public class WlmPaginationStrategyTests {
         // Arrange
         int pageSize = 10;
         String nextToken = null;
-        SortBy sortBy = SortBy.QUERY_GROUP;
+        SortBy sortBy = SortBy.WORKLOAD_GROUP;
         SortOrder sortOrder = SortOrder.ASC;
 
         // Mocking an empty WlmStatsResponse
@@ -134,7 +134,7 @@ public class WlmPaginationStrategyTests {
         // Arrange
         int pageSize = 10;
         String nextToken = "invalid-token";
-        SortBy sortBy = SortBy.QUERY_GROUP;
+        SortBy sortBy = SortBy.WORKLOAD_GROUP;
         SortOrder sortOrder = SortOrder.ASC;
 
         // Mock response with 5 entries
@@ -154,7 +154,7 @@ public class WlmPaginationStrategyTests {
         // Arrange
         int pageSize = 3;
         String nextToken = null;  // First page
-        SortBy sortBy = SortBy.QUERY_GROUP;
+        SortBy sortBy = SortBy.WORKLOAD_GROUP;
         SortOrder sortOrder = SortOrder.ASC;
 
         // Mock response with 5 stats entries
@@ -173,7 +173,7 @@ public class WlmPaginationStrategyTests {
         // Arrange
         int pageSize = 10;
         String nextToken = null;  // First page
-        SortBy sortBy = SortBy.QUERY_GROUP;
+        SortBy sortBy = SortBy.WORKLOAD_GROUP;
         SortOrder sortOrder = SortOrder.ASC;
 
         // Mock response with 5 stats entries
@@ -201,8 +201,8 @@ public class WlmPaginationStrategyTests {
             assertTrue("Sorting should be in " + sortOrder + " order by node_id",
                 stats.get(0).getNode().getId().compareTo(stats.get(1).getNode().getId())
                     <= (sortOrder == SortOrder.ASC ? 0 : 1));
-        } else if (sortBy == SortBy.QUERY_GROUP) {
-            assertTrue("Sorting should be in " + sortOrder + " order by query_group",
+        } else if (sortBy == SortBy.WORKLOAD_GROUP) {
+            assertTrue("Sorting should be in " + sortOrder + " order by workload_group",
                 stats.get(0).getWorkloadGroupStats().getStats().keySet().iterator().next()
                     .compareTo(stats.get(1).getWorkloadGroupStats().getStats().keySet().iterator().next())
                     <= (sortOrder == SortOrder.ASC ? 0 : 1));
