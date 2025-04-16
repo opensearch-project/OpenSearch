@@ -131,7 +131,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
         try {
             return SortBy.fromString(sortByParam);
         } catch (IllegalArgumentException e) {
-            throw new OpenSearchParseException("Invalid value for 'sort'. Allowed: 'node_id', 'query_group'", e);
+            throw new OpenSearchParseException("Invalid value for 'sort'. Allowed: 'node_id', 'workload_group'", e);
         }
     }
 
@@ -152,7 +152,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
     }
 
     private void handlePaginationError(RestChannel channel, String nextToken, int pageSize, SortBy sortBy, SortOrder sortOrder, OpenSearchParseException e) throws IOException {
-        String userMessage = "Pagination state has changed (e.g., new query groups added or removed). "
+        String userMessage = "Pagination state has changed (e.g., new workload groups added or removed). "
             + "Please restart pagination from the beginning by omitting the 'next_token' parameter.";
 
         logger.error("Failed to paginate WLM stats. next_token={}, pageSize={}, sortBy={}, sortOrder={}. Reason: {}",
@@ -172,7 +172,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
         table.startHeaders();
         table.addCell("NODE_ID", "desc:Node ID");
         table.addCell("|");
-        table.addCell("QUERY_GROUP_ID", "desc:Query Group");
+        table.addCell("WORKLOAD_GROUP_ID", "desc:Workload Group");
         table.addCell("|");
         table.addCell("TOTAL_COMPLETIONS", "desc:Total Completed Queries");
         table.addCell("|");
@@ -187,13 +187,13 @@ public class RestWlmStatsAction extends BaseRestHandler {
         return table;
     }
 
-    private void addRow(Table table, String nodeId, String queryGroupId, WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder) {
+    private void addRow(Table table, String nodeId, String workloadGroupId, WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder) {
         final String PLACEHOLDER = "NA";
 
         table.startRow();
         table.addCell(nodeId);
         table.addCell("|");
-        table.addCell(queryGroupId);
+        table.addCell(workloadGroupId);
         table.addCell("|");
         table.addCell(statsHolder.getCompletions());
         table.addCell("|");
@@ -228,12 +228,12 @@ public class RestWlmStatsAction extends BaseRestHandler {
 
         for (WlmStats wlmStats : paginatedStats) {
             String nodeId = wlmStats.getNode().getId();
-            WorkloadGroupStats queryGroupStats = wlmStats.getWorkloadGroupStats();
+            WorkloadGroupStats workloadGroupStats = wlmStats.getWorkloadGroupStats();
 
-            for (Map.Entry<String, WorkloadGroupStats.WorkloadGroupStatsHolder> entry : queryGroupStats.getStats().entrySet()) {
-                String queryGroupId = entry.getKey();
+            for (Map.Entry<String, WorkloadGroupStats.WorkloadGroupStatsHolder> entry : workloadGroupStats.getStats().entrySet()) {
+                String workloadGroupId = entry.getKey();
                 WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder = entry.getValue();
-                addRow(table, nodeId, queryGroupId, statsHolder);
+                addRow(table, nodeId, workloadGroupId, statsHolder);
             }
         }
 

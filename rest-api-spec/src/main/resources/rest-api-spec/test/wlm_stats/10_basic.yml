@@ -4,7 +4,7 @@
       wlm_stats_list: {}
   - is_true: $body
   - match:
-      $body: /(?s).*NODE_ID\s+\|\s+QUERY_GROUP_ID\s+\|\s+TOTAL_COMPLETIONS\s+\|\s+TOTAL_REJECTIONS\s+\|\s+TOTAL_CANCELLATIONS\s+\|\s+CPU_USAGE\s+\|\s+MEMORY_USAGE.*/
+      $body: /(?s).*NODE_ID\s+\|\s+Workload_GROUP_ID\s+\|\s+TOTAL_COMPLETIONS\s+\|\s+TOTAL_REJECTIONS\s+\|\s+TOTAL_CANCELLATIONS\s+\|\s+CPU_USAGE\s+\|\s+MEMORY_USAGE.*/
 
 ---
 "Custom size param still returns headers":
@@ -26,14 +26,14 @@
       $body: /NODE_ID/
 
 ---
-"Sort by query_group_id desc does not error":
+"Sort by workload_group_id desc does not error":
   - do:
       wlm_stats_list:
-        sort: query_group_id
+        sort: workload_group_id
         order: desc
   - is_true: $body
   - match:
-      $body: /QUERY_GROUP_ID/
+      $body: /Workload_GROUP_ID/
 
 ---
 "Invalid sort field returns error":
@@ -43,7 +43,7 @@
         sort: memory_usage
         order: desc
   - match:
-      error.reason: "Invalid value for 'sort'. Allowed: 'node_id', 'query_group_id'."
+      error.reason: "Invalid value for 'sort'. Allowed: 'node_id', 'workload_group_id'."
 
 ---
 "Invalid sort order returns error":
