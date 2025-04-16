@@ -1723,7 +1723,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 return Optional.empty();
             }
         } catch (AlreadyClosedException e) {
-            logger.warn("failed to get ReplicationEngine", e);
+            // If shard already closed, return empty and do not perform segment replication related operations
+            logger.debug("failed to get ReplicationEngine", e);
             return Optional.empty();
         }
     }
