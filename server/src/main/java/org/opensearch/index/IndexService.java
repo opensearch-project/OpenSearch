@@ -239,7 +239,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
-        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -326,6 +327,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.fileCache = fileCache;
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
+        indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
         updateFsyncTaskIfNecessary();
     }
 
@@ -364,7 +366,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         RecoverySettings recoverySettings,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnce
     ) {
         this(
             indexSettings,
@@ -405,7 +408,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             null,
             null,
             s -> {},
-            (shardId) -> ReplicationStats.empty()
+            (shardId) -> ReplicationStats.empty(),
+            clusterDefaultMaxMergeAtOnce
         );
     }
 
@@ -1122,6 +1126,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         } finally {
             asyncReplicationTask = new AsyncReplicationTask(this);
         }
+    }
+
+    /**
+     * Called whenever the cluster level {@code cluster.default.index.max_merge_at_once} changes.
+     */
+    public void onDefaultMaxMergeAtOnceChanged(int newDefaultMaxMergeAtOnce) {
+        indexSettings.setDefaultMaxMergesAtOnce(newDefaultMaxMergeAtOnce);
     }
 
     /**
