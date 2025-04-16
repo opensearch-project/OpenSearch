@@ -305,7 +305,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
-    protected List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
         final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<IteratorAndCurrent<Bucket>>(aggregations.size()) {
             @Override
@@ -409,16 +409,13 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         return 0;
     }
 
-    protected void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
-
-        int preEmptyBucketCount = list.size();
+    void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
         int emptyBucketCount = getTotalBucketCount() - list.size();
         if (emptyBucketCount > 0) {
             CircuitBreaker breaker = reduceContext.getBreaker();
             if (breaker != null) {
                 breaker.addEstimateBytesAndMaybeBreak(50L * emptyBucketCount, "empty histogram buckets");
             }
-            preEmptyBucketCount += emptyBucketCount;
             reduceContext.consumeBucketsAndMaybeBreak(emptyBucketCount);
         }
 
@@ -465,7 +462,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
             }
         }
-        int postEmptyBucketCount = list.size() - preEmptyBucketCount;
+        int postEmptyBucketCount = list.size() - getTotalBucketCount();
         reduceContext.consumeBucketsAndMaybeBreak(postEmptyBucketCount);
     }
 
