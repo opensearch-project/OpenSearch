@@ -12,14 +12,17 @@ import org.opensearch.wlm.stats.WlmStats;
 
 import java.util.Comparator;
 
+/**
+ * Represents the different fields by which WLM statistics can be sorted.
+ */
 public enum SortBy {
     QUERY_GROUP {
         @Override
         public Comparator<WlmStats> getComparator() {
             return Comparator.comparing(
-                (WlmStats wlmStats) -> wlmStats.getQueryGroupStats().getStats().isEmpty()
+                (WlmStats wlmStats) -> wlmStats.getWorkloadGroupStats().getStats().isEmpty()
                     ? ""
-                    : wlmStats.getQueryGroupStats().getStats().keySet().iterator().next()
+                    : wlmStats.getWorkloadGroupStats().getStats().keySet().iterator().next()
             ).thenComparing(wlmStats -> wlmStats.getNode().getId());
         }
     },
@@ -29,9 +32,9 @@ public enum SortBy {
             return Comparator.comparing(
                 (WlmStats wlmStats) -> wlmStats.getNode().getId()
             ).thenComparing(
-                wlmStats -> wlmStats.getQueryGroupStats().getStats().isEmpty()
+                wlmStats -> wlmStats.getWorkloadGroupStats().getStats().isEmpty()
                     ? ""
-                    : wlmStats.getQueryGroupStats().getStats().keySet().iterator().next()
+                    : wlmStats.getWorkloadGroupStats().getStats().keySet().iterator().next()
             );
         }
     };

@@ -15,7 +15,7 @@ import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.wlm.stats.WlmStats;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.wlm.stats.QueryGroupStats;
+import org.opensearch.wlm.stats.WorkloadGroupStats;
 
 
 import java.util.Collections;
@@ -43,11 +43,11 @@ public class WlmPaginationStrategyTests {
         for (int i = 1; i <= count; i++) {
             DiscoveryNode mockNode = DiscoveryNodeMock.createDummyNode(i);
 
-            QueryGroupStats.QueryGroupStatsHolder statsHolder = new QueryGroupStats.QueryGroupStatsHolder();
-            Map<String, QueryGroupStats.QueryGroupStatsHolder> queryStats = new HashMap<>();
+            WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder = new WorkloadGroupStats.WorkloadGroupStatsHolder();
+            Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> queryStats = new HashMap<>();
             queryStats.put("query-group-" + i, statsHolder);
 
-            WlmStats wlmStats = new WlmStats(mockNode, new QueryGroupStats(queryStats));
+            WlmStats wlmStats = new WlmStats(mockNode, new WorkloadGroupStats(queryStats));
             statsList.add(wlmStats);
         }
         return statsList;

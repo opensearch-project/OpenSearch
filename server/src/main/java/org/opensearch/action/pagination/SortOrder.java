@@ -12,6 +12,10 @@ import org.opensearch.wlm.stats.WlmStats;
 
 import java.util.Comparator;
 
+/**
+ * Represents the sort order for WLM statistics.
+ * The sort order can be either ascending or descending.
+ */
 public enum SortOrder {
     ASC {
         @Override

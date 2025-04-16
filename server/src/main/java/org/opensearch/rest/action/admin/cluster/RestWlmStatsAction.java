@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -27,7 +26,7 @@ import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
 import org.opensearch.common.Table;
-import org.opensearch.wlm.stats.QueryGroupStats;
+import org.opensearch.wlm.stats.WorkloadGroupStats;
 import org.opensearch.wlm.stats.WlmStats;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rest.action.cat.RestTable;
@@ -188,7 +187,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
         return table;
     }
 
-    private void addRow(Table table, String nodeId, String queryGroupId, QueryGroupStats.QueryGroupStatsHolder statsHolder) {
+    private void addRow(Table table, String nodeId, String queryGroupId, WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder) {
         final String PLACEHOLDER = "NA";
 
         table.startRow();
@@ -203,8 +202,8 @@ public class RestWlmStatsAction extends BaseRestHandler {
         table.addCell(statsHolder.getCancellations());
         table.addCell("|");
 
-        QueryGroupStats.ResourceStats cpuStats = statsHolder.getResourceStats().get(ResourceType.CPU);
-        QueryGroupStats.ResourceStats memoryStats = statsHolder.getResourceStats().get(ResourceType.MEMORY);
+        WorkloadGroupStats.ResourceStats cpuStats = statsHolder.getResourceStats().get(ResourceType.CPU);
+        WorkloadGroupStats.ResourceStats memoryStats = statsHolder.getResourceStats().get(ResourceType.MEMORY);
 
         table.addCell(cpuStats != null ? cpuStats.getCurrentUsage() : PLACEHOLDER);
         table.addCell("|");
@@ -229,11 +228,11 @@ public class RestWlmStatsAction extends BaseRestHandler {
 
         for (WlmStats wlmStats : paginatedStats) {
             String nodeId = wlmStats.getNode().getId();
-            QueryGroupStats queryGroupStats = wlmStats.getWorkloadGroupStats();
+            WorkloadGroupStats queryGroupStats = wlmStats.getWorkloadGroupStats();
 
-            for (Map.Entry<String, QueryGroupStats.QueryGroupStatsHolder> entry : queryGroupStats.getStats().entrySet()) {
+            for (Map.Entry<String, WorkloadGroupStats.WorkloadGroupStatsHolder> entry : queryGroupStats.getStats().entrySet()) {
                 String queryGroupId = entry.getKey();
-                QueryGroupStats.QueryGroupStatsHolder statsHolder = entry.getValue();
+                WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder = entry.getValue();
                 addRow(table, nodeId, queryGroupId, statsHolder);
             }
         }
