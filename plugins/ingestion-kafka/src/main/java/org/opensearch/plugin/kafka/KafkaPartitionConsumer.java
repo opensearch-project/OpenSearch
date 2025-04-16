@@ -235,7 +235,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
             }
             lastFetchedOffset = currentOffset;
             KafkaOffset kafkaOffset = new KafkaOffset(currentOffset);
-            KafkaMessage message = new KafkaMessage(messageAndOffset.key(), messageAndOffset.value());
+            KafkaMessage message = new KafkaMessage(messageAndOffset.key(), messageAndOffset.value(), messageAndOffset.timestamp());
             results.add(new ReadResult<>(kafkaOffset, message));
         }
         return results;

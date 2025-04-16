@@ -42,6 +42,8 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile boolean paused;
     private volatile IngestionErrorStrategy errorStrategy;
 
+    private volatile long lastPolledMessageTimestamp = 0;
+
     private IngestionShardConsumer consumer;
 
     private ExecutorService consumerThread;
@@ -241,7 +243,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 }
                 totalPolledCount.inc();
                 blockingQueueContainer.add(result);
-
+                lastPolledMessageTimestamp = result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp();
                 logger.debug(
                     "Put message {} with pointer {} to the blocking queue",
                     String.valueOf(result.getMessage().getPayload()),
@@ -360,7 +362,15 @@ public class DefaultStreamPoller implements StreamPoller {
         builder.setTotalPolledCount(totalPolledCount.count());
         builder.setTotalProcessedCount(blockingQueueContainer.getTotalProcessedCount());
         builder.setTotalSkippedCount(blockingQueueContainer.getTotalSkippedCount());
+        builder.setLagInMillis(computeLag());
         return builder.build();
+    }
+
+    /**
+     * Returns the lag in milliseconds since the last polled message
+     */
+    private long computeLag() {
+        return System.currentTimeMillis() - lastPolledMessageTimestamp;
     }
 
     public State getState() {
