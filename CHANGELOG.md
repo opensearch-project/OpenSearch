@@ -92,6 +92,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix bytes parameter on `_cat/recovery` ([#17598](https://github.com/opensearch-project/OpenSearch/pull/17598))
 - Fix slow performance of FeatureFlag checks ([#17611](https://github.com/opensearch-project/OpenSearch/pull/17611))
 - Fix shard recovery in pull-based ingestion to avoid skipping messages ([#17868](https://github.com/opensearch-project/OpenSearch/pull/17868)))
+- Make `index.merge_on_flush.enabled`, `index.merge_on_flush.max_full_flush_merge_wait_time`, `index.merge_on_flush.policy`, `index.check_pending_flush.enabled` dynamic ([#17495](https://github.com/opensearch-project/OpenSearch/pull/17495))
 
 ### Security
 
