@@ -410,12 +410,16 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     }
 
     void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
+        int preEmptyBucketCount = list.size();
+        // we use counts here only to add those values to the CircuitBreaker, list's count has already been added in #reduce, so we only
+        // need to add emptyBucketCount
         int emptyBucketCount = getTotalBucketCount() - list.size();
         if (emptyBucketCount > 0) {
             CircuitBreaker breaker = reduceContext.getBreaker();
             if (breaker != null) {
                 breaker.addEstimateBytesAndMaybeBreak(50L * emptyBucketCount, "empty histogram buckets");
             }
+            preEmptyBucketCount += emptyBucketCount;
             reduceContext.consumeBucketsAndMaybeBreak(emptyBucketCount);
         }
 
@@ -462,7 +466,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
             }
         }
-        int postEmptyBucketCount = list.size() - getTotalBucketCount();
+        int postEmptyBucketCount = list.size() - preEmptyBucketCount;
         reduceContext.consumeBucketsAndMaybeBreak(postEmptyBucketCount);
     }
 
