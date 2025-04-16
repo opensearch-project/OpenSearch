@@ -20,7 +20,7 @@ import org.opensearch.plugin.wlm.rule.attribute_extractor.IndicesExtractor;
 import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.List;
 import java.util.Optional;
@@ -63,6 +63,6 @@ public class AutoTaggingActionFilter implements ActionFilter {
         }
         Optional<String> label = ruleProcessingService.evaluateLabel(List.of(new IndicesExtractor((IndicesRequest) request)));
 
-        label.ifPresent(s -> threadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, s));
+        label.ifPresent(s -> threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
     }
 }
