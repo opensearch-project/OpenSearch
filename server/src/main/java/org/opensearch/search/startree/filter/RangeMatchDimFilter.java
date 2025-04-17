@@ -27,6 +27,27 @@ public class RangeMatchDimFilter implements DimensionFilter {
 
     private final String dimensionName;
 
+    @Override
+    public String getDimensionName() {
+        return dimensionName;
+    }
+
+    public Object getLow() {
+        return low;
+    }
+
+    public Object getHigh() {
+        return high;
+    }
+
+    public boolean isIncludeLow() {
+        return includeLow;
+    }
+
+    public boolean isIncludeHigh() {
+        return includeHigh;
+    }
+
     private final Object low;
     private final Object high;
     private final boolean includeLow;
@@ -35,6 +56,7 @@ public class RangeMatchDimFilter implements DimensionFilter {
     private Long lowOrdinal;
     private Long highOrdinal;
 
+    // TODO - see if we need this while intersecting
     private boolean skipRangeCollection = false;
 
     public RangeMatchDimFilter(String dimensionName, Object low, Object high, boolean includeLow, boolean includeHigh) {

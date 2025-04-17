@@ -30,6 +30,10 @@ public class ExactMatchDimFilter implements DimensionFilter {
 
     private final String dimensionName;
 
+    public List<Object> getRawValues() {
+        return rawValues;
+    }
+
     private final List<Object> rawValues;
 
     // Order is essential for successive binary search
@@ -80,5 +84,10 @@ public class ExactMatchDimFilter implements DimensionFilter {
     @Override
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
         return convertedOrdinals.contains(ordinal);
+    }
+
+    @Override
+    public String getDimensionName() {
+        return dimensionName;
     }
 }

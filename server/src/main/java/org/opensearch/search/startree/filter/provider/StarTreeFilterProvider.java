@@ -8,6 +8,7 @@
 
 package org.opensearch.search.startree.filter.provider;
 
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
@@ -21,14 +22,17 @@ import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.DimensionFilterMerger;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Converts a {@link QueryBuilder} into a {@link StarTreeFilter} by generating the appropriate @{@link org.opensearch.search.startree.filter.DimensionFilter}
@@ -162,91 +166,74 @@ public interface StarTreeFilterProvider {
 
     }
 
-    /**
-     *
-     */
     class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
         @Override
-        public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
-            throws IOException {
+        public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType) throws IOException {
             BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) rawFilter;
-            if (boolQueryBuilder.hasClauses() == false) {
-                return null; // no clause present; fallback to default implementation
+            if (!boolQueryBuilder.hasClauses()) {
+                return null;
             }
-            Map<String, List<DimensionFilter>> dimensionFilterMap = new HashMap<>();
 
-            List<QueryBuilder> mustClauses = boolQueryBuilder.must();
-            if (mustClauses.isEmpty() == false) {
-                for (QueryBuilder clause : mustClauses) {
+            return processMustClauses(boolQueryBuilder.must(), context, compositeFieldType);
+        }
+
+        private StarTreeFilter processMustClauses(List<QueryBuilder> mustClauses, SearchContext context,
+                                                  CompositeDataCubeFieldType compositeFieldType) throws IOException {
+            if (mustClauses.isEmpty()) {
+                return null;
+            }
+            Map<String, List<DimensionFilter>> dimensionToFilters = new HashMap<>();
+
+            for (QueryBuilder clause : mustClauses) {
+                StarTreeFilter clauseFilter;
+
+                if (clause instanceof BoolQueryBuilder) {
+                    // Recursive processing for nested bool
+                    clauseFilter = processMustClauses(((BoolQueryBuilder) clause).must(), context, compositeFieldType);
+                } else {
+                    // Process individual clause
                     StarTreeFilterProvider provider = SingletonFactory.getProvider(clause);
                     if (provider == null) {
-                        return null; // Unsupported query type; fallback
+                        return null;
                     }
-
-                    StarTreeFilter filter = provider.getFilter(context, clause, compositeFieldType);
-                    if (filter == null) {
-                        return null; // If any clause can't be converted, fallback
-                    }
-
-                    // Merge filters into dimensionFilterMap
-                    for (String dim : filter.getDimensions()) {
-                        dimensionFilterMap.computeIfAbsent(dim, k -> new ArrayList<>()).addAll(filter.getFiltersForDimension(dim));
-                    }
+                    clauseFilter = provider.getFilter(context, clause, compositeFieldType);
                 }
-            }
 
-            List<QueryBuilder> shouldClauses = boolQueryBuilder.should();
-            if (shouldClauses.isEmpty() == false) {
-                // Group 'should' clauses by dimension
-                Map<String, List<QueryBuilder>> shouldClausesByDimension = new HashMap<>();
-
-                for (QueryBuilder clause : shouldClauses) {
-                    String dimension = getDimensionFromQuery(clause);
-                    if (dimension == null) {
-                        return null; // Unsupported query type
-                    }
-                    shouldClausesByDimension.computeIfAbsent(dimension, k -> new ArrayList<>()).add(clause);
-                }
-                // If SHOULD clauses span multiple dimensions, we don't support it
-                if (shouldClausesByDimension.size() > 1) {
+                if (clauseFilter == null) {
                     return null;
                 }
 
-                // Process 'should' clauses for the single dimension
-                for (Map.Entry<String, List<QueryBuilder>> entry : shouldClausesByDimension.entrySet()) {
-                    String dimension = entry.getKey();
-                    List<QueryBuilder> clausesForDimension = entry.getValue();
+                // Merge filters for each dimension
+                for (String dimension : clauseFilter.getDimensions()) {
+                    List<DimensionFilter> existingFilters = dimensionToFilters.get(dimension);
+                    List<DimensionFilter> newFilters = clauseFilter.getFiltersForDimension(dimension);
 
-                    List<DimensionFilter> orFilters = new ArrayList<>();
-                    for (QueryBuilder clause : clausesForDimension) {
-                        StarTreeFilterProvider provider = SingletonFactory.getProvider(clause);
-                        if (provider == null) {
-                            return null;
+                    if (existingFilters == null) {
+                        dimensionToFilters.put(dimension, new ArrayList<>(newFilters));
+                    } else {
+                        // Here's where we need the DimensionFilter merging logic
+                        // For example: merging range with term, or range with range
+                        DimensionFilter mergedFilter = mergeDimensionFilters(existingFilters, newFilters);
+                        if (mergedFilter == null) {
+                            return null; // No possible matches after merging
                         }
-
-                        // TODO - nested boolean queries
-                        StarTreeFilter filter = provider.getFilter(context, clause, compositeFieldType);
-                        if (filter == null) {
-                            return null;
-                        }
-
-                        orFilters.addAll(filter.getFiltersForDimension(dimension));
+                        dimensionToFilters.put(dimension, Collections.singletonList(mergedFilter));
                     }
-                    dimensionFilterMap.computeIfAbsent(dimension, k -> new ArrayList<>()).addAll(orFilters);
                 }
             }
-            return new StarTreeFilter(dimensionFilterMap);
+
+            return new StarTreeFilter(dimensionToFilters);
         }
 
-        private String getDimensionFromQuery(QueryBuilder query) {
-            if (query instanceof TermQueryBuilder) {
-                return ((TermQueryBuilder) query).fieldName();
-            } else if (query instanceof TermsQueryBuilder) {
-                return ((TermsQueryBuilder) query).fieldName();
-            } else if (query instanceof RangeQueryBuilder) {
-                return ((RangeQueryBuilder) query).fieldName();
-            }
-            return null;
+        /**
+         * Merges multiple DimensionFilters for the same dimension.
+         * This is where we need to implement the actual merging logic.
+         */
+        private DimensionFilter mergeDimensionFilters(List<DimensionFilter> filters1, List<DimensionFilter> filters2) {
+            DimensionFilter filter1 = filters1.getFirst();
+            DimensionFilter filter2 = filters2.getFirst();
+
+            return DimensionFilterMerger.intersect(filter1, filter2);
         }
     }
 }
