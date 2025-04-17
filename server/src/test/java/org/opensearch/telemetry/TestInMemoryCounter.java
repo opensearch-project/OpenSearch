@@ -41,7 +41,7 @@ public class TestInMemoryCounter implements Counter {
 
     @Override
     public synchronized void add(double value, Tags tags) {
-        HashMap<String, ?> hashMap = (HashMap<String, ?>) tags.getTagsMap();
+        HashMap<String, ?> hashMap = new HashMap<>(tags.getTagsMap());
         if (counterValueForTags.get(hashMap) == null) {
             counterValueForTags.put(hashMap, value);
         } else {
