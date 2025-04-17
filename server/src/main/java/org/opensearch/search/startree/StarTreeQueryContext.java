@@ -81,10 +81,6 @@ public class StarTreeQueryContext {
         }
     }
 
-    public CompositeDataCubeFieldType getCompositeMappedFieldType() {
-        return compositeMappedFieldType;
-    }
-
     public CompositeIndexFieldInfo getStarTree() {
         return new CompositeIndexFieldInfo(compositeMappedFieldType.name(), compositeMappedFieldType.getCompositeIndexType());
     }

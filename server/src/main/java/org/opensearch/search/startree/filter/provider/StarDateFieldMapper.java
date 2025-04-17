@@ -68,7 +68,7 @@ class StarDateFieldMapper implements DimensionFilterMapper {
         long u = Long.MAX_VALUE;
 
         if (rangeQueryBuilder.from() != null) {
-            l = org.opensearch.index.mapper.DateFieldMapper.DateFieldType.parseToLong(
+            l = DateFieldType.parseToLong(
                 rangeQueryBuilder.from(),
                 !rangeQueryBuilder.includeLower(),
                 timeZone,
@@ -77,15 +77,12 @@ class StarDateFieldMapper implements DimensionFilterMapper {
                 dateFieldType.resolution()
             );
             if (!rangeQueryBuilder.includeLower()) {
-                if (l == Long.MAX_VALUE) {
-                    return null;
-                }
                 ++l;
             }
         }
 
         if (rangeQueryBuilder.to() != null) {
-            u = org.opensearch.index.mapper.DateFieldMapper.DateFieldType.parseToLong(
+            u = DateFieldType.parseToLong(
                 rangeQueryBuilder.to(),
                 rangeQueryBuilder.includeUpper(),
                 timeZone,
@@ -94,9 +91,6 @@ class StarDateFieldMapper implements DimensionFilterMapper {
                 dateFieldType.resolution()
             );
             if (!rangeQueryBuilder.includeUpper()) {
-                if (u == Long.MIN_VALUE) {
-                    return null;
-                }
                 --u;
             }
         }

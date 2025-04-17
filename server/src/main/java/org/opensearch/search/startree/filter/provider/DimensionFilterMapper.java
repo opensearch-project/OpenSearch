@@ -166,7 +166,7 @@ abstract class NumericNonDecimalMapper extends NumericMapper {
         Long parsedLow = rangeQueryBuilder.from() == null
             ? defaultMinimum()
             : numberFieldType.numberType().parse(rangeQueryBuilder.from(), true).longValue();
-        Long parsedHigh = rangeQueryBuilder.from() == null
+        Long parsedHigh = rangeQueryBuilder.to() == null
             ? defaultMaximum()
             : numberFieldType.numberType().parse(rangeQueryBuilder.to(), true).longValue();
 
