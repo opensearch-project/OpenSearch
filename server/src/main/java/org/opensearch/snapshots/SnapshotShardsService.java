@@ -594,11 +594,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
     /** Notify the cluster-manager node that the given shard failed to be snapshotted **/
     private void notifyFailedSnapshotShard(final Snapshot snapshot, final ShardId shardId, final String failure) {
-        sendSnapshotShardUpdate(
-            snapshot,
-            shardId,
-            new ShardSnapshotStatus(clusterService.localNode().getId(), ShardState.FAILED, failure, null)
-        );
+        notifyFailedSnapshotShard(snapshot, shardId, failure, null);
     }
 
     /** Notify the cluster-manager node that the given shard failed to be snapshotted **/
