@@ -206,7 +206,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         int extraValue = -1;
 
         for (int i = 0; i < numDocs; i++) {
-            if (i >= numDocsWithExtraValue) {
+            if (i < numDocsWithExtraValue) {
                 client().prepareIndex("test").setId(Integer.toString(i)).setSource(intField, new int[] { extraValue, i }).get();
             } else {
                 client().prepareIndex("test").setId(Integer.toString(i)).setSource(intField, i).get();
