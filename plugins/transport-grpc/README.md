@@ -17,14 +17,18 @@ setting 'aux.transport.types',                                      '[experiment
 setting 'aux.transport.experimental-secure-transport-grpc.port',    '9400-9500' //optional
 ```
 
-Other settings are agnostic as to the gRPC transport type:
+Other gRPC settings:
 
 ```
-setting 'grpc.publish_port',        '9400'
-setting 'grpc.host',                '["0.0.0.0"]'
-setting 'grpc.bind_host',           '["0.0.0.0", "::", "10.0.0.1"]'
-setting 'grpc.publish_host',        '["thisnode.example.com"]'
-setting 'grpc.netty.worker_count',  '2'
+setting 'grpc.publish_port',                            '9400'
+setting 'grpc.host',                                    '["0.0.0.0"]'
+setting 'grpc.bind_host',                               '["0.0.0.0", "::", "10.0.0.1"]'
+setting 'grpc.publish_host',                            '["thisnode.example.com"]'
+setting 'grpc.netty.worker_count',                      '2'
+setting 'grpc.netty.max_concurrent_connection_calls',   '200'
+setting 'grpc.netty.max_connection_age',                '500ms'
+setting 'grpc.netty.max_connection_idle',               '2m'
+setting 'grpc.netty.keepalive_timeout',                 '1s'
 ```
 
 ## Testing

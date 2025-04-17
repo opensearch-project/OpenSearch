@@ -1716,16 +1716,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Optional<NRTReplicationEngine> getReplicationEngine() {
-        if (getEngine() instanceof NRTReplicationEngine) {
-            return Optional.of((NRTReplicationEngine) getEngine());
-        } else {
+        try {
+            if (getEngine() instanceof NRTReplicationEngine) {
+                return Optional.of((NRTReplicationEngine) getEngine());
+            } else {
+                return Optional.empty();
+            }
+        } catch (AlreadyClosedException e) {
+            // If shard already closed, return empty. The logic related to segment replication will not continue to execute after judging
+            // that the return value is empty, and there will be no side effects.
+            logger.debug("failed to get ReplicationEngine", e);
             return Optional.empty();
         }
     }
 
     public void finalizeReplication(SegmentInfos infos) throws IOException {
-        if (getReplicationEngine().isPresent()) {
-            getReplicationEngine().get().updateSegments(infos);
+        Optional<NRTReplicationEngine> engineOptional = getReplicationEngine();
+        if (engineOptional.isPresent()) {
+            engineOptional.get().updateSegments(infos);
         }
     }
 

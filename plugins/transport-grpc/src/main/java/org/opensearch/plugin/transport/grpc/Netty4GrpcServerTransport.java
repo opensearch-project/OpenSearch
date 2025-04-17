@@ -14,10 +14,13 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.PortsRange;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.transport.BindTransportException;
 
@@ -116,6 +119,60 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
     );
 
     /**
+     * Controls the number of allowed simultaneous in flight requests a single client connection may send.
+     */
+    public static final Setting<Integer> SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS = Setting.intSetting(
+        "grpc.netty.max_concurrent_connection_calls",
+        100,
+        1,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Configure maximum inbound message size in bytes.
+     */
+    public static final Setting<ByteSizeValue> SETTING_GRPC_MAX_MSG_SIZE = Setting.byteSizeSetting(
+        "grpc.netty.max_msg_size",
+        new ByteSizeValue(10, ByteSizeUnit.MB),
+        new ByteSizeValue(0, ByteSizeUnit.MB),
+        new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Connections lasting longer than configured age will be gracefully terminated.
+     * No max connection age by default.
+     */
+    public static final Setting<TimeValue> SETTING_GRPC_MAX_CONNECTION_AGE = Setting.timeSetting(
+        "grpc.netty.max_connection_age",
+        new TimeValue(Long.MAX_VALUE),
+        new TimeValue(0),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Idle connections lasting longer than configured value will be gracefully terminated.
+     * No max idle time by default.
+     */
+    public static final Setting<TimeValue> SETTING_GRPC_MAX_CONNECTION_IDLE = Setting.timeSetting(
+        "grpc.netty.max_connection_idle",
+        new TimeValue(Long.MAX_VALUE),
+        new TimeValue(0),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Timeout for keepalive ping requests of an established connection.
+     */
+    public static final Setting<TimeValue> SETTING_GRPC_KEEPALIVE_TIMEOUT = Setting.timeSetting(
+        "grpc.netty.keepalive_timeout",
+        new TimeValue(Long.MAX_VALUE),
+        new TimeValue(0),
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Port range on which servers bind.
      */
     protected PortsRange port;
@@ -136,6 +193,11 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
     private final String[] bindHosts;
     private final String[] publishHosts;
     private final int nettyEventLoopThreads;
+    private final long maxInboundMessageSize;
+    private final long maxConcurrentConnectionCalls;
+    private final TimeValue maxConnectionAge;
+    private final TimeValue maxConnectionIdle;
+    private final TimeValue keepAliveTimeout;
     private final CopyOnWriteArrayList<Server> servers = new CopyOnWriteArrayList<>();
     private final List<UnaryOperator<NettyServerBuilder>> serverBuilderConfigs = new ArrayList<>();
 
@@ -153,18 +215,20 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         this.settings = Objects.requireNonNull(settings);
         this.services = Objects.requireNonNull(services);
         this.networkService = Objects.requireNonNull(networkService);
-
         final List<String> grpcBindHost = SETTING_GRPC_BIND_HOST.get(settings);
         this.bindHosts = (grpcBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(settings) : grpcBindHost).toArray(
             Strings.EMPTY_ARRAY
         );
-
         final List<String> grpcPublishHost = SETTING_GRPC_PUBLISH_HOST.get(settings);
         this.publishHosts = (grpcPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings) : grpcPublishHost)
             .toArray(Strings.EMPTY_ARRAY);
-
         this.port = SETTING_GRPC_PORT.get(settings);
         this.nettyEventLoopThreads = SETTING_GRPC_WORKER_COUNT.get(settings);
+        this.maxInboundMessageSize = SETTING_GRPC_MAX_MSG_SIZE.get(settings).getBytes();
+        this.maxConcurrentConnectionCalls = SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS.get(settings);
+        this.maxConnectionAge = SETTING_GRPC_MAX_CONNECTION_AGE.get(settings);
+        this.maxConnectionIdle = SETTING_GRPC_MAX_CONNECTION_IDLE.get(settings);
+        this.keepAliveTimeout = SETTING_GRPC_KEEPALIVE_TIMEOUT.get(settings);
         this.portSettingKey = SETTING_GRPC_PORT.getKey();
     }
 
@@ -285,12 +349,16 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
 
         boolean success = portRange.iterate(portNumber -> {
             try {
-
                 final InetSocketAddress address = new InetSocketAddress(hostAddress, portNumber);
                 final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(address)
                     .directExecutor()
                     .bossEventLoopGroup(eventLoopGroup)
                     .workerEventLoopGroup(eventLoopGroup)
+                    .maxInboundMessageSize((int) maxInboundMessageSize)
+                    .maxConcurrentCallsPerConnection((int) maxConcurrentConnectionCalls)
+                    .maxConnectionAge(maxConnectionAge.duration(), maxConnectionAge.timeUnit())
+                    .maxConnectionIdle(maxConnectionIdle.duration(), maxConnectionIdle.timeUnit())
+                    .keepAliveTimeout(keepAliveTimeout.duration(), keepAliveTimeout.timeUnit())
                     .channelType(NioServerSocketChannel.class)
                     .addService(new HealthStatusManager().getHealthService())
                     .addService(ProtoReflectionService.newInstance());

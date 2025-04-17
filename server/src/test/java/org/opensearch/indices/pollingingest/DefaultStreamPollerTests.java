@@ -50,6 +50,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
     private final int awaitTime = 300;
     private final int sleepTime = 300;
     private DropIngestionErrorStrategy errorStrategy;
+    private PartitionedBlockingQueueContainer partitionedBlockingQueueContainer;
 
     @Before
     public void setUp() throws Exception {
@@ -62,16 +63,18 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         errorStrategy = new DropIngestionErrorStrategy("ingestion_source");
         processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(5), processor, errorStrategy);
         persistedPointers = new HashSet<>();
+        partitionedBlockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             persistedPointers,
             fakeConsumer,
-            processorRunnable,
+            partitionedBlockingQueueContainer,
             StreamPoller.ResetState.NONE,
             "",
             errorStrategy,
             StreamPoller.State.NONE
         );
+        partitionedBlockingQueueContainer.startProcessorThreads();
     }
 
     @After
@@ -79,6 +82,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         if (!poller.isClosed()) {
             poller.close();
         }
+        partitionedBlockingQueueContainer.close();
         super.tearDown();
     }
 
@@ -88,7 +92,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         doAnswer(invocation -> {
             pauseLatch.countDown();
             return null;
-        }).when(processor).process(any(), any(), any());
+        }).when(processor).process(any(), any());
 
         poller.pause();
         poller.start();
@@ -99,19 +103,19 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         assertFalse("Messages should not be processed while paused", processedWhilePaused);
         assertEquals(DefaultStreamPoller.State.PAUSED, poller.getState());
         assertTrue(poller.isPaused());
-        verify(processor, never()).process(any(), any(), any());
+        verify(processor, never()).process(any(), any());
 
         CountDownLatch resumeLatch = new CountDownLatch(2);
         doAnswer(invocation -> {
             resumeLatch.countDown();
             return null;
-        }).when(processor).process(any(), any(), any());
+        }).when(processor).process(any(), any());
 
         poller.resume();
         resumeLatch.await();
         assertFalse(poller.isPaused());
         // 2 messages are processed
-        verify(processor, times(2)).process(any(), any(), any());
+        verify(processor, times(2)).process(any(), any());
     }
 
     public void testSkipProcessed() throws InterruptedException {
@@ -123,7 +127,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             persistedPointers,
             fakeConsumer,
-            processorRunnable,
+            partitionedBlockingQueueContainer,
             StreamPoller.ResetState.NONE,
             "",
             errorStrategy,
@@ -134,12 +138,12 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         doAnswer(invocation -> {
             latch.countDown();
             return null;
-        }).when(processor).process(any(), any(), any());
+        }).when(processor).process(any(), any());
 
         poller.start();
         latch.await();
         // 2 messages are processed, 2 messages are skipped
-        verify(processor, times(2)).process(any(), any(), any());
+        verify(processor, times(2)).process(any(), any());
         assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(2), poller.getMaxPersistedPointer());
     }
 
@@ -161,7 +165,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             new FakeIngestionSource.FakeIngestionShardPointer(1),
             persistedPointers,
             fakeConsumer,
-            processorRunnable,
+            partitionedBlockingQueueContainer,
             StreamPoller.ResetState.EARLIEST,
             "",
             errorStrategy,
@@ -171,13 +175,13 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         doAnswer(invocation -> {
             latch.countDown();
             return null;
-        }).when(processor).process(any(), any(), any());
+        }).when(processor).process(any(), any());
 
         poller.start();
         latch.await();
 
         // 2 messages are processed
-        verify(processor, times(2)).process(any(), any(), any());
+        verify(processor, times(2)).process(any(), any());
     }
 
     public void testResetStateLatest() throws InterruptedException {
@@ -185,7 +189,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             persistedPointers,
             fakeConsumer,
-            processorRunnable,
+            partitionedBlockingQueueContainer,
             StreamPoller.ResetState.LATEST,
             "",
             errorStrategy,
@@ -195,7 +199,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         poller.start();
         waitUntil(() -> poller.getState() == DefaultStreamPoller.State.POLLING, awaitTime, TimeUnit.MILLISECONDS);
         // no messages processed
-        verify(processor, never()).process(any(), any(), any());
+        verify(processor, never()).process(any(), any());
         // reset to the latest
         assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(2), poller.getBatchStartPointer());
     }
@@ -205,7 +209,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             new FakeIngestionSource.FakeIngestionShardPointer(2),
             persistedPointers,
             fakeConsumer,
-            processorRunnable,
+            partitionedBlockingQueueContainer,
             StreamPoller.ResetState.REWIND_BY_OFFSET,
             "1",
             errorStrategy,
@@ -215,12 +219,12 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         doAnswer(invocation -> {
             latch.countDown();
             return null;
-        }).when(processor).process(any(), any(), any());
+        }).when(processor).process(any(), any());
 
         poller.start();
         latch.await();
         // 1 message is processed
-        verify(processor, times(1)).process(any(), any(), any());
+        verify(processor, times(1)).process(any(), any());
     }
 
     public void testStartPollWithoutStart() {
@@ -274,12 +278,14 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         ArrayBlockingQueue mockQueue = mock(ArrayBlockingQueue.class);
         doThrow(new RuntimeException()).doNothing().when(mockQueue).put(any());
         processorRunnable = new MessageProcessorRunnable(mockQueue, processor, errorStrategy);
+        PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
+        blockingQueueContainer.startProcessorThreads();
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             persistedPointers,
             mockConsumer,
-            processorRunnable,
+            blockingQueueContainer,
             StreamPoller.ResetState.NONE,
             "",
             errorStrategy,
@@ -290,6 +296,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         verify(errorStrategy, times(1)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.POLLING));
         verify(mockQueue, times(4)).put(any());
+        blockingQueueContainer.close();
     }
 
     public void testBlockErrorIngestionStrategy() throws TimeoutException, InterruptedException {
@@ -322,12 +329,14 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         ArrayBlockingQueue mockQueue = mock(ArrayBlockingQueue.class);
         doThrow(new RuntimeException()).doNothing().when(mockQueue).put(any());
         processorRunnable = new MessageProcessorRunnable(mockQueue, processor, errorStrategy);
+        PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
+        blockingQueueContainer.startProcessorThreads();
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             persistedPointers,
             mockConsumer,
-            processorRunnable,
+            blockingQueueContainer,
             StreamPoller.ResetState.NONE,
             "",
             errorStrategy,
@@ -339,21 +348,24 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         verify(errorStrategy, times(1)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.POLLING));
         assertEquals(DefaultStreamPoller.State.PAUSED, poller.getState());
         assertTrue(poller.isPaused());
+        blockingQueueContainer.close();
     }
 
     public void testProcessingErrorWithBlockErrorIngestionStrategy() throws TimeoutException, InterruptedException {
         messages.add("{\"_id\":\"3\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8));
         messages.add("{\"_id\":\"4\",\"_source\":{\"name\":\"alice\", \"age\": 21}}".getBytes(StandardCharsets.UTF_8));
 
-        doThrow(new RuntimeException("Error processing update")).when(processor).process(any(), any(), any());
+        doThrow(new RuntimeException("Error processing update")).when(processor).process(any(), any());
         BlockIngestionErrorStrategy mockErrorStrategy = spy(new BlockIngestionErrorStrategy("ingestion_source"));
         processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(5), processor, mockErrorStrategy);
+        PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
+        blockingQueueContainer.startProcessorThreads();
 
         poller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             persistedPointers,
             fakeConsumer,
-            processorRunnable,
+            blockingQueueContainer,
             StreamPoller.ResetState.NONE,
             "",
             mockErrorStrategy,
@@ -363,10 +375,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         Thread.sleep(sleepTime);
 
         verify(mockErrorStrategy, times(1)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.PROCESSING));
-        verify(processor, times(1)).process(any(), any(), any());
+        verify(processor, times(1)).process(any(), any());
         // poller will continue to poll if an error is encountered during message processing but will be blocked by
         // the write to blockingQueue
         assertEquals(DefaultStreamPoller.State.POLLING, poller.getState());
+        blockingQueueContainer.close();
     }
 
     public void testUpdateErrorStrategy() {
@@ -402,9 +415,10 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // This test publishes 4 messages, so use blocking queue of size 3. This ensures the poller is blocked when adding the 4th message
         // for validation.
         IngestionErrorStrategy errorStrategy = spy(new BlockIngestionErrorStrategy("ingestion_source"));
-        doThrow(new RuntimeException()).when(processor).process(any(), any(), any());
+        doThrow(new RuntimeException()).when(processor).process(any(), any());
         processorRunnable = new MessageProcessorRunnable(new ArrayBlockingQueue<>(3), processor, errorStrategy);
-
+        PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
+        blockingQueueContainer.startProcessorThreads();
         IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
         when(mockConsumer.getShardId()).thenReturn(0);
         when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenReturn(readResultsBatch1);
@@ -415,7 +429,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             new FakeIngestionSource.FakeIngestionShardPointer(0),
             persistedPointers,
             mockConsumer,
-            processorRunnable,
+            blockingQueueContainer,
             StreamPoller.ResetState.NONE,
             "",
             errorStrategy,
@@ -425,5 +439,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         Thread.sleep(sleepTime);
 
         assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(0), poller.getBatchStartPointer());
+        blockingQueueContainer.close();
     }
 }
