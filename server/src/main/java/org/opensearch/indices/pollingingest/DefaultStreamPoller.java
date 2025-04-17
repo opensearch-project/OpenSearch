@@ -32,9 +32,6 @@ import java.util.concurrent.Executors;
 public class DefaultStreamPoller implements StreamPoller {
     private static final Logger logger = LogManager.getLogger(DefaultStreamPoller.class);
 
-    public static final long MAX_POLL_SIZE = 1000;
-    public static final int POLL_TIMEOUT = 1000;
-
     private volatile State state = State.NONE;
 
     // goal state
@@ -55,6 +52,9 @@ public class DefaultStreamPoller implements StreamPoller {
 
     private ResetState resetState;
     private final String resetValue;
+
+    private long maxPollSize;
+    private int pollTimeout;
 
     private Set<IngestionShardPointer> persistedPointers;
 
@@ -88,7 +88,9 @@ public class DefaultStreamPoller implements StreamPoller {
             resetState,
             resetValue,
             errorStrategy,
-            initialState
+            initialState,
+            maxPollSize,
+            pollTimeout
         );
     }
 
@@ -100,7 +102,9 @@ public class DefaultStreamPoller implements StreamPoller {
         ResetState resetState,
         String resetValue,
         IngestionErrorStrategy errorStrategy,
-        State initialState
+        State initialState,
+        long maxPollSize,
+        int pollTimeout
     ) {
         this.consumer = Objects.requireNonNull(consumer);
         this.resetState = resetState;
@@ -108,6 +112,8 @@ public class DefaultStreamPoller implements StreamPoller {
         this.initialBatchStartPointer = startPointer;
         this.state = initialState;
         this.persistedPointers = persistedPointers;
+        this.maxPollSize = maxPollSize;
+        this.pollTimeout = pollTimeout;
         if (!this.persistedPointers.isEmpty()) {
             maxPersistedPointer = this.persistedPointers.stream().max(IngestionShardPointer::compareTo).get();
         }
@@ -209,10 +215,10 @@ public class DefaultStreamPoller implements StreamPoller {
                 List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results;
 
                 if (includeBatchStartPointer) {
-                    results = consumer.readNext(initialBatchStartPointer, true, MAX_POLL_SIZE, POLL_TIMEOUT);
+                    results = consumer.readNext(initialBatchStartPointer, true, maxPollSize, pollTimeout);
                     includeBatchStartPointer = false;
                 } else {
-                    results = consumer.readNext(MAX_POLL_SIZE, POLL_TIMEOUT);
+                    results = consumer.readNext(maxPollSize, pollTimeout);
                 }
 
                 if (results.isEmpty()) {
