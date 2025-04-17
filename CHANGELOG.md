@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 
 ### Dependencies
+- Bump `log4j` from 2.21.0 to 2.24.3 ([#17812](https://github.com/opensearch-project/OpenSearch/pull/17812))
 
 ### Changed
 
