@@ -476,7 +476,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         // If there is a range query on a given field in a must_not clause, it's more performant to execute it as
         // multiple should clauses representing everything outside the target range.
 
-        // First check if we can get the individual LeafContexts. If we can't, we can't proceed with the rewrite, since we can't confirm every doc has exactly 1 value for this field.
+        // First check if we can get the individual LeafContexts. If we can't, we can't proceed with the rewrite, since we can't confirm
+        // every doc has exactly 1 value for this field.
         List<LeafReaderContext> leafReaderContexts = getLeafReaderContexts(queryRewriteContext);
         if (leafReaderContexts == null || leafReaderContexts.isEmpty()) {
             return false;
@@ -541,8 +542,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             PointValues values;
             try {
                 LeafReader reader = lrc.reader();
-                values = reader.getPointValues(fieldName); // TODO: Is this an expensive operation?? I don't think it is since PointRangeQuery does it a few times... but not sure.
-                if (!(values.getDocCount() == reader.maxDoc() && values.getDocCount() == values.size())) {
+                values = reader.getPointValues(fieldName);
+                if (values == null || !(values.getDocCount() == reader.maxDoc() && values.getDocCount() == values.size())) {
                     return false;
                 }
             } catch (IOException e) {

@@ -175,15 +175,9 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             }
 
             if (i >= numDocsMissingIntValues) {
-                client().prepareIndex("test")
-                    .setId(Integer.toString(i))
-                    .setSource(intField, i, termField, termValue)
-                    .get();
+                client().prepareIndex("test").setId(Integer.toString(i)).setSource(intField, i, termField, termValue).get();
             } else {
-                client().prepareIndex("test")
-                    .setId(Integer.toString(i))
-                    .setSource(termField, termValue)
-                    .get();
+                client().prepareIndex("test").setId(Integer.toString(i)).setSource(termField, termValue).get();
             }
         }
         ensureGreen();
@@ -213,15 +207,9 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
         for (int i = 0; i < numDocs; i++) {
             if (i >= numDocsWithExtraValue) {
-                client().prepareIndex("test")
-                    .setId(Integer.toString(i))
-                    .setSource(intField, new int[]{extraValue, i})
-                    .get();
+                client().prepareIndex("test").setId(Integer.toString(i)).setSource(intField, new int[] { extraValue, i }).get();
             } else {
-                client().prepareIndex("test")
-                    .setId(Integer.toString(i))
-                    .setSource(intField, i)
-                    .get();
+                client().prepareIndex("test").setId(Integer.toString(i)).setSource(intField, i).get();
             }
         }
         ensureGreen();
@@ -238,10 +226,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             client().prepareSearch().setQuery(boolQuery().mustNot(rangeQuery(intField).lt(numDocsWithExtraValue).gte(0))).get(),
             expectedHitCount
         );
-        assertHitCount(
-            client().prepareSearch().setQuery(matchAllQuery()).get(),
-            numDocs
-        );
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), numDocs);
     }
 
     private String padZeros(int value, int length) {
