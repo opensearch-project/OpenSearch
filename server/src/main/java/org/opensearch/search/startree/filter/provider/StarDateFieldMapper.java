@@ -43,13 +43,12 @@ class StarDateFieldMapper implements DimensionFilterMapper {
 
     @Override
     public DimensionFilter getExactMatchFilter(MappedFieldType mappedFieldType, List<Object> rawValues) {
-        // TODO: implement term/terms query on date field to be resolved with star-tree
+        // Finding exact match is not possible since star-tree stores the data for respective calendar intervals only
         return null;
     }
 
     @Override
     public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, RangeQueryBuilder rangeQueryBuilder) {
-
         DateFieldType dateFieldType = (DateFieldType) mappedFieldType;
         String field = rangeQueryBuilder.fieldName();
         DateDimension dateDimension = (DateDimension) StarTreeQueryHelper.getMatchingDimensionOrNull(
@@ -100,18 +99,22 @@ class StarDateFieldMapper implements DimensionFilterMapper {
         DateTimeUnitRounding matchingInterval = null;
 
         for (DateTimeUnitRounding interval : intervals) {
-            long roundedLow = l != Long.MIN_VALUE ? interval.roundFloor(l) : l;
-            long roundedHigh = u != Long.MAX_VALUE ? interval.roundFloor(u) : u;
+            // OpenSearch rounds up to the last millisecond in the rounding interval.
+            // So for example, closed-interval [l=2022-05-31T23:00:00.000, u=2022-05-31T23:59:59.999]
+            // (equivalent to half-open interval [l=2022-05-31T23:00:00.000, u+1=2022-06-01T00:00:00.000))
+            // can be resolved by star-tree 'hour' interval.
+            // To verify the above case, we check whether:
+            // 1/ l = 2022-05-31T23:00:00.000 is to the nearest 'hour' or not
+            // 2/ u+1 = 2022-06-01T00:00:00.000 is to the nearest 'hour' or not.
 
-            // This is needed since OpenSearch rounds up to the last millisecond in the rounding interval.
-            // so when the date parser rounds up to say 2022-05-31T23:59:59.999 we can check if by adding 1
-            // the new interval which is 2022-05-31T00:00:00.000 in the example can be solved via star tree
-            //
-            // this is not needed for low since rounding is on the first millisecond 2022-06-01T00:00:00.000
-            long roundedHighPlus1 = u != Long.MAX_VALUE ? interval.roundFloor(u + 1) : u;
+            // Check if l is start of star-tree interval
+            boolean roundedLowMatches = l == Long.MIN_VALUE || interval.roundFloor(l) == l;
 
-            // If both bounds round to the same values, we have an exact match for this interval
-            if (roundedLow == l && (roundedHigh == u || roundedHighPlus1 == u + 1)) {
+            // Check if u+1 is the start of star-tree interval compared to u
+            boolean roundedHighMatches = u == Long.MAX_VALUE || interval.roundFloor(u + 1) == u + 1;
+
+            // If both bounds can be resolved by this star-tree interval, we have an exact match for this interval
+            if (roundedLowMatches && roundedHighMatches) {
                 matchingInterval = interval;
                 break; // Found the most granular matching interval
             }
@@ -124,14 +127,8 @@ class StarDateFieldMapper implements DimensionFilterMapper {
         // Construct the sub-dimension field name
         subDimensionField = field + "_" + matchingInterval.shortName();
 
-        return new RangeMatchDimFilter(
-            field,
-            l,
-            u,
-            true,  // Already handled inclusion above
-            true   // Already handled inclusion above
-
-        );
+        // l & u are inclusive interval boundaries here
+        return new RangeMatchDimFilter(field, l, u, true, true);
     }
 
     @Override
