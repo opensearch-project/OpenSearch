@@ -1505,42 +1505,40 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                     allowToCompletePhase1Latch.await();
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
+                } finally {
+                    blockRecovery.release();
                 }
             }
             connection.sendRequest(requestId, action, request, options);
         });
-        try {
-            String nodeWithReplica = internalCluster().startDataOnlyNode();
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica)
-                    )
-            );
-            phase1ReadyBlocked.await();
-            internalCluster().restartNode(
-                clusterService().state().nodes().getClusterManagerNode().getName(),
-                new InternalTestCluster.RestartCallback()
-            );
-            internalCluster().ensureAtLeastNumDataNodes(3);
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                            .putNull("index.routing.allocation.include._name")
-                    )
-            );
-            assertFalse(client().admin().cluster().prepareHealth(indexName).setWaitForActiveShards(2).get().isTimedOut());
-        } finally {
-            allowToCompletePhase1Latch.countDown();
-        }
+        String nodeWithReplica = internalCluster().startDataOnlyNode();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica)
+                )
+        );
+        phase1ReadyBlocked.await();
+        internalCluster().restartNode(
+            clusterService().state().nodes().getClusterManagerNode().getName(),
+            new InternalTestCluster.RestartCallback()
+        );
+        internalCluster().ensureAtLeastNumDataNodes(3);
+
+        allowToCompletePhase1Latch.countDown();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).putNull("index.routing.allocation.include._name")
+                )
+        );
+        assertFalse(client().admin().cluster().prepareHealth(indexName).setWaitForActiveShards(2).get().isTimedOut());
         ensureGreen(indexName);
     }
 
