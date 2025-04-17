@@ -175,7 +175,7 @@ public class TargetPoolAllocationDeciderTests extends RemoteShardsBalancerBaseTe
         assertEquals(Decision.NO.type(), deciders.canAllocate(remoteShard, localOnlyNode, globalAllocation).type());
         assertEquals(Decision.NO.type(), deciders.canAllocate(remoteIdx, localOnlyNode, globalAllocation).type());
         assertEquals(Decision.NO.type(), deciders.canForceAllocatePrimary(unassignedRemoteShard, localOnlyNode, globalAllocation).type());
-        // A dedicated search node should not accept local shards and indices.
+        // A dedicated warm node should not accept local shards and indices.
         assertEquals(Decision.NO.type(), deciders.canAllocate(localShard, remoteCapableNode, globalAllocation).type());
         assertEquals(Decision.NO.type(), deciders.canAllocate(localIdx, remoteCapableNode, globalAllocation).type());
         assertEquals(

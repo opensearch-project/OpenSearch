@@ -61,11 +61,13 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IngestionStatus;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -126,6 +128,8 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.IngestionEngine;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
@@ -238,6 +242,7 @@ import java.util.stream.StreamSupport;
 import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.index.shard.IndexShard.ShardMigrationState.REMOTE_MIGRATING_SEEDED;
 import static org.opensearch.index.shard.IndexShard.ShardMigrationState.REMOTE_MIGRATING_UNSEEDED;
@@ -363,6 +368,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ShardMigrationState shardMigrationState;
     private DiscoveryNodes discoveryNodes;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
+    private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -394,7 +400,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RemoteStoreSettings remoteStoreSettings,
         boolean seedRemote,
         final DiscoveryNodes discoveryNodes,
-        final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -451,7 +458,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             aId,
             indexSettings,
             primaryTerm,
-            UNASSIGNED_SEQ_NO,
+            getInitialGlobalCheckpointForShard(indexSettings),
             globalCheckpointListeners::globalCheckpointUpdated,
             threadPool::absoluteTimeInMillis,
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
@@ -497,6 +504,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
         this.discoveryNodes = discoveryNodes;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
+        this.mergedSegmentWarmerFactory = mergedSegmentWarmerFactory;
+    }
+
+    /**
+     * By default, UNASSIGNED_SEQ_NO is used as the initial global checkpoint for new shard initialization. Ingestion
+     * source does not track sequence numbers explicitly and hence defaults to NO_OPS_PERFORMED for compatibility.
+     *
+     */
+    private long getInitialGlobalCheckpointForShard(IndexSettings indexSettings) {
+        if (indexSettings.getIndexMetadata().useIngestionSource()) {
+            return NO_OPS_PERFORMED;
+        }
+
+        return UNASSIGNED_SEQ_NO;
     }
 
     public ThreadPool getThreadPool() {
@@ -4079,7 +4100,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogFactorySupplier.apply(indexSettings, shardRouting),
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for
             // timeseries
-            () -> docMapper()
+            () -> docMapper(),
+            mergedSegmentWarmerFactory.get(this)
         );
     }
 
@@ -5422,5 +5444,49 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return shouldSeed ? REMOTE_MIGRATING_UNSEEDED : REMOTE_MIGRATING_SEEDED;
         }
         return ShardMigrationState.DOCREP_NON_MIGRATING;
+    }
+
+    /**
+     * Updates the ingestion state based on the received index metadata.
+     */
+    @Override
+    public void updateShardIngestionState(IndexMetadata indexMetadata) {
+        if (indexMetadata.useIngestionSource() == false) {
+            return;
+        }
+
+        updateShardIngestionState(indexMetadata.getIngestionStatus());
+    }
+
+    /**
+     * Updates the ingestion state by delegating to the ingestion engine.
+     */
+    public void updateShardIngestionState(IngestionStatus ingestionStatus) {
+        synchronized (engineMutex) {
+            if (getEngineOrNull() instanceof IngestionEngine == false) {
+                return;
+            }
+
+            IngestionEngine ingestionEngine = (IngestionEngine) getEngineOrNull();
+            if (ingestionStatus.isPaused()) {
+                ingestionEngine.pauseIngestion();
+            } else {
+                ingestionEngine.resumeIngestion();
+            }
+        }
+    }
+
+    /**
+     * Returns the current ingestion state for the shard.
+     */
+    @Override
+    public ShardIngestionState getIngestionState() {
+        Engine engine = getEngineOrNull();
+        if (indexSettings.getIndexMetadata().useIngestionSource() == false || engine instanceof IngestionEngine == false) {
+            throw new OpenSearchException("Unable to retrieve ingestion state as the shard does not have ingestion enabled.");
+        }
+
+        IngestionEngine ingestionEngine = (IngestionEngine) engine;
+        return ingestionEngine.getIngestionState();
     }
 }

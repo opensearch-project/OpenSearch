@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class DropIngestionErrorStrategy implements IngestionErrorStrategy {
     private static final Logger logger = LogManager.getLogger(DropIngestionErrorStrategy.class);
+    private static final String NAME = "DROP";
     private final String ingestionSource;
 
     public DropIngestionErrorStrategy(String ingestionSource) {
@@ -30,8 +31,12 @@ public class DropIngestionErrorStrategy implements IngestionErrorStrategy {
     }
 
     @Override
-    public boolean shouldPauseIngestion(Throwable e, ErrorStage stage) {
-        return false;
+    public boolean shouldIgnoreError(Throwable e, ErrorStage stage) {
+        return true;
     }
 
+    @Override
+    public String getName() {
+        return NAME;
+    }
 }

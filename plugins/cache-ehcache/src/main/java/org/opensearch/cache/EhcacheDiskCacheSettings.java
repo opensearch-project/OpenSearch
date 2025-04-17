@@ -12,6 +12,7 @@ import org.opensearch.cache.store.disk.EhcacheDiskCache;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,17 +37,26 @@ public class EhcacheDiskCacheSettings {
 
     public static final Setting.AffixSetting<Integer> DISK_WRITE_MINIMUM_THREADS_SETTING = Setting.suffixKeySetting(
         EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".min_threads",
-        (key) -> Setting.intSetting(key, 2, 1, 5, NodeScope)
+        (key) -> Setting.intSetting(key, 2, 1, ThreadPool.searchThreadPoolSize(Runtime.getRuntime().availableProcessors()), NodeScope)
     );
 
     /**
-     *  Ehcache disk write maximum threads for its pool
+     *  Ehcache disk write maximum threads for its pool. The default value is 1.5 * CPU_CORES ie equal to number of
+     *  search threads. Disk operations are typically I/O bound rather than CPU bound, so setting it greater than the
+     *  number of cpu cores should ideally be fine.
      *
      *  Setting pattern: {cache_type}.ehcache_disk.max_threads
      */
     public static final Setting.AffixSetting<Integer> DISK_WRITE_MAXIMUM_THREADS_SETTING = Setting.suffixKeySetting(
         EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".max_threads",
-        (key) -> Setting.intSetting(key, 2, 1, 20, NodeScope)
+        (key) -> Setting.intSetting(
+            key,
+            ThreadPool.searchThreadPoolSize(Runtime.getRuntime().availableProcessors()),
+            1,
+            Runtime.getRuntime().availableProcessors() * 10, // The max one can configure this in setting is 10 times
+            // CPU cores. Ideally won't be required, but in case one way use it.
+            NodeScope
+        )
     );
 
     /**

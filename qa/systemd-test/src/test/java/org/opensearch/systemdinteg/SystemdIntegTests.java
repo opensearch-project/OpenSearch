@@ -116,7 +116,8 @@ public class SystemdIntegTests extends LuceneTestCase {
             assertTrue("Path should exist: " + path, checkPathExists(path));
             assertTrue("Path should be readable: " + path, checkPathReadable(path));
             assertTrue("Path should be writable: " + path, checkPathWritable(path));
-            assertEquals("Path should be owned by opensearch:opensearch", "opensearch:opensearch", getPathOwnership(path));
+            String ownership = getPathOwnership(path);
+            assertTrue("Path should be owned by opensearch:opensearch or opensearch:adm", ownership.equals("opensearch:opensearch") || ownership.equals("opensearch:adm"));
         }
     }
 

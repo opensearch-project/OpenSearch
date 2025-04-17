@@ -31,14 +31,14 @@ grpc              = "1.68.2"
 json_smart        = "2.5.2"
 
 # when updating the JNA version, also update the version in buildSrc/build.gradle
-jna               = "5.13.0"
+jna               = "5.16.0"
 
 netty             = "4.1.118.Final"
 joda              = "2.12.7"
 roaringbitmap     = "1.3.0"
 
 # project reactor
-reactor_netty     = "1.1.27"
+reactor_netty     = "1.2.4"
 reactor           = "3.5.20"
 
 # client dependencies
@@ -60,20 +60,25 @@ reactivestreams   = "1.0.4"
 # when updating this version, you need to ensure compatibility with:
 #  - plugins/ingest-attachment (transitive dependency, check the upstream POM)
 #  - distribution/tools/plugin-cli
-bouncycastle="1.78"
+bouncycastle_jce  = "2.0.0"
+bouncycastle_tls  = "2.0.19"
+bouncycastle_pkix = "2.0.7"
+bouncycastle_pg   = "2.0.10"
+bouncycastle_util = "2.0.3"
+password4j        = "1.8.2"
 # test dependencies
 randomizedrunner  = "2.7.1"
 junit             = "4.13.2"
 hamcrest          = "2.1"
-mockito           = "5.14.2"
+mockito           = "5.16.1"
 objenesis         = "3.3"
-bytebuddy         = "1.15.10"
+bytebuddy         = "1.17.5"
 
 # benchmark dependencies
 jmh               = "1.35"
 
 # compression
-zstd              = "1.5.5-5"
+zstd              = "1.5.6-1"
 
 jzlib             = "1.1.3"
 
@@ -88,11 +93,13 @@ arrow                 = "18.1.0"
 flatbuffers           = "2.0.0"
 
 [libraries]
+hamcrest = { group = "org.hamcrest", name = "hamcrest", version.ref = "hamcrest" }
 hdrhistogram = { group = "org.hdrhistogram", name = "HdrHistogram", version.ref = "hdrhistogram" }
 jakartaannotation = { group = "jakarta.annotation", name = "jakarta.annotation-api", version.ref = "jakarta_annotation" }
 jodatime = { group = "joda-time", name = "joda-time", version.ref = "joda" }
 jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 jtscore = { group = "org.locationtech.jts", name = "jts-core", version.ref = "jts" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
 jzlib = { group = "com.jcraft", name = "jzlib", version.ref = "jzlib" }
 log4japi = { group = "org.apache.logging.log4j", name = "log4j-api", version.ref = "log4j" }
 log4jjul = { group = "org.apache.logging.log4j", name = "log4j-jul", version.ref = "log4j" }

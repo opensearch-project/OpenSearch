@@ -70,6 +70,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -878,7 +879,6 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         ProcessorInfo reqProcessor = new ProcessorInfo("scale_request_size");
         ProcessorInfo rspProcessor = new ProcessorInfo("fixed_score");
-        ProcessorInfo injProcessor = new ProcessorInfo("max_score");
         DiscoveryNode n1 = new DiscoveryNode("n1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode n2 = new DiscoveryNode("n2", buildNewFakeTransportAddress(), Version.CURRENT);
         PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(
@@ -890,6 +890,13 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     + "\"phase_results_processors\" : [ { \"max_score\" : { } } ]"
                     + "}"
             ),
+            MediaTypeRegistry.JSON
+        );
+
+        String longId = "a".repeat(512) + "a";
+        PutSearchPipelineRequest maxLengthIdPutRequest = new PutSearchPipelineRequest(
+            longId,
+            new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : \"foo\" } } ] }"),
             MediaTypeRegistry.JSON
         );
 
@@ -905,6 +912,18 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         // Discovery failed, no infos passed.
         expectThrows(IllegalStateException.class, () -> searchPipelineService.validatePipeline(Collections.emptyMap(), putRequest));
+
+        // Max length of pipeline length
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> searchPipelineService.validatePipeline(Map.of(n1, completePipelineInfo), maxLengthIdPutRequest)
+        );
+        String errorMessage = String.format(
+            Locale.ROOT,
+            "Search Pipeline id [%s] exceeds maximum length of 512 UTF-8 bytes (actual: 513 bytes)",
+            longId
+        );
+        assertEquals(errorMessage, e.getMessage());
 
         // Invalid configuration in request
         PutSearchPipelineRequest badPutRequest = new PutSearchPipelineRequest(

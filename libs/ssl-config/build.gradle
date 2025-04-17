@@ -34,9 +34,10 @@ apply plugin: "opensearch.publish"
 
 dependencies {
   api project(':libs:opensearch-common')
-  api "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
-  api "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
-  runtimeOnly "org.bouncycastle:bcutil-jdk18on:${versions.bouncycastle}"
+  api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  api "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
+  runtimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  runtimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-ssl-config'

@@ -20,8 +20,6 @@ import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.multiRangesTraverse;
-
 /**
  * For range aggregation
  */
@@ -74,18 +72,17 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    final FilterRewriteOptimizationContext.DebugInfo tryOptimize(
+    final FilterRewriteOptimizationContext.OptimizeResult tryOptimize(
         PointValues values,
         BiConsumer<Long, Long> incrementDocCount,
-        Ranges ranges
+        Ranges ranges,
+        FilterRewriteOptimizationContext.SubAggCollectorParam subAggCollectorParam
     ) throws IOException {
         int size = Integer.MAX_VALUE;
-        BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
-            long bucketOrd = bucketOrdProducer().apply(activeIndex);
-            incrementDocCount.accept(bucketOrd, (long) docCount);
-        };
 
-        return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
+        Function<Integer, Long> getBucketOrd = (activeIndex) -> bucketOrdProducer().apply(activeIndex);
+
+        return getResult(values, incrementDocCount, ranges, getBucketOrd, size, subAggCollectorParam);
     }
 
     /**

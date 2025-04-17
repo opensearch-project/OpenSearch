@@ -9,32 +9,43 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.StreamPoller;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT;
 
 /**
  * Class encapsulating the configuration of an ingestion source.
  */
 @ExperimentalApi
 public class IngestionSource {
-    private String type;
-    private PointerInitReset pointerInitReset;
-    private IngestionErrorStrategy.ErrorStrategy errorStrategy;
-    private Map<String, Object> params;
+    private final String type;
+    private final PointerInitReset pointerInitReset;
+    private final IngestionErrorStrategy.ErrorStrategy errorStrategy;
+    private final Map<String, Object> params;
+    private final long maxPollSize;
+    private final int pollTimeout;
 
-    public IngestionSource(
+    private IngestionSource(
         String type,
         PointerInitReset pointerInitReset,
         IngestionErrorStrategy.ErrorStrategy errorStrategy,
-        Map<String, Object> params
+        Map<String, Object> params,
+        long maxPollSize,
+        int pollTimeout
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
         this.params = params;
         this.errorStrategy = errorStrategy;
+        this.maxPollSize = maxPollSize;
+        this.pollTimeout = pollTimeout;
     }
 
     public String getType() {
@@ -53,6 +64,14 @@ public class IngestionSource {
         return params;
     }
 
+    public long getMaxPollSize() {
+        return maxPollSize;
+    }
+
+    public int getPollTimeout() {
+        return pollTimeout;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -61,12 +80,14 @@ public class IngestionSource {
         return Objects.equals(type, ingestionSource.type)
             && Objects.equals(pointerInitReset, ingestionSource.pointerInitReset)
             && Objects.equals(errorStrategy, ingestionSource.errorStrategy)
-            && Objects.equals(params, ingestionSource.params);
+            && Objects.equals(params, ingestionSource.params)
+            && Objects.equals(maxPollSize, ingestionSource.maxPollSize)
+            && Objects.equals(pollTimeout, ingestionSource.pollTimeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, pointerInitReset, params, errorStrategy);
+        return Objects.hash(type, pointerInitReset, params, errorStrategy, maxPollSize, pollTimeout);
     }
 
     @Override
@@ -83,6 +104,10 @@ public class IngestionSource {
             + '\''
             + ", params="
             + params
+            + ", maxPollSize="
+            + maxPollSize
+            + ", pollTimeout="
+            + pollTimeout
             + '}';
     }
 
@@ -124,5 +149,66 @@ public class IngestionSource {
         public String toString() {
             return "PointerInitReset{" + "type='" + type + '\'' + ", value=" + value + '}';
         }
+    }
+
+    /**
+     * Builder for {@link IngestionSource}.
+     *
+     */
+    @ExperimentalApi
+    public static class Builder {
+        private String type;
+        private PointerInitReset pointerInitReset;
+        private IngestionErrorStrategy.ErrorStrategy errorStrategy;
+        private Map<String, Object> params;
+        private long maxPollSize = INGESTION_SOURCE_MAX_POLL_SIZE.getDefault(Settings.EMPTY);
+        private int pollTimeout = INGESTION_SOURCE_POLL_TIMEOUT.getDefault(Settings.EMPTY);
+
+        public Builder(String type) {
+            this.type = type;
+            this.params = new HashMap<>();
+        }
+
+        public Builder(IngestionSource ingestionSource) {
+            this.type = ingestionSource.type;
+            this.pointerInitReset = ingestionSource.pointerInitReset;
+            this.errorStrategy = ingestionSource.errorStrategy;
+            this.params = ingestionSource.params;
+        }
+
+        public Builder setPointerInitReset(PointerInitReset pointerInitReset) {
+            this.pointerInitReset = pointerInitReset;
+            return this;
+        }
+
+        public Builder setErrorStrategy(IngestionErrorStrategy.ErrorStrategy errorStrategy) {
+            this.errorStrategy = errorStrategy;
+            return this;
+        }
+
+        public Builder setParams(Map<String, Object> params) {
+            this.params = params;
+            return this;
+        }
+
+        public Builder setMaxPollSize(long maxPollSize) {
+            this.maxPollSize = maxPollSize;
+            return this;
+        }
+
+        public Builder addParam(String key, Object value) {
+            this.params.put(key, value);
+            return this;
+        }
+
+        public Builder setPollTimeout(int pollTimeout) {
+            this.pollTimeout = pollTimeout;
+            return this;
+        }
+
+        public IngestionSource build() {
+            return new IngestionSource(type, pointerInitReset, errorStrategy, params, maxPollSize, pollTimeout);
+        }
+
     }
 }

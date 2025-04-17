@@ -122,7 +122,11 @@ final class StoreRecovery {
         if (canRecover(indexShard)) {
             ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
                 logger.debug("starting recovery from store ...");
-                internalRecoverFromStore(indexShard);
+                if (indexShard.shardRouting.isSearchOnly()) {
+                    internalRecoverFromStoreForSearchReplica(indexShard);
+                } else {
+                    internalRecoverFromStore(indexShard);
+                }
                 return true;
             });
         } else {
@@ -747,17 +751,7 @@ final class StoreRecovery {
                 writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
             }
-            if (indexShard.routingEntry().isSearchOnly() == false) {
-                indexShard.openEngineAndRecoverFromTranslog();
-            } else {
-                // Opens the engine for pull based replica copies that are
-                // not primary eligible. This will skip any checkpoint tracking and ensure
-                // that the shards are sync'd with remote store before opening.
-                //
-                // first bootstrap new history / translog so that the TranslogUUID matches the UUID from the latest commit.
-                bootstrapForSnapshot(indexShard, store);
-                indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
-            }
+            indexShard.openEngineAndRecoverFromTranslog();
             if (indexShard.shouldSeedRemoteStore()) {
                 indexShard.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(() -> {
                     logger.info("Attempting to seed Remote Store via local recovery for {}", indexShard.shardId());
@@ -774,6 +768,88 @@ final class StoreRecovery {
         } finally {
             store.decRef();
         }
+    }
+
+    private void internalRecoverFromStoreForSearchReplica(IndexShard indexShard) throws IndexShardRecoveryException {
+        indexShard.preRecovery();
+        final RecoveryState recoveryState = indexShard.recoveryState();
+
+        assert recoveryState.getRecoverySource().getType().equals(RecoverySource.Type.EMPTY_STORE)
+            || recoveryState.getRecoverySource().getType().equals(RecoverySource.Type.EXISTING_STORE)
+            : "unsupported recovery source for search replica: " + recoveryState.getRecoverySource().getType();
+
+        indexShard.prepareForIndexRecovery();
+        final Store store = indexShard.store();
+        store.incRef();
+
+        try {
+            if (recoveryState.getRecoverySource().getType().equals(RecoverySource.Type.EXISTING_STORE)) {
+                SegmentInfos segmentInfos = readSegmentInfosFromStore(store);
+                if (segmentInfos != null) {
+                    recoverLocalFiles(recoveryState, segmentInfos, store);
+                } else {
+                    // During a node-left scenario where the search shard was unassigned
+                    // and is now recovering on a new node.
+                    // The node lacks SegmentsInfo for that shard, it falls back to Empty Store recovery.
+                    recoverEmptyStore(indexShard, store);
+                }
+            } else {
+                recoverEmptyStore(indexShard, store);
+            }
+            completeRecovery(indexShard, store);
+        } catch (EngineException | IOException e) {
+            throw new IndexShardRecoveryException(shardId, "Failed to recover from gateway", e);
+        } finally {
+            store.decRef();
+        }
+    }
+
+    private SegmentInfos readSegmentInfosFromStore(Store store) throws IndexShardRecoveryException {
+        SegmentInfos segmentInfos = null;
+        try {
+            store.failIfCorrupted();
+            try {
+                segmentInfos = store.readLastCommittedSegmentsInfo();
+            } catch (Exception ignored) {
+                // Ignore the exception
+                logger.error("Failed to readLastCommittedSegmentsInfo");
+            }
+        } catch (Exception e) {
+            throw new IndexShardRecoveryException(shardId, "failed to fetch index version", e);
+        }
+        return segmentInfos;
+    }
+
+    private void completeRecovery(IndexShard indexShard, Store store) throws IOException {
+        // Opens the engine for pull-based replica copies that are
+        // not primary eligible.
+        // This will skip any checkpoint tracking and ensure that the shards are sync with remote store before opening.
+        // First bootstrap new history / translog so that the TranslogUUID matches the UUID from the latest commit.
+        bootstrapForSnapshot(indexShard, store);
+        indexShard.openEngineAndSkipTranslogRecoveryFromSnapshot();
+
+        indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+        indexShard.finalizeRecovery();
+        indexShard.postRecovery("Post recovery from shard_store");
+    }
+
+    private void recoverEmptyStore(IndexShard indexShard, Store store) throws IOException {
+        store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+        final String translogUUID = Translog.createEmptyTranslog(
+            indexShard.shardPath().resolveTranslog(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            indexShard.getPendingPrimaryTerm()
+        );
+        store.associateIndexWithNewTranslog(translogUUID);
+        writeEmptyRetentionLeasesFile(indexShard);
+        indexShard.recoveryState().getIndex().setFileDetailsComplete();
+    }
+
+    private void recoverLocalFiles(RecoveryState recoveryState, SegmentInfos segmentInfos, Store store) throws IOException {
+        final ReplicationLuceneIndex index = recoveryState.getIndex();
+        addRecoveredFileDetails(segmentInfos, store, index);
+        index.setFileDetailsComplete();
     }
 
     private static void writeEmptyRetentionLeasesFile(IndexShard indexShard) throws IOException {

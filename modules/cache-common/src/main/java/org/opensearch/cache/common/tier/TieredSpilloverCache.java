@@ -213,7 +213,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     .setSegmentCount(1) // We don't need to make underlying caches multi-segmented
                     .setStatsTrackingEnabled(false)
                     .setMaxSizeInBytes(diskCacheSizeInBytes)
-                    .setStoragePath(builder.cacheConfig.getStoragePath() + "/" + segmentNumber)
+                    .setStoragePath(builder.cacheConfig.getStoragePath())
                     .setCacheAlias("tiered_disk_cache#" + segmentNumber)
                     .build(),
                 builder.cacheType,

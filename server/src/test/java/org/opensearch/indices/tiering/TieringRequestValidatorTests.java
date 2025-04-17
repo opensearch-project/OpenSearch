@@ -46,27 +46,27 @@ import static org.opensearch.indices.tiering.TieringRequestValidator.validateHot
 import static org.opensearch.indices.tiering.TieringRequestValidator.validateIndexHealth;
 import static org.opensearch.indices.tiering.TieringRequestValidator.validateOpenIndex;
 import static org.opensearch.indices.tiering.TieringRequestValidator.validateRemoteStoreIndex;
-import static org.opensearch.indices.tiering.TieringRequestValidator.validateSearchNodes;
+import static org.opensearch.indices.tiering.TieringRequestValidator.validateWarmNodes;
 
 public class TieringRequestValidatorTests extends OpenSearchTestCase {
 
-    public void testValidateSearchNodes() {
-        ClusterState clusterStateWithSearchNodes = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+    public void testValidateWarmNodes() {
+        ClusterState clusterStateWithWarmNodes = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(createNodes(2, 0, 0))
             .build();
 
         // throws no errors
-        validateSearchNodes(clusterStateWithSearchNodes, "test_index");
+        validateWarmNodes(clusterStateWithWarmNodes, "test_index");
     }
 
-    public void testWithNoSearchNodesInCluster() {
-        ClusterState clusterStateWithNoSearchNodes = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+    public void testWithNoWarmNodesInCluster() {
+        ClusterState clusterStateWithNoWarmNodes = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(createNodes(0, 1, 1))
             .build();
         // throws error
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> validateSearchNodes(clusterStateWithNoSearchNodes, "test")
+            () -> validateWarmNodes(clusterStateWithNoWarmNodes, "test")
         );
     }
 
@@ -212,7 +212,7 @@ public class TieringRequestValidatorTests extends OpenSearchTestCase {
 
     public void testGetTotalAvailableBytesInWarmTier() {
         Map<String, DiskUsage> diskUsages = diskUsages(2, 500, 100);
-        assertEquals(200, getTotalAvailableBytesInWarmTier(diskUsages, Set.of("node-s0", "node-s1")));
+        assertEquals(200, getTotalAvailableBytesInWarmTier(diskUsages, Set.of("node-w0", "node-w1")));
     }
 
     public void testEligibleNodes() {
@@ -254,15 +254,15 @@ public class TieringRequestValidatorTests extends OpenSearchTestCase {
             .build();
     }
 
-    private DiscoveryNodes createNodes(int numOfSearchNodes, int numOfDataNodes, int numOfIngestNodes) {
+    private DiscoveryNodes createNodes(int numOfWarmNodes, int numOfDataNodes, int numOfIngestNodes) {
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
-        for (int i = 0; i < numOfSearchNodes; i++) {
+        for (int i = 0; i < numOfWarmNodes; i++) {
             discoveryNodesBuilder.add(
                 new DiscoveryNode(
-                    "node-s" + i,
+                    "node-w" + i,
                     buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.SEARCH_ROLE),
+                    Collections.singleton(DiscoveryNodeRole.WARM_ROLE),
                     Version.CURRENT
                 )
             );
@@ -308,10 +308,10 @@ public class TieringRequestValidatorTests extends OpenSearchTestCase {
         return new ClusterInfo(diskUsages, null, null, null, Map.of(), Map.of());
     }
 
-    private static Map<String, DiskUsage> diskUsages(int noOfSearchNodes, long totalBytes, long freeBytes) {
+    private static Map<String, DiskUsage> diskUsages(int noOfWarmNodes, long totalBytes, long freeBytes) {
         final Map<String, DiskUsage> diskUsages = new HashMap<>();
-        for (int i = 0; i < noOfSearchNodes; i++) {
-            diskUsages.put("node-s" + i, new DiskUsage("node-s" + i, "node-s" + i, "/foo/bar", totalBytes, freeBytes));
+        for (int i = 0; i < noOfWarmNodes; i++) {
+            diskUsages.put("node-w" + i, new DiskUsage("node-w" + i, "node-w" + i, "/foo/bar", totalBytes, freeBytes));
         }
         return diskUsages;
     }

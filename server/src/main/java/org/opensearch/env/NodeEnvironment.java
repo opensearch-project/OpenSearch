@@ -388,7 +388,7 @@ public final class NodeEnvironment implements Closeable {
                 ensureNoShardData(nodePaths);
             }
 
-            if (DiscoveryNode.isSearchNode(settings) == false) {
+            if (DiscoveryNode.isWarmNode(settings) == false) {
                 ensureNoFileCacheData(fileCacheNodePath);
             }
 
@@ -1202,15 +1202,15 @@ public final class NodeEnvironment implements Closeable {
     }
 
     /**
-     * Throws an exception if cache exists on a non-search node.
+     * Throws an exception if cache exists on a non-warm node.
      */
     private void ensureNoFileCacheData(final NodePath fileCacheNodePath) throws IOException {
         List<Path> cacheDataPaths = collectFileCacheDataPath(fileCacheNodePath);
         if (cacheDataPaths.isEmpty() == false) {
             final String message = String.format(
                 Locale.ROOT,
-                "node does not have the %s role but has data within node search cache: %s. Use 'opensearch-node repurpose' tool to clean up",
-                DiscoveryNodeRole.SEARCH_ROLE.roleName(),
+                "node does not have the %s role but has data within node warm cache: %s. Use 'opensearch-node repurpose' tool to clean up",
+                DiscoveryNodeRole.WARM_ROLE.roleName(),
                 cacheDataPaths
             );
             throw new IllegalStateException(message);
