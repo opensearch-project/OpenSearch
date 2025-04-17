@@ -41,9 +41,6 @@
   - gte:   { test_1.shards.0.verify_index.total_time_in_millis:           0                       }
 ---
 "Indices recovery test for closed index":
-  - skip:
-      version: " - 7.1.99"
-      reason: closed indices are replicated starting version 7.2.0
 
   - do:
       indices.create:
@@ -132,9 +129,6 @@
   - match: { $body: {} }
 ---
 "Indices recovery test with detailed parameter":
-  - skip:
-      version: " - 7.2.99"
-      reason: bug with detailed parameter fixed in 7.3
 
   - do:
       indices.create:

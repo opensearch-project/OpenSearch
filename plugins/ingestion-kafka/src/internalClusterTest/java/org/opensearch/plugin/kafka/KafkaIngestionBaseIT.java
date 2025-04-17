@@ -108,6 +108,19 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
         producer.send(new ProducerRecord<>(topicName, null, timestamp, "null", payload));
     }
 
+    protected void produceDataWithExternalVersion(String id, long version, String name, String age, long timestamp, String opType) {
+        String payload = String.format(
+            Locale.ROOT,
+            "{\"_id\":\"%s\", \"_version\":\"%d\", \"_op_type\":\"%s\",\"_source\":{\"name\":\"%s\", \"age\": %s}}",
+            id,
+            version,
+            opType,
+            name,
+            age
+        );
+        producer.send(new ProducerRecord<>(topicName, null, timestamp, "null", payload));
+    }
+
     protected void produceData(String payload) {
         producer.send(new ProducerRecord<>(topicName, null, defaultMessageTimestamp, "null", payload));
     }

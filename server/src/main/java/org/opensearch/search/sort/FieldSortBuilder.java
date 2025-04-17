@@ -100,6 +100,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
      * special field name to sort by index order
      */
     public static final String DOC_FIELD_NAME = "_doc";
+    public static final String ID_FIELD_NAME = "_id";
     private static final SortFieldAndFormat SORT_DOC = new SortFieldAndFormat(new SortField(null, SortField.Type.DOC), DocValueFormat.RAW);
     private static final SortFieldAndFormat SORT_DOC_REVERSE = new SortFieldAndFormat(
         new SortField(null, SortField.Type.DOC, true),

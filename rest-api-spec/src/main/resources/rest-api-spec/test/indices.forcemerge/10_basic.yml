@@ -12,8 +12,6 @@
 ---
 "Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set":
   - skip:
-      version: " - 7.3.99"
-      reason: "deprecation warning about only_expunge_deletes and max_num_segments added in 7.4"
       features: "allowed_warnings"
 
   - do:

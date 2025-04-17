@@ -29,8 +29,6 @@ setup:
 ---
 "Clone index via API":
   - skip:
-      version: " - 7.3.99"
-      reason: index cloning was added in 7.4.0
       features: allowed_warnings
   # make it read-only
   - do:
@@ -95,8 +93,6 @@ setup:
 ---
 "Create illegal clone indices":
   - skip:
-      version: " - 7.3.99"
-      reason: index cloning was added in 7.4.0
       features: allowed_warnings
   # try to do an illegal clone with illegal number_of_shards
   - do:

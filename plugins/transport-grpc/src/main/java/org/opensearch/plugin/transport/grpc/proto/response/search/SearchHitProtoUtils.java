@@ -28,9 +28,9 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Utility class for converting SearchResponse objects to Protocol Buffers.
- * This class handles the conversion of search operation responses to their
- * Protocol Buffer representation.
+ * Utility class for converting SearchHit objects to Protocol Buffers.
+ * This class handles the conversion of search hit data to their
+ * Protocol Buffer representation for gRPC communication.
  */
 public class SearchHitProtoUtils {
 
@@ -154,6 +154,15 @@ public class SearchHitProtoUtils {
         return hitBuilder.build();
     }
 
+    /**
+     * Recursively builds a Protocol Buffer Explanation from a Lucene Explanation.
+     * This method converts the Lucene explanation structure, including nested details,
+     * into the corresponding Protocol Buffer representation.
+     *
+     * @param explanation The Lucene Explanation to convert
+     * @return A Protocol Buffer Explanation representation
+     * @throws IOException if there's an error during conversion
+     */
     private static org.opensearch.protobufs.Explanation buildExplanation(org.apache.lucene.search.Explanation explanation)
         throws IOException {
         org.opensearch.protobufs.Explanation.Builder protoExplanationBuilder = org.opensearch.protobufs.Explanation.newBuilder();

@@ -19,7 +19,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -39,11 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTestCase {
 
     private final Logger logger = LogManager.getLogger(SearchReplicaAwarenessAllocationIT.class);
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, Boolean.TRUE).build();
-    }
 
     public void testAllocationAwarenessZones() {
         Settings commonSettings = Settings.builder()

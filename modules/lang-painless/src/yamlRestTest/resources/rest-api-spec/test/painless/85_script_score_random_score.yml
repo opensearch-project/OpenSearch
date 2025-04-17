@@ -1,10 +1,5 @@
 # Integration tests for ScriptScoreQuery using Painless
 
-setup:
-- skip:
-    version: " - 7.1.99"
-    reason: "random score function of script score was added in 7.2"
-
 ---
 "Random score function with _seq_no field":
     - do:

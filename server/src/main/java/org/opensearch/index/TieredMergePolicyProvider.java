@@ -134,6 +134,7 @@ public final class TieredMergePolicyProvider implements MergePolicyProvider {
 
     private final Logger logger;
     private final boolean mergesEnabled;
+    private int defaultMaxMergeAtOnce = 30;
 
     public static final double DEFAULT_EXPUNGE_DELETES_ALLOWED = 10d;
 
@@ -143,7 +144,9 @@ public final class TieredMergePolicyProvider implements MergePolicyProvider {
      */
     public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = new ByteSizeValue(16, ByteSizeUnit.MB);
 
-    public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
+    public static final int MIN_DEFAULT_MAX_MERGE_AT_ONCE = 2;
+    public static final int DEFAULT_MAX_MERGE_AT_ONCE = 30;
+
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
     public static final double DEFAULT_RECLAIM_DELETES_WEIGHT = 2.0d;
@@ -173,7 +176,7 @@ public final class TieredMergePolicyProvider implements MergePolicyProvider {
     public static final Setting<Integer> INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING = Setting.intSetting(
         "index.merge.policy.max_merge_at_once",
         DEFAULT_MAX_MERGE_AT_ONCE,
-        2,
+        MIN_DEFAULT_MAX_MERGE_AT_ONCE,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -225,7 +228,7 @@ public final class TieredMergePolicyProvider implements MergePolicyProvider {
                 INDEX_MERGE_ENABLED
             );
         }
-        maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
+
         tieredMergePolicy.setNoCFSRatio(indexSettings.getValue(INDEX_COMPOUND_FORMAT_SETTING));
         tieredMergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         tieredMergePolicy.setFloorSegmentMB(floorSegment.getMbFrac());
@@ -247,6 +250,21 @@ public final class TieredMergePolicyProvider implements MergePolicyProvider {
         tieredMergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
     }
 
+    /**
+     * Update the value for maxMergesAtOnce in TieredMergePolicy used by engine to default value.
+     * This would happen if index level override is being removed and we need to fallback to cluster level default
+     */
+    void setMaxMergesAtOnceToDefault() {
+        tieredMergePolicy.setMaxMergeAtOnce(defaultMaxMergeAtOnce);
+    }
+
+    /**
+     * Update the default value for maxMergesAtOnce. It is used when index level override is not present
+     */
+    void setDefaultMaxMergesAtOnce(Integer defaultMaxMergesAtOnce) {
+        this.defaultMaxMergeAtOnce = defaultMaxMergesAtOnce;
+    }
+
     void setFloorSegmentSetting(ByteSizeValue floorSegementSetting) {
         tieredMergePolicy.setFloorSegmentMB(floorSegementSetting.getMbFrac());
     }
@@ -261,25 +279,6 @@ public final class TieredMergePolicyProvider implements MergePolicyProvider {
 
     void setDeletesPctAllowed(Double deletesPctAllowed) {
         tieredMergePolicy.setDeletesPctAllowed(deletesPctAllowed);
-    }
-
-    private int adjustMaxMergeAtOnceIfNeeded(int maxMergeAtOnce, double segmentsPerTier) {
-        // fixing maxMergeAtOnce, see TieredMergePolicy#setMaxMergeAtOnce
-        if (!(segmentsPerTier >= maxMergeAtOnce)) {
-            int newMaxMergeAtOnce = (int) segmentsPerTier;
-            // max merge at once should be at least 2
-            if (newMaxMergeAtOnce <= 1) {
-                newMaxMergeAtOnce = 2;
-            }
-            logger.debug(
-                "changing max_merge_at_once from [{}] to [{}] because segments_per_tier [{}] has to be higher or " + "equal to it",
-                maxMergeAtOnce,
-                newMaxMergeAtOnce,
-                segmentsPerTier
-            );
-            maxMergeAtOnce = newMaxMergeAtOnce;
-        }
-        return maxMergeAtOnce;
     }
 
     public MergePolicy getMergePolicy() {

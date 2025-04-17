@@ -92,9 +92,6 @@
                 $/
 ---
 "Test cat indices output for closed index":
-  - skip:
-      version: " - 7.1.99"
-      reason:  "closed indices are replicated starting version 7.2.0"
 
   - do:
       indices.create:
@@ -276,9 +273,7 @@
 
 ---
 "Test cat indices with invalid health parameter":
-  - skip:
-      version: " - 7.7.1"
-      reason:  "fixed in 7.7.1+"
+
 
   - do:
       indices.create:

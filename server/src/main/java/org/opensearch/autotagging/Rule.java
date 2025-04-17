@@ -32,7 +32,7 @@ import java.util.Set;
  *     "_id": "fwehf8302582mglfio349==",
  *     "description": "Assign Query Group for Index Logs123"
  *     "index_pattern": ["logs123"],
- *     "query_group": "dev_query_group_id",
+ *     "workload_group": "dev_workload_group_id",
  *     "updated_at": "01-10-2025T21:23:21.456Z"
  * }
  * @opensearch.experimental

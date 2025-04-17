@@ -49,10 +49,6 @@ if (System.getProperty('idea.active') == 'true') {
     }
   }
 
-  buildScan {
-    server = 'https://127.0.0.1'
-  }
-
   idea {
     project {
       vcs = 'Git'

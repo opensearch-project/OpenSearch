@@ -45,7 +45,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -1132,7 +1131,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
 
         try {
             OperationRouting opRouting = new OperationRouting(
-                Settings.builder().put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, "true").build(),
+                Settings.builder().build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
 
@@ -1208,7 +1207,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
 
         try {
             OperationRouting opRouting = new OperationRouting(
-                Settings.builder().put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, "true").build(),
+                Settings.builder().build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
             opRouting.setStrictSearchOnlyShardRouting(false);

@@ -174,6 +174,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             }
         }
 
+        ir.close();
         reader.close();
         directory.close();
     }

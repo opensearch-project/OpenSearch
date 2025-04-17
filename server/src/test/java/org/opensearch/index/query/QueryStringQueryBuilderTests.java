@@ -505,7 +505,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testToQueryMultipleFieldsBooleanQuery() throws Exception {
         Query query = queryStringQuery("test").field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).toQuery(createShardContext());
         Query expected = new DisjunctionMaxQuery(
-            List.of(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
+            List.of(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "test")),
+                new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "test")))
+            ),
             0
         );
         assertEquals(expected, query);
@@ -514,7 +517,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testToQueryMultipleFieldsDisMaxQuery() throws Exception {
         Query query = queryStringQuery("test").field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).toQuery(createShardContext());
         Query expected = new DisjunctionMaxQuery(
-            List.of(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
+            List.of(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "test")),
+                new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "test")))
+            ),
             0
         );
         assertEquals(expected, query);
@@ -523,7 +529,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testToQueryFieldsWildcard() throws Exception {
         Query query = queryStringQuery("test").field("mapped_str*").toQuery(createShardContext());
         Query expected = new DisjunctionMaxQuery(
-            List.of(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
+            List.of(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "test")),
+                new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "test")))
+            ),
             0
         );
         assertEquals(expected, query);
@@ -548,7 +557,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query expected = new DisjunctionMaxQuery(
             List.of(
                 new BoostQuery(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), 2.2f),
-                new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))
+                new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "test")))
             ),
             0
         );
@@ -1013,7 +1022,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             ).add(new BooleanClause(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), BooleanClause.Occur.SHOULD)).build();
             List<Query> disjuncts = new ArrayList<>();
             disjuncts.add(bq1);
-            disjuncts.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "foo bar")));
+            disjuncts.add(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "foo bar"))));
             DisjunctionMaxQuery expectedQuery = new DisjunctionMaxQuery(disjuncts, 0.0f);
             assertThat(query, equalTo(expectedQuery));
         }
@@ -1027,7 +1036,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             List<Query> disjuncts = new ArrayList<>();
             PhraseQuery pq = new PhraseQuery.Builder().add(new Term(TEXT_FIELD_NAME, "foo")).add(new Term(TEXT_FIELD_NAME, "bar")).build();
             disjuncts.add(pq);
-            disjuncts.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "foo bar")));
+            disjuncts.add(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "foo bar"))));
             DisjunctionMaxQuery expectedQuery = new DisjunctionMaxQuery(disjuncts, 0.0f);
             assertThat(query, equalTo(expectedQuery));
         }
@@ -1041,7 +1050,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             ).add(new BooleanClause(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), BooleanClause.Occur.SHOULD)).build();
             List<Query> disjuncts = new ArrayList<>();
             disjuncts.add(bq1);
-            disjuncts.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "foo bar")));
+            disjuncts.add(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "foo bar"))));
             DisjunctionMaxQuery disjunctionMaxQuery = new DisjunctionMaxQuery(disjuncts, 0.0f);
             BooleanQuery expectedQuery = new BooleanQuery.Builder().add(disjunctionMaxQuery, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(TEXT_FIELD_NAME, "other")), BooleanClause.Occur.SHOULD)
@@ -1056,12 +1065,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             List<Query> disjuncts1 = new ArrayList<>();
             disjuncts1.add(new TermQuery(new Term(TEXT_FIELD_NAME, "foo")));
-            disjuncts1.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "foo")));
+            disjuncts1.add(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "foo"))));
             DisjunctionMaxQuery maxQuery1 = new DisjunctionMaxQuery(disjuncts1, 0.0f);
 
             List<Query> disjuncts2 = new ArrayList<>();
             disjuncts2.add(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")));
-            disjuncts2.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "bar")));
+            disjuncts2.add(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "bar"))));
             DisjunctionMaxQuery maxQuery2 = new DisjunctionMaxQuery(disjuncts2, 0.0f);
 
             BooleanQuery expectedQuery = new BooleanQuery.Builder().add(new BooleanClause(maxQuery1, BooleanClause.Occur.SHOULD))
@@ -1302,7 +1311,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             Query expected = new DisjunctionMaxQuery(
                 Arrays.asList(
                     new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
+                    new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello"))), 5.0f)
                 ),
                 0.0f
             );
@@ -1358,7 +1367,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             new QueryStringQueryBuilder("bar").quoteFieldSuffix("_2").field(TEXT_FIELD_NAME).doToQuery(context)
         );
         assertEquals(
-            new TermQuery(new Term(KEYWORD_FIELD_NAME, "bar")),
+            new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "bar"))),
             new QueryStringQueryBuilder("\"bar\"").quoteFieldSuffix("_2").field(TEXT_FIELD_NAME).doToQuery(context)
         );
 
@@ -1399,8 +1408,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 new BooleanQuery.Builder().add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), Occur.SHOULD)
                     .add(new TermQuery(new Term(TEXT_FIELD_NAME, "fox")), Occur.SHOULD)
                     .build(),
-                new BooleanQuery.Builder().add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "quick")), Occur.SHOULD)
-                    .add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "fox")), Occur.SHOULD)
+                new BooleanQuery.Builder().add(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "quick"))), Occur.SHOULD)
+                    .add(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "fox"))), Occur.SHOULD)
                     .build()
             ),
             0f
@@ -1465,13 +1474,19 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             Query query = new QueryStringQueryBuilder("foo").analyzer("whitespace")
                 .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                 .toQuery(createShardContext());
-            Query expected = BlendedTermQuery.dismaxBlendedQuery(blendedTerms, 1.0f);
-            assertEquals(expected, query);
+            Query expected = new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "foo"))),
+                    BlendedTermQuery.dismaxBlendedQuery(new Term[] { blendedTerms[0] }, 1.0f)
+                ),
+                0.0f
+            );
 
+            assertEquals(expected, query);
             query = new QueryStringQueryBuilder("foo mapped_string:10").analyzer("whitespace")
                 .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                 .toQuery(createShardContext());
-            expected = new BooleanQuery.Builder().add(BlendedTermQuery.dismaxBlendedQuery(blendedTerms, 1.0f), Occur.SHOULD)
+            expected = new BooleanQuery.Builder().add(expected, Occur.SHOULD)
                 .add(new TermQuery(new Term(TEXT_FIELD_NAME, "10")), Occur.SHOULD)
                 .build();
             assertEquals(expected, query);
@@ -1542,7 +1557,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .toQuery(createShardContext());
         List<Query> terms = new ArrayList<>();
         terms.add(new BoostQuery(new TermQuery(new Term(TEXT_FIELD_NAME, "first")), 0.075f));
-        terms.add(new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "first")), 0.5f));
+        terms.add(new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "first"))), 0.5f));
         Query expected = new DisjunctionMaxQuery(terms, 1.0f);
         assertEquals(expected, query);
     }
@@ -1564,7 +1579,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(9, noMatchNoDocsQueries);
         assertThat(
             disjunctionMaxQuery.getDisjuncts(),
-            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "hello")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
+            hasItems(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
+                new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
+            )
         );
     }
 

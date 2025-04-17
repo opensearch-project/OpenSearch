@@ -24,7 +24,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.QueryGroup;
+import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
@@ -60,7 +60,7 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.threadpool.ThreadPool.Names.SAME;
-import static org.opensearch.wlm.QueryGroupTask.QUERY_GROUP_ID_HEADER;
+import static org.opensearch.wlm.WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
@@ -115,80 +115,80 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
     public void testHighCPUInEnforcedMode() throws InterruptedException {
         Settings request = Settings.builder().put(WorkloadManagementSettings.WLM_MODE_SETTING.getKey(), ENABLED).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get());
-        QueryGroup queryGroup = new QueryGroup(
+        WorkloadGroup workloadGroup = new WorkloadGroup(
             "name",
-            new MutableQueryGroupFragment(
-                MutableQueryGroupFragment.ResiliencyMode.ENFORCED,
+            new MutableWorkloadGroupFragment(
+                MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
                 Map.of(ResourceType.CPU, 0.01, ResourceType.MEMORY, 0.01)
             )
         );
-        updateQueryGroupInClusterState(PUT, queryGroup);
-        Exception caughtException = executeQueryGroupTask(CPU, queryGroup.get_id());
+        updateWorkloadGroupInClusterState(PUT, workloadGroup);
+        Exception caughtException = executeWorkloadGroupTask(CPU, workloadGroup.get_id());
         assertNotNull("SearchTask should have been cancelled with TaskCancelledException", caughtException);
         MatcherAssert.assertThat(caughtException, instanceOf(TaskCancelledException.class));
-        updateQueryGroupInClusterState(DELETE, queryGroup);
+        updateWorkloadGroupInClusterState(DELETE, workloadGroup);
     }
 
     public void testHighCPUInMonitorMode() throws InterruptedException {
-        QueryGroup queryGroup = new QueryGroup(
+        WorkloadGroup workloadGroup = new WorkloadGroup(
             "name",
-            new MutableQueryGroupFragment(
-                MutableQueryGroupFragment.ResiliencyMode.ENFORCED,
+            new MutableWorkloadGroupFragment(
+                MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
                 Map.of(ResourceType.CPU, 0.01, ResourceType.MEMORY, 0.01)
             )
         );
-        updateQueryGroupInClusterState(PUT, queryGroup);
-        Exception caughtException = executeQueryGroupTask(CPU, queryGroup.get_id());
+        updateWorkloadGroupInClusterState(PUT, workloadGroup);
+        Exception caughtException = executeWorkloadGroupTask(CPU, workloadGroup.get_id());
         assertNull(caughtException);
-        updateQueryGroupInClusterState(DELETE, queryGroup);
+        updateWorkloadGroupInClusterState(DELETE, workloadGroup);
     }
 
     public void testHighMemoryInEnforcedMode() throws InterruptedException {
         Settings request = Settings.builder().put(WorkloadManagementSettings.WLM_MODE_SETTING.getKey(), ENABLED).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get());
-        QueryGroup queryGroup = new QueryGroup(
+        WorkloadGroup workloadGroup = new WorkloadGroup(
             "name",
-            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.MEMORY, 0.01))
+            new MutableWorkloadGroupFragment(MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.MEMORY, 0.01))
         );
-        updateQueryGroupInClusterState(PUT, queryGroup);
-        Exception caughtException = executeQueryGroupTask(MEMORY, queryGroup.get_id());
+        updateWorkloadGroupInClusterState(PUT, workloadGroup);
+        Exception caughtException = executeWorkloadGroupTask(MEMORY, workloadGroup.get_id());
         assertNotNull("SearchTask should have been cancelled with TaskCancelledException", caughtException);
         MatcherAssert.assertThat(caughtException, instanceOf(TaskCancelledException.class));
-        updateQueryGroupInClusterState(DELETE, queryGroup);
+        updateWorkloadGroupInClusterState(DELETE, workloadGroup);
     }
 
     public void testHighMemoryInMonitorMode() throws InterruptedException {
-        QueryGroup queryGroup = new QueryGroup(
+        WorkloadGroup workloadGroup = new WorkloadGroup(
             "name",
-            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.MEMORY, 0.01))
+            new MutableWorkloadGroupFragment(MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.MEMORY, 0.01))
         );
-        updateQueryGroupInClusterState(PUT, queryGroup);
-        Exception caughtException = executeQueryGroupTask(MEMORY, queryGroup.get_id());
+        updateWorkloadGroupInClusterState(PUT, workloadGroup);
+        Exception caughtException = executeWorkloadGroupTask(MEMORY, workloadGroup.get_id());
         assertNull("SearchTask should have been cancelled with TaskCancelledException", caughtException);
-        updateQueryGroupInClusterState(DELETE, queryGroup);
+        updateWorkloadGroupInClusterState(DELETE, workloadGroup);
     }
 
     public void testNoCancellation() throws InterruptedException {
-        QueryGroup queryGroup = new QueryGroup(
+        WorkloadGroup workloadGroup = new WorkloadGroup(
             "name",
-            new MutableQueryGroupFragment(
-                MutableQueryGroupFragment.ResiliencyMode.ENFORCED,
+            new MutableWorkloadGroupFragment(
+                MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
                 Map.of(ResourceType.CPU, 0.8, ResourceType.MEMORY, 0.8)
             )
         );
-        updateQueryGroupInClusterState(PUT, queryGroup);
-        Exception caughtException = executeQueryGroupTask(CPU, queryGroup.get_id());
+        updateWorkloadGroupInClusterState(PUT, workloadGroup);
+        Exception caughtException = executeWorkloadGroupTask(CPU, workloadGroup.get_id());
         assertNull(caughtException);
-        updateQueryGroupInClusterState(DELETE, queryGroup);
+        updateWorkloadGroupInClusterState(DELETE, workloadGroup);
     }
 
-    public Exception executeQueryGroupTask(String resourceType, String queryGroupId) throws InterruptedException {
+    public Exception executeWorkloadGroupTask(String resourceType, String workloadGroupId) throws InterruptedException {
         ExceptionCatchingListener listener = new ExceptionCatchingListener();
         client().execute(
-            TestQueryGroupTaskTransportAction.ACTION,
-            new TestQueryGroupTaskRequest(
+            TestWorkloadGroupTaskTransportAction.ACTION,
+            new TestWorkloadGroupTaskRequest(
                 resourceType,
-                queryGroupId,
+                workloadGroupId,
                 (TaskFactory<Task>) (id, type, action, description, parentTaskId, headers) -> new SearchTask(
                     id,
                     type,
@@ -204,26 +204,26 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
         return listener.getException();
     }
 
-    public void updateQueryGroupInClusterState(String method, QueryGroup queryGroup) throws InterruptedException {
+    public void updateWorkloadGroupInClusterState(String method, WorkloadGroup workloadGroup) throws InterruptedException {
         ExceptionCatchingListener listener = new ExceptionCatchingListener();
-        client().execute(TestClusterUpdateTransportAction.ACTION, new TestClusterUpdateRequest(queryGroup, method), listener);
+        client().execute(TestClusterUpdateTransportAction.ACTION, new TestClusterUpdateRequest(workloadGroup, method), listener);
         assertTrue(listener.getLatch().await(TIMEOUT.getSeconds(), TimeUnit.SECONDS));
         assertEquals(0, listener.getLatch().getCount());
     }
 
     public static class TestClusterUpdateRequest extends ClusterManagerNodeRequest<TestClusterUpdateRequest> {
         final private String method;
-        final private QueryGroup queryGroup;
+        final private WorkloadGroup workloadGroup;
 
-        public TestClusterUpdateRequest(QueryGroup queryGroup, String method) {
+        public TestClusterUpdateRequest(WorkloadGroup workloadGroup, String method) {
             this.method = method;
-            this.queryGroup = queryGroup;
+            this.workloadGroup = workloadGroup;
         }
 
         public TestClusterUpdateRequest(StreamInput in) throws IOException {
             super(in);
             this.method = in.readString();
-            this.queryGroup = new QueryGroup(in);
+            this.workloadGroup = new WorkloadGroup(in);
         }
 
         @Override
@@ -235,11 +235,11 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(method);
-            queryGroup.writeTo(out);
+            workloadGroup.writeTo(out);
         }
 
-        public QueryGroup getQueryGroup() {
-            return queryGroup;
+        public WorkloadGroup getWorkloadGroup() {
+            return workloadGroup;
         }
 
         public String getMethod() {
@@ -293,13 +293,13 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
             clusterService.submitStateUpdateTask("query-group-persistence-service", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    Map<String, QueryGroup> currentGroups = currentState.metadata().queryGroups();
-                    QueryGroup queryGroup = request.getQueryGroup();
-                    String id = queryGroup.get_id();
+                    Map<String, WorkloadGroup> currentGroups = currentState.metadata().workloadGroups();
+                    WorkloadGroup workloadGroup = request.getWorkloadGroup();
+                    String id = workloadGroup.get_id();
                     String method = request.getMethod();
                     Metadata metadata;
                     if (method.equals(PUT)) { // create
-                        metadata = Metadata.builder(currentState.metadata()).put(queryGroup).build();
+                        metadata = Metadata.builder(currentState.metadata()).put(workloadGroup).build();
                     } else { // delete
                         metadata = Metadata.builder(currentState.metadata()).remove(currentGroups.get(id)).build();
                     }
@@ -319,21 +319,21 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
         }
     }
 
-    public static class TestQueryGroupTaskRequest<T extends Task> extends ActionRequest {
+    public static class TestWorkloadGroupTaskRequest<T extends Task> extends ActionRequest {
         private final String type;
-        private final String queryGroupId;
+        private final String workloadGroupId;
         private TaskFactory<T> taskFactory;
 
-        public TestQueryGroupTaskRequest(String type, String queryGroupId, TaskFactory<T> taskFactory) {
+        public TestWorkloadGroupTaskRequest(String type, String workloadGroupId, TaskFactory<T> taskFactory) {
             this.type = type;
-            this.queryGroupId = queryGroupId;
+            this.workloadGroupId = workloadGroupId;
             this.taskFactory = taskFactory;
         }
 
-        public TestQueryGroupTaskRequest(StreamInput in) throws IOException {
+        public TestWorkloadGroupTaskRequest(StreamInput in) throws IOException {
             super(in);
             this.type = in.readString();
-            this.queryGroupId = in.readString();
+            this.workloadGroupId = in.readString();
         }
 
         @Override
@@ -350,36 +350,39 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(type);
-            out.writeString(queryGroupId);
+            out.writeString(workloadGroupId);
         }
 
         public String getType() {
             return type;
         }
 
-        public String getQueryGroupId() {
-            return queryGroupId;
+        public String getWorkloadGroupId() {
+            return workloadGroupId;
         }
     }
 
-    public static class TestQueryGroupTaskTransportAction extends HandledTransportAction<TestQueryGroupTaskRequest, TestResponse> {
-        public static final ActionType<TestResponse> ACTION = new ActionType<>("internal::test_query_group_task_action", TestResponse::new);
+    public static class TestWorkloadGroupTaskTransportAction extends HandledTransportAction<TestWorkloadGroupTaskRequest, TestResponse> {
+        public static final ActionType<TestResponse> ACTION = new ActionType<>(
+            "internal::test_workload_group_task_action",
+            TestResponse::new
+        );
         private final ThreadPool threadPool;
 
         @Inject
-        public TestQueryGroupTaskTransportAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters) {
-            super(ACTION.name(), transportService, actionFilters, TestQueryGroupTaskRequest::new);
+        public TestWorkloadGroupTaskTransportAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters) {
+            super(ACTION.name(), transportService, actionFilters, TestWorkloadGroupTaskRequest::new);
             this.threadPool = threadPool;
         }
 
         @Override
-        protected void doExecute(Task task, TestQueryGroupTaskRequest request, ActionListener<TestResponse> listener) {
-            threadPool.getThreadContext().putHeader(QUERY_GROUP_ID_HEADER, request.getQueryGroupId());
+        protected void doExecute(Task task, TestWorkloadGroupTaskRequest request, ActionListener<TestResponse> listener) {
+            threadPool.getThreadContext().putHeader(WORKLOAD_GROUP_ID_HEADER, request.getWorkloadGroupId());
             threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
                 try {
                     CancellableTask cancellableTask = (CancellableTask) task;
-                    ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
-                    assertEquals(request.getQueryGroupId(), ((QueryGroupTask) task).getQueryGroupId());
+                    ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
+                    assertEquals(request.getWorkloadGroupId(), ((WorkloadGroupTask) task).getWorkloadGroupId());
                     long startTime = System.nanoTime();
                     while (System.nanoTime() - startTime < TIMEOUT.getNanos()) {
                         doWork(request);
@@ -398,7 +401,7 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
             });
         }
 
-        private void doWork(TestQueryGroupTaskRequest request) throws InterruptedException {
+        private void doWork(TestWorkloadGroupTaskRequest request) throws InterruptedException {
             switch (request.getType()) {
                 case "CPU":
                     long i = 0, j = 1, k = 1, iterations = 1000;
@@ -422,13 +425,13 @@ public class WorkloadManagementIT extends ParameterizedStaticSettingsOpenSearchI
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             return Arrays.asList(
                 new ActionHandler<>(TestClusterUpdateTransportAction.ACTION, TestClusterUpdateTransportAction.class),
-                new ActionHandler<>(TestQueryGroupTaskTransportAction.ACTION, TestQueryGroupTaskTransportAction.class)
+                new ActionHandler<>(TestWorkloadGroupTaskTransportAction.ACTION, TestWorkloadGroupTaskTransportAction.class)
             );
         }
 
         @Override
         public List<ActionType<? extends ActionResponse>> getClientActions() {
-            return Arrays.asList(TestClusterUpdateTransportAction.ACTION, TestQueryGroupTaskTransportAction.ACTION);
+            return Arrays.asList(TestClusterUpdateTransportAction.ACTION, TestWorkloadGroupTaskTransportAction.ACTION);
         }
     }
 }

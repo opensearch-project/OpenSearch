@@ -1,8 +1,6 @@
 ---
 "Component and index template composition":
   - skip:
-      version: " - 7.7.99"
-      reason: "index template v2 API unavailable before 7.8"
       features: allowed_warnings
 
   - do:
@@ -88,8 +86,6 @@
 ---
 "Index template priority":
   - skip:
-      version: " - 7.7.99"
-      reason: "index template v2 API unavailable before 7.8"
       features: allowed_warnings
 
   - do:
@@ -131,8 +127,6 @@
 ---
 "Component template only composition":
   - skip:
-      version: " - 7.7.99"
-      reason: "index template v2 API unavailable before 7.8"
       features: allowed_warnings
 
   - do:
@@ -176,8 +170,6 @@
 ---
 "Index template without component templates":
   - skip:
-      version: " - 7.7.99"
-      reason: "index template v2 API unavailable before 7.8"
       features: allowed_warnings
 
   - do:
@@ -204,8 +196,6 @@
 ---
 "Index template mapping merging":
   - skip:
-      version: " - 7.8.99"
-      reason: "index template v2 mapping merging not available before 7.9"
       features: allowed_warnings
 
   - do:

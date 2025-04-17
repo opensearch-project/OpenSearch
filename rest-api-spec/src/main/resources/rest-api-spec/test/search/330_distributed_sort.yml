@@ -38,9 +38,6 @@ setup:
 ---
 "test distributed sort can rewrite query to match no docs":
 
-  - skip:
-      version:  " - 7.6.99"
-      reason:   "distributed sort optimization was added in 7.7.0"
   - do:
       index:
         index: index_1

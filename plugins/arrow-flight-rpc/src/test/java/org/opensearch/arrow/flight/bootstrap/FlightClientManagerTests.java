@@ -11,10 +11,10 @@ import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.Version;
-import org.opensearch.arrow.flight.api.NodeFlightInfo;
-import org.opensearch.arrow.flight.api.NodesFlightInfoAction;
-import org.opensearch.arrow.flight.api.NodesFlightInfoRequest;
-import org.opensearch.arrow.flight.api.NodesFlightInfoResponse;
+import org.opensearch.arrow.flight.api.flightinfo.NodeFlightInfo;
+import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoRequest;
+import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoResponse;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -107,7 +108,9 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
         clientManager.clusterChanged(event);
         assertBusy(() -> {
             assertEquals("Flight client isn't built in time limit", 2, clientManager.getFlightClients().size());
+            assertTrue("local_node should exist", clientManager.getFlightClient("local_node").isPresent());
             assertNotNull("local_node should exist", clientManager.getFlightClient("local_node").get());
+            assertTrue("remote_node should exist", clientManager.getFlightClient("remote_node").isPresent());
             assertNotNull("remote_node should exist", clientManager.getFlightClient("remote_node").get());
         }, 2, TimeUnit.SECONDS);
     }
@@ -375,8 +378,9 @@ public class FlightClientManagerTests extends OpenSearchTestCase {
 
     private void validateNodes() {
         for (DiscoveryNode node : state.nodes()) {
-            FlightClient client = clientManager.getFlightClient(node.getId()).get();
-            assertNotNull("Flight client should be created for existing node", client);
+            Optional<FlightClient> client = clientManager.getFlightClient(node.getId());
+            assertTrue("Flight client should be created for node [" + node.getId() + "].", client.isPresent());
+            assertNotNull("Flight client should be created for node [" + node.getId() + "].", client.get());
         }
     }
 
