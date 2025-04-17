@@ -146,6 +146,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             // Assertions
             shards.assertAllEqual(numDocs);
+            assertTrue(primaryShard.getReplicationEngine().isEmpty());
             assertFalse(replicaShard.getReplicationEngine().isEmpty());
             replicaShard.close("test", false, false);
             assertTrue(replicaShard.getReplicationEngine().isEmpty());
