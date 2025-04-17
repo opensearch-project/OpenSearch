@@ -121,7 +121,14 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
@@ -471,7 +478,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         for (int i = 0; i < totalObjects; i++) {
             s3Objects.add(S3Object.builder().key("key-" + i).size(100L).build());
         }
-
         AtomicBoolean onNext = new AtomicBoolean(false);
         doAnswer(invocation -> {
             Subscriber<? super ListObjectsV2Response> subscriber = invocation.getArgument(0);
@@ -739,7 +745,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
     }
 
     public void testExecuteSingleUploadIfEtagMatchesPreconditionFailed() throws IOException {
-        // Setup test parameters
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
@@ -751,10 +756,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final int bufferSize = randomIntBetween(1024, 2048);
         final int blobSize = randomIntBetween(0, bufferSize);
 
-        // Mock S3BlobStore
         final S3BlobStore blobStore = mock(S3BlobStore.class);
 
-        // Fix: Properly set up StatsMetricPublisher with non-null putObjectMetricPublisher
         final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
         final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher = mock(
             software.amazon.awssdk.metrics.MetricPublisher.class
@@ -771,31 +774,25 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-        // Mock S3 client
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         when(blobStore.clientReference()).thenReturn(clientReference);
         when(clientReference.get()).thenReturn(client);
 
-        // Fix: Use doNothing for void methods instead of when().thenReturn()
         doNothing().when(clientReference).close();
 
-        // Create 412 Precondition Failed exception
         S3Exception preconditionFailedException = (S3Exception) S3Exception.builder()
             .message("Precondition Failed")
             .statusCode(412)
             .build();
         when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(preconditionFailedException);
 
-        // Use AtomicReference to capture the exception via ActionListener.wrap
         final AtomicReference<Exception> capturedException = new AtomicReference<>();
         ActionListener<String> etagListener = ActionListener.wrap(r -> fail("Should have failed"), capturedException::set);
 
-        // Execute the upload
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
         blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
 
-        // Verify that onResponse was never called and onFailure captured the exception
         verify(etagListener, never()).onResponse(any());
         Exception exception = capturedException.get();
         assertNotNull("Expected an exception to be captured", exception);
@@ -809,37 +806,30 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
     }
 
     public void testExecuteSingleUploadIfEtagMatchesS3Exception() throws IOException {
-        // 1. Minimal test parameters
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String etag = "\"test-etag\"";
         final int blobSize = 100;
 
-        // 2. Create mock S3 client that will throw an exception
         S3Client s3Client = mock(S3Client.class);
         S3Exception s3Exception = (S3Exception) S3Exception.builder().message("Access Denied").statusCode(403).build();
 
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(s3Exception);
 
-        // 3. Setup client reference
         AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         when(clientReference.get()).thenReturn(s3Client);
 
-        // 4. Setup blob store with minimum required mocks
         S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.clientReference()).thenReturn(clientReference);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(1000L);
 
-        // For metrics - create a simple object rather than complex mocking
         StatsMetricPublisher metrics = new StatsMetricPublisher();
         when(blobStore.getStatsMetricPublisher()).thenReturn(metrics);
 
-        // 5. Create the blob container
         BlobPath blobPath = new BlobPath();
         S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-        // 6. Capture exceptions via listener
         AtomicReference<Exception> capturedError = new AtomicReference<>();
         AtomicBoolean successCalled = new AtomicBoolean(false);
 
@@ -855,12 +845,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             }
         };
 
-        // 7. Execute the method being tested
         ByteArrayInputStream input = new ByteArrayInputStream(new byte[blobSize]);
         blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, input, blobSize, null, etag, listener);
 
-        // 8. Verify error handling
-        verify(clientReference).close(); // Resource cleanup
+        verify(clientReference).close();
         assertFalse("Success callback should not be called", successCalled.get());
 
         Exception captured = capturedError.get();
@@ -873,7 +861,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
     }
 
     public void testExecuteSingleUploadIfEtagMatchesSuccess() throws IOException {
-        // Setup test parameters
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
@@ -891,10 +878,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final int bufferSize = randomIntBetween(1024, 2048);
         final int blobSize = randomIntBetween(0, bufferSize);
 
-        // Mock S3BlobStore
         final S3BlobStore blobStore = mock(S3BlobStore.class);
 
-        // Setup StatsMetricPublisher with non-null putObjectMetricPublisher
         final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
         final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher = mock(
             software.amazon.awssdk.metrics.MetricPublisher.class
@@ -918,34 +903,27 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        // Mock S3 client
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         when(clientReference.get()).thenReturn(client);
         when(blobStore.clientReference()).thenReturn(clientReference);
 
-        // Mock retry enabled
         final boolean isUploadRetryEnabled = randomBoolean();
         when(blobStore.isUploadRetryEnabled()).thenReturn(isUploadRetryEnabled);
 
-        // Create argument captors
         final ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
         final ArgumentCaptor<RequestBody> requestBodyArgumentCaptor = ArgumentCaptor.forClass(RequestBody.class);
 
-        // Configure S3 client to return response with eTag
         when(client.putObject(putObjectRequestArgumentCaptor.capture(), requestBodyArgumentCaptor.capture())).thenReturn(
             PutObjectResponse.builder().eTag(returnedETag).build()
         );
 
-        // Create action listener mock
         @SuppressWarnings("unchecked")
         ActionListener<String> etagListener = mock(ActionListener.class);
 
-        // Execute the upload
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
         blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
 
-        // Verify request parameters
         final PutObjectRequest request = putObjectRequestArgumentCaptor.getValue();
         final RequestBody requestBody = requestBodyArgumentCaptor.getValue();
         assertEquals(bucketName, request.bucket());
@@ -955,30 +933,24 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(cannedAccessControlList, request.acl());
         assertEquals(metadata, request.metadata());
 
-        // Verify ETag matching condition
         assertEquals(eTag, request.ifMatch());
 
-        // Verify input stream handling
         byte[] expectedBytes = new byte[blobSize];
         try (InputStream is = requestBody.contentStreamProvider().newStream()) {
             assertArrayEquals(expectedBytes, is.readAllBytes());
         }
 
-        // Verify server-side encryption
         if (serverSideEncryption) {
             assertEquals(ServerSideEncryption.AES256, request.serverSideEncryption());
         }
 
-        // Verify listener was called with the correct ETag
         verify(etagListener).onResponse(returnedETag);
         verify(etagListener, never()).onFailure(any());
 
-        // Verify resource closure
         verify(clientReference).close();
     }
 
     public void testExecuteSingleUploadIfEtagMatchesSdkException() throws IOException {
-        // Setup test parameters
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
@@ -990,85 +962,14 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final int bufferSize = randomIntBetween(1024, 2048);
         final int blobSize = randomIntBetween(0, bufferSize);
 
-        // Mock S3BlobStore
         final S3BlobStore blobStore = mock(S3BlobStore.class);
 
-        // Fix: Properly set up StatsMetricPublisher with non-null putObjectMetricPublisher
         final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
         final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher = mock(
             software.amazon.awssdk.metrics.MetricPublisher.class
         );
         when(metricPublisher.putObjectMetricPublisher).thenReturn(awsMetricPublisher);
 
-        when(blobStore.bucket()).thenReturn(bucketName);
-        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
-        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
-        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
-        when(blobStore.serverSideEncryption()).thenReturn(false);
-        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
-        when(blobStore.getCannedACL()).thenReturn(null); // Add missing mock for ACL
-
-        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
-
-        // Mock S3 client
-        final S3Client client = mock(S3Client.class);
-        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
-        when(blobStore.clientReference()).thenReturn(clientReference);
-        when(clientReference.get()).thenReturn(client);
-
-        // Mock SdkException
-        final SdkException sdkException = SdkException.builder().message("Generic Sdk failure").build();
-        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(sdkException);
-
-        // Create an ActionListener to capture failure
-        final AtomicReference<Exception> capturedException = new AtomicReference<>();
-        ActionListener<String> etagListener = ActionListener.wrap(r -> fail("Should have failed for SdkException"), capturedException::set);
-
-        // Execute the upload
-        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
-        blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
-
-        // Verify that onResponse was never called and onFailure captured the exception
-        verify(etagListener, never()).onResponse(any());
-        Exception exception = capturedException.get();
-        assertNotNull("Expected an exception to be captured", exception);
-        assertTrue("Exception should be an IOException", exception instanceof IOException);
-
-        // Verify the IOException message references the blob name
-        IOException ioException = (IOException) exception;
-        assertTrue("IOException message should contain the blob name", ioException.getMessage().contains(blobName));
-        // Verify cause is the original SdkException
-        assertEquals(sdkException, ioException.getCause());
-
-        // Fix: Use proper verification for AWS metric publisher
-        verify(awsMetricPublisher).publish(any());
-
-        // Verify resource closure
-        verify(clientReference).close();
-    }
-
-    // (A) Null ETag in the PutObjectResponse
-    public void testExecuteSingleUploadIfEtagMatchesWithNullETag() throws IOException {
-        // Setup test parameters
-        final String bucketName = randomAlphaOfLengthBetween(1, 10);
-        final String blobName = randomAlphaOfLengthBetween(1, 10);
-        final String providedETag = randomAlphaOfLengthBetween(8, 32);
-
-        final int bufferSize = randomIntBetween(1024, 2048);
-        final int blobSize = randomIntBetween(0, bufferSize);
-
-        // Create a real BlobPath instance, not a mock
-        final BlobPath blobPath = new BlobPath();
-        final S3BlobStore blobStore = mock(S3BlobStore.class);
-
-        // Fix: Properly set up StatsMetricPublisher with non-null putObjectMetricPublisher
-        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
-        final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher = mock(
-            software.amazon.awssdk.metrics.MetricPublisher.class
-        );
-        when(metricPublisher.putObjectMetricPublisher).thenReturn(awsMetricPublisher);
-
-        // Mock S3BlobStore behavior
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
@@ -1079,41 +980,79 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-        // Mock S3 client
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         when(blobStore.clientReference()).thenReturn(clientReference);
         when(clientReference.get()).thenReturn(client);
 
-        // Setup client to return PutObjectResponse with null eTag
+        final SdkException sdkException = SdkException.builder().message("Generic Sdk failure").build();
+        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(sdkException);
+
+        final AtomicReference<Exception> capturedException = new AtomicReference<>();
+        ActionListener<String> etagListener = ActionListener.wrap(r -> fail("Should have failed for SdkException"), capturedException::set);
+
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
+        blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
+
+        verify(etagListener, never()).onResponse(any());
+        Exception exception = capturedException.get();
+        assertNotNull("Expected an exception to be captured", exception);
+        assertTrue("Exception should be an IOException", exception instanceof IOException);
+
+        IOException ioException = (IOException) exception;
+        assertTrue("IOException message should contain the blob name", ioException.getMessage().contains(blobName));
+        assertEquals(sdkException, ioException.getCause());
+
+        verify(awsMetricPublisher).publish(any());
+
+        verify(clientReference).close();
+    }
+
+    public void testExecuteSingleUploadIfEtagMatchesWithNullETag() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String providedETag = randomAlphaOfLengthBetween(8, 32);
+
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        final BlobPath blobPath = new BlobPath();
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+
+        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
+        final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher = mock(
+            software.amazon.awssdk.metrics.MetricPublisher.class
+        );
+        when(metricPublisher.putObjectMetricPublisher).thenReturn(awsMetricPublisher);
+
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+        when(blobStore.getCannedACL()).thenReturn(null);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
         when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenReturn(
             PutObjectResponse.builder().eTag(null).build()
         );
 
-        // Mock the listener
         @SuppressWarnings("unchecked")
         ActionListener<String> etagListener = mock(ActionListener.class);
 
-        // Execute
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize])) {
-            blobContainer.executeSingleUploadIfEtagMatches(
-                blobStore,
-                blobName,
-                inputStream,
-                blobSize,
-                null, // can test with null metadata
-                providedETag,
-                etagListener
-            );
+            blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, providedETag, etagListener);
         }
 
-        // Verify no onFailure call
         verify(etagListener, never()).onFailure(any());
-        // Verify onResponse(...) was never called with any non-null ETag
         verify(etagListener, never()).onResponse(anyString());
-
-        // Remove metric publisher verification to avoid issues
-        // verify(awsMetricPublisher).publish(any());
 
         verify(clientReference).close();
     }
@@ -1125,7 +1064,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final int bufferSize = randomIntBetween(1024, 2048);
         final S3BlobStore blobStore = mock(S3BlobStore.class);
 
-        // Create metric publishers for each test case
         final StatsMetricPublisher metricPublisher1 = mock(StatsMetricPublisher.class);
         final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher1 = mock(
             software.amazon.awssdk.metrics.MetricPublisher.class
@@ -1141,7 +1079,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
 
-        // Case 1: Null ETag (if allowed)
         final ByteArrayInputStream inputStreamCase1 = new ByteArrayInputStream(new byte[bufferSize]);
         @SuppressWarnings("unchecked")
         ActionListener<String> mockListenerCase1 = mock(ActionListener.class);
@@ -1149,7 +1086,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final S3Client client1 = mock(S3Client.class);
         final AmazonS3Reference clientReference1 = mock(AmazonS3Reference.class);
 
-        // Setup for first test case
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher1);
         when(blobStore.clientReference()).thenReturn(clientReference1);
         when(clientReference1.get()).thenReturn(client1);
@@ -1157,29 +1093,18 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             PutObjectResponse.builder().eTag("nullEtagTest").build()
         );
 
-        blobContainer.executeSingleUploadIfEtagMatches(
-            blobStore,
-            blobName,
-            inputStreamCase1,
-            bufferSize,
-            null,  // null metadata
-            null,
-            mockListenerCase1
-        );
+        blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStreamCase1, bufferSize, null, null, mockListenerCase1);
 
-        // Should proceed without ifMatch condition. We'll confirm it doesn't crash and calls onResponse
         verify(mockListenerCase1).onResponse("nullEtagTest");
         verify(mockListenerCase1, never()).onFailure(any());
         verify(clientReference1).close();
 
-        // Create new mocks for second test case
         final StatsMetricPublisher metricPublisher2 = mock(StatsMetricPublisher.class);
         final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher2 = mock(
             software.amazon.awssdk.metrics.MetricPublisher.class
         );
         when(metricPublisher2.putObjectMetricPublisher).thenReturn(awsMetricPublisher2);
 
-        // Case 2: Empty metadata
         final ByteArrayInputStream inputStreamCase2 = new ByteArrayInputStream(new byte[0]);
         @SuppressWarnings("unchecked")
         ActionListener<String> mockListenerCase2 = mock(ActionListener.class);
@@ -1187,7 +1112,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final S3Client client2 = mock(S3Client.class);
         final AmazonS3Reference clientReference2 = mock(AmazonS3Reference.class);
 
-        // Setup for second test case
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher2);
         when(blobStore.clientReference()).thenReturn(clientReference2);
         when(clientReference2.get()).thenReturn(client2);
@@ -1200,7 +1124,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             blobName,
             inputStreamCase2,
             0,
-            Collections.emptyMap(), // empty metadata
+            Collections.emptyMap(),
             "",
             mockListenerCase2
         );
@@ -2444,6 +2368,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         // Verify that no interactions with S3AsyncClient occurred
         verifyNoInteractions(s3AsyncClient);
     }
+
     public void testDeleteBlobsAsyncIgnoringIfNotExistsInitializationFailure() throws Exception {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final BlobPath blobPath = new BlobPath();
