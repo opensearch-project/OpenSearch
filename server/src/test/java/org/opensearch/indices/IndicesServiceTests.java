@@ -39,6 +39,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -682,6 +683,20 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             setupMocksForCanCache(context, cacheHelper);
             assertEquals(entry.getValue(), indicesService.canCache(request, context));
         }
+    }
+
+    public void testGetTargetIndexServiceList() {
+        // prepare test data
+        createIndex("index");
+        IndicesService indicesService = getIndicesService();
+        SearchRequest searchRequest = new SearchRequest("index");
+
+        // invoke
+        final List<IndexMetadata> targetIndexMetadataList = indicesService.getTargetIndexMetadataList(searchRequest);
+
+        // verify
+        assertEquals(1, targetIndexMetadataList.size());
+        assertEquals("index", targetIndexMetadataList.getFirst().getIndex().getName());
     }
 
     private void setupMocksForCanCache(TestSearchContext context, IndexReader.CacheHelper cacheHelper) {
