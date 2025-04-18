@@ -74,7 +74,7 @@ public class PemTrustConfigTests extends OpenSearchTestCase {
         Files.write(ca, generateRandomByteArrayOfLength(128), StandardOpenOption.APPEND);
         final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(ca));
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ca));
-        assertFailedToParse(trustConfig, ca);
+        assertFailedToParseOrInvalidFileFormat(trustConfig, ca);
     }
 
     public void testEmptyFileFails() throws Exception {
@@ -121,21 +121,7 @@ public class PemTrustConfigTests extends OpenSearchTestCase {
         assertFileNotFound(trustConfig, ca1);
 
         Files.write(ca1, generateRandomByteArrayOfLength(128), StandardOpenOption.CREATE);
-        boolean isFailedToParse = false;
-        boolean isInvalidFileFormat = false;
-        try {
-            assertFailedToParse(trustConfig, ca1);
-            isFailedToParse = true;
-        } catch (Throwable t) {
-            // do nothing
-        }
-        try {
-            assertInvalidFileFormat(trustConfig, ca1);
-            isInvalidFileFormat = true;
-        } catch (Throwable t) {
-            // do nothing
-        }
-        assert isFailedToParse || isInvalidFileFormat;
+        assertFailedToParseOrInvalidFileFormat(trustConfig, ca1);
     }
 
     private void assertCertificateChain(PemTrustConfig trustConfig, String... caNames) {
@@ -147,6 +133,24 @@ public class PemTrustConfigTests extends OpenSearchTestCase {
             .collect(Collectors.toSet());
 
         assertThat(issuerNames, Matchers.containsInAnyOrder(caNames));
+    }
+
+    private void assertFailedToParseOrInvalidFileFormat(PemTrustConfig trustConfig, Path file) {
+        boolean isFailedToParse = false;
+        boolean isInvalidFileFormat = false;
+        try {
+            assertFailedToParse(trustConfig, file);
+            isFailedToParse = true;
+        } catch (Throwable t) {
+            // do nothing
+        }
+        try {
+            assertInvalidFileFormat(trustConfig, file);
+            isInvalidFileFormat = true;
+        } catch (Throwable t) {
+            // do nothing
+        }
+        assert isFailedToParse || isInvalidFileFormat;
     }
 
     private void assertFailedToParse(PemTrustConfig trustConfig, Path file) {
