@@ -211,7 +211,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
             MappedFieldType fieldType = context.fieldMapper(this.fieldName);
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
-            } else if (fieldType instanceof ConstantFieldType) {
+            } else if (fieldType.unwrap() instanceof ConstantFieldType) {
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.

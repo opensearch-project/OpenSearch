@@ -496,14 +496,14 @@ public class ExpressionScriptEngine implements ScriptEngine {
 
         IndexFieldData<?> fieldData = lookup.doc().getForField(fieldType);
         final DoubleValuesSource valueSource;
-        if (fieldType instanceof GeoPointFieldType) {
+        if (fieldType.unwrap() instanceof GeoPointFieldType) {
             // geo
             if (methodname == null) {
                 valueSource = GeoField.getVariable(fieldData, fieldname, variablename);
             } else {
                 valueSource = GeoField.getMethod(fieldData, fieldname, methodname);
             }
-        } else if (fieldType instanceof DateFieldMapper.DateFieldType) {
+        } else if (fieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
             if (dateAccessor) {
                 // date object
                 if (methodname == null) {
