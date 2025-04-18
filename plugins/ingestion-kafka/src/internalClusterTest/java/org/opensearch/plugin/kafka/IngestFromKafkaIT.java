@@ -200,4 +200,31 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             return 30 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
         });
     }
+
+    public void testMultiThreadedWrites() throws Exception {
+        // create index with 5 writer threads
+        createIndexWithDefaultSettings(indexName, 1, 0, 5);
+        ensureGreen(indexName);
+
+        // Step 1: Produce messages
+        for (int i = 0; i < 1000; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        waitForState(() -> {
+            SearchResponse searchableDocsResponse = client().prepareSearch(indexName).setSize(2000).setPreference("_only_local").get();
+            return searchableDocsResponse.getHits().getTotalHits().value() == 1000;
+        });
+
+        // Step 2: Produce an update message and validate
+        for (int i = 0; i < 1000; i++) {
+            produceData(Integer.toString(i), "name" + i, "30");
+        }
+
+        waitForState(() -> {
+            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            return response.getHits().getTotalHits().value() == 1000;
+        });
+    }
 }
