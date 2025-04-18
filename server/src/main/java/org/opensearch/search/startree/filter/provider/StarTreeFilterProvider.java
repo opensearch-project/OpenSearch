@@ -174,7 +174,15 @@ public interface StarTreeFilterProvider {
                 return null;
             }
 
-            return processMustClauses(boolQueryBuilder.must(), context, compositeFieldType);
+            if (boolQueryBuilder.must().isEmpty() == false) {
+                return processMustClauses(boolQueryBuilder.must(), context, compositeFieldType);
+            }
+
+            if (boolQueryBuilder.should().isEmpty() == false) {
+                return processShouldClauses(boolQueryBuilder.should(), context, compositeFieldType);
+            }
+
+            return null;
         }
 
         private StarTreeFilter processMustClauses(List<QueryBuilder> mustClauses, SearchContext context,
@@ -188,9 +196,24 @@ public interface StarTreeFilterProvider {
                 StarTreeFilter clauseFilter;
 
                 if (clause instanceof BoolQueryBuilder) {
-                    // Recursive processing for nested bool
-                    clauseFilter = processMustClauses(((BoolQueryBuilder) clause).must(), context, compositeFieldType);
+                    BoolQueryBuilder boolClause = (BoolQueryBuilder) clause;
+                    if (boolClause.must().isEmpty() == false) {
+                        // Process nested MUST
+                        clauseFilter = processMustClauses(boolClause.must(), context, compositeFieldType);
+                    } else if (boolClause.should().isEmpty() == false) {
+                        // Process SHOULD inside MUST
+                        clauseFilter = processShouldClauses(boolClause.should(), context, compositeFieldType);
+                        // Note: clauseFilter now contains all SHOULD conditions as separate filters
+                    } else {
+                        return null;
+                    }
                 } else {
+                    // Only allow term, terms, and range queries
+//                    if (!(clause instanceof TermQueryBuilder) &&
+//                        !(clause instanceof TermsQueryBuilder) &&
+//                        !(clause instanceof RangeQueryBuilder)) {
+//                        return null;
+//                    }
                     // Process individual clause
                     StarTreeFilterProvider provider = SingletonFactory.getProvider(clause);
                     if (provider == null) {
@@ -209,15 +232,36 @@ public interface StarTreeFilterProvider {
                     List<DimensionFilter> newFilters = clauseFilter.getFiltersForDimension(dimension);
 
                     if (existingFilters == null) {
+                        // No existing filters for this dimension
                         dimensionToFilters.put(dimension, new ArrayList<>(newFilters));
                     } else {
-                        // Here's where we need the DimensionFilter merging logic
-                        // For example: merging range with term, or range with range
-                        DimensionFilter mergedFilter = mergeDimensionFilters(existingFilters, newFilters);
-                        if (mergedFilter == null) {
-                            return null; // No possible matches after merging
+                        // We have existing filters for this dimension
+                        if (newFilters.size() > 1) {
+                            // New filters are from SHOULD clause (multiple filters = OR condition)
+                            // Need to intersect each SHOULD filter with existing filters
+                            List<DimensionFilter> intersectedFilters = new ArrayList<>();
+                            for (DimensionFilter shouldFilter : newFilters) {
+                                for (DimensionFilter existingFilter : existingFilters) {
+                                    DimensionFilter intersected = DimensionFilterMerger.intersect(existingFilter, shouldFilter);
+                                    if (intersected != null) {
+                                        intersectedFilters.add(intersected);
+                                    }
+                                }
+                            }
+                            if (intersectedFilters.isEmpty()) {
+                                return null; // No valid intersections
+                            }
+                            dimensionToFilters.put(dimension, intersectedFilters);
+                        } else {
+                            // Here's where we need the DimensionFilter merging logic
+                            // For example: merging range with term, or range with range
+                            // And a single dimension filter coming from should clause is as good as must clause
+                            DimensionFilter mergedFilter = DimensionFilterMerger.intersect(existingFilters.getFirst(), newFilters.getFirst());
+                            if (mergedFilter == null) {
+                                return null; // No possible matches after merging
+                            }
+                            dimensionToFilters.put(dimension, Collections.singletonList(mergedFilter));
                         }
-                        dimensionToFilters.put(dimension, Collections.singletonList(mergedFilter));
                     }
                 }
             }
@@ -225,15 +269,63 @@ public interface StarTreeFilterProvider {
             return new StarTreeFilter(dimensionToFilters);
         }
 
-        /**
-         * Merges multiple DimensionFilters for the same dimension.
-         * This is where we need to implement the actual merging logic.
-         */
-        private DimensionFilter mergeDimensionFilters(List<DimensionFilter> filters1, List<DimensionFilter> filters2) {
-            DimensionFilter filter1 = filters1.getFirst();
-            DimensionFilter filter2 = filters2.getFirst();
+        private StarTreeFilter processShouldClauses(List<QueryBuilder> shouldClauses, SearchContext context,
+                                                    CompositeDataCubeFieldType compositeFieldType) throws IOException {
+            if (shouldClauses.isEmpty()) {
+                return null;
+            }
 
-            return DimensionFilterMerger.intersect(filter1, filter2);
+            // First, validate all SHOULD clauses are for same dimension
+            String commonDimension = null;
+            Map<String, List<DimensionFilter>> dimensionToFilters = new HashMap<>();
+            for (QueryBuilder clause : shouldClauses) {
+                StarTreeFilter clauseFilter;
+
+                if (clause instanceof BoolQueryBuilder) {
+                    BoolQueryBuilder boolClause = (BoolQueryBuilder) clause;
+
+                    // Reject if contains MUST clauses
+                    if (boolClause.must().isEmpty() == false) {
+                        return null; // Cannot have MUST inside SHOULD
+                    }
+
+                    // Process nested SHOULD
+                    clauseFilter = processShouldClauses(boolClause.should(), context, compositeFieldType);
+                } else {
+                    // Only allow term, terms, and range queries
+                    if (!(clause instanceof TermQueryBuilder) &&
+                        !(clause instanceof TermsQueryBuilder) &&
+                        !(clause instanceof RangeQueryBuilder)) {
+                        return null;
+                    }
+
+                    StarTreeFilterProvider provider = SingletonFactory.getProvider(clause);
+                    if (provider == null) {
+                        return null;
+                    }
+                    clauseFilter = provider.getFilter(context, clause, compositeFieldType);
+                }
+
+                if (clauseFilter == null) {
+                    return null;
+                }
+
+                // Validate single dimension
+                if (clauseFilter.getDimensions().size() != 1) {
+                    return null; // SHOULD clause must operate on single dimension
+                }
+
+                String dimension = clauseFilter.getDimensions().iterator().next();
+                if (commonDimension == null) {
+                    commonDimension = dimension;
+                } else if (!commonDimension.equals(dimension)) {
+                    return null; // All SHOULD clauses must operate on same dimension
+                }
+
+                // Simply collect all filters - StarTreeTraversal will handle OR operation
+                dimensionToFilters.computeIfAbsent(dimension, k -> new ArrayList<>()).addAll(clauseFilter.getFiltersForDimension(dimension));
+            }
+            return new StarTreeFilter(dimensionToFilters);
         }
     }
 }
