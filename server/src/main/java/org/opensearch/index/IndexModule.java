@@ -315,7 +315,7 @@ public final class IndexModule {
             engineFactory,
             engineConfigFactory,
             directoryFactories,
-            null,
+            Collections.emptyMap(),
             allowExpensiveQueries,
             expressionResolver,
             recoveryStateFactories,
@@ -826,7 +826,7 @@ public final class IndexModule {
     ) {
         final String compositeStoreType = indexSettings.getValue(INDEX_COMPOSITE_STORE_TYPE_SETTING);
         final IndexStorePlugin.CompositeDirectoryFactory factory;
-        if (compositeStoreType.isEmpty()) {
+        if (compositeStoreType.isEmpty() || indexStoreFactories.isEmpty()) {
             factory = DEFAULT_COMPOSITE_DIRECTORY_FACTORY;
         } else {
             factory = indexStoreFactories.get(compositeStoreType);
