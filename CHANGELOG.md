@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased 3.x]
 ### Added
 - Add multi-threaded writer support in pull-based ingestion ([#17912](https://github.com/opensearch-project/OpenSearch/pull/17912))
+- Update API of Message in index to add the timestamp for lag calculation in ingestion polling ([#17977]https://github.com/opensearch-project/OpenSearch/pull/17977/)
 
 ### Changed
 

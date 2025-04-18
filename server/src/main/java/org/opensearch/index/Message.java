@@ -16,4 +16,10 @@ import org.opensearch.common.annotation.ExperimentalApi;
 @ExperimentalApi
 public interface Message<T> {
     T getPayload();
+
+    /**
+     * Get the timestamp of the message in milliseconds
+     * @return the timestamp of the message
+     */
+    Long getTimestamp();
 }
