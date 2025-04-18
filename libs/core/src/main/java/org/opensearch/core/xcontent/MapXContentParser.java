@@ -206,20 +206,15 @@ public class MapXContentParser extends AbstractXContentParser {
     @Override
     public NumberType numberType() throws IOException {
         Number number = numberValue();
-        if (number instanceof Integer) {
-            return NumberType.INT;
-        } else if (number instanceof BigInteger) {
-            return NumberType.BIG_INTEGER;
-        } else if (number instanceof Long) {
-            return NumberType.LONG;
-        } else if (number instanceof Float) {
-            return NumberType.FLOAT;
-        } else if (number instanceof Double) {
-            return NumberType.DOUBLE;
-        } else if (number instanceof BigDecimal) {
-            return NumberType.BIG_DECIMAL;
-        }
-        throw new IllegalStateException("No matching token for number_type [" + number.getClass() + "]");
+        return switch (number) {
+            case Integer ignored -> NumberType.INT;
+            case BigInteger ignored -> NumberType.BIG_INTEGER;
+            case Long ignored -> NumberType.LONG;
+            case Float ignored -> NumberType.FLOAT;
+            case Double ignored -> NumberType.DOUBLE;
+            case BigDecimal ignored -> NumberType.BIG_DECIMAL;
+            default -> throw new IllegalStateException("No matching token for number_type [" + number.getClass() + "]");
+        };
     }
 
     @Override
