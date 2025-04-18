@@ -500,21 +500,17 @@ public class StarTreeFilterTests extends AggregatorTestCase {
             .thenReturn(new NumberFieldMapper.NumberFieldType(DV, NumberFieldMapper.NumberType.INTEGER));
 
         // Test 'MUST' clause
-        StarTreeFilter mustFilter = new StarTreeFilter(Map.of(
-            SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(0L))),
-            DV, List.of(new ExactMatchDimFilter(DV, List.of(0L)))
-        ));
+        StarTreeFilter mustFilter = new StarTreeFilter(
+            Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(0L))), DV, List.of(new ExactMatchDimFilter(DV, List.of(0L))))
+        );
         long starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, mustFilter, context, searchContext);
         long docCount = getDocCount(docs, Map.of(SNDV, 0L, DV, 0L));
         assertEquals(docCount, starTreeDocCount);
 
         // Test 'SHOULD' clause (same dimension)
-        StarTreeFilter shouldFilter = new StarTreeFilter(Map.of(
-            SNDV, Arrays.asList(
-                new ExactMatchDimFilter(SNDV, List.of(0L)),
-                new ExactMatchDimFilter(SNDV, List.of(1L))
-            )
-        ));
+        StarTreeFilter shouldFilter = new StarTreeFilter(
+            Map.of(SNDV, Arrays.asList(new ExactMatchDimFilter(SNDV, List.of(0L)), new ExactMatchDimFilter(SNDV, List.of(1L))))
+        );
         starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, shouldFilter, context, searchContext);
         docCount = getDocCount(docs, Map.of(SNDV, 0L)) + getDocCount(docs, Map.of(SNDV, 1L));
         assertEquals(docCount, starTreeDocCount);
