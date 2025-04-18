@@ -903,4 +903,48 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     private static WildcardFieldMapper toType(FieldMapper in) {
         return (WildcardFieldMapper) in;
     }
+
+    @Override
+    protected void canDeriveSourceInternal() {
+        if (this.ignoreAbove != Integer.MAX_VALUE || !Objects.equals(this.normalizerName, "default")) {
+            throw new UnsupportedOperationException(
+                "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
+            );
+        }
+        if (!mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [ " + name() + "] with docValues disabled");
+        }
+    }
+
+    /**
+     * 1. Doc values must be enabled to derive the source, later we can add explicit stored field in case of
+     *    derived source, so that we can always derive source
+     * <p>
+     * Support:
+     *    1. If "ignore_above" is set in the field mapping, then we won't be supporting derived source for now,
+     *       considering for these cases we will need to have explicit stored field.
+     *    2. If "normalizer" is set in the field mapping, then also we won't support derived source, as with
+     *       normalizer it is hard to regenerate original source
+     * <p>
+     * Considerations:
+     *    1. When using doc values, for multi value field, result would be deduplicated and in sorted order
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, new SortedSetDocValuesFetcher(mappedFieldType, simpleName()) {
+            @Override
+            public Object convert(Object value) {
+                if (value == null) {
+                    return null;
+                }
+                BytesRef binaryValue = (BytesRef) value;
+                return binaryValue.utf8ToString();
+            }
+        }, null) {
+            @Override
+            public FieldValueType getDerivedFieldPreference() {
+                return FieldValueType.DOC_VALUES;
+            }
+        };
+    }
 }
