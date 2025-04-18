@@ -60,6 +60,20 @@ public class RuleValidator {
         }
     }
 
+    public List<String> validateUpdatingRuleParams() {
+        List<String> errorMessages = new ArrayList<>();
+        if (isInvalidUpdatedValue(description)) {
+            errorMessages.add("Rule description can't be empty");
+        }
+        if (isInvalidUpdatedValue(featureValue)) {
+            errorMessages.add("Rule featureValue can't be empty");
+        }
+        if (attributeMap != null && !attributeMap.isEmpty()) {
+            validateAttributeMap();
+        }
+        return errorMessages;
+    }
+
     private List<String> validateStringFields() {
         List<String> errors = new ArrayList<>();
         if (isNullOrEmpty(description)) {
@@ -78,6 +92,10 @@ public class RuleValidator {
 
     private boolean isNullOrEmpty(String str) {
         return str == null || str.isEmpty();
+    }
+
+    private boolean isInvalidUpdatedValue(String str) {
+        return str != null && str.isEmpty();
     }
 
     private List<String> validateFeatureType() {
