@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased 3.x]
 ### Added
 - Add multi-threaded writer support in pull-based ingestion ([#17912](https://github.com/opensearch-project/OpenSearch/pull/17912))
+- Enabled Async Shard Batch Fetch by default ([#17987](https://github.com/opensearch-project/OpenSearch/pull/17987))
 
 ### Changed
 
