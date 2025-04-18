@@ -78,7 +78,7 @@ public abstract class FieldScript {
     private final LeafSearchLookup leafLookup;
 
     public FieldScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-        this.leafLookup = lookup.getLeafSearchLookup(leafContext);
+        this.leafLookup = lookup.getLeafSearchLookupWithCachedSourceLookup(leafContext);
         params = new HashMap<>(params);
         params.putAll(leafLookup.asMap());
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
