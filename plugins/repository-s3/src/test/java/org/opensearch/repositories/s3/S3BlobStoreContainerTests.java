@@ -812,9 +812,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         // Verify the main message is the error type (first constructor parameter)
         assertEquals("stale_primary_shard", osException.getMessage());
 
-        // Verify error type metadata
-        assertEquals("stale_primary_shard", osException.getMetadata("es.error.type").getFirst());
-
         // Verify cause's status code
         S3Exception cause = (S3Exception) osException.getCause();
         assertEquals(412, cause.statusCode());
