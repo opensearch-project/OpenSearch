@@ -1113,10 +1113,22 @@ final class DefaultSearchContext extends SearchContext {
         );
     }
 
+    /**
+     * Returns the target maximum slice count to use for concurrent segment search.
+     *
+     * If concurrent segment search is disabled (either due to system index, throttled search,
+     * missing executor, or explicitly disabled settings), then we return a slice count of 1.
+     * This effectively disables concurrent slicing and ensures that the search is performed
+     * in a single-threaded manner.
+     *
+     * Otherwise, fetch the configured slice count from index or cluster-level settings.
+     *
+     * @return number of slices to use for concurrent segment search; returns 1 if concurrent search is disabled.
+     */
     @Override
     public int getTargetMaxSliceCount() {
         if (shouldUseConcurrentSearch() == false) {
-            throw new IllegalStateException("Target slice count should not be used when concurrent search is disabled");
+            return 1; // Disable slicing: run search in a single thread when concurrent search is off
         }
 
         return indexService.getIndexSettings()
