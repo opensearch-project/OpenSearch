@@ -71,6 +71,7 @@ public class BulkRequestTests extends OpenSearchTestCase {
     public void testSimpleBulk1() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/opensearch/action/bulk/simple-bulk.json");
         BulkRequest bulkRequest = new BulkRequest();
+        assertNotNull(bulkRequest.getUuid());
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, MediaTypeRegistry.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
         assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));

@@ -52,6 +52,7 @@ import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -59,6 +60,7 @@ import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
@@ -68,19 +70,21 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.service.ReportingService;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -98,6 +102,11 @@ import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 
+import reactor.util.annotation.NonNull;
+
+import static org.opensearch.plugins.IngestPlugin.SystemIngestPipelineConfigKeys.INDEX_MAPPINGS;
+import static org.opensearch.plugins.IngestPlugin.SystemIngestPipelineConfigKeys.INDEX_TEMPLATE_MAPPINGS;
+
 /**
  * Holder class for several ingest related services.
  *
@@ -111,7 +120,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private static final int MAX_PIPELINE_ID_BYTES = 512;
 
     /**
-     * Defines the limit for the number of processors which can run on a given document during ingestion.
+     * Defines the limit for the number of processors an ingest pipeline can have.
      */
     public static final Setting<Integer> MAX_NUMBER_OF_INGEST_PROCESSORS = Setting.intSetting(
         "cluster.ingest.max_number_processors",
@@ -127,6 +136,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final Map<String, Processor.Factory> processorFactories;
+    private Map<String, Processor.Factory> systemIngestProcessorFactories = null;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
     // processor factories rely on other node services. Custom metadata is statically registered when classes
@@ -139,6 +149,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final ClusterManagerTaskThrottler.ThrottlingKey deletePipelineTaskKey;
     private volatile ClusterState state;
     private volatile int maxIngestProcessorCount;
+    private final SystemIngestPipelineCache systemIngestPipelineCache;
+    private final NamedXContentRegistry xContentRegistry;
 
     public IngestService(
         ClusterService clusterService,
@@ -148,27 +160,29 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         AnalysisRegistry analysisRegistry,
         List<IngestPlugin> ingestPlugins,
         Client client,
-        IndicesService indicesService
+        IndicesService indicesService,
+        NamedXContentRegistry xContentRegistry,
+        SystemIngestPipelineCache systemIngestPipelineCache
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
-        this.processorFactories = processorFactories(
-            ingestPlugins,
-            new Processor.Parameters(
-                env,
-                scriptService,
-                analysisRegistry,
-                threadPool.getThreadContext(),
-                threadPool::relativeTimeInMillis,
-                (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC),
-                this,
-                client,
-                threadPool.generic()::execute,
-                indicesService
-            )
+        this.xContentRegistry = xContentRegistry;
+        final Processor.Parameters processorParameters = new Processor.Parameters(
+            env,
+            scriptService,
+            analysisRegistry,
+            threadPool.getThreadContext(),
+            threadPool::relativeTimeInMillis,
+            (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC),
+            this,
+            client,
+            threadPool.generic()::execute,
+            indicesService
         );
+        this.processorFactories = processorFactories(ingestPlugins, processorParameters);
+        this.systemIngestProcessorFactories = systemProcessorFactories(ingestPlugins, processorParameters);
+        this.systemIngestPipelineCache = systemIngestPipelineCache;
         this.threadPool = threadPool;
-
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_PIPELINE_KEY, true);
         deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_PIPELINE_KEY, true);
@@ -193,48 +207,86 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return Collections.unmodifiableMap(processorFactories);
     }
 
-    public static boolean resolvePipelines(
+    private static Map<String, Processor.Factory> systemProcessorFactories(
+        List<IngestPlugin> ingestPlugins,
+        Processor.Parameters parameters
+    ) {
+        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        for (IngestPlugin ingestPlugin : ingestPlugins) {
+            Map<String, Processor.Factory> newProcessors = ingestPlugin.getSystemIngestProcessors(parameters);
+            for (Map.Entry<String, Processor.Factory> entry : newProcessors.entrySet()) {
+                Processor.Factory processorFactory = entry.getValue();
+                if (processorFactory.isSystemGenerated() == false) {
+                    throw new RuntimeException("[" + entry.getKey() + "] is not a system generated processor.");
+                }
+                if (processorFactories.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new RuntimeException("System ingest processor [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+        return Collections.unmodifiableMap(processorFactories);
+    }
+
+    /**
+     * Resolve the system ingest pipeline for the index request
+     *
+     * @param originalRequest
+     * @param indexRequest
+     * @param metadata
+     */
+    private String resolveSystemIngestPipeline(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata metadata
     ) {
+        String systemIngestPipelineId = null;
+        final IndexMetadata indexMetadata = getIndexMetadata(originalRequest, indexRequest, metadata);
+        if (indexMetadata != null) {
+            systemIngestPipelineId = getSystemIngestPipelineForExistingIndex(indexMetadata, indexRequest);
+        } else if (indexRequest.index() != null) {
+            // the index does not exist yet (and this is a valid request), so match index
+            // templates to look for pipelines in either a matching V2 template (which takes
+            // precedence), or if a V2 template does not match, any V1 templates
+            String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
+            if (v2Template != null) {
+                systemIngestPipelineId = getSystemIngestPipelineForTemplateV2(v2Template, indexRequest);
+            } else {
+                List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(metadata, indexRequest.index(), null);
+                systemIngestPipelineId = getSystemIngestPipelineForTemplateV1(templates, indexRequest);
+            }
+        }
+        indexRequest.setSystemIngestPipeline(systemIngestPipelineId != null ? systemIngestPipelineId : NOOP_PIPELINE_NAME);
+        return systemIngestPipelineId;
+    }
+
+    /**
+     * Resolve the ingest pipeline, final ingest pipeline and system ingest pipeline for the request.
+     * @param originalRequest
+     * @param indexRequest
+     * @param metadata
+     * @return If the index request has an ingest pipeline or not.
+     */
+    public boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest, final Metadata metadata) {
         if (indexRequest.isPipelineResolved() == false) {
             final String requestPipeline = indexRequest.getPipeline();
-            indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-            indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
+
             String defaultPipeline = null;
             String finalPipeline = null;
-            IndexMetadata indexMetadata = null;
-            // start to look for default or final pipelines via settings found in the index meta data
-            if (originalRequest != null) {
-                indexMetadata = metadata.indices().get(originalRequest.index());
-            }
-            // check the alias for the index request (this is how normal index requests are modeled)
-            if (indexMetadata == null && indexRequest.index() != null) {
-                IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexRequest.index());
-                if (indexAbstraction != null) {
-                    indexMetadata = indexAbstraction.getWriteIndex();
-                }
-            }
-            // check the alias for the action request (this is how upserts are modeled)
-            if (indexMetadata == null && originalRequest != null && originalRequest.index() != null) {
-                IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(originalRequest.index());
-                if (indexAbstraction != null) {
-                    indexMetadata = indexAbstraction.getWriteIndex();
-                }
-            }
+            String systemIngestPipelineId = null;
+
+            final IndexMetadata indexMetadata = getIndexMetadata(originalRequest, indexRequest, metadata);
+
             if (indexMetadata != null) {
                 final Settings indexSettings = indexMetadata.getSettings();
                 if (IndexSettings.DEFAULT_PIPELINE.exists(indexSettings)) {
                     // find the default pipeline if one is defined from an existing index setting
                     defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexSettings);
-                    indexRequest.setPipeline(defaultPipeline);
                 }
                 if (IndexSettings.FINAL_PIPELINE.exists(indexSettings)) {
                     // find the final pipeline if one is defined from an existing index setting
                     finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexSettings);
-                    indexRequest.setFinalPipeline(finalPipeline);
                 }
+                systemIngestPipelineId = getSystemIngestPipelineForExistingIndex(indexMetadata, indexRequest);
             } else if (indexRequest.index() != null) {
                 // the index does not exist yet (and this is a valid request), so match index
                 // templates to look for pipelines in either a matching V2 template (which takes
@@ -244,14 +296,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
                     if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
                         defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
-                        // we can not break in case a lower-order template has a final pipeline that we need to collect
                     }
                     if (IndexSettings.FINAL_PIPELINE.exists(settings)) {
                         finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
-                        // we can not break in case a lower-order template has a default pipeline that we need to collect
                     }
-                    indexRequest.setPipeline(defaultPipeline != null ? defaultPipeline : NOOP_PIPELINE_NAME);
-                    indexRequest.setFinalPipeline(finalPipeline != null ? finalPipeline : NOOP_PIPELINE_NAME);
+                    systemIngestPipelineId = getSystemIngestPipelineForTemplateV2(v2Template, indexRequest);
                 } else {
                     List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(
                         metadata,
@@ -274,10 +323,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             break;
                         }
                     }
-                    indexRequest.setPipeline(defaultPipeline != null ? defaultPipeline : NOOP_PIPELINE_NAME);
-                    indexRequest.setFinalPipeline(finalPipeline != null ? finalPipeline : NOOP_PIPELINE_NAME);
+                    systemIngestPipelineId = getSystemIngestPipelineForTemplateV1(templates, indexRequest);
                 }
             }
+
+            indexRequest.setPipeline(defaultPipeline != null ? defaultPipeline : NOOP_PIPELINE_NAME);
+            indexRequest.setFinalPipeline(finalPipeline != null ? finalPipeline : NOOP_PIPELINE_NAME);
+            indexRequest.setSystemIngestPipeline(systemIngestPipelineId != null ? systemIngestPipelineId : NOOP_PIPELINE_NAME);
 
             if (requestPipeline != null) {
                 indexRequest.setPipeline(requestPipeline);
@@ -298,7 +350,135 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         // return whether this index request has a pipeline
         return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
-            || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
+            || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false
+            || NOOP_PIPELINE_NAME.equals(indexRequest.getSystemIngestPipeline()) == false;
+    }
+
+    private IndexMetadata getIndexMetadata(DocWriteRequest<?> originalRequest, IndexRequest indexRequest, Metadata metadata) {
+        IndexMetadata indexMetadata = null;
+        // start to look for default or final pipelines via settings found in the index meta data
+        if (originalRequest != null) {
+            indexMetadata = metadata.indices().get(originalRequest.index());
+        }
+        // check the alias for the index request (this is how normal index requests are modeled)
+        if (indexMetadata == null && indexRequest.index() != null) {
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexRequest.index());
+            if (indexAbstraction != null) {
+                indexMetadata = indexAbstraction.getWriteIndex();
+            }
+        }
+        // check the alias for the action request (this is how upserts are modeled)
+        if (indexMetadata == null && originalRequest != null && originalRequest.index() != null) {
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(originalRequest.index());
+            if (indexAbstraction != null) {
+                indexMetadata = indexAbstraction.getWriteIndex();
+            }
+        }
+        return indexMetadata;
+    }
+
+    private String getSystemIngestPipelineForTemplateV1(
+        @NonNull final List<IndexTemplateMetadata> templates,
+        @NonNull final IndexRequest indexRequest
+    ) {
+        // Template mappings are tricky to track for changes, and we only need to resolve the pipeline
+        // the first time a document targets a non-existent index that matches a template.
+        // Instead of caching per index (which risks staleness if templates change),
+        // we cache per index + bulk request UUID. This allows pipeline reuse within a single bulk request
+        // without worrying about template changes or cache invalidation.
+        final String indexId = "[" + indexRequest.index() + "/" + indexRequest.getBulkUuid() + "]";
+        Pipeline ingestPipeline = systemIngestPipelineCache.getSystemIngestPipeline(indexId);
+        if (ingestPipeline == null) {
+            final List<Map<String, Object>> mappingsMap = new ArrayList<>();
+            final Map<String, Object> pipelineConfig = new HashMap<>();
+            for (final IndexTemplateMetadata template : templates) {
+                if (template.mappings() != null) {
+                    try {
+                        mappingsMap.add(MapperService.parseMapping(xContentRegistry, template.mappings().string()));
+                    } catch (IOException e) {
+                        throw new RuntimeException(
+                            "Failed to resolve system ingest pipeline due to failed to parse the mappings ["
+                                + template.mappings().string()
+                                + "] of the index template: "
+                                + template.name(),
+                            e
+                        );
+                    }
+
+                }
+            }
+
+            pipelineConfig.put(INDEX_TEMPLATE_MAPPINGS, mappingsMap);
+            ingestPipeline = createSystemIngestPipeline(indexId, pipelineConfig);
+        }
+
+        // we can get an empty pipeline from the cache
+        // we only set the pipeline in request when there is a processor
+        return ingestPipeline.getProcessors().isEmpty() ? null : indexId;
+    }
+
+    private String getSystemIngestPipelineForTemplateV2(@NonNull final String templateName, @NonNull final IndexRequest indexRequest) {
+        // Template mappings are tricky to track for changes, and we only need to resolve the pipeline
+        // the first time a document targets a non-existent index that matches a template.
+        // Instead of caching per index (which risks staleness if templates change),
+        // we cache per index + bulk request UUID. This allows pipeline reuse within a single bulk request
+        // without worrying about template changes or cache invalidation.
+        final String indexId = "[" + indexRequest.index() + "/" + indexRequest.getBulkUuid() + "]";
+        Pipeline ingestPipeline = systemIngestPipelineCache.getSystemIngestPipeline(indexId);
+        if (ingestPipeline == null) {
+            final List<Map<String, Object>> mappingsMap = new ArrayList<>();
+            final Map<String, Object> pipelineConfig = new HashMap<>();
+            final List<CompressedXContent> mappings;
+            try {
+                mappings = MetadataIndexTemplateService.collectMappings(state, templateName, indexRequest.index());
+            } catch (Exception e) {
+                throw new RuntimeException(
+                    "Failed to resolve system ingest pipeline due to not able to collect mappings for template: "
+                        + templateName
+                        + ". Root cause: "
+                        + e.getMessage(),
+                    e
+                );
+            }
+
+            for (final CompressedXContent mapping : mappings) {
+                try {
+                    mappingsMap.add(MapperService.parseMapping(xContentRegistry, mapping.string()));
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to parse the mappings [" + mapping + "] of the index template: " + templateName, e);
+                }
+            }
+
+            pipelineConfig.put(INDEX_TEMPLATE_MAPPINGS, mappingsMap);
+            ingestPipeline = createSystemIngestPipeline(indexId, pipelineConfig);
+        }
+
+        // we can get an empty pipeline from the cache
+        // we only set the pipeline in request when there is a processor
+        return ingestPipeline.getProcessors().isEmpty() ? null : indexId;
+    }
+
+    private Pipeline createSystemIngestPipeline(@NonNull final String indexId, @NonNull final Map<String, Object> pipelineConfig) {
+        final Pipeline pipeline = Pipeline.createSystemIngestPipeline(indexId, systemIngestProcessorFactories, pipelineConfig);
+        systemIngestPipelineCache.cachePipeline(indexId, pipeline, maxIngestProcessorCount);
+        return pipeline;
+    }
+
+    private String getSystemIngestPipelineForExistingIndex(@NonNull final IndexMetadata indexMetadata, IndexRequest indexRequest) {
+        final String indexId = indexMetadata.getIndex().toString();
+        Pipeline ingestPipeline = systemIngestPipelineCache.getSystemIngestPipeline(indexId);
+        if (ingestPipeline == null) {
+            // no cache we will try to resolve the ingest pipeline based on the index configuration
+            final MappingMetadata mappingMetadata = indexMetadata.mapping();
+            final Map<String, Object> pipelineConfig = new HashMap<>();
+            if (mappingMetadata != null) {
+                pipelineConfig.put(INDEX_MAPPINGS, mappingMetadata.getSourceAsMap());
+            }
+            ingestPipeline = createSystemIngestPipeline(indexId, pipelineConfig);
+        }
+        // we can get an empty pipeline from the cache
+        // we only set the pipeline in request when there is a processor
+        return ingestPipeline.getProcessors().isEmpty() ? null : indexId;
     }
 
     public ClusterService getClusterService() {
@@ -448,6 +628,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public Map<String, Processor.Factory> getProcessorFactories() {
         return processorFactories;
+    }
+
+    public Map<String, Processor.Factory> getSystemProcessorFactories() {
+        return systemIngestProcessorFactories;
+    }
+
+    public SystemIngestPipelineCache getSystemIngestPipelineCache() {
+        return systemIngestPipelineCache;
     }
 
     @Override
@@ -605,30 +793,37 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 continue;
             }
 
+            // need to set pipeline of the request as NOOP_PIPELINE_NAME so that when we switch back to the write thread
+            // and invoke doInternalExecute of the TransportBulkAction we will not execute the pipeline again.
             final String pipelineId = indexRequest.getPipeline();
             indexRequest.setPipeline(NOOP_PIPELINE_NAME);
             final String finalPipelineId = indexRequest.getFinalPipeline();
             indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
-            boolean hasFinalPipeline = true;
-            final List<String> pipelines;
-            if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
-                && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                pipelines = Arrays.asList(pipelineId, finalPipelineId);
-            } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
-                pipelines = Collections.singletonList(pipelineId);
-                hasFinalPipeline = false;
-            } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
-                pipelines = Collections.singletonList(finalPipelineId);
-            } else {
+            final String systemPipelineId = indexRequest.getSystemIngestPipeline();
+            indexRequest.setSystemIngestPipeline(NOOP_PIPELINE_NAME);
+
+            List<IngestPipelineInfo> pipelinesInfoList = new ArrayList<>();
+
+            if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
+                pipelinesInfoList.add(new IngestPipelineInfo(pipelineId, IngestPipelineType.DEFAULT));
+            }
+            if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                pipelinesInfoList.add(new IngestPipelineInfo(finalPipelineId, IngestPipelineType.FINAL));
+            }
+
+            if (IngestService.NOOP_PIPELINE_NAME.equals(systemPipelineId) == false) {
+                pipelinesInfoList.add(new IngestPipelineInfo(systemPipelineId, IngestPipelineType.SYSTEM_FINAL));
+            }
+
+            if (pipelinesInfoList.isEmpty()) {
                 if (counter.decrementAndGet() == 0) {
                     onCompletion.accept(originalThread, null);
                 }
                 assert counter.get() >= 0;
-                i++;
-                continue;
+            } else {
+                indexRequestWrappers.add(new IndexRequestWrapper(i, indexRequest, actionRequest, pipelinesInfoList));
             }
 
-            indexRequestWrappers.add(new IndexRequestWrapper(i, indexRequest, pipelines, hasFinalPipeline));
             i++;
         }
 
@@ -639,9 +834,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         for (List<IndexRequestWrapper> batch : batches) {
             executePipelinesInBatchRequests(
                 batch.stream().map(IndexRequestWrapper::getSlot).collect(Collectors.toList()),
-                batch.get(0).getPipelines().iterator(),
-                batch.get(0).isHasFinalPipeline(),
+                batch.get(0).getIngestPipelineInfoList().iterator(),
                 batch.stream().map(IndexRequestWrapper::getIndexRequest).collect(Collectors.toList()),
+                batch.stream().map(IndexRequestWrapper::getActionRequest).collect(Collectors.toList()),
                 onDropped,
                 onFailure,
                 counter,
@@ -666,12 +861,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     static List<List<IndexRequestWrapper>> prepareBatches(int batchSize, List<IndexRequestWrapper> indexRequestWrappers) {
         final Map<Integer, List<IndexRequestWrapper>> indexRequestsPerIndexAndPipelines = new HashMap<>();
         for (IndexRequestWrapper indexRequestWrapper : indexRequestWrappers) {
-            // IndexRequests are grouped by their index + pipeline ids
+            // IndexRequests are grouped by their index + pipeline ids + pipeline type
             List<String> indexAndPipelineIds = new ArrayList<>();
             String index = indexRequestWrapper.getIndexRequest().index();
-            List<String> pipelines = indexRequestWrapper.getPipelines();
+            List<String> pipelineInfo = indexRequestWrapper.getIngestPipelineInfoList()
+                .stream()
+                .map((IngestPipelineInfo::toString))
+                .toList();
             indexAndPipelineIds.add(index);
-            indexAndPipelineIds.addAll(pipelines);
+            indexAndPipelineIds.addAll(pipelineInfo);
             int hashCode = indexAndPipelineIds.hashCode();
             indexRequestsPerIndexAndPipelines.putIfAbsent(hashCode, new ArrayList<>());
             indexRequestsPerIndexAndPipelines.get(hashCode).add(indexRequestWrapper);
@@ -689,42 +887,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return batchedIndexRequests;
     }
 
-    /* visible for testing */
-    static final class IndexRequestWrapper {
-        private final int slot;
-        private final IndexRequest indexRequest;
-        private final List<String> pipelines;
-        private final boolean hasFinalPipeline;
-
-        IndexRequestWrapper(int slot, IndexRequest indexRequest, List<String> pipelines, boolean hasFinalPipeline) {
-            this.slot = slot;
-            this.indexRequest = indexRequest;
-            this.pipelines = pipelines;
-            this.hasFinalPipeline = hasFinalPipeline;
-        }
-
-        public int getSlot() {
-            return slot;
-        }
-
-        public IndexRequest getIndexRequest() {
-            return indexRequest;
-        }
-
-        public List<String> getPipelines() {
-            return pipelines;
-        }
-
-        public boolean isHasFinalPipeline() {
-            return hasFinalPipeline;
-        }
-    }
-
     private void executePipelinesInBatchRequests(
         final List<Integer> slots,
-        final Iterator<String> pipelineIterator,
-        final boolean hasFinalPipeline,
+        final Iterator<IngestPipelineInfo> it,
         final List<IndexRequest> indexRequests,
+        final List<DocWriteRequest<?>> actionRequests,
         final IntConsumer onDropped,
         final BiConsumer<Integer, Exception> onFailure,
         final AtomicInteger counter,
@@ -734,9 +901,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (indexRequests.size() == 1) {
             executePipelines(
                 slots.get(0),
-                pipelineIterator,
-                hasFinalPipeline,
+                it,
                 indexRequests.get(0),
+                actionRequests.get(0),
                 onDropped,
                 onFailure,
                 counter,
@@ -745,14 +912,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             );
             return;
         }
-        while (pipelineIterator.hasNext()) {
-            final String pipelineId = pipelineIterator.next();
+        while (it.hasNext()) {
+            final IngestPipelineInfo pipelineInfo = it.next();
+            final String pipelineId = pipelineInfo.getPipelineId();
+            final IngestPipelineType pipelineInfoType = pipelineInfo.getType();
             try {
-                PipelineHolder holder = pipelines.get(pipelineId);
-                if (holder == null) {
-                    throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+                // we will rely on the target index of the actionRequests and indexRequests to resolve the system
+                // pipeline for the request if the previously resolved one is invalidated. Since we group requests by
+                // the target index so we can simply use the first request.
+                final Pipeline pipeline = getPipeline(pipelineId, pipelineInfoType, actionRequests.get(0), indexRequests.get(0));
+
+                if (pipeline == null) {
+                    // in a valid null case if this is the last pipeline we should complete the execution
+                    if (it.hasNext() == false) {
+                        completeExecution(counter, onCompletion, originalThread, indexRequests.size());
+                    }
+                    // do not execute the pipeline since it is a valid null
+                    continue;
                 }
-                Pipeline pipeline = holder.pipeline;
+
                 String originalIndex = indexRequests.get(0).indices()[0];
                 Map<Integer, IndexRequest> slotIndexRequestMap = createSlotIndexRequestMap(slots, indexRequests);
                 innerBatchExecute(slots, indexRequests, pipeline, onDropped, results -> {
@@ -772,43 +950,67 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
                     }
 
-                    Iterator<String> newPipelineIterator = pipelineIterator;
-                    boolean newHasFinalPipeline = hasFinalPipeline;
-                    // indexRequests are grouped for the same index and same pipelines
-                    String newIndex = indexRequests.get(0).indices()[0];
+                    // indexRequests are grouped for the same index and same pipelines, but we can conditionally change
+                    // the target index so need to check each request
+                    boolean hasTargetIndexChanged = false;
+                    boolean hasInvalidTargetIndexChange = false;
+                    final List<IndexRequest> indexRequestsTargetIndexUnchanged = new ArrayList<>();
+                    final List<DocWriteRequest<?>> actionRequestsTargetIndexUnchanged = new ArrayList<>();
 
-                    // handle index change case
-                    if (Objects.equals(originalIndex, newIndex) == false) {
-                        if (hasFinalPipeline && pipelineIterator.hasNext() == false) {
-                            totalMetrics.failed();
-                            for (int slot : slots) {
+                    for (int i = 0; i < indexRequests.size(); ++i) {
+                        final IndexRequest indexRequest = indexRequests.get(i);
+                        if (Objects.equals(originalIndex, indexRequest.indices()[0]) == false) {
+                            hasTargetIndexChanged = true;
+                            if (IngestPipelineType.FINAL.equals(pipelineInfoType)
+                                || IngestPipelineType.SYSTEM_FINAL.equals(pipelineInfoType)) {
+                                // invalid target index change we should fail the doc
+                                hasInvalidTargetIndexChange = true;
                                 onFailure.accept(
-                                    slot,
-                                    new IllegalStateException("final pipeline [" + pipelineId + "] can't change the target index")
+                                    i,
+                                    new IllegalStateException(
+                                        pipelineInfoType + " pipeline [" + pipelineId + "] can't change the target index"
+                                    )
                                 );
+                            } else {
+                                resetPipeline(indexRequest);
                             }
                         } else {
-                            // Drain old it so it's not looped over
-                            pipelineIterator.forEachRemaining($ -> {});
-                            for (IndexRequest indexRequest : indexRequests) {
-                                indexRequest.isPipelineResolved(false);
-                                resolvePipelines(null, indexRequest, state.metadata());
-                                if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
-                                    newPipelineIterator = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
-                                    newHasFinalPipeline = true;
-                                } else {
-                                    newPipelineIterator = Collections.emptyIterator();
-                                }
-                            }
+                            indexRequestsTargetIndexUnchanged.add(indexRequest);
+                            actionRequestsTargetIndexUnchanged.add(actionRequests.get(i));
                         }
                     }
 
-                    if (newPipelineIterator.hasNext()) {
+                    // handle index change case
+                    if (hasTargetIndexChanged == true) {
+                        if (hasInvalidTargetIndexChange == true) {
+                            totalMetrics.failed();
+                        }
+                        if (indexRequestsTargetIndexUnchanged.isEmpty()) {
+                            // Drain old it so it's not looped over. We will re-process the pipelines of the request with
+                            // the new target index in TransportBulkAction.
+                            it.forEachRemaining($ -> {});
+                        }
+
+                        if (it.hasNext() == true) {
+                            // Since the requests with new target index will be processed in the next round we should
+                            // update the counter before we continue to execute the next pipeline for the requests with
+                            // target index unchanged.
+                            if (counter.addAndGet(-(indexRequests.size() - indexRequestsTargetIndexUnchanged.size())) == 0) {
+                                onCompletion.accept(originalThread, null);
+                                // If no more request with target index unchanged we should end here so that we don't
+                                // try to execute the next pipeline with an empty list of the requests.
+                                return;
+                            }
+                            assert counter.get() >= 0;
+                        }
+                    }
+
+                    if (it.hasNext()) {
                         executePipelinesInBatchRequests(
                             slots,
-                            newPipelineIterator,
-                            newHasFinalPipeline,
-                            indexRequests,
+                            it,
+                            indexRequestsTargetIndexUnchanged,
+                            actionRequestsTargetIndexUnchanged,
                             onDropped,
                             onFailure,
                             counter,
@@ -816,10 +1018,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             originalThread
                         );
                     } else {
-                        if (counter.addAndGet(-results.size()) == 0) {
-                            onCompletion.accept(originalThread, null);
-                        }
-                        assert counter.get() >= 0;
+                        completeExecution(counter, onCompletion, originalThread, results.size());
                     }
                 });
             } catch (Exception e) {
@@ -853,9 +1052,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private void executePipelines(
         final int slot,
-        final Iterator<String> it,
-        final boolean hasFinalPipeline,
+        final Iterator<IngestPipelineInfo> it,
         final IndexRequest indexRequest,
+        final DocWriteRequest<?> actionRequest,
         final IntConsumer onDropped,
         final BiConsumer<Integer, Exception> onFailure,
         final AtomicInteger counter,
@@ -863,13 +1062,21 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Thread originalThread
     ) {
         while (it.hasNext()) {
-            final String pipelineId = it.next();
+            final IngestPipelineInfo pipelineInfo = it.next();
+            final String pipelineId = pipelineInfo.getPipelineId();
             try {
-                PipelineHolder holder = pipelines.get(pipelineId);
-                if (holder == null) {
-                    throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+                final IngestPipelineType pipelineType = pipelineInfo.getType();
+                final Pipeline pipeline = getPipeline(pipelineId, pipelineType, actionRequest, indexRequest);
+
+                if (pipeline == null) {
+                    // in a valid null case if this is the last pipeline we should complete the execution
+                    if (it.hasNext() == false) {
+                        completeExecution(counter, onCompletion, originalThread, 1);
+                    }
+                    // do not execute the pipeline since it is a valid null
+                    continue;
                 }
-                Pipeline pipeline = holder.pipeline;
+
                 String originalIndex = indexRequest.indices()[0];
                 innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
                     if (e != null) {
@@ -885,38 +1092,29 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         onFailure.accept(slot, e);
                     }
 
-                    Iterator<String> newIt = it;
-                    boolean newHasFinalPipeline = hasFinalPipeline;
                     String newIndex = indexRequest.indices()[0];
 
                     if (Objects.equals(originalIndex, newIndex) == false) {
-                        if (hasFinalPipeline && it.hasNext() == false) {
+                        if (IngestPipelineType.FINAL.equals(pipelineType) || IngestPipelineType.SYSTEM_FINAL.equals(pipelineType)) {
                             totalMetrics.failed();
                             onFailure.accept(
                                 slot,
-                                new IllegalStateException("final pipeline [" + pipelineId + "] can't change the target index")
+                                new IllegalStateException(pipelineType + " pipeline [" + pipelineId + "] can't change the target index")
                             );
                         } else {
-
-                            // Drain old it so it's not looped over
-                            it.forEachRemaining($ -> {});
-                            indexRequest.isPipelineResolved(false);
-                            resolvePipelines(null, indexRequest, state.metadata());
-                            if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
-                                newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
-                                newHasFinalPipeline = true;
-                            } else {
-                                newIt = Collections.emptyIterator();
-                            }
+                            resetPipeline(indexRequest);
                         }
-                    }
 
-                    if (newIt.hasNext()) {
+                        // Drain old it so it's not looped over. We will re-process the pipelines of the request with
+                        // the new target index in TransportBulkAction.
+                        it.forEachRemaining($ -> {});
+                    }
+                    if (it.hasNext()) {
                         executePipelines(
                             slot,
-                            newIt,
-                            newHasFinalPipeline,
+                            it,
                             indexRequest,
+                            actionRequest,
                             onDropped,
                             onFailure,
                             counter,
@@ -924,10 +1122,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             originalThread
                         );
                     } else {
-                        if (counter.decrementAndGet() == 0) {
-                            onCompletion.accept(originalThread, null);
-                        }
-                        assert counter.get() >= 0;
+                        completeExecution(counter, onCompletion, originalThread, 1);
                     }
                 });
             } catch (Exception e) {
@@ -948,6 +1143,64 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 break;
             }
         }
+    }
+
+    /**
+     * In this function we will reset the pipeline for the index request to make it like the pipeline not resolved.
+     * So that when we switch back to the write thread the transport bulk action can re-process it with the new target
+     * index.
+     * We will not execute the default pipeline of the new target index so we don't reset it as null and keep it as
+     * _none. So in re-process it will be treated as the no-op. We are not sure if this is the ideal behavior, but it is
+     * the existing behavior and can avoid infinite index re-route so we decide to keep this behavior.
+     * @param indexRequest An index request.
+     */
+    private void resetPipeline(IndexRequest indexRequest) {
+        indexRequest.isPipelineResolved(false);
+        indexRequest.setFinalPipeline(null);
+        indexRequest.setSystemIngestPipeline(null);
+    }
+
+    private Pipeline getPipeline(
+        String pipelineId,
+        IngestPipelineType pipelineType,
+        DocWriteRequest<?> actionRequest,
+        IndexRequest indexRequest
+    ) {
+        final PipelineHolder holder = pipelines.get(pipelineId);
+        if (IngestPipelineType.SYSTEM_FINAL.equals(pipelineType)) {
+            Pipeline indexPipeline = systemIngestPipelineCache.getSystemIngestPipeline(pipelineId);
+            // In very edge case it is possible the cache is invalidated after we resolve the
+            // pipeline. So try to resolve the system ingest pipeline again here.
+            if (indexPipeline == null) {
+                final String newPipelineId = resolveSystemIngestPipeline(actionRequest, indexRequest, state.metadata());
+                // set it as NOOP to avoid duplicated execution after we switch back to the write thread
+                indexRequest.setSystemIngestPipeline(NOOP_PIPELINE_NAME);
+                indexPipeline = systemIngestPipelineCache.getSystemIngestPipeline(newPipelineId);
+            }
+
+            return indexPipeline;
+        } else {
+            return getPipelineFromHolder(holder, pipelineId);
+        }
+    }
+
+    private void completeExecution(
+        @NonNull final AtomicInteger counter,
+        @NonNull final BiConsumer<Thread, Exception> onCompletion,
+        @NonNull final Thread originalThread,
+        final int completedRequestSize
+    ) {
+        if (counter.addAndGet(-completedRequestSize) == 0) {
+            onCompletion.accept(originalThread, null);
+        }
+        assert counter.get() >= 0;
+    }
+
+    private Pipeline getPipelineFromHolder(final PipelineHolder holder, @NonNull final String pipelineId) {
+        if (holder == null) {
+            throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+        }
+        return holder.pipeline;
     }
 
     public IngestStats stats() {
@@ -1103,6 +1356,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     @Override
     public void applyClusterState(final ClusterChangedEvent event) {
+        invalidateSystemIngestPipeline(event);
         state = event.state();
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
@@ -1123,6 +1377,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             innerUpdatePipelines(newIngestMetadata);
         } catch (OpenSearchParseException e) {
             logger.warn("failed to update ingest pipelines", e);
+        }
+    }
+
+    private void invalidateSystemIngestPipeline(@NonNull final ClusterChangedEvent event) {
+        final Map<String, IndexMetadata> currentIndices = event.state().metadata().indices();
+        final Map<String, IndexMetadata> previousIndices = event.previousState().metadata().indices();
+        for (Map.Entry<String, IndexMetadata> entry : previousIndices.entrySet()) {
+            final String indexName = entry.getKey();
+            final IndexMetadata previousIndexMetadata = entry.getValue();
+            assert previousIndexMetadata != null : "IndexMetadata in the previous state metadata indices should not be null.";
+            final IndexMetadata currentIndexMetadata = currentIndices.get(indexName);
+            if (currentIndexMetadata == null || ClusterChangedEvent.indexMetadataChanged(previousIndexMetadata, currentIndexMetadata)) {
+                systemIngestPipelineCache.invalidateCacheForIndex(previousIndexMetadata.getIndex().toString());
+            }
         }
     }
 
