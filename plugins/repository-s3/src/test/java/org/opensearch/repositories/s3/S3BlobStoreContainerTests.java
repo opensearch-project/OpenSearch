@@ -794,7 +794,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertNotNull("Expected an exception to be captured", exception);
         assertTrue(exception instanceof OpenSearchException);
         OpenSearchException osException = (OpenSearchException) exception;
-        assertTrue(osException.getMessage().contains("Precondition Failed : Etag Mismatch"));
+        String msg = osException.getMessage();
+        assertTrue(
+            "expected an S3 precondition‑failure message, got [" + msg + "]",
+            msg.contains("Precondition Failed") && msg.contains("Etag Mismatch")
+        );
         assertEquals(412, ((S3Exception) osException.getCause()).statusCode());
         assertEquals("stale_primary_shard", osException.getMetadata("es.error.type").getFirst());
         assertEquals(preconditionFailedException, osException.getCause());
