@@ -36,6 +36,17 @@ setup:
         body: { "number" : 1.53 }
 
   - do:
+      index:
+        index: test
+        id: 5
+        body: { "number": "92233720368547750" }
+  - do:
+      index:
+        index: test
+        id: 6
+        body: { "number": 92233720368547750 }
+
+  - do:
       indices.refresh: {}
 
 ---
@@ -46,9 +57,9 @@ setup:
         rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "my_terms" : { "terms" : { "field" : "number" } } } }
 
-  - match: { hits.total: 4 }
+  - match: { hits.total: 6 }
 
-  - length: { aggregations.my_terms.buckets: 3 }
+  - length: { aggregations.my_terms.buckets: 4 }
 
   - match: { aggregations.my_terms.buckets.0.key: 1.53 }
 
@@ -56,17 +67,17 @@ setup:
 
   - match: { aggregations.my_terms.buckets.0.doc_count: 2 }
 
-  - match: { aggregations.my_terms.buckets.1.key: -2.1 }
-
-  - is_false: aggregations.my_terms.buckets.1.key_as_string
-
-  - match: { aggregations.my_terms.buckets.1.doc_count: 1 }
-
-  - match: { aggregations.my_terms.buckets.2.key: 1 }
+  - match: { aggregations.my_terms.buckets.2.key: -2.1 }
 
   - is_false: aggregations.my_terms.buckets.2.key_as_string
 
   - match: { aggregations.my_terms.buckets.2.doc_count: 1 }
+
+  - match: { aggregations.my_terms.buckets.3.key: 1 }
+
+  - is_false: aggregations.my_terms.buckets.3.key_as_string
+
+  - match: { aggregations.my_terms.buckets.3.doc_count: 1 }
 
 ---
 "Search":
@@ -76,14 +87,14 @@ setup:
         rest_total_hits_as_int: true
         body: { "size" : 0, "query" : { "range" : { "number" : { "gte" : -2 } } } }
 
-  - match: { hits.total: 3 }
+  - match: { hits.total: 5 }
 
   - do:
       search:
         rest_total_hits_as_int: true
         body: { "size" : 0, "query" : { "range" : { "number" : { "gte" : 0 } } } }
 
-  - match: { hits.total: 3 }
+  - match: { hits.total: 5 }
 
   - do:
       search:
@@ -91,6 +102,40 @@ setup:
         body: { "size" : 0, "query" : { "range" : { "number" : { "lt" : 1.5 } } } }
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        index: test
+        body: {
+          "query": {
+            "term": {
+              "number": "92233720368547750"
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.0._source.number: "92233720368547750" }
+  - match: { hits.hits.1._id: "6" }
+  - match: { hits.hits.1._source.number: 92233720368547750 }
+
+  - do:
+      search:
+        index: test
+        body: {
+          "query": {
+            "terms": {
+              "number": [ "92233720368547750" ]
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.0._source.number: "92233720368547750" }
+  - match: { hits.hits.1._id: "6" }
+  - match: { hits.hits.1._source.number: 92233720368547750 }
 
 ---
 "Sort":
@@ -103,7 +148,7 @@ setup:
             number:
               order: asc
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total.value: 6 }
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.0.sort.0: -2.1 }
 
@@ -119,7 +164,7 @@ setup:
               order: asc
               numeric_type: long
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total.value: 6 }
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.0.sort.0: -2 }
 
