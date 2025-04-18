@@ -8,8 +8,6 @@
 
 package org.opensearch.javaagent;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.io.FilePermission;
@@ -31,8 +29,6 @@ import net.bytebuddy.asm.Advice;
  * FileInterceptor
  */
 public class FileInterceptor {
-    private static final Logger logger = LogManager.getLogger(FileInterceptor.class);
-
     /**
      * FileInterceptor
      */

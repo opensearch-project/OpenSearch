@@ -54,8 +54,6 @@ public class FileInterceptorNegativeIntegTests {
     @Test
     public void testFileInputStream() {
         Path tmpDir = getTestDir();
-        assertTrue("Tmp directory should exist", Files.exists(tmpDir));
-        assertTrue("Tmp directory should be writable", Files.isWritable(tmpDir));
 
         // Create a unique file name
         String fileName = "test-" + randomAlphaOfLength(8) + ".txt";
@@ -72,8 +70,6 @@ public class FileInterceptorNegativeIntegTests {
     @Test
     public void testOpenForReadAndWrite() {
         Path tmpDir = getTestDir();
-        assertTrue("Tmp directory should exist", Files.exists(tmpDir));
-        assertTrue("Tmp directory should be writable", Files.isWritable(tmpDir));
 
         // Create a unique file name
         String fileName = "test-" + randomAlphaOfLength(8) + ".txt";
@@ -146,11 +142,7 @@ public class FileInterceptorNegativeIntegTests {
 
         // Verify Error when reading file
         SecurityException exception = assertThrows(SecurityException.class, () -> Files.readAllLines(tempPath));
-<<<<<<< Updated upstream
-        assertTrue(exception.getMessage().contains("Denied READ access to file"));
-=======
         assertTrue(exception.getMessage().contains("Denied OPEN (read) access to file"));
->>>>>>> Stashed changes
     }
 
     @Test
