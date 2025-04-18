@@ -49,6 +49,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.Transport;
@@ -65,6 +66,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -72,6 +74,7 @@ import java.util.function.Predicate;
 
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.opensearch.telemetry.tracing.AttributeNames.NODE_ID;
 
 /**
  * The FollowersChecker is responsible for allowing a leader to check that its followers are still connected and healthy. On deciding that a
@@ -423,7 +426,11 @@ public class FollowersChecker {
         }
 
         void failNode(String reason) {
-            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerChecksFailureCounter, 1.0);
+            clusterManagerMetrics.incrementCounter(
+                clusterManagerMetrics.followerChecksFailureCounter,
+                1.0,
+                Optional.ofNullable(Tags.create().addTag(NODE_ID, discoveryNode.getId()))
+            );
             transportService.getThreadPool().generic().execute(new Runnable() {
                 @Override
                 public void run() {
