@@ -25,6 +25,7 @@ public class MatchNoneFilter implements DimensionFilter {
     public MatchNoneFilter(String dimensionName) {
         this.dimensionName = dimensionName;
     }
+
     @Override
     public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
         // Nothing to do as we won't match anything.

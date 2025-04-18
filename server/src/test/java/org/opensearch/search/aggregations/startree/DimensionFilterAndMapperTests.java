@@ -20,10 +20,8 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.Sort
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.mapper.WildcardFieldMapper;
-import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
@@ -32,7 +30,6 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.DimensionFilter.MatchType;
 import org.opensearch.search.startree.filter.MatchNoneFilter;
-import org.opensearch.search.startree.filter.StarTreeFilter;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 import org.opensearch.search.startree.filter.provider.StarTreeFilterProvider;
 import org.opensearch.test.OpenSearchTestCase;

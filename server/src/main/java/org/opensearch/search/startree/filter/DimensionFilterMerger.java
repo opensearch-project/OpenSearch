@@ -26,8 +26,9 @@ public class DimensionFilterMerger {
 
         // Verify filters are for same dimension
         if (!filter1.getDimensionName().equals(filter2.getDimensionName())) {
-            throw new IllegalArgumentException("Cannot intersect filters for different dimensions: " +
-                filter1.getDimensionName() + " and " + filter2.getDimensionName());
+            throw new IllegalArgumentException(
+                "Cannot intersect filters for different dimensions: " + filter1.getDimensionName() + " and " + filter2.getDimensionName()
+            );
         }
 
         if (filter1 instanceof RangeMatchDimFilter && filter2 instanceof RangeMatchDimFilter) {
@@ -47,8 +48,9 @@ public class DimensionFilterMerger {
             return intersectRangeWithExactMatch((RangeMatchDimFilter) filter2, (ExactMatchDimFilter) filter1);
         }
 
-        throw new IllegalArgumentException("Unsupported filter combination: " +
-            filter1.getClass().getSimpleName() + " and " + filter2.getClass().getSimpleName());
+        throw new IllegalArgumentException(
+            "Unsupported filter combination: " + filter1.getClass().getSimpleName() + " and " + filter2.getClass().getSimpleName()
+        );
     }
 
     /**
@@ -114,13 +116,7 @@ public class DimensionFilterMerger {
             }
         }
 
-        return new RangeMatchDimFilter(
-            range1.getDimensionName(),
-            newLow,
-            newHigh,
-            includeLow,
-            includeHigh
-        );
+        return new RangeMatchDimFilter(range1.getDimensionName(), newLow, newHigh, includeLow, includeHigh);
     }
 
     /**
@@ -217,7 +213,8 @@ public class DimensionFilterMerger {
             return ((Comparable<Object>) v1).compareTo(v2);
         }
 
-        throw new IllegalArgumentException("Cannot compare values of types: " +
-            v1.getClass().getName() + " and " + v2.getClass().getName());
+        throw new IllegalArgumentException(
+            "Cannot compare values of types: " + v1.getClass().getName() + " and " + v2.getClass().getName()
+        );
     }
 }

@@ -8,7 +8,6 @@
 
 package org.opensearch.search.startree.filter.provider;
 
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
@@ -29,10 +28,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Converts a {@link QueryBuilder} into a {@link StarTreeFilter} by generating the appropriate @{@link org.opensearch.search.startree.filter.DimensionFilter}
@@ -168,7 +165,8 @@ public interface StarTreeFilterProvider {
 
     class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
         @Override
-        public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType) throws IOException {
+        public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
+            throws IOException {
             BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) rawFilter;
             if (!boolQueryBuilder.hasClauses()) {
                 return null;
@@ -185,8 +183,11 @@ public interface StarTreeFilterProvider {
             return null;
         }
 
-        private StarTreeFilter processMustClauses(List<QueryBuilder> mustClauses, SearchContext context,
-                                                  CompositeDataCubeFieldType compositeFieldType) throws IOException {
+        private StarTreeFilter processMustClauses(
+            List<QueryBuilder> mustClauses,
+            SearchContext context,
+            CompositeDataCubeFieldType compositeFieldType
+        ) throws IOException {
             if (mustClauses.isEmpty()) {
                 return null;
             }
@@ -209,11 +210,11 @@ public interface StarTreeFilterProvider {
                     }
                 } else {
                     // Only allow term, terms, and range queries
-//                    if (!(clause instanceof TermQueryBuilder) &&
-//                        !(clause instanceof TermsQueryBuilder) &&
-//                        !(clause instanceof RangeQueryBuilder)) {
-//                        return null;
-//                    }
+                    // if (!(clause instanceof TermQueryBuilder) &&
+                    // !(clause instanceof TermsQueryBuilder) &&
+                    // !(clause instanceof RangeQueryBuilder)) {
+                    // return null;
+                    // }
                     // Process individual clause
                     StarTreeFilterProvider provider = SingletonFactory.getProvider(clause);
                     if (provider == null) {
@@ -256,7 +257,10 @@ public interface StarTreeFilterProvider {
                             // Here's where we need the DimensionFilter merging logic
                             // For example: merging range with term, or range with range
                             // And a single dimension filter coming from should clause is as good as must clause
-                            DimensionFilter mergedFilter = DimensionFilterMerger.intersect(existingFilters.getFirst(), newFilters.getFirst());
+                            DimensionFilter mergedFilter = DimensionFilterMerger.intersect(
+                                existingFilters.getFirst(),
+                                newFilters.getFirst()
+                            );
                             if (mergedFilter == null) {
                                 return null; // No possible matches after merging
                             }
@@ -269,8 +273,11 @@ public interface StarTreeFilterProvider {
             return new StarTreeFilter(dimensionToFilters);
         }
 
-        private StarTreeFilter processShouldClauses(List<QueryBuilder> shouldClauses, SearchContext context,
-                                                    CompositeDataCubeFieldType compositeFieldType) throws IOException {
+        private StarTreeFilter processShouldClauses(
+            List<QueryBuilder> shouldClauses,
+            SearchContext context,
+            CompositeDataCubeFieldType compositeFieldType
+        ) throws IOException {
             if (shouldClauses.isEmpty()) {
                 return null;
             }
@@ -293,9 +300,9 @@ public interface StarTreeFilterProvider {
                     clauseFilter = processShouldClauses(boolClause.should(), context, compositeFieldType);
                 } else {
                     // Only allow term, terms, and range queries
-                    if (!(clause instanceof TermQueryBuilder) &&
-                        !(clause instanceof TermsQueryBuilder) &&
-                        !(clause instanceof RangeQueryBuilder)) {
+                    if (!(clause instanceof TermQueryBuilder)
+                        && !(clause instanceof TermsQueryBuilder)
+                        && !(clause instanceof RangeQueryBuilder)) {
                         return null;
                     }
 
@@ -323,7 +330,8 @@ public interface StarTreeFilterProvider {
                 }
 
                 // Simply collect all filters - StarTreeTraversal will handle OR operation
-                dimensionToFilters.computeIfAbsent(dimension, k -> new ArrayList<>()).addAll(clauseFilter.getFiltersForDimension(dimension));
+                dimensionToFilters.computeIfAbsent(dimension, k -> new ArrayList<>())
+                    .addAll(clauseFilter.getFiltersForDimension(dimension));
             }
             return new StarTreeFilter(dimensionToFilters);
         }
