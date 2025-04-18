@@ -168,25 +168,9 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         assertEquals(clusterService.state().nodes().getDataNodes().size(), capturedRequests.size());
     }
 
-    public void testTransportNodesActionWithDiscoveryNodesIncluded() {
-        String[] nodeIds = clusterService.state().nodes().getNodes().keySet().toArray(new String[0]);
-        TestNodesRequest request = new TestNodesRequest(true, nodeIds);
-        getTestTransportNodesAction().new AsyncAction(null, request, new PlainActionFuture<>()).start();
-        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-        List<TestNodeRequest> capturedTransportNodeRequestList = capturedRequests.values()
-            .stream()
-            .flatMap(Collection::stream)
-            .map(capturedRequest -> (TestNodeRequest) capturedRequest.request)
-            .collect(Collectors.toList());
-        assertEquals(nodeIds.length, capturedTransportNodeRequestList.size());
-        capturedTransportNodeRequestList.forEach(
-            capturedRequest -> assertEquals(nodeIds.length, capturedRequest.testNodesRequest.concreteNodes().length)
-        );
-    }
-
     public void testTransportNodesActionWithDiscoveryNodesReset() {
         String[] nodeIds = clusterService.state().nodes().getNodes().keySet().toArray(new String[0]);
-        TestNodesRequest request = new TestNodesRequest(false, nodeIds);
+        TestNodesRequest request = new TestNodesRequest(nodeIds);
         getTestTransportNodesAction().new AsyncAction(null, request, new PlainActionFuture<>()).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
         List<TestNodeRequest> capturedTransportNodeRequestList = capturedRequests.values()
@@ -388,10 +372,6 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
 
         TestNodesRequest(String... nodesIds) {
             super(nodesIds);
-        }
-
-        TestNodesRequest(boolean includeDiscoveryNodes, String... nodesIds) {
-            super(includeDiscoveryNodes, nodesIds);
         }
     }
 
