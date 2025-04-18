@@ -229,7 +229,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            long scaledValue = Math.round(scale(value));
+            long scaledValue = parsedLong(parse(value), scalingFactor);
             Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, hasDocValues(), isSearchable());
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -242,7 +242,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             failIfNotIndexedAndNoDocValues();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
-                long scaledValue = Math.round(scale(value));
+                long scaledValue = parsedLong(parse(value), scalingFactor);
                 scaledValues.add(scaledValue);
             }
             Query query = NumberFieldMapper.NumberType.LONG.termsQuery(
@@ -465,7 +465,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("[scaled_float] only supports finite values, but got [" + doubleValue + "]");
             }
         }
-        long scaledValue = Math.round(doubleValue * scalingFactor);
+        long scaledValue = parsedLong(doubleValue, scalingFactor);
 
         List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
         context.doc().addAll(fields);
@@ -481,6 +481,10 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
     private static Double parse(XContentParser parser, boolean coerce) throws IOException {
         return parser.doubleValue(coerce);
+    }
+
+    private static long parsedLong(double value, double scalingFactor) {
+        return Math.round(value * scalingFactor);
     }
 
     /**
