@@ -1092,9 +1092,7 @@ public class MetadataCreateIndexService {
         validateRefreshIntervalSettings(request.settings(), clusterSettings);
         validateTranslogFlushIntervalSettingsForCompositeIndex(request.settings(), clusterSettings);
         validateTranslogDurabilitySettings(request.settings(), clusterSettings, settings);
-        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
-            validateSearchOnlyReplicasSettings(indexSettings);
-        }
+        validateSearchOnlyReplicasSettings(indexSettings);
         validateIndexTotalPrimaryShardsPerNodeSetting(indexSettings);
         return indexSettings;
     }
@@ -1500,11 +1498,16 @@ public class MetadataCreateIndexService {
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
                 DEFAULT_REPLICA_COUNT_SETTING.get(this.clusterService.state().metadata().settings())
             );
+            int searchReplicaCount = settings.getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
-            Optional<String> error = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
-            if (error.isPresent()) {
-                validationErrors.add(error.get());
-            }
+
+            Optional<String> replicaValidationError = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
+            replicaValidationError.ifPresent(validationErrors::add);
+            Optional<String> searchReplicaValidationError = awarenessReplicaBalance.validate(
+                searchReplicaCount,
+                AutoExpandSearchReplicas.SETTING.get(settings)
+            );
+            searchReplicaValidationError.ifPresent(validationErrors::add);
         }
         return validationErrors;
     }

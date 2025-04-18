@@ -105,7 +105,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             this.type = type;
         }
 
-        static ValueType fromString(String type) {
+        public static ValueType fromString(String type) {
             for (ValueType valueType : ValueType.values()) {
                 if (valueType.type.equalsIgnoreCase(type)) {
                     return valueType;
@@ -272,6 +272,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     @Override
     public String fieldName() {
         return this.fieldName;
+    }
+
+    public ValueType valueType() {
+        return this.valueType;
     }
 
     public List<Object> values() {

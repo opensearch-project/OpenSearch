@@ -5,17 +5,19 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-
 package org.opensearch.secure_sm.policy;
 
-import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
-import java.util.Enumeration;
+import java.util.List;
 
-public class PolicyParserTests extends OpenSearchTestCase {
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
+public class PolicyParserTests {
     private static final String POLICY = """
         grant codeBase "TestCodeBase" {
           permission java.net.NetPermission "accessUnixDomainSocket";
@@ -27,27 +29,37 @@ public class PolicyParserTests extends OpenSearchTestCase {
         };
         """;
 
+    @Test
     public void testPolicy() throws IOException, PolicyParser.ParsingException {
         try (Reader reader = new StringReader(POLICY)) {
-            final PolicyParser policyParser = new PolicyParser();
-            policyParser.read(reader);
+            final List<GrantEntry> grantEntries = PolicyParser.read(reader);
+            assertEquals(2, grantEntries.size());
 
-            final Enumeration<PolicyParser.GrantEntry> grantEntryEnumeration = policyParser.grantElements();
-            final PolicyParser.GrantEntry grantEntry1 = grantEntryEnumeration.nextElement();
-            final PolicyParser.GrantEntry grantEntry2 = grantEntryEnumeration.nextElement();
+            final GrantEntry grantEntry1 = grantEntries.get(0);
+            final GrantEntry grantEntry2 = grantEntries.get(1);
 
-            assertEquals("TestCodeBase", grantEntry1.codeBase);
-            assertEquals(1, grantEntry1.permissionEntries.size());
-            assertEquals("java.net.NetPermission", grantEntry1.permissionEntries.getFirst().permission);
-            assertEquals("accessUnixDomainSocket", grantEntry1.permissionEntries.getFirst().name);
+            assertEquals("TestCodeBase", grantEntry1.codeBase());
 
-            assertNull(grantEntry2.codeBase);
-            assertEquals(2, grantEntry2.permissionEntries.size());
-            assertEquals("java.net.NetPermission", grantEntry2.permissionEntries.getFirst().permission);
-            assertEquals("accessUnixDomainSocket", grantEntry2.permissionEntries.getFirst().name);
-            assertEquals("java.net.SocketPermission", grantEntry2.permissionEntries.getLast().permission);
-            assertEquals("*", grantEntry2.permissionEntries.getLast().name);
-            assertEquals("accept,connect", grantEntry2.permissionEntries.getLast().action);
+            List<PermissionEntry> permissions1 = grantEntry1.permissionEntries();
+            assertEquals(1, permissions1.size());
+
+            PermissionEntry firstPerm1 = permissions1.get(0);
+            assertEquals("java.net.NetPermission", firstPerm1.permission());
+            assertEquals("accessUnixDomainSocket", firstPerm1.name());
+
+            assertNull(grantEntry2.codeBase());
+
+            List<PermissionEntry> permissions2 = grantEntry2.permissionEntries();
+            assertEquals(2, permissions2.size());
+
+            PermissionEntry firstPerm2 = permissions2.get(0);
+            assertEquals("java.net.NetPermission", firstPerm2.permission());
+            assertEquals("accessUnixDomainSocket", firstPerm2.name());
+
+            PermissionEntry secondPerm2 = permissions2.get(1);
+            assertEquals("java.net.SocketPermission", secondPerm2.permission());
+            assertEquals("*", secondPerm2.name());
+            assertEquals("accept,connect", secondPerm2.action());
         }
     }
 }

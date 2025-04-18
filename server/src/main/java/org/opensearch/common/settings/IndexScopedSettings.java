@@ -98,6 +98,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
                 IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
+                IndexMetadata.INDEX_AUTO_EXPAND_SEARCH_REPLICAS_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
@@ -108,6 +109,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_BLOCKS_METADATA_SETTING,
                 IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING,
                 IndexMetadata.INDEX_PRIORITY_SETTING,
+                IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING,
                 IndexMetadata.INDEX_DATA_PATH_SETTING,
                 IndexMetadata.INDEX_FORMAT_SETTING,
                 IndexMetadata.INDEX_HIDDEN_SETTING,
@@ -267,6 +269,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING,
                 IndexMetadata.INGESTION_SOURCE_PARAMS_SETTING,
                 IndexMetadata.INGESTION_SOURCE_ERROR_STRATEGY_SETTING,
+                IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE,
+                IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT,
+                IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING,
+
+                // Settings for search replica
+                IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -293,9 +301,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
         FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG,
         // TODO: Create a separate feature flag for hot tiering index state.
-        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING, IndexModule.INDEX_TIERING_STATE, IndexModule.IS_WARM_INDEX_SETTING),
-        FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL,
-        List.of(IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING)
+        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING, IndexModule.INDEX_TIERING_STATE, IndexModule.IS_WARM_INDEX_SETTING)
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

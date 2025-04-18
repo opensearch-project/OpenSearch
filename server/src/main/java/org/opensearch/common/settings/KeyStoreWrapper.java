@@ -527,7 +527,7 @@ public class KeyStoreWrapper implements SecureSettings {
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
         // write to tmp file first, then overwrite
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
-        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, tmpFile, IOContext.DEFAULT)) {
+        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, tmpFile, IOContext.READONCE)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
             output.writeByte(password.length == 0 ? (byte) 0 : (byte) 1);
 

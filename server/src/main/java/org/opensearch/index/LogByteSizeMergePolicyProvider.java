@@ -50,7 +50,11 @@ public class LogByteSizeMergePolicyProvider implements MergePolicyProvider {
     private final Logger logger;
     private final boolean mergesEnabled;
 
-    public static final ByteSizeValue DEFAULT_MIN_MERGE = new ByteSizeValue(2, ByteSizeUnit.MB);
+    /**
+     *  Use 16MB floor size to match Lucene default.
+     *  See <a href="https://github.com/apache/lucene/pull/14189">...</a>
+     */
+    public static final ByteSizeValue DEFAULT_MIN_MERGE = new ByteSizeValue(16, ByteSizeUnit.MB);
     public static final int DEFAULT_MERGE_FACTOR = 10;
 
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);

@@ -28,9 +28,11 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
         builder.endObject();
 
         String expected = "{\"polling_ingest_stats\":{\"message_processor_stats\":{\"total_processed_count\":"
-            + stats.getMessageProcessorStats().getTotalProcessedCount()
+            + stats.getMessageProcessorStats().totalProcessedCount()
+            + ",\"total_skipped_count\":"
+            + stats.getMessageProcessorStats().totalSkippedCount()
             + "},\"consumer_stats\":{\"total_polled_count\":"
-            + stats.getConsumerStats().getTotalPolledCount()
+            + stats.getConsumerStats().totalPolledCount()
             + "}}}";
 
         assertEquals(expected, builder.toString());
@@ -52,6 +54,7 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
     private PollingIngestStats createTestInstance() {
         return PollingIngestStats.builder()
             .setTotalProcessedCount(randomNonNegativeLong())
+            .setTotalSkippedCount(randomNonNegativeLong())
             .setTotalPolledCount(randomNonNegativeLong())
             .build();
     }

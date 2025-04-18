@@ -10,13 +10,13 @@ package org.opensearch.wlm.tracker;
 
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupTask;
 import org.opensearch.wlm.tracker.ResourceUsageCalculatorTrackerServiceTests.TestClock;
 
 import java.util.List;
 
-import static org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService.MIN_VALUE;
+import static org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService.MIN_VALUE;
 import static org.opensearch.wlm.tracker.CpuUsageCalculator.PROCESSOR_COUNT;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
 import static org.mockito.Mockito.mock;
@@ -24,24 +24,24 @@ import static org.mockito.Mockito.when;
 
 public class ResourceUsageCalculatorTests extends OpenSearchTestCase {
 
-    public void testQueryGroupCpuUsage() {
+    public void testWorkloadGroupCpuUsage() {
         TestClock clock = new TestClock();
         long fastForwardTime = PROCESSOR_COUNT * 200L;
         clock.fastForwardBy(fastForwardTime);
 
-        double expectedQueryGroupCpuUsage = 1.0 / PROCESSOR_COUNT;
+        double expectedWorkloadGroupCpuUsage = 1.0 / PROCESSOR_COUNT;
 
-        QueryGroupTask mockTask = createMockTaskWithResourceStats(QueryGroupTask.class, fastForwardTime, 200, 0, 123);
+        WorkloadGroupTask mockTask = createMockTaskWithResourceStats(WorkloadGroupTask.class, fastForwardTime, 200, 0, 123);
         when(mockTask.getElapsedTime()).thenReturn(fastForwardTime);
         double actualUsage = ResourceType.CPU.getResourceUsageCalculator().calculateResourceUsage(List.of(mockTask));
-        assertEquals(expectedQueryGroupCpuUsage, actualUsage, MIN_VALUE);
+        assertEquals(expectedWorkloadGroupCpuUsage, actualUsage, MIN_VALUE);
 
         double taskResourceUsage = ResourceType.CPU.getResourceUsageCalculator().calculateTaskResourceUsage(mockTask);
         assertEquals(1.0, taskResourceUsage, MIN_VALUE);
     }
 
-    public void testQueryGroupMemoryUsage() {
-        QueryGroupTask mockTask = createMockTaskWithResourceStats(QueryGroupTask.class, 100, 200, 0, 123);
+    public void testWorkloadGroupMemoryUsage() {
+        WorkloadGroupTask mockTask = createMockTaskWithResourceStats(WorkloadGroupTask.class, 100, 200, 0, 123);
         double actualMemoryUsage = ResourceType.MEMORY.getResourceUsageCalculator().calculateResourceUsage(List.of(mockTask));
         double expectedMemoryUsage = 200.0 / HEAP_SIZE_BYTES;
 
@@ -53,7 +53,7 @@ public class ResourceUsageCalculatorTests extends OpenSearchTestCase {
         );
     }
 
-    public static <T extends QueryGroupTask> T createMockTaskWithResourceStats(
+    public static <T extends WorkloadGroupTask> T createMockTaskWithResourceStats(
         Class<T> type,
         long cpuUsage,
         long heapUsage,
