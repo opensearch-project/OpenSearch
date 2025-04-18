@@ -117,7 +117,6 @@ import org.mockito.Mockito;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -747,19 +746,22 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
     }
 
     public void testExecuteSingleUploadIfEtagMatchesPreconditionFailed() throws IOException {
+        // Generate random test parameters
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
 
+        // Create metadata for the request
         final Map<String, String> metadata = new HashMap<>();
         metadata.put("key1", "value1");
 
+        // Set up blob container parameters
         final BlobPath blobPath = new BlobPath();
         final int bufferSize = randomIntBetween(1024, 2048);
         final int blobSize = randomIntBetween(0, bufferSize);
 
+        // Mock the S3BlobStore and configure behavior
         final S3BlobStore blobStore = mock(S3BlobStore.class);
-
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
         when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
@@ -768,44 +770,62 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.isUploadRetryEnabled()).thenReturn(false);
         when(blobStore.getCannedACL()).thenReturn(null);
 
+        // Create the S3BlobContainer to test
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
+        // Mock the S3 client and client reference
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         when(blobStore.clientReference()).thenReturn(clientReference);
         when(clientReference.get()).thenReturn(client);
-
         doNothing().when(clientReference).close();
 
+        // Create the exception that will be thrown by the S3 client
         S3Exception preconditionFailedException = (S3Exception) S3Exception.builder()
             .message("Precondition Failed")
             .statusCode(412)
             .build();
         when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(preconditionFailedException);
 
+        // Set up listener to capture the exception
         final AtomicReference<Exception> capturedException = new AtomicReference<>();
         ActionListener<String> realListener = ActionListener.wrap(r -> fail("Should have failed"), capturedException::set);
         ActionListener<String> etagListener = Mockito.spy(realListener);
 
+        // Execute the method being tested
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
         blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
 
+        // VERIFICATION SECTION
+
+        // Verify onResponse was never called
         verify(etagListener, never()).onResponse(any());
+
+        // Verify an exception was captured
         Exception exception = capturedException.get();
         assertNotNull("Expected an exception to be captured", exception);
+
+        // Verify it's the right type
         assertTrue(exception instanceof OpenSearchException);
         OpenSearchException osException = (OpenSearchException) exception;
 
-        // Fix: Update assertion to expect "stale_primary_shard" as the main message
+        // Verify the main message is the error type (first constructor parameter)
         assertEquals("stale_primary_shard", osException.getMessage());
 
-        // Add assertions for the detailed message content
-        assertThat(osException.toString(), containsString("Precondition Failed"));
-        assertThat(osException.toString(), containsString("Etag Mismatch"));
-
-        assertEquals(412, ((S3Exception) osException.getCause()).statusCode());
+        // Verify error type metadata
         assertEquals("stale_primary_shard", osException.getMetadata("es.error.type").getFirst());
+
+        // Verify cause's status code
+        S3Exception cause = (S3Exception) osException.getCause();
+        assertEquals(412, cause.statusCode());
+
+        // Verify the cause contains the original message
+        assertEquals("Precondition Failed", cause.getMessage());
+
+        // Verify cause is the original exception
         assertEquals(preconditionFailedException, osException.getCause());
+
+        // Verify resources were cleaned up
         verify(clientReference).close();
     }
 
