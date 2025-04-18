@@ -758,16 +758,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);
 
-        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
-        final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher = mock(
-            software.amazon.awssdk.metrics.MetricPublisher.class
-        );
-        when(metricPublisher.putObjectMetricPublisher).thenReturn(awsMetricPublisher);
-
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
-        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
         when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
         when(blobStore.serverSideEncryption()).thenReturn(false);
         when(blobStore.isUploadRetryEnabled()).thenReturn(false);
         when(blobStore.getCannedACL()).thenReturn(null);
@@ -880,15 +874,9 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);
 
-        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
-        final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher = mock(
-            software.amazon.awssdk.metrics.MetricPublisher.class
-        );
-        when(metricPublisher.putObjectMetricPublisher).thenReturn(awsMetricPublisher);
-
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
-        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
@@ -964,15 +952,9 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);
 
-        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
-        final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher = mock(
-            software.amazon.awssdk.metrics.MetricPublisher.class
-        );
-        when(metricPublisher.putObjectMetricPublisher).thenReturn(awsMetricPublisher);
-
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
-        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
         when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
         when(blobStore.serverSideEncryption()).thenReturn(false);
         when(blobStore.isUploadRetryEnabled()).thenReturn(false);
@@ -1003,8 +985,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertTrue("IOException message should contain the blob name", ioException.getMessage().contains(blobName));
         assertEquals(sdkException, ioException.getCause());
 
-        verify(awsMetricPublisher).publish(any());
-
         verify(clientReference).close();
     }
 
@@ -1019,16 +999,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final BlobPath blobPath = new BlobPath();
         final S3BlobStore blobStore = mock(S3BlobStore.class);
 
-        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
-        final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher = mock(
-            software.amazon.awssdk.metrics.MetricPublisher.class
-        );
-        when(metricPublisher.putObjectMetricPublisher).thenReturn(awsMetricPublisher);
-
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
-        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
         when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
         when(blobStore.serverSideEncryption()).thenReturn(false);
         when(blobStore.isUploadRetryEnabled()).thenReturn(false);
         when(blobStore.getCannedACL()).thenReturn(null);
@@ -1064,15 +1038,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final int bufferSize = randomIntBetween(1024, 2048);
         final S3BlobStore blobStore = mock(S3BlobStore.class);
 
-        final StatsMetricPublisher metricPublisher1 = mock(StatsMetricPublisher.class);
-        final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher1 = mock(
-            software.amazon.awssdk.metrics.MetricPublisher.class
-        );
-        when(metricPublisher1.putObjectMetricPublisher).thenReturn(awsMetricPublisher1);
-
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
         when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
         when(blobStore.serverSideEncryption()).thenReturn(false);
         when(blobStore.isUploadRetryEnabled()).thenReturn(false);
         when(blobStore.getCannedACL()).thenReturn(null);
@@ -1086,7 +1055,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final S3Client client1 = mock(S3Client.class);
         final AmazonS3Reference clientReference1 = mock(AmazonS3Reference.class);
 
-        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher1);
         when(blobStore.clientReference()).thenReturn(clientReference1);
         when(clientReference1.get()).thenReturn(client1);
         when(client1.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenReturn(
