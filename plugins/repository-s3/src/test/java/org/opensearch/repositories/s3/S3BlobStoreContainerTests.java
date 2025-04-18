@@ -117,6 +117,7 @@ import org.mockito.Mockito;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -794,11 +795,14 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertNotNull("Expected an exception to be captured", exception);
         assertTrue(exception instanceof OpenSearchException);
         OpenSearchException osException = (OpenSearchException) exception;
-        String msg = osException.getMessage();
-        assertTrue(
-            "expected an S3 precondition‑failure message, got [" + msg + "]",
-            msg.contains("Precondition Failed") && msg.contains("Etag Mismatch")
-        );
+
+        // Fix: Update assertion to expect "stale_primary_shard" as the main message
+        assertEquals("stale_primary_shard", osException.getMessage());
+
+        // Add assertions for the detailed message content
+        assertThat(osException.toString(), containsString("Precondition Failed"));
+        assertThat(osException.toString(), containsString("Etag Mismatch"));
+
         assertEquals(412, ((S3Exception) osException.getCause()).statusCode());
         assertEquals("stale_primary_shard", osException.getMetadata("es.error.type").getFirst());
         assertEquals(preconditionFailedException, osException.getCause());
