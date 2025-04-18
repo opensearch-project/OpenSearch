@@ -20,8 +20,10 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.Sort
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.mapper.WildcardFieldMapper;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
@@ -30,6 +32,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.DimensionFilter.MatchType;
 import org.opensearch.search.startree.filter.MatchNoneFilter;
+import org.opensearch.search.startree.filter.StarTreeFilter;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 import org.opensearch.search.startree.filter.provider.StarTreeFilterProvider;
 import org.opensearch.test.OpenSearchTestCase;
@@ -132,7 +135,7 @@ public class DimensionFilterAndMapperTests extends OpenSearchTestCase {
             "star_tree",
             new StarTreeField(
                 "star_tree",
-                List.of(new OrdinalDimension("keyword")),
+                List.of(new OrdinalDimension("keyword"), new OrdinalDimension("status"), new OrdinalDimension("method")),
                 List.of(new Metric("field", List.of(MetricStat.MAX))),
                 new StarTreeFieldConfiguration(
                     randomIntBetween(1, 10_000),
@@ -188,5 +191,48 @@ public class DimensionFilterAndMapperTests extends OpenSearchTestCase {
         assertFalse(dimensionFilter.matchDimValue(1, null));
         dimensionFilter.matchStarTreeNodes(null, null, collector);
         assertEquals(0, collector.collectedNodeCount());
+
+        // Setup common field types
+        KeywordFieldMapper.KeywordFieldType methodType = new KeywordFieldMapper.KeywordFieldType("method");
+        NumberFieldMapper.NumberFieldType statusType = new NumberFieldMapper.NumberFieldType(
+            "status",
+            NumberFieldMapper.NumberType.INTEGER
+        );
+        when(mapperService.fieldType("method")).thenReturn(methodType);
+        when(mapperService.fieldType("status")).thenReturn(statusType);
+
+        // Test simple MUST clause
+        BoolQueryBuilder simpleMustQuery = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"))
+            .must(new TermQueryBuilder("status", 200));
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(simpleMustQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, simpleMustQuery, compositeDataCubeFieldType);
+        assertNotNull(filter);
+        assertEquals(2, filter.getDimensions().size());
+        assertTrue(filter.getDimensions().contains("method"));
+        assertTrue(filter.getDimensions().contains("status"));
+
+        // Test MUST with nested SHOULD on different dimension
+        BoolQueryBuilder mustWithShould = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"))
+            .must(new BoolQueryBuilder().should(new TermQueryBuilder("status", 200)).should(new TermQueryBuilder("status", 404)));
+        filter = provider.getFilter(searchContext, mustWithShould, compositeDataCubeFieldType);
+        assertNotNull(filter);
+        assertEquals(2, filter.getDimensions().size());
+        assertEquals(1, filter.getFiltersForDimension("method").size());
+        assertEquals(2, filter.getFiltersForDimension("status").size());
+
+        // Test invalid SHOULD across dimensions
+        BoolQueryBuilder invalidShould = new BoolQueryBuilder().should(new TermQueryBuilder("method", "GET"))
+            .should(new TermQueryBuilder("status", 200));
+        assertNull(provider.getFilter(searchContext, invalidShould, compositeDataCubeFieldType));
+
+        // Test MUST with invalid nested SHOULD
+        BoolQueryBuilder invalidNestedShould = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"))
+            .must(new BoolQueryBuilder().should(new TermQueryBuilder("method", "POST")).should(new TermQueryBuilder("status", 200)));
+        assertNull(provider.getFilter(searchContext, invalidNestedShould, compositeDataCubeFieldType));
+
+        // Test MUST with SHOULD on same dimension
+        BoolQueryBuilder mustWithSameDimShould = new BoolQueryBuilder().must(new TermQueryBuilder("status", 200))
+            .must(new BoolQueryBuilder().should(new TermQueryBuilder("status", 404)).should(new TermQueryBuilder("status", 500)));
+        assertNull(provider.getFilter(searchContext, mustWithSameDimShould, compositeDataCubeFieldType));
     }
 }
