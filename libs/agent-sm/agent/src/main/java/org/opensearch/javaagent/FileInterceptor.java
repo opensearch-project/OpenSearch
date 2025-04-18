@@ -8,6 +8,8 @@
 
 package org.opensearch.javaagent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.io.FilePermission;
@@ -29,6 +31,8 @@ import net.bytebuddy.asm.Advice;
  * FileInterceptor
  */
 public class FileInterceptor {
+    private static final Logger logger = LogManager.getLogger(FileInterceptor.class);
+
     /**
      * FileInterceptor
      */
@@ -103,8 +107,15 @@ public class FileInterceptor {
                                     break;
                                 }
                             }
+                        } else if (args[1] instanceof Object[] opts) {
+                            for (final Object opt : opts) {
+                                if (opt != StandardOpenOption.READ) {
+                                    isMutating = true;
+                                    break;
+                                }
+                            }
                         } else {
-                            //Add a Warn statement for any other type or args we might be missing
+                            logger.warn("Unknown type: {} for args[1] for method name: {}", args[1].getClass(), method.getName());
                         }
                     }
                 } else if (name.equals("copy") == true) {
