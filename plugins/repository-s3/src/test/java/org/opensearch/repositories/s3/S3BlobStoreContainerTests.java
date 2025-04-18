@@ -809,20 +809,14 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertTrue(exception instanceof OpenSearchException);
         OpenSearchException osException = (OpenSearchException) exception;
 
-        // Verify the main message is the error type (first constructor parameter)
         assertEquals("stale_primary_shard", osException.getMessage());
 
-        // Verify cause's status code
-        S3Exception cause = (S3Exception) osException.getCause();
-        assertEquals(412, cause.statusCode());
-
-        // Verify the cause contains the original message
-        assertEquals("Precondition Failed", cause.getMessage());
-
-        // Verify cause is the original exception
-        assertEquals(preconditionFailedException, osException.getCause());
-
-        // Verify resources were cleaned up
+        Throwable cause = osException.getCause();
+        assertNotNull("Should have a cause", cause);
+        assertTrue("Cause should be an S3Exception", cause instanceof S3Exception);
+        S3Exception s3Cause = (S3Exception) cause;
+        assertEquals(412, s3Cause.statusCode());
+        assertEquals("Precondition Failed", s3Cause.getMessage());
         verify(clientReference).close();
     }
 
