@@ -15,6 +15,7 @@ import java.net.Socket;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
+import java.nio.file.spi.FileSystemProvider;
 import java.util.Map;
 
 import net.bytebuddy.ByteBuddy;
@@ -77,6 +78,7 @@ public class Agent {
             .or(ElementMatchers.isSubTypeOf(Socket.class));
         final Junction<TypeDescription> pathType = ElementMatchers.isSubTypeOf(Files.class);
         final Junction<TypeDescription> fileChannelType = ElementMatchers.isSubTypeOf(FileChannel.class);
+        final Junction<TypeDescription> fileSystemProviderType = ElementMatchers.isSubTypeOf(FileSystemProvider.class);
 
         final AgentBuilder.Transformer socketTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
             Advice.to(SocketChannelInterceptor.class)
@@ -106,7 +108,7 @@ public class Agent {
             .ignore(ElementMatchers.nameContains("$MockitoMock$")) /* ingore all Mockito mocks */
             .type(socketType)
             .transform(socketTransformer)
-            .type(pathType.or(fileChannelType))
+            .type(pathType.or(fileChannelType).or(fileSystemProviderType))
             .transform(fileTransformer)
             .type(ElementMatchers.is(java.lang.System.class))
             .transform(

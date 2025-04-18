@@ -8,6 +8,8 @@
 
 package org.opensearch.javaagent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.io.FilePermission;
@@ -21,6 +23,7 @@ import java.nio.file.spi.FileSystemProvider;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collection;
+import java.util.Set;
 
 import net.bytebuddy.asm.Advice;
 
@@ -28,6 +31,8 @@ import net.bytebuddy.asm.Advice;
  * FileInterceptor
  */
 public class FileInterceptor {
+    private static final Logger logger = LogManager.getLogger(FileInterceptor.class);
+
     /**
      * FileInterceptor
      */
@@ -85,14 +90,33 @@ public class FileInterceptor {
             String targetFilePath = null;
             if (isMutating == false && isDelete == false) {
                 if (name.equals("newByteChannel") == true || name.equals("open") == true) {
-                    if (args.length > 1 && args[1] instanceof OpenOption[] opts) {
-                        for (final OpenOption opt : opts) {
-                            if (opt != StandardOpenOption.READ) {
-                                isMutating = true;
-                                break;
+                    if (args.length > 1 && args instanceof Object) {
+                        if (args instanceof OpenOption[] opts) {
+                            for (final OpenOption opt : opts) {
+                                if (opt != StandardOpenOption.READ) {
+                                    isMutating = true;
+                                    break;
+                                }
                             }
+                        } else if (args[1] instanceof Set<?> opts) {
+                            @SuppressWarnings("unchecked")
+                            final Set<OpenOption> options = (Set<OpenOption>) args[1];
+                            for (final OpenOption opt : options) {
+                                if (opt != StandardOpenOption.READ) {
+                                    isMutating = true;
+                                    break;
+                                }
+                            }
+                        } else if (args[1] instanceof Object[] opts) {
+                            for (final Object opt : opts) {
+                                if (opt != StandardOpenOption.READ) {
+                                    isMutating = true;
+                                    break;
+                                }
+                            }
+                        } else {
+                            logger.warn("Unknown type: {} for args[1] for method name: {}", args[1].getClass(), method.getName());
                         }
-
                     }
                 } else if (name.equals("copy") == true) {
                     if (args.length > 1 && args[1] instanceof String pathStr) {
@@ -106,7 +130,7 @@ public class FileInterceptor {
             // Check each permission separately
             for (final ProtectionDomain domain : callers) {
                 // Handle FileChannel.open() separately to check read/write permissions properly
-                if (method.getName().equals("open")) {
+                if (method.getName().equals("open") || method.getName().equals("newByteChannel")) {
                     if (isMutating == true && !policy.implies(domain, new FilePermission(filePath, "read,write"))) {
                         throw new SecurityException("Denied OPEN (read/write) access to file: " + filePath + ", domain: " + domain);
                     } else if (!policy.implies(domain, new FilePermission(filePath, "read"))) {
