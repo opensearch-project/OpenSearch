@@ -113,6 +113,7 @@ import java.util.stream.IntStream;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -782,7 +783,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(preconditionFailedException);
 
         final AtomicReference<Exception> capturedException = new AtomicReference<>();
-        ActionListener<String> etagListener = ActionListener.wrap(r -> fail("Should have failed"), capturedException::set);
+        ActionListener<String> realListener = ActionListener.wrap(r -> fail("Should have failed"), capturedException::set);
+        ActionListener<String> etagListener = Mockito.spy(realListener);
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
         blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
@@ -971,7 +973,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(sdkException);
 
         final AtomicReference<Exception> capturedException = new AtomicReference<>();
-        ActionListener<String> etagListener = ActionListener.wrap(r -> fail("Should have failed for SdkException"), capturedException::set);
+        ActionListener<String> realListener = ActionListener.wrap(r -> fail("Should have failed for SdkException"), capturedException::set);
+        ActionListener<String> etagListener = Mockito.spy(realListener);
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
         blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
@@ -1067,12 +1070,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         verify(mockListenerCase1, never()).onFailure(any());
         verify(clientReference1).close();
 
-        final StatsMetricPublisher metricPublisher2 = mock(StatsMetricPublisher.class);
-        final software.amazon.awssdk.metrics.MetricPublisher awsMetricPublisher2 = mock(
-            software.amazon.awssdk.metrics.MetricPublisher.class
-        );
-        when(metricPublisher2.putObjectMetricPublisher).thenReturn(awsMetricPublisher2);
-
         final ByteArrayInputStream inputStreamCase2 = new ByteArrayInputStream(new byte[0]);
         @SuppressWarnings("unchecked")
         ActionListener<String> mockListenerCase2 = mock(ActionListener.class);
@@ -1080,7 +1077,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final S3Client client2 = mock(S3Client.class);
         final AmazonS3Reference clientReference2 = mock(AmazonS3Reference.class);
 
-        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher2);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
         when(blobStore.clientReference()).thenReturn(clientReference2);
         when(clientReference2.get()).thenReturn(client2);
         when(client2.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenReturn(
