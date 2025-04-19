@@ -35,9 +35,12 @@ public final class StackCallerProtectionDomainChainExtractor implements Function
      */
     @Override
     public Collection<ProtectionDomain> apply(Stream<StackFrame> frames) {
-        return frames.map(StackFrame::getDeclaringClass)
+        return frames.takeWhile(
+            frame -> !frame.getClassName().equals("java.security.AccessController") || !frame.getMethodName().equals("doPrivileged")
+        )
+            .map(StackFrame::getDeclaringClass)
             .map(Class::getProtectionDomain)
-            .filter(pd -> pd.getCodeSource() != null) /* JDK */
+            .filter(pd -> pd.getCodeSource() != null) // Filter out JDK classes
             .collect(Collectors.toSet());
     }
 }

@@ -10,7 +10,6 @@ package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
-import java.lang.StackWalker.Option;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.NetPermission;
@@ -46,7 +45,7 @@ public class SocketChannelInterceptor {
             return; /* noop */
         }
 
-        final StackWalker walker = StackWalker.getInstance(Option.RETAIN_CLASS_REFERENCE);
+        final StackWalker walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
         final Collection<ProtectionDomain> callers = walker.walk(StackCallerProtectionDomainChainExtractor.INSTANCE);
 
         if (args[0] instanceof InetSocketAddress address) {
