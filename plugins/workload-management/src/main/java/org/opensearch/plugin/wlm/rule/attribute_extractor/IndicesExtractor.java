@@ -9,9 +9,9 @@
 package org.opensearch.plugin.wlm.rule.attribute_extractor;
 
 import org.opensearch.action.IndicesRequest;
-import org.opensearch.autotagging.Attribute;
 import org.opensearch.rule.RuleAttribute;
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
+import org.opensearch.rule.autotagging.Attribute;
 
 import java.util.List;
 

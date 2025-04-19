@@ -8,10 +8,10 @@
 
 package org.opensearch.plugin.wlm.rule;
 
-import org.opensearch.autotagging.Attribute;
-import org.opensearch.autotagging.AutoTaggingRegistry;
-import org.opensearch.autotagging.FeatureType;
 import org.opensearch.rule.RuleAttribute;
+import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+import org.opensearch.rule.autotagging.FeatureType;
 
 import java.util.Map;
 
@@ -36,10 +36,6 @@ public class WorkloadGroupFeatureType implements FeatureType {
     );
 
     private WorkloadGroupFeatureType() {}
-
-    static {
-        INSTANCE.registerFeatureType();
-    }
 
     @Override
     public String getName() {
