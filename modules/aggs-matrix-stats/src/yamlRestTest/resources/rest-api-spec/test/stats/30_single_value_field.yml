@@ -1,6 +1,10 @@
 ---
 setup:
-
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.concurrent_segment_search.mode: "none"
   - do:
       indices.create:
         index: test
