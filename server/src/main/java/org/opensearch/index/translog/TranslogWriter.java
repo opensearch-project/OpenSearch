@@ -189,12 +189,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
             final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
             header.write(channel, !Boolean.TRUE.equals(remoteTranslogEnabled));
-            TranslogCheckedContainer translogCheckedContainer = null;
-            if (Boolean.TRUE.equals(remoteTranslogEnabled)) {
-                ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-                header.write(byteArrayOutputStream);
-                translogCheckedContainer = new TranslogCheckedContainer(byteArrayOutputStream.toByteArray());
-            }
+
+            // Enable translogCheckedContainer for remote as well as local translog.
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            header.write(byteArrayOutputStream);
+            TranslogCheckedContainer translogCheckedContainer = new TranslogCheckedContainer(byteArrayOutputStream.toByteArray());
+
             final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(
                 header.sizeInBytes(),
                 fileGeneration,
@@ -438,8 +438,41 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         synchronized (syncLock) {
             try (ReleasableLock toClose = writeLock.acquire()) {
                 synchronized (this) {
+                    Long translogContentChecksum = null;
+                    Long fullTranslogChecksum = null;
                     try {
+                        if (header.getTranslogHeaderVersion() >= TranslogHeader.VERSION_WITH_FOOTER) {
+                            // If we are adding a footer, change the totalOffset.
+                            // This will ensure that footer length is included in the checkpoint.
+                            totalOffset += TranslogFooter.footerLength();
+                        }
+
                         sync(); // sync before we close..
+
+                        if (header.getTranslogHeaderVersion() >= TranslogHeader.VERSION_WITH_FOOTER) {
+                            // Post sync, we will add the footer to the translog.
+                            assert translogCheckedContainer != null : "checksum has not been calculated for the translog";
+                            // add footer to the translog file.
+                            // The checksum in the footer consists of header + body.
+                            byte[] footer = TranslogFooter.write(
+                                channel,
+                                translogCheckedContainer.getChecksum(),
+                                !Boolean.TRUE.equals(remoteTranslogEnabled)
+                            );
+                            // Store the checksum without footer.
+                            translogContentChecksum = translogCheckedContainer.getChecksum();
+
+                            // update the checked container for translog to account for the footer.
+                            // This is needed because the checksum from the container will be used for
+                            // comparison during remote store upload.
+                            translogCheckedContainer.updateFromBytes(footer, 0, footer.length);
+                            fullTranslogChecksum = translogCheckedContainer.getChecksum();
+                        } else {
+                            // If we reach here then it means we are using older header and therefore, no footer.
+                            // So, both translogContentChecksum and fullTranslogChecksum are same.
+                            translogContentChecksum = (translogCheckedContainer != null) ? translogCheckedContainer.getChecksum() : null;
+                            fullTranslogChecksum = translogContentChecksum;
+                        }
                     } catch (final Exception ex) {
                         closeWithTragicEvent(ex);
                         throw ex;
@@ -460,7 +493,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             channel,
                             path,
                             header,
-                            (translogCheckedContainer != null) ? translogCheckedContainer.getChecksum() : null
+                            translogContentChecksum,
+                            fullTranslogChecksum,
+                            true
                         );
                     } else {
                         throw new AlreadyClosedException(
