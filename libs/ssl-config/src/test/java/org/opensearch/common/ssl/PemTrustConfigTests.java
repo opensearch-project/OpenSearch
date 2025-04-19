@@ -150,6 +150,7 @@ public class PemTrustConfigTests extends OpenSearchTestCase {
         } catch (Throwable t) {
             // do nothing
         }
+        // Any exception are as expected
         assert isFailedToParse || isInvalidFileFormat;
     }
 
