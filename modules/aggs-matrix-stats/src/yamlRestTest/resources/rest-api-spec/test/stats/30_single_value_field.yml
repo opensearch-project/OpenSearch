@@ -8,6 +8,7 @@ setup:
           settings:
             number_of_shards: 3
             number_of_routing_shards: 3
+            index.search.concurrent_segment_search.mode: none
           mappings:
             "properties":
               "val1":
