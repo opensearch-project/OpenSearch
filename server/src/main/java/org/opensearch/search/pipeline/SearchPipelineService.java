@@ -92,6 +92,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
 
     private final OperationMetrics totalRequestProcessingMetrics = new OperationMetrics();
     private final OperationMetrics totalResponseProcessingMetrics = new OperationMetrics();
+    private final OperationMetrics totalPhaseProcessingMetrics = new OperationMetrics();
 
     public SearchPipelineService(
         ClusterService clusterService,
@@ -194,6 +195,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                     namedWriteableRegistry,
                     totalRequestProcessingMetrics,
                     totalResponseProcessingMetrics,
+                    totalPhaseProcessingMetrics,
                     new Processor.PipelineContext(Processor.PipelineSource.UPDATE_PIPELINE)
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
@@ -306,6 +308,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             namedWriteableRegistry,
             new OperationMetrics(), // Use ephemeral metrics for validation
             new OperationMetrics(),
+            new OperationMetrics(),
             new Processor.PipelineContext(Processor.PipelineSource.VALIDATE_PIPELINE)
         );
         List<Exception> exceptions = new ArrayList<>();
@@ -402,6 +405,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                     namedWriteableRegistry,
                     totalRequestProcessingMetrics,
                     totalResponseProcessingMetrics,
+                    totalPhaseProcessingMetrics,
                     new Processor.PipelineContext(Processor.PipelineSource.SEARCH_REQUEST)
                 );
             } catch (Exception e) {
@@ -475,7 +479,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
 
     public SearchPipelineStats stats() {
         SearchPipelineStats.Builder builder = new SearchPipelineStats.Builder();
-        builder.withTotalStats(totalRequestProcessingMetrics, totalResponseProcessingMetrics);
+        builder.withTotalStats(totalRequestProcessingMetrics, totalResponseProcessingMetrics, totalPhaseProcessingMetrics);
         for (PipelineHolder pipelineHolder : pipelines.values()) {
             PipelineWithMetrics pipeline = pipelineHolder.pipeline;
             pipeline.populateStats(builder);
