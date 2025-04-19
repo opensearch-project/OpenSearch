@@ -302,9 +302,9 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         shardSizes.put("[test][0][r]", 10L);
 
         Map<String, FileCacheStats> fileCacheStatsMap = new HashMap<>();
-        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node3", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
+        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, null));
+        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, null));
+        fileCacheStatsMap.put("node3", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, null));
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -396,8 +396,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
 
         // First node has filecache size as 0, second has 1000, greater than the shard sizes.
         Map<String, FileCacheStats> fileCacheStatsMap = new HashMap<>();
-        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 0, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
+        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 0, 0, 0, 0, 0, null));
+        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, null));
 
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
 
