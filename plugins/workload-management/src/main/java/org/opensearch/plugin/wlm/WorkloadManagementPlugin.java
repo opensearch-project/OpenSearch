@@ -37,8 +37,6 @@ import org.opensearch.plugin.wlm.rest.RestDeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
-import org.opensearch.plugin.wlm.rule.action.GetWlmRuleAction;
-import org.opensearch.plugin.wlm.rule.action.TransportGetWlmRuleAction;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
@@ -46,8 +44,10 @@ import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
-import org.opensearch.rule.rest.RestGetRuleAction;
+import org.opensearch.rule.RulePersistenceService;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
+import org.opensearch.rule.spi.RuleFrameworkExtension;
 import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
 import org.opensearch.rule.storage.XContentRuleParser;
 import org.opensearch.script.ScriptService;
@@ -56,15 +56,14 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Plugin class for WorkloadManagement
  */
-public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
+public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin, RuleFrameworkExtension {
     /**
      * The name of the index where rules are stored.
      */
@@ -73,6 +72,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
      * The maximum number of rules allowed per GET request.
      */
     public static final int MAX_RULES_PER_PAGE = 50;
+
+    private final RulePersistenceServiceHolder rulePersistenceServiceHolder = new RulePersistenceServiceHolder();
 
     /**
      * Default constructor
@@ -93,16 +94,14 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        return List.of(
-            new IndexStoredRulePersistenceService(
-                INDEX_NAME,
-                client,
-                WorkloadGroupFeatureType.INSTANCE,
-                MAX_RULES_PER_PAGE,
-                new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE),
-                new IndexBasedRuleQueryMapper()
-            )
+        RulePersistenceServiceHolder.rulePersistenceService = new IndexStoredRulePersistenceService(
+            INDEX_NAME,
+            client,
+            MAX_RULES_PER_PAGE,
+            new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE),
+            new IndexBasedRuleQueryMapper()
         );
+        return Collections.emptyList();
     }
 
     @Override
@@ -111,8 +110,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new ActionPlugin.ActionHandler<>(CreateWorkloadGroupAction.INSTANCE, TransportCreateWorkloadGroupAction.class),
             new ActionPlugin.ActionHandler<>(GetWorkloadGroupAction.INSTANCE, TransportGetWorkloadGroupAction.class),
             new ActionPlugin.ActionHandler<>(DeleteWorkloadGroupAction.INSTANCE, TransportDeleteWorkloadGroupAction.class),
-            new ActionPlugin.ActionHandler<>(UpdateWorkloadGroupAction.INSTANCE, TransportUpdateWorkloadGroupAction.class),
-            new ActionPlugin.ActionHandler<>(GetWlmRuleAction.INSTANCE, TransportGetWlmRuleAction.class)
+            new ActionPlugin.ActionHandler<>(UpdateWorkloadGroupAction.INSTANCE, TransportUpdateWorkloadGroupAction.class)
         );
     }
 
@@ -135,13 +133,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new RestCreateWorkloadGroupAction(),
             new RestGetWorkloadGroupAction(),
             new RestDeleteWorkloadGroupAction(),
-            new RestUpdateWorkloadGroupAction(),
-            new RestGetRuleAction(
-                "get_rule",
-                List.of(new RestHandler.Route(GET, "_wlm/rule/"), new RestHandler.Route(GET, "_wlm/rule/{_id}")),
-                WorkloadGroupFeatureType.INSTANCE,
-                GetWlmRuleAction.INSTANCE
-            )
+            new RestUpdateWorkloadGroupAction()
         );
     }
 
@@ -153,5 +145,19 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     @Override
     public Collection<Module> createGuiceModules() {
         return List.of(new WorkloadManagementPluginModule());
+    }
+
+    @Override
+    public Supplier<RulePersistenceService> getRulePersistenceServiceSupplier() {
+        return () -> RulePersistenceServiceHolder.rulePersistenceService;
+    }
+
+    @Override
+    public FeatureType getFeatureType() {
+        return WorkloadGroupFeatureType.INSTANCE;
+    }
+
+    static class RulePersistenceServiceHolder {
+        private static RulePersistenceService rulePersistenceService;
     }
 }
