@@ -8,6 +8,7 @@
 
 package org.opensearch.search.aggregations.startree;
 
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
@@ -34,7 +35,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
@@ -94,10 +97,12 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         List<DimensionFilter> methodFilters = filter.getFiltersForDimension("method");
         assertEquals("Should have one filter for method", 1, methodFilters.size());
         assertTrue("Should be ExactMatchDimFilter", methodFilters.getFirst() instanceof ExactMatchDimFilter);
+        assertExactMatchValue((ExactMatchDimFilter) methodFilters.getFirst(), "GET");
 
         List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
         assertEquals("Should have one filter for status", 1, statusFilters.size());
         assertTrue("Should be ExactMatchDimFilter", statusFilters.getFirst() instanceof ExactMatchDimFilter);
+        assertExactMatchValue((ExactMatchDimFilter) statusFilters.getFirst(), 200L);
     }
 
     public void testNestedMustClauses() throws IOException {
@@ -109,7 +114,18 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
         assertNotNull("Filter should not be null", filter);
         assertEquals("Should have three dimensions", 3, filter.getDimensions().size());
-        assertTrue("Should contain all dimensions", filter.getDimensions().containsAll(Set.of("method", "status", "port")));
+
+        // Verify method filter
+        List<DimensionFilter> methodFilters = filter.getFiltersForDimension("method");
+        assertExactMatchValue((ExactMatchDimFilter) methodFilters.getFirst(), "GET");
+
+        // Verify status filter
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertExactMatchValue((ExactMatchDimFilter) statusFilters.getFirst(), 200L);
+
+        // Verify port filter
+        List<DimensionFilter> portFilters = filter.getFiltersForDimension("port");
+        assertExactMatchValue((ExactMatchDimFilter) portFilters.getFirst(), 443L);
     }
 
     public void testMustWithDifferentQueryTypes() throws IOException {
@@ -121,13 +137,26 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
 
         assertNotNull("Filter should not be null", filter);
-        assertEquals("Should have three dimensions", 3, filter.getDimensions().size());
 
-        assertTrue(
-            "Status should have ExactMatchDimFilter",
-            filter.getFiltersForDimension("status").getFirst() instanceof ExactMatchDimFilter
-        );
-        assertTrue("Port should have RangeMatchDimFilter", filter.getFiltersForDimension("port").getFirst() instanceof RangeMatchDimFilter);
+        // Verify method filter
+        List<DimensionFilter> methodFilters = filter.getFiltersForDimension("method");
+        assertTrue("Method should be ExactMatchDimFilter", methodFilters.getFirst() instanceof ExactMatchDimFilter);
+        assertExactMatchValue((ExactMatchDimFilter) methodFilters.getFirst(), "GET");
+
+        // Verify status filter
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertTrue("Status should be ExactMatchDimFilter", statusFilters.getFirst() instanceof ExactMatchDimFilter);
+        Set<Object> expectedStatusValues = Set.of(200L, 201L);
+        Set<Object> actualStatusValues = new HashSet<>(((ExactMatchDimFilter) statusFilters.getFirst()).getRawValues());
+        assertEquals("Status should have expected values", expectedStatusValues, actualStatusValues);
+
+        // Verify port filter
+        List<DimensionFilter> portFilters = filter.getFiltersForDimension("port");
+        assertTrue("Port should be RangeMatchDimFilter", portFilters.getFirst() instanceof RangeMatchDimFilter);
+        RangeMatchDimFilter portRange = (RangeMatchDimFilter) portFilters.getFirst();
+        assertEquals("Port lower bound should be 80", 80L, portRange.getLow());
+        assertEquals("Port upper bound should be 443", 443L, portRange.getHigh());
+        assertTrue("Port bounds should be inclusive", portRange.isIncludeLow() && portRange.isIncludeHigh());
     }
 
     public void testMustWithSameDimension() throws IOException {
@@ -150,9 +179,7 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
     }
 
     public void testShouldWithSameDimension() throws IOException {
-        // SHOULD with same dimension (Term queries)
-        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
-            .should(new TermQueryBuilder("status", 200))
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().should(new TermQueryBuilder("status", 200))
             .should(new TermQueryBuilder("status", 404));
 
         StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
@@ -164,15 +191,19 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
         List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
         assertEquals("Should have two filters for status", 2, statusFilters.size());
-        assertTrue("Both should be ExactMatchDimFilter",
-            statusFilters.stream().allMatch(f -> f instanceof ExactMatchDimFilter));
+        assertTrue("Both should be ExactMatchDimFilter", statusFilters.stream().allMatch(f -> f instanceof ExactMatchDimFilter));
+
+        Set<Object> expectedValues = Set.of(200L, 404L);
+        Set<Object> actualValues = new HashSet<>();
+        for (DimensionFilter dimensionFilter : statusFilters) {
+            actualValues.addAll(((ExactMatchDimFilter) dimensionFilter).getRawValues());
+        }
+        assertEquals("Should contain expected status values", expectedValues, actualValues);
     }
 
     public void testShouldWithSameDimensionRange() throws IOException {
-        // SHOULD with same dimension (Range queries)
-        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
-            .should(new RangeQueryBuilder("status").gte(200).lt(300))
-            .should(new RangeQueryBuilder("status").gte(400).lt(500));
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().should(new RangeQueryBuilder("status").gte(200).lte(300))
+            .should(new RangeQueryBuilder("status").gte(400).lte(500));
 
         StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
         StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
@@ -182,15 +213,26 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
         List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
         assertEquals("Should have two filters for status", 2, statusFilters.size());
-        assertTrue("Both should be RangeMatchDimFilter",
-            statusFilters.stream().allMatch(f -> f instanceof RangeMatchDimFilter));
+        assertTrue("Both should be RangeMatchDimFilter", statusFilters.stream().allMatch(f -> f instanceof RangeMatchDimFilter));
+
+        // Verify first range
+        RangeMatchDimFilter firstRange = (RangeMatchDimFilter) statusFilters.getFirst();
+        assertEquals("First range lower bound should be 200", 200L, firstRange.getLow());
+        assertEquals("First range upper bound should be 300", 300L, firstRange.getHigh());
+        assertTrue("First range lower bound should be inclusive", firstRange.isIncludeLow());
+        assertTrue("First range upper bound should be inclusive", firstRange.isIncludeHigh());
+
+        // Verify second range
+        RangeMatchDimFilter secondRange = (RangeMatchDimFilter) statusFilters.get(1);
+        assertEquals("Second range lower bound should be 400", 400L, secondRange.getLow());
+        assertEquals("Second range upper bound should be 500", 500L, secondRange.getHigh());
+        assertTrue("Second range lower bound should be inclusive", secondRange.isIncludeLow());
+        assertTrue("Second range upper bound should be inclusive", secondRange.isIncludeHigh());
     }
 
     public void testShouldWithSameDimensionMixed() throws IOException {
-        // SHOULD with same dimension (Mixed Term and Range)
-        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
-            .should(new TermQueryBuilder("status", 200))
-            .should(new RangeQueryBuilder("status").gte(400).lt(500));
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().should(new TermQueryBuilder("status", 200))
+            .should(new RangeQueryBuilder("status").gte(400).lte(500));
 
         StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
         StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
@@ -200,15 +242,30 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
         List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
         assertEquals("Should have two filters for status", 2, statusFilters.size());
-        assertTrue("Should have both ExactMatch and RangeMatch filters",
-            statusFilters.stream().anyMatch(f -> f instanceof ExactMatchDimFilter) &&
-                statusFilters.stream().anyMatch(f -> f instanceof RangeMatchDimFilter));
+
+        // Find and verify exact match filter
+        Optional<ExactMatchDimFilter> exactFilter = statusFilters.stream()
+            .filter(f -> f instanceof ExactMatchDimFilter)
+            .map(f -> (ExactMatchDimFilter) f)
+            .findFirst();
+        assertTrue("Should have exact match filter", exactFilter.isPresent());
+        assertEquals("Exact match should be 200", 200L, exactFilter.get().getRawValues().get(0));
+
+        // Find and verify range filter
+        Optional<RangeMatchDimFilter> rangeFilter = statusFilters.stream()
+            .filter(f -> f instanceof RangeMatchDimFilter)
+            .map(f -> (RangeMatchDimFilter) f)
+            .findFirst();
+        assertTrue("Should have range filter", rangeFilter.isPresent());
+        assertEquals("Range lower bound should be 400", 400L, rangeFilter.get().getLow());
+        assertEquals("Range upper bound should be 500", 500L, rangeFilter.get().getHigh());
+        assertTrue("Range lower bound should be inclusive", rangeFilter.get().isIncludeLow());
+        assertTrue("Range upper bound should be inclusive", rangeFilter.get().isIncludeHigh());
     }
 
     public void testShouldWithDifferentDimensions() throws IOException {
         // SHOULD with different dimensions (should be rejected)
-        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
-            .should(new TermQueryBuilder("status", 200))
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().should(new TermQueryBuilder("status", 200))
             .should(new TermQueryBuilder("method", "GET"));
 
         StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
@@ -218,12 +275,8 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
     }
 
     public void testNestedShouldSameDimension() throws IOException {
-        // Nested SHOULD with same dimension
-        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
-            .should(new TermQueryBuilder("status", 200))
-            .should(new BoolQueryBuilder()
-                .should(new TermQueryBuilder("status", 404))
-                .should(new TermQueryBuilder("status", 500)));
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().should(new TermQueryBuilder("status", 200))
+            .should(new BoolQueryBuilder().should(new TermQueryBuilder("status", 404)).should(new TermQueryBuilder("status", 500)));
 
         StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
         StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
@@ -233,18 +286,170 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
         List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
         assertEquals("Should have three filters for status", 3, statusFilters.size());
-        assertTrue("All should be ExactMatchDimFilter",
-            statusFilters.stream().allMatch(f -> f instanceof ExactMatchDimFilter));
+        assertTrue("All should be ExactMatchDimFilter", statusFilters.stream().allMatch(f -> f instanceof ExactMatchDimFilter));
+
+        Set<Object> expectedValues = Set.of(200L, 404L, 500L);
+        Set<Object> actualValues = new HashSet<>();
+        for (DimensionFilter dimensionFilter : statusFilters) {
+            actualValues.addAll(((ExactMatchDimFilter) dimensionFilter).getRawValues());
+        }
+        assertEquals("Should contain all expected status values", expectedValues, actualValues);
     }
 
     public void testEmptyShouldClause() throws IOException {
-        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
-            .should(new BoolQueryBuilder());
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().should(new BoolQueryBuilder());
 
         StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
         StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
 
         assertNull("Filter should be null for empty SHOULD clause", filter);
+    }
+
+    public void testMustContainingShouldSameDimension() throws IOException {
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new RangeQueryBuilder("status").gte(200).lt(500))
+            .must(new BoolQueryBuilder().should(new TermQueryBuilder("status", 404)).should(new TermQueryBuilder("status", 403)));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have one dimension", 1, filter.getDimensions().size());
+
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals("Should have two filters after intersection", 2, statusFilters.size());
+
+        Set<Object> expectedValues = Set.of(403L, 404L);
+        Set<Object> actualValues = new HashSet<>();
+        for (DimensionFilter dimFilter : statusFilters) {
+            assertTrue("Should be ExactMatchDimFilter", dimFilter instanceof ExactMatchDimFilter);
+            ExactMatchDimFilter exactFilter = (ExactMatchDimFilter) dimFilter;
+            actualValues.addAll(exactFilter.getRawValues());
+        }
+        assertEquals("Should contain expected status values", expectedValues, actualValues);
+    }
+
+    public void testMustContainingShouldDifferentDimension() throws IOException {
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"))
+            .must(new BoolQueryBuilder().should(new TermQueryBuilder("status", 200)).should(new TermQueryBuilder("status", 404)));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have two dimensions", 2, filter.getDimensions().size());
+
+        // Verify method filter
+        List<DimensionFilter> methodFilters = filter.getFiltersForDimension("method");
+        assertEquals("Method should have one filter", 1, methodFilters.size());
+        assertTrue("Should be ExactMatchDimFilter", methodFilters.getFirst() instanceof ExactMatchDimFilter);
+        assertExactMatchValue((ExactMatchDimFilter) methodFilters.getFirst(), "GET");
+
+        // Verify status filters
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals("Status should have two filters", 2, statusFilters.size());
+        Set<Object> expectedStatusValues = Set.of(200L, 404L);
+        Set<Object> actualStatusValues = new HashSet<>();
+        for (DimensionFilter dimFilter : statusFilters) {
+            assertTrue("Should be ExactMatchDimFilter", dimFilter instanceof ExactMatchDimFilter);
+            ExactMatchDimFilter exactFilter = (ExactMatchDimFilter) dimFilter;
+            actualStatusValues.addAll(exactFilter.getRawValues());
+        }
+        assertEquals("Should contain expected status values", expectedStatusValues, actualStatusValues);
+    }
+
+    public void testMultipleLevelsMustNesting() throws IOException {
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"))
+            .must(
+                new BoolQueryBuilder().must(new RangeQueryBuilder("status").gte(200).lte(300))
+                    .must(new BoolQueryBuilder().must(new TermQueryBuilder("port", 443)))
+            );
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+
+        // Verify method filter
+        List<DimensionFilter> methodFilters = filter.getFiltersForDimension("method");
+        assertEquals("Method should have one filter", 1, methodFilters.size());
+        assertTrue("Should be ExactMatchDimFilter", methodFilters.getFirst() instanceof ExactMatchDimFilter);
+        assertExactMatchValue((ExactMatchDimFilter) methodFilters.getFirst(), "GET");
+
+        // Verify status filter
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals("Status should have one filter", 1, statusFilters.size());
+        assertTrue("Should be RangeMatchDimFilter", statusFilters.getFirst() instanceof RangeMatchDimFilter);
+        RangeMatchDimFilter rangeFilter = (RangeMatchDimFilter) statusFilters.getFirst();
+        assertEquals("Lower bound should be 200", 200L, rangeFilter.getLow());
+        assertEquals("Upper bound should be 300", 300L, rangeFilter.getHigh());
+        assertTrue("Lower bound should be inclusive", rangeFilter.isIncludeLow());
+        assertTrue("Upper bound should be inclusive", rangeFilter.isIncludeHigh());
+
+        // Verify port filter
+        List<DimensionFilter> portFilters = filter.getFiltersForDimension("port");
+        assertEquals("Port should have one filter", 1, portFilters.size());
+        assertTrue("Should be ExactMatchDimFilter", portFilters.getFirst() instanceof ExactMatchDimFilter);
+        assertExactMatchValue((ExactMatchDimFilter) portFilters.getFirst(), 443L);
+    }
+
+    public void testShouldInsideShouldSameDimension() throws IOException {
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().should(new TermQueryBuilder("status", 200))
+            .should(new BoolQueryBuilder().should(new TermQueryBuilder("status", 404)).should(new TermQueryBuilder("status", 500)));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have one dimension", 1, filter.getDimensions().size());
+
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals("Should have three filters", 3, statusFilters.size());
+
+        Set<Object> expectedValues = Set.of(200L, 404L, 500L);
+        Set<Object> actualValues = new HashSet<>();
+        for (DimensionFilter dimFilter : statusFilters) {
+            assertTrue("Should be ExactMatchDimFilter", dimFilter instanceof ExactMatchDimFilter);
+            ExactMatchDimFilter exactFilter = (ExactMatchDimFilter) dimFilter;
+            actualValues.addAll(exactFilter.getRawValues());
+        }
+        assertEquals("Should contain all expected values", expectedValues, actualValues);
+    }
+
+    public void testMustInsideShouldRejected() throws IOException {
+        // MUST inside SHOULD (should be rejected)
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().should(
+            new BoolQueryBuilder().must(new TermQueryBuilder("status", 200)).must(new TermQueryBuilder("method", "GET"))
+        );
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null for MUST inside SHOULD", filter);
+    }
+
+    public void testComplexNestedStructure() throws IOException {
+        // Complex nested structure with both MUST and SHOULD
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"))
+            .must(
+                new BoolQueryBuilder().must(new RangeQueryBuilder("port").gte(80).lte(443))
+                    .must(new BoolQueryBuilder().should(new TermQueryBuilder("status", 200)).should(new TermQueryBuilder("status", 404)))
+            );
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have three dimensions", 3, filter.getDimensions().size());
+        assertTrue("Should contain all dimensions", filter.getDimensions().containsAll(Set.of("method", "port", "status")));
+    }
+
+    // Helper methods for assertions
+    private void assertExactMatchValue(ExactMatchDimFilter filter, String expectedValue) {
+        assertEquals(new BytesRef(expectedValue), filter.getRawValues().getFirst());
+    }
+
+    private void assertExactMatchValue(ExactMatchDimFilter filter, Long expectedValue) {
+        assertEquals(expectedValue, filter.getRawValues().getFirst());
     }
 
 }
