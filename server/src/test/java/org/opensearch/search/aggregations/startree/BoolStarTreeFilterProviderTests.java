@@ -149,4 +149,102 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertNull("Filter should be null for empty bool query", filter);
     }
 
+    public void testShouldWithSameDimension() throws IOException {
+        // SHOULD with same dimension (Term queries)
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .should(new TermQueryBuilder("status", 200))
+            .should(new TermQueryBuilder("status", 404));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have one dimension", 1, filter.getDimensions().size());
+        assertTrue("Should contain status dimension", filter.getDimensions().contains("status"));
+
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals("Should have two filters for status", 2, statusFilters.size());
+        assertTrue("Both should be ExactMatchDimFilter",
+            statusFilters.stream().allMatch(f -> f instanceof ExactMatchDimFilter));
+    }
+
+    public void testShouldWithSameDimensionRange() throws IOException {
+        // SHOULD with same dimension (Range queries)
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .should(new RangeQueryBuilder("status").gte(200).lt(300))
+            .should(new RangeQueryBuilder("status").gte(400).lt(500));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have one dimension", 1, filter.getDimensions().size());
+
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals("Should have two filters for status", 2, statusFilters.size());
+        assertTrue("Both should be RangeMatchDimFilter",
+            statusFilters.stream().allMatch(f -> f instanceof RangeMatchDimFilter));
+    }
+
+    public void testShouldWithSameDimensionMixed() throws IOException {
+        // SHOULD with same dimension (Mixed Term and Range)
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .should(new TermQueryBuilder("status", 200))
+            .should(new RangeQueryBuilder("status").gte(400).lt(500));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have one dimension", 1, filter.getDimensions().size());
+
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals("Should have two filters for status", 2, statusFilters.size());
+        assertTrue("Should have both ExactMatch and RangeMatch filters",
+            statusFilters.stream().anyMatch(f -> f instanceof ExactMatchDimFilter) &&
+                statusFilters.stream().anyMatch(f -> f instanceof RangeMatchDimFilter));
+    }
+
+    public void testShouldWithDifferentDimensions() throws IOException {
+        // SHOULD with different dimensions (should be rejected)
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .should(new TermQueryBuilder("status", 200))
+            .should(new TermQueryBuilder("method", "GET"));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null for SHOULD across different dimensions", filter);
+    }
+
+    public void testNestedShouldSameDimension() throws IOException {
+        // Nested SHOULD with same dimension
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .should(new TermQueryBuilder("status", 200))
+            .should(new BoolQueryBuilder()
+                .should(new TermQueryBuilder("status", 404))
+                .should(new TermQueryBuilder("status", 500)));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have one dimension", 1, filter.getDimensions().size());
+
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals("Should have three filters for status", 3, statusFilters.size());
+        assertTrue("All should be ExactMatchDimFilter",
+            statusFilters.stream().allMatch(f -> f instanceof ExactMatchDimFilter));
+    }
+
+    public void testEmptyShouldClause() throws IOException {
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .should(new BoolQueryBuilder());
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null for empty SHOULD clause", filter);
+    }
+
 }
