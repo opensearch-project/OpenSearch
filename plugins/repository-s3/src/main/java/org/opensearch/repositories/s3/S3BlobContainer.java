@@ -576,7 +576,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
         } catch (S3Exception e) {
             if (e.statusCode() == 412) {
-                etagListener.onFailure(new OpenSearchException("stale_primary_shard", "Precondition Failed : Etag Mismatch", blobName, e));
+                etagListener.onFailure(new OpenSearchException("stale_primary_shard", e, "Precondition Failed : Etag Mismatch", blobName));
             } else {
                 etagListener.onFailure(
                     new IOException(String.format(Locale.ROOT, "S3 error during upload [%s]: %s", blobName, e.getMessage()), e)
