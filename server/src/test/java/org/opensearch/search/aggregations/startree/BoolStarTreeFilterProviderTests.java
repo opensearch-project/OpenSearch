@@ -828,6 +828,30 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertEquals(expectedTimes, actualTimes);
     }
 
+    public void testLargeNumberOfClauses() throws IOException {
+        // Create a bool query with large number of SHOULD clauses
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"));
+
+        // Add 100 SHOULD clauses for status
+        BoolQueryBuilder statusShould = new BoolQueryBuilder();
+        for (int i = 200; i < 300; i++) {
+            statusShould.should(new TermQueryBuilder("status", i));
+        }
+        boolQuery.must(statusShould);
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+
+        // Verify filters
+        List<DimensionFilter> methodFilters = filter.getFiltersForDimension("method");
+        assertExactMatchValue((ExactMatchDimFilter) methodFilters.getFirst(), "GET");
+
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals(100, statusFilters.size());
+    }
+
     // Helper methods for assertions
     private void assertExactMatchValue(ExactMatchDimFilter filter, String expectedValue) {
         assertEquals(new BytesRef(expectedValue), filter.getRawValues().getFirst());
