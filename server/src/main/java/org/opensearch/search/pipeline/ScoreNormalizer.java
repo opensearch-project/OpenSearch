@@ -36,8 +36,7 @@ public class ScoreNormalizer {
     /**
      * Explain normalized scores based on input normalization technique. Does not mutate input object.
      * @param queryTopDocs original query results from multiple shards and multiple sub-queries
-     * @param queryTopDocs
-     * @param scoreNormalizationTechnique
+     * @param scoreNormalizationTechnique score normalization technique
      * @return map of doc id to explanation details
      */
     public Map<DocIdAtSearchShard, ExplanationDetails> explain(
