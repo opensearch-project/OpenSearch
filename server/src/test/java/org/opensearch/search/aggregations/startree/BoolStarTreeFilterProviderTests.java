@@ -443,6 +443,111 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertTrue("Should contain all dimensions", filter.getDimensions().containsAll(Set.of("method", "port", "status")));
     }
 
+    public void testMaximumNestingDepth() throws IOException {
+        // Build a deeply nested bool query
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"));
+
+        BoolQueryBuilder current = boolQuery;
+        for (int i = 0; i < 10; i++) { // Test with 10 levels of nesting
+            BoolQueryBuilder nested = new BoolQueryBuilder().must(new TermQueryBuilder("status", 200 + i));
+            current.must(nested);
+            current = nested;
+        }
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should not be null", filter);
+    }
+
+    public void testAllClauseTypesCombined() throws IOException {
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"))
+            .must(
+                new BoolQueryBuilder().must(new RangeQueryBuilder("port").gte(80).lte(443))
+                    .must(new BoolQueryBuilder().should(new TermQueryBuilder("status", 200)).should(new TermQueryBuilder("status", 201)))
+            )
+            .must(new TermsQueryBuilder("method", Arrays.asList("GET", "POST"))); // This should intersect with first method term
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have three dimensions", 3, filter.getDimensions().size());
+
+        // Verify method filter (should be intersection of term and terms)
+        List<DimensionFilter> methodFilters = filter.getFiltersForDimension("method");
+        assertEquals("Should have one filter for method after intersection", 1, methodFilters.size());
+        assertExactMatchValue((ExactMatchDimFilter) methodFilters.getFirst(), "GET");
+
+        // Verify port filter
+        List<DimensionFilter> portFilters = filter.getFiltersForDimension("port");
+        assertTrue("Port should be RangeMatchDimFilter", portFilters.getFirst() instanceof RangeMatchDimFilter);
+        RangeMatchDimFilter portRange = (RangeMatchDimFilter) portFilters.getFirst();
+        assertEquals("Port lower bound should be 80", 80L, portRange.getLow());
+        assertEquals("Port upper bound should be 443", 443L, portRange.getHigh());
+
+        // Verify status filters
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals("Should have two filters for status", 2, statusFilters.size());
+        Set<Object> expectedStatusValues = Set.of(200L, 201L);
+        Set<Object> actualStatusValues = new HashSet<>();
+        for (DimensionFilter statusFilter : statusFilters) {
+            actualStatusValues.addAll(((ExactMatchDimFilter) statusFilter).getRawValues());
+        }
+        assertEquals("Status should have expected values", expectedStatusValues, actualStatusValues);
+    }
+
+    public void testEmptyNestedBools() throws IOException {
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new BoolQueryBuilder())
+            .must(new BoolQueryBuilder().must(new BoolQueryBuilder()));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null for empty nested bool queries", filter);
+    }
+
+    public void testSingleClauseBoolQueries() throws IOException {
+        // Test single MUST clause
+        BoolQueryBuilder mustOnly = new BoolQueryBuilder().must(new TermQueryBuilder("status", 200));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(mustOnly);
+        StarTreeFilter filter = provider.getFilter(searchContext, mustOnly, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have one dimension", 1, filter.getDimensions().size());
+        assertExactMatchValue((ExactMatchDimFilter) filter.getFiltersForDimension("status").get(0), 200L);
+
+        // Test single SHOULD clause
+        BoolQueryBuilder shouldOnly = new BoolQueryBuilder().should(new TermQueryBuilder("status", 200));
+
+        filter = provider.getFilter(searchContext, shouldOnly, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have one dimension", 1, filter.getDimensions().size());
+        assertExactMatchValue((ExactMatchDimFilter) filter.getFiltersForDimension("status").get(0), 200L);
+    }
+
+    public void testDuplicateDimensionsAcrossNesting() throws IOException {
+        // Test duplicate dimensions that should be merged/intersected
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new RangeQueryBuilder("status").gte(200).lte(500))
+            .must(new BoolQueryBuilder().must(new RangeQueryBuilder("status").gte(300).lte(400)));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have one dimension", 1, filter.getDimensions().size());
+
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals("Should have one filter after intersection", 1, statusFilters.size());
+        RangeMatchDimFilter rangeFilter = (RangeMatchDimFilter) statusFilters.getFirst();
+        assertEquals("Lower bound should be 300", 300L, rangeFilter.getLow());
+        assertEquals("Upper bound should be 400", 400L, rangeFilter.getHigh());
+        assertTrue("Lower bound should be exclusive", rangeFilter.isIncludeLow());
+        assertTrue("Upper bound should be exclusive", rangeFilter.isIncludeHigh());
+    }
+
     // Helper methods for assertions
     private void assertExactMatchValue(ExactMatchDimFilter filter, String expectedValue) {
         assertEquals(new BytesRef(expectedValue), filter.getRawValues().getFirst());
