@@ -18,7 +18,6 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
@@ -40,11 +39,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String TEST_INDEX = "test_scale_index";
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, Boolean.TRUE).build();
-    }
 
     public Settings indexSettings() {
         return Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
@@ -148,11 +142,7 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
         // Test cluster health when one search replica is down
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodesWithSearchOnlyReplicas()[0]));
 
-        assertEquals(
-            "Index health should be YELLOW with one search replica down",
-            "YELLOW",
-            client().admin().cluster().prepareHealth(TEST_INDEX).get().getStatus().name()
-        );
+        ensureYellow(TEST_INDEX);
 
         // Start a replacement search node and wait for recovery
         internalCluster().startSearchOnlyNode();
@@ -332,14 +322,12 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexRoutingTable indexRoutingTable = state.routingTable().index(TEST_INDEX);
 
-        // Use a set to avoid duplicates if multiple shards are on the same node
         Set<String> nodeNames = new HashSet<>();
 
         for (IndexShardRoutingTable shardTable : indexRoutingTable) {
             for (ShardRouting searchReplica : shardTable.searchOnlyReplicas()) {
                 if (searchReplica.active()) {
-                    String nodeId = searchReplica.currentNodeId();
-                    nodeNames.add(state.nodes().get(nodeId).getName());
+                    nodeNames.add(state.nodes().get(searchReplica.currentNodeId()).getName());
                 }
             }
         }

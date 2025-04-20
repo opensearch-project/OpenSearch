@@ -40,7 +40,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.DocWriteRequest;
-import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.ingest.DeletePipelineRequest;
@@ -567,8 +566,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         BiConsumer<Integer, Exception> onFailure,
         BiConsumer<Thread, Exception> onCompletion,
         IntConsumer onDropped,
-        String executorName,
-        BulkRequest originalBulkRequest
+        String executorName
     ) {
         threadPool.executor(executorName).execute(new AbstractRunnable() {
 
@@ -579,7 +577,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             @Override
             protected void doRun() {
-                runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped, originalBulkRequest);
+                runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped);
             }
         });
     }
@@ -589,8 +587,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Iterable<DocWriteRequest<?>> actionRequests,
         BiConsumer<Integer, Exception> onFailure,
         BiConsumer<Thread, Exception> onCompletion,
-        IntConsumer onDropped,
-        BulkRequest originalBulkRequest
+        IntConsumer onDropped
     ) {
 
         final Thread originalThread = Thread.currentThread();
@@ -635,7 +632,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             i++;
         }
 
-        int batchSize = Math.min(numberOfActionRequests, originalBulkRequest.batchSize());
+        int batchSize = numberOfActionRequests;
         List<List<IndexRequestWrapper>> batches = prepareBatches(batchSize, indexRequestWrappers);
         logger.debug("batchSize: {}, batches: {}", batchSize, batches.size());
 

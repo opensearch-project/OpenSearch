@@ -23,27 +23,27 @@ import java.util.Objects;
  * This class contains the stats for Workload Management
  */
 public class WlmStats extends BaseNodeResponse implements ToXContentObject, Writeable {
-    private final QueryGroupStats queryGroupStats;
+    private final WorkloadGroupStats workloadGroupStats;
 
-    public WlmStats(DiscoveryNode node, QueryGroupStats queryGroupStats) {
+    public WlmStats(DiscoveryNode node, WorkloadGroupStats workloadGroupStats) {
         super(node);
-        this.queryGroupStats = queryGroupStats;
+        this.workloadGroupStats = workloadGroupStats;
     }
 
     public WlmStats(StreamInput in) throws IOException {
         super(in);
-        queryGroupStats = new QueryGroupStats(in);
+        workloadGroupStats = new WorkloadGroupStats(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        queryGroupStats.writeTo(out);
+        workloadGroupStats.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return queryGroupStats.toXContent(builder, params);
+        return workloadGroupStats.toXContent(builder, params);
     }
 
     @Override
@@ -51,15 +51,15 @@ public class WlmStats extends BaseNodeResponse implements ToXContentObject, Writ
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         WlmStats that = (WlmStats) o;
-        return Objects.equals(getQueryGroupStats(), that.getQueryGroupStats());
+        return Objects.equals(getWorkloadGroupStats(), that.getWorkloadGroupStats());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(queryGroupStats);
+        return Objects.hash(workloadGroupStats);
     }
 
-    public QueryGroupStats getQueryGroupStats() {
-        return queryGroupStats;
+    public WorkloadGroupStats getWorkloadGroupStats() {
+        return workloadGroupStats;
     }
 }

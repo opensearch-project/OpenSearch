@@ -275,7 +275,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
     public int primaryShardsActive() {
         int counter = 0;
         for (IndexShardRoutingTable shardRoutingTable : this) {
-            if (shardRoutingTable.primaryShard().active()) {
+            if (shardRoutingTable.primaryShard() != null && shardRoutingTable.primaryShard().active()) {
                 counter++;
             }
         }

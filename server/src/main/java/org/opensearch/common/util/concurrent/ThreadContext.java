@@ -44,14 +44,12 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.http.HttpTransportSettings;
-import org.opensearch.secure_sm.ThreadContextPermission;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskThreadContextStatePropagator;
 import org.opensearch.transport.client.OriginSettingClient;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -114,11 +112,6 @@ public final class ThreadContext implements Writeable {
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
 
     // thread context permissions
-
-    private static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("markAsSystemContext");
-    private static final Permission STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("stashAndMergeHeaders");
-    private static final Permission STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("stashWithOrigin");
-
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
@@ -223,10 +216,6 @@ public final class ThreadContext implements Writeable {
      */
     @SuppressWarnings("removal")
     public StoredContext stashWithOrigin(String origin) {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION);
-        }
         final ThreadContext.StoredContext storedContext = stashContext();
         putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
         return storedContext;
@@ -246,10 +235,6 @@ public final class ThreadContext implements Writeable {
      */
     @SuppressWarnings("removal")
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION);
-        }
         final ThreadContextStruct context = threadLocal.get();
         Map<String, String> newHeader = new HashMap<>(headers);
         newHeader.putAll(context.requestHeaders);
@@ -605,10 +590,6 @@ public final class ThreadContext implements Writeable {
      */
     @SuppressWarnings("removal")
     public void markAsSystemContext() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION);
-        }
         threadLocal.set(threadLocal.get().setSystemContext(propagators));
     }
 

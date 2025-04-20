@@ -1,7 +1,5 @@
 setup:
-  - skip:
-      version: " - 7.2.99"
-      reason: RareTerms added in 7.3.0
+
   - do:
       indices.create:
           index: test_1
@@ -315,9 +313,7 @@ setup:
 
 ---
 "sub aggs":
-  - skip:
-      version: " - 7.6.1"
-      reason: Sub aggs fixed in 7.6.1
+
 
   - do:
       index:
@@ -363,9 +359,7 @@ setup:
 
 ---
 "avg_bucket":
-  - skip:
-      version: " - 7.7.99"
-      reason: Fixed in 7.8.0
+
   - do:
       indices.create:
           index: test

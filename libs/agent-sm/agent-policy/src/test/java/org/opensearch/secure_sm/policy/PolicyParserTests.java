@@ -7,14 +7,17 @@
  */
 package org.opensearch.secure_sm.policy;
 
-import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.List;
 
-public class PolicyParserTests extends OpenSearchTestCase {
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
+public class PolicyParserTests {
     private static final String POLICY = """
         grant codeBase "TestCodeBase" {
           permission java.net.NetPermission "accessUnixDomainSocket";
@@ -26,6 +29,7 @@ public class PolicyParserTests extends OpenSearchTestCase {
         };
         """;
 
+    @Test
     public void testPolicy() throws IOException, PolicyParser.ParsingException {
         try (Reader reader = new StringReader(POLICY)) {
             final List<GrantEntry> grantEntries = PolicyParser.read(reader);

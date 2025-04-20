@@ -43,6 +43,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -56,6 +57,7 @@ import java.io.IOException;
 public class TransportCreateIndexAction extends TransportClusterManagerNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
     private final MetadataCreateIndexService createIndexService;
+    private final MappingTransformerRegistry mappingTransformerRegistry;
 
     @Inject
     public TransportCreateIndexAction(
@@ -64,7 +66,8 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MappingTransformerRegistry mappingTransformerRegistry
     ) {
         super(
             CreateIndexAction.NAME,
@@ -76,6 +79,7 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
             indexNameExpressionResolver
         );
         this.createIndexService = createIndexService;
+        this.mappingTransformerRegistry = mappingTransformerRegistry;
     }
 
     @Override
@@ -112,25 +116,31 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
         }
 
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
-        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
-            cause,
-            indexName,
-            request.index()
-        ).ackTimeout(request.timeout())
-            .clusterManagerNodeTimeout(request.clusterManagerNodeTimeout())
-            .settings(request.settings())
-            .mappings(request.mappings())
-            .aliases(request.aliases())
-            .context(request.context())
-            .waitForActiveShards(request.waitForActiveShards());
 
-        createIndexService.createIndex(
-            updateRequest,
-            ActionListener.map(
-                listener,
-                response -> new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)
-            )
-        );
+        final String finalCause = cause;
+        final ActionListener<String> mappingTransformListener = ActionListener.wrap(transformedMappings -> {
+            final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
+                finalCause,
+                indexName,
+                request.index()
+            ).ackTimeout(request.timeout())
+                .clusterManagerNodeTimeout(request.clusterManagerNodeTimeout())
+                .settings(request.settings())
+                .mappings(transformedMappings)
+                .aliases(request.aliases())
+                .context(request.context())
+                .waitForActiveShards(request.waitForActiveShards());
+
+            createIndexService.createIndex(
+                updateRequest,
+                ActionListener.map(
+                    listener,
+                    response -> new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)
+                )
+            );
+        }, listener::onFailure);
+
+        mappingTransformerRegistry.applyTransformers(request.mappings(), null, mappingTransformListener);
     }
 
 }

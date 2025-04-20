@@ -50,6 +50,8 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
+import org.opensearch.search.approximate.ApproximateMatchAllQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -493,7 +495,10 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 .filter(c -> c.occur() == BooleanClause.Occur.MUST)
                 .findFirst();
             assertTrue(childLeg.isPresent());
-            assertEquals(new MatchAllDocsQuery(), childLeg.get().query());
+            assertThat(childLeg.get().query(), instanceOf(ApproximateScoreQuery.class));
+            ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) childLeg.get().query();
+            assertThat(approxQuery.getOriginalQuery(), instanceOf(MatchAllDocsQuery.class));
+            assertThat(approxQuery.getApproximationQuery(), instanceOf(ApproximateMatchAllQuery.class));
         };
         check.accept(createShardContext());
         doWithDepth(randomIntBetween(1, 20), check);

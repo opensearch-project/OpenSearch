@@ -16,7 +16,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Utility class for converting ObjectMap Protobuf type to a Java object.
+ * Utility class for converting ObjectMap Protocol Buffer types to standard Java objects.
+ * This class provides methods to transform Protocol Buffer representations of object maps
+ * into their corresponding Java Map, List, and primitive type equivalents.
  */
 public class ObjectMapProtoUtils {
 
@@ -25,11 +27,12 @@ public class ObjectMapProtoUtils {
     }
 
     /**
-     * Converts a ObjectMap to Java POJO representation.
-     * Similar to {@link XContentParser#map()}
+     * Converts a Protocol Buffer ObjectMap to a Java Map representation.
+     * Similar to {@link XContentParser#map()}, this method transforms the structured
+     * Protocol Buffer data into a standard Java Map with appropriate value types.
      *
-     * @param objectMap The generic protobuf objectMap to convert
-     * @return A Protobuf builder .google.protobuf.Struct representation
+     * @param objectMap The Protocol Buffer ObjectMap to convert
+     * @return A Java Map containing the key-value pairs from the Protocol Buffer ObjectMap
      */
     public static Map<String, Object> fromProto(ObjectMap objectMap) {
 
@@ -43,13 +46,16 @@ public class ObjectMapProtoUtils {
     }
 
     /**
-     * Converts a ObjectMap.Value to Java POJO representation.
-     * Similar to {@link XContentParser#map()}
+     * Converts a Protocol Buffer ObjectMap.Value to an appropriate Java object representation.
+     * This method handles various value types (numbers, strings, booleans, lists, nested maps)
+     * and converts them to their Java equivalents.
      *
-     * @param value The generic protobuf ObjectMap.Value to convert
-     * @return A Protobuf builder .google.protobuf.Struct representation
+     * @param value The Protocol Buffer ObjectMap.Value to convert
+     * @return A Java object representing the value (could be a primitive type, String, List, or Map)
+     * @throws UnsupportedOperationException if the value is null, which cannot be added to a Java map
+     * @throws IllegalArgumentException if the value type cannot be converted
      */
-    private static Object fromProto(ObjectMap.Value value) {
+    public static Object fromProto(ObjectMap.Value value) {
         if (value.hasNullValue()) {
             // Null
             throw new UnsupportedOperationException("Cannot add null value in ObjectMap.value " + value.toString() + " to a Java map.");

@@ -26,50 +26,84 @@ public class IngestionSourceTests extends OpenSearchTestCase {
     public void testConstructorAndGetters() {
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
-        IngestionSource source = new IngestionSource("type", pointerInitReset, DROP, params);
+        IngestionSource source = new IngestionSource.Builder("type").setParams(params)
+            .setPointerInitReset(pointerInitReset)
+            .setErrorStrategy(DROP)
+            .build();
 
         assertEquals("type", source.getType());
         assertEquals(StreamPoller.ResetState.REWIND_BY_OFFSET, source.getPointerInitReset().getType());
         assertEquals("1000", source.getPointerInitReset().getValue());
         assertEquals(DROP, source.getErrorStrategy());
         assertEquals(params, source.params());
+        assertEquals(1000, source.getMaxPollSize());
+        assertEquals(1000, source.getPollTimeout());
     }
 
     public void testEquals() {
         Map<String, Object> params1 = new HashMap<>();
         params1.put("key", "value");
-        IngestionSource source1 = new IngestionSource("type", pointerInitReset, DROP, params1);
+        IngestionSource source1 = new IngestionSource.Builder("type").setParams(params1)
+            .setPointerInitReset(pointerInitReset)
+            .setErrorStrategy(DROP)
+            .setMaxPollSize(500)
+            .setPollTimeout(500)
+            .build();
 
         Map<String, Object> params2 = new HashMap<>();
         params2.put("key", "value");
-        IngestionSource source2 = new IngestionSource("type", pointerInitReset, DROP, params2);
+        IngestionSource source2 = new IngestionSource.Builder("type").setParams(params2)
+            .setPointerInitReset(pointerInitReset)
+            .setErrorStrategy(DROP)
+            .setMaxPollSize(500)
+            .setPollTimeout(500)
+            .build();
         assertTrue(source1.equals(source2));
         assertTrue(source2.equals(source1));
 
-        IngestionSource source3 = new IngestionSource("differentType", pointerInitReset, DROP, params1);
+        IngestionSource source3 = new IngestionSource.Builder("differentType").setParams(params1)
+            .setPointerInitReset(pointerInitReset)
+            .setErrorStrategy(DROP)
+            .build();
         assertFalse(source1.equals(source3));
     }
 
     public void testHashCode() {
         Map<String, Object> params1 = new HashMap<>();
         params1.put("key", "value");
-        IngestionSource source1 = new IngestionSource("type", pointerInitReset, DROP, params1);
+        IngestionSource source1 = new IngestionSource.Builder("type").setParams(params1)
+            .setPointerInitReset(pointerInitReset)
+            .setErrorStrategy(DROP)
+            .setMaxPollSize(500)
+            .setPollTimeout(500)
+            .build();
 
         Map<String, Object> params2 = new HashMap<>();
         params2.put("key", "value");
-        IngestionSource source2 = new IngestionSource("type", pointerInitReset, DROP, params2);
+        IngestionSource source2 = new IngestionSource.Builder("type").setParams(params2)
+            .setPointerInitReset(pointerInitReset)
+            .setErrorStrategy(DROP)
+            .setMaxPollSize(500)
+            .setPollTimeout(500)
+            .build();
         assertEquals(source1.hashCode(), source2.hashCode());
 
-        IngestionSource source3 = new IngestionSource("differentType", pointerInitReset, DROP, params1);
+        IngestionSource source3 = new IngestionSource.Builder("differentType").setParams(params1)
+            .setPointerInitReset(pointerInitReset)
+            .setErrorStrategy(DROP)
+            .build();
         assertNotEquals(source1.hashCode(), source3.hashCode());
     }
 
     public void testToString() {
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
-        IngestionSource source = new IngestionSource("type", pointerInitReset, DROP, params);
+        IngestionSource source = new IngestionSource.Builder("type").setParams(params)
+            .setPointerInitReset(pointerInitReset)
+            .setErrorStrategy(DROP)
+            .build();
         String expected =
-            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='REWIND_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}}";
+            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='REWIND_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000, numProcessorThreads=1}";
         assertEquals(expected, source.toString());
     }
 }

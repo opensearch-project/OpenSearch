@@ -16,7 +16,6 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteSnapshotIT;
@@ -38,11 +37,6 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
     private static final String SNAPSHOT_NAME = "test-snapshot";
     private static final String FS_REPOSITORY_TYPE = "fs";
     private static final int DOC_COUNT = 10;
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, true).build();
-    }
 
     public void testSearchReplicaRestore_WhenSnapshotOnSegRep_RestoreOnDocRepWithSearchReplica() throws Exception {
         bootstrapIndexWithOutSearchReplicas(ReplicationType.SEGMENT);
@@ -173,7 +167,7 @@ public class SearchReplicaRestoreIT extends RemoteSnapshotIT {
             + "To restore with [index.replication.type] as ["
             + restoreReplicationType
             + "], "
-            + "[index.number_of_search_only_replicas] must be set to [0]";
+            + "[index.number_of_search_replicas] must be set to [0]";
     }
 
     private int getNumberOfSearchReplicas(String index) {

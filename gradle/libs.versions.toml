@@ -93,11 +93,13 @@ arrow                 = "18.1.0"
 flatbuffers           = "2.0.0"
 
 [libraries]
+hamcrest = { group = "org.hamcrest", name = "hamcrest", version.ref = "hamcrest" }
 hdrhistogram = { group = "org.hdrhistogram", name = "HdrHistogram", version.ref = "hdrhistogram" }
 jakartaannotation = { group = "jakarta.annotation", name = "jakarta.annotation-api", version.ref = "jakarta_annotation" }
 jodatime = { group = "joda-time", name = "joda-time", version.ref = "joda" }
 jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 jtscore = { group = "org.locationtech.jts", name = "jts-core", version.ref = "jts" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
 jzlib = { group = "com.jcraft", name = "jzlib", version.ref = "jzlib" }
 log4japi = { group = "org.apache.logging.log4j", name = "log4j-api", version.ref = "log4j" }
 log4jjul = { group = "org.apache.logging.log4j", name = "log4j-jul", version.ref = "log4j" }

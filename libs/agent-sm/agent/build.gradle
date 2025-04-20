@@ -63,6 +63,10 @@ thirdPartyAudit {
   )
 }
 
+tasks.named('generateMetadataFileForNebulaPublication') {
+  dependsOn prepareAgent
+}
+
 tasks.named('validateNebulaPom') {
   dependsOn prepareAgent
 }
@@ -74,4 +78,8 @@ tasks.test {
 
 tasks.check {
   dependsOn test
+}
+
+tasks.named('assemble') {
+  dependsOn prepareAgent
 }

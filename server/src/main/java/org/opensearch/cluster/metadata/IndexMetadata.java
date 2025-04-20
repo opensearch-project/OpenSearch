@@ -282,7 +282,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * with their primary.  Search replicas require the use of Segment Replication on the index and poll their {@link SegmentReplicationSource} for
      * updates.  //TODO: Once physical isolation is introduced, reference the setting here.
      */
-    public static final String SETTING_NUMBER_OF_SEARCH_REPLICAS = "index.number_of_search_only_replicas";
+    public static final String SETTING_NUMBER_OF_SEARCH_REPLICAS = "index.number_of_search_replicas";
     public static final Setting<Integer> INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING = Setting.intSetting(
         SETTING_NUMBER_OF_SEARCH_REPLICAS,
         0,
@@ -807,6 +807,42 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Dynamic
     );
 
+    /**
+     * Defines the max poll size per batch for pull-based ingestion.
+     */
+    public static final String SETTING_INGESTION_SOURCE_MAX_POLL_SIZE = "index.ingestion_source.poll.max_batch_size";
+    public static final Setting<Long> INGESTION_SOURCE_MAX_POLL_SIZE = Setting.longSetting(
+        SETTING_INGESTION_SOURCE_MAX_POLL_SIZE,
+        1000,
+        0,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Defines the poll timeout for pull-based ingestion in milliseconds.
+     */
+    public static final String SETTING_INGESTION_SOURCE_POLL_TIMEOUT = "index.ingestion_source.poll.timeout";
+    public static final Setting<Integer> INGESTION_SOURCE_POLL_TIMEOUT = Setting.intSetting(
+        SETTING_INGESTION_SOURCE_POLL_TIMEOUT,
+        1000,
+        0,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Defines the number of processor threads that will write to the lucene index.
+     */
+    public static final String SETTING_INGESTION_SOURCE_NUM_PROCESSOR_THREADS = "index.ingestion_source.num_processor_threads";
+    public static final Setting<Integer> INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING = Setting.intSetting(
+        SETTING_INGESTION_SOURCE_NUM_PROCESSOR_THREADS,
+        1,
+        1,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
     public static final Setting.AffixSetting<Object> INGESTION_SOURCE_PARAMS_SETTING = Setting.prefixKeySetting(
         "index.ingestion_source.param.",
         key -> new Setting<>(key, "", (value) -> {
@@ -1047,7 +1083,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final IngestionErrorStrategy.ErrorStrategy errorStrategy = INGESTION_SOURCE_ERROR_STRATEGY_SETTING.get(settings);
             final Map<String, Object> ingestionSourceParams = INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings);
-            return new IngestionSource(ingestionSourceType, pointerInitReset, errorStrategy, ingestionSourceParams);
+            final long maxPollSize = INGESTION_SOURCE_MAX_POLL_SIZE.get(settings);
+            final int pollTimeout = INGESTION_SOURCE_POLL_TIMEOUT.get(settings);
+            final int numProcessorThreads = INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING.get(settings);
+
+            return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
+                .setPointerInitReset(pointerInitReset)
+                .setErrorStrategy(errorStrategy)
+                .setMaxPollSize(maxPollSize)
+                .setPollTimeout(pollTimeout)
+                .setNumProcessorThreads(numProcessorThreads)
+                .build();
         }
         return null;
     }
