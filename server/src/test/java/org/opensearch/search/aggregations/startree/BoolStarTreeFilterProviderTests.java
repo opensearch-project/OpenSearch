@@ -19,10 +19,12 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.StarTreeMapper;
+import org.opensearch.index.mapper.WildcardFieldMapper;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
+import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
@@ -546,6 +548,164 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertEquals("Upper bound should be 400", 400L, rangeFilter.getHigh());
         assertTrue("Lower bound should be exclusive", rangeFilter.isIncludeLow());
         assertTrue("Upper bound should be exclusive", rangeFilter.isIncludeHigh());
+    }
+
+    public void testKeywordFieldTypeHandling() throws IOException {
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .must(new TermsQueryBuilder("method", Arrays.asList("GET", "POST")))
+            .must(new TermQueryBuilder("status", 200))
+            .must(new BoolQueryBuilder()
+                .should(new TermQueryBuilder("port", 80))
+                .should(new TermQueryBuilder("port", 9200)));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+
+        // Verify method filter (keyword term query)
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertExactMatchValue((ExactMatchDimFilter) statusFilters.getFirst(), 200L);
+
+        // Verify method filter (keyword terms query)
+        List<DimensionFilter> methodFilters = filter.getFiltersForDimension("method");
+        ExactMatchDimFilter methodFilter = (ExactMatchDimFilter) methodFilters.getFirst();
+        Set<Object> expectedMethod = new HashSet<>();
+        expectedMethod.add(new BytesRef("GET"));
+        expectedMethod.add(new BytesRef("POST"));
+        assertEquals(expectedMethod, new HashSet<>(methodFilter.getRawValues()));
+
+        // Verify port filter (keyword SHOULD terms)
+        List<DimensionFilter> portFilters = filter.getFiltersForDimension("port");
+        assertEquals(2, portFilters.size());
+        Set<Object> expectedPorts = new HashSet<>();
+        expectedPorts.add(80L);
+        expectedPorts.add(9200L);
+        Set<Object> actualZones = new HashSet<>();
+        for (DimensionFilter portFilter : portFilters) {
+            actualZones.addAll(((ExactMatchDimFilter) portFilter).getRawValues());
+        }
+        assertEquals(expectedPorts, actualZones);
+    }
+
+    public void testInvalidDimensionNames() throws IOException {
+        // Test dimension that doesn't exist in mapping
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .must(new TermQueryBuilder("non_existent_field", "value"))
+            .must(new TermQueryBuilder("method", "GET"));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null for non-existent dimension", filter);
+
+        // Test dimension that exists in mapping but not in star tree dimensions
+        NumberFieldMapper.NumberFieldType nonStarTreeField = new NumberFieldMapper.NumberFieldType(
+            "non_star_tree_field",
+            NumberFieldMapper.NumberType.INTEGER
+        );
+        when(mapperService.fieldType("non_star_tree_field")).thenReturn(nonStarTreeField);
+
+        boolQuery = new BoolQueryBuilder()
+            .must(new TermQueryBuilder("non_star_tree_field", 100))
+            .must(new TermQueryBuilder("method", "GET"));
+
+        filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+        assertNull("Filter should be null for non-star-tree dimension", filter);
+    }
+
+    public void testUnsupportedQueryTypes() throws IOException {
+        // Test unsupported query type in MUST
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .must(new WildcardQueryBuilder("method", "GET*"))
+            .must(new TermQueryBuilder("status", 200));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null for unsupported query type", filter);
+
+        // Test unsupported query type in SHOULD
+        boolQuery = new BoolQueryBuilder()
+            .should(new WildcardQueryBuilder("status", "2*"))
+            .should(new TermQueryBuilder("status", 404));
+
+        filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+        assertNull("Filter should be null for unsupported query type in SHOULD", filter);
+    }
+
+    public void testInvalidFieldTypes() throws IOException {
+        // Test with unsupported field type
+        WildcardFieldMapper.WildcardFieldType wildcardType = new WildcardFieldMapper.WildcardFieldType("wildcard_field");
+        when(mapperService.fieldType("wildcard_field")).thenReturn(wildcardType);
+
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .must(new TermQueryBuilder("wildcard_field", "value"))
+            .must(new TermQueryBuilder("method", "GET"));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null for unsupported field type", filter);
+    }
+
+    public void testInvalidShouldClauses() throws IOException {
+        // Test SHOULD clauses with different dimensions
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .should(new TermQueryBuilder("status", 200))
+            .should(new TermQueryBuilder("method", "GET"));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null for SHOULD with different dimensions", filter);
+
+        // Test nested MUST inside SHOULD
+        boolQuery = new BoolQueryBuilder()
+            .should(new BoolQueryBuilder()
+                .must(new TermQueryBuilder("status", 200))
+                .must(new TermQueryBuilder("method", "GET")));
+
+        filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+        assertNull("Filter should be null for MUST inside SHOULD", filter);
+    }
+
+    public void testInvalidMustClauses() throws IOException {
+        // Test MUST clauses with same dimension
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .must(new TermQueryBuilder("status", 200))
+            .must(new TermQueryBuilder("status", 404));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null for multiple MUST on same dimension", filter);
+
+        // Test incompatible range intersections
+        boolQuery = new BoolQueryBuilder()
+            .must(new RangeQueryBuilder("status").gte(200).lt(300))
+            .must(new RangeQueryBuilder("status").gte(400).lt(500));
+
+        filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+        assertNull("Filter should be null for non-overlapping ranges", filter);
+    }
+
+    public void testMalformedQueries() throws IOException {
+        // Test empty bool query
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null for empty bool query", filter);
+
+        // Test deeply nested empty bool queries
+        boolQuery = new BoolQueryBuilder()
+            .must(new BoolQueryBuilder()
+                .must(new BoolQueryBuilder()
+                    .must(new BoolQueryBuilder())));
+
+        filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+        assertNull("Filter should be null for nested empty bool queries", filter);
     }
 
     // Helper methods for assertions
