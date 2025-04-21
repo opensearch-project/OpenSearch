@@ -47,6 +47,9 @@ public class RestGetRuleAction extends BaseRestHandler {
      * field name used for pagination
      */
     public static final String SEARCH_AFTER_STRING = "search_after";
+    /**
+     * field name to specify feature type
+     */
     public static final String FEATURE_TYPE = "featureType";
 
     /**

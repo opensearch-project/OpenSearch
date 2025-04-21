@@ -37,6 +37,12 @@ import java.util.function.Supplier;
  * This plugin provides the central APIs which can provide CRUD support to all consumers of Rule framework
  */
 public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
+
+    /**
+     * constructor for RuleFrameworkPlugin
+     */
+    private RuleFrameworkPlugin() {}
+
     private final RulePersistenceServiceRegistry rulePersistenceServiceRegistry = new RulePersistenceServiceRegistry();
     private final List<RuleFrameworkExtension> ruleFrameworkExtensions = new ArrayList<>();
 

@@ -37,6 +37,7 @@ public class RulePersistenceServiceRegistry {
 
     /**
      * It is used to get feature type specific {@link RulePersistenceService} implementation
+     * @param featureType - the type of feature to retrieve the persistence service for
      */
     public RulePersistenceService getRulePersistenceService(FeatureType featureType) {
         if (!rulePersistenceServices.containsKey(featureType.getName())) {
