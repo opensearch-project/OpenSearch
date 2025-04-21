@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  */
 @InternalApi
 public class SearchRequestContext {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(SearchRequestContext.class);
     private final SearchRequestOperationsListener searchRequestOperationsListener;
     private long absoluteStartNanos;
     private final Map<String, Long> phaseTookMap;
