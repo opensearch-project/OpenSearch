@@ -745,7 +745,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testExecuteSingleUploadIfEtagMatchesPreconditionFailed() throws IOException {
+    public void testExecuteSingleUploadIfEtagMatchesPreconditionFailed() {
         // Generate random test parameters
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
@@ -792,16 +792,24 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         ActionListener<String> realListener = ActionListener.wrap(r -> fail("Should have failed"), capturedException::set);
         ActionListener<String> etagListener = Mockito.spy(realListener);
 
-        // Execute the method being tested
+        // Execute the method being tested and EXPECT the IOException
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
-        blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
 
-        // VERIFICATION SECTION
+        IOException ioException = expectThrows(IOException.class, () -> {
+            blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
+        });
+
+        // Verify IOException details
+        assertEquals("Unable to upload object [" + blobName + "] due to ETag mismatch", ioException.getMessage());
+        assertTrue("IOException cause should be S3Exception", ioException.getCause() instanceof S3Exception);
+        assertEquals(preconditionFailedException, ioException.getCause());
+
+        // VERIFICATION SECTION for listener behavior
 
         // Verify onResponse was never called
         verify(etagListener, never()).onResponse(any());
 
-        // Verify an exception was captured
+        // Verify an exception was captured by the listener
         Exception exception = capturedException.get();
         assertNotNull("Expected an exception to be captured", exception);
 
@@ -820,7 +828,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         verify(clientReference).close();
     }
 
-    public void testExecuteSingleUploadIfEtagMatchesS3Exception() throws IOException {
+    public void testExecuteSingleUploadIfEtagMatchesS3Exception() {
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String etag = "\"test-etag\"";
@@ -861,8 +869,18 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         };
 
         ByteArrayInputStream input = new ByteArrayInputStream(new byte[blobSize]);
-        blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, input, blobSize, null, etag, listener);
 
+        // Modified section: Use expectThrows to handle the exception
+        IOException exception = expectThrows(IOException.class, () -> {
+            blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, input, blobSize, null, etag, listener);
+        });
+
+        // Verify the exception matches expected format
+        String expectedErrorMessage = "S3 error during upload [" + blobName + "]: Access Denied";
+        assertEquals(expectedErrorMessage, exception.getMessage());
+        assertEquals(s3Exception, exception.getCause());
+
+        // Continue with other verifications
         verify(clientReference).close();
         assertFalse("Success callback should not be called", successCalled.get());
 
@@ -959,7 +977,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         verify(clientReference).close();
     }
 
-    public void testExecuteSingleUploadIfEtagMatchesSdkException() throws IOException {
+    public void testExecuteSingleUploadIfEtagMatchesSdkException() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
@@ -996,21 +1014,31 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         ActionListener<String> etagListener = Mockito.spy(realListener);
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
-        blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
 
+        // Use expectThrows to handle the expected exception
+        IOException exception = expectThrows(IOException.class, () -> {
+            blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
+        });
+
+        // Verify the thrown exception
+        assertEquals("S3 upload failed for [" + blobName + "]", exception.getMessage());
+        assertEquals(sdkException, exception.getCause());
+
+        // Verify listener behavior
         verify(etagListener, never()).onResponse(any());
-        Exception exception = capturedException.get();
-        assertNotNull("Expected an exception to be captured", exception);
-        assertTrue("Exception should be an IOException", exception instanceof IOException);
+        Exception listenerException = capturedException.get();
+        assertNotNull("Expected an exception to be captured", listenerException);
+        assertTrue("Exception should be an IOException", listenerException instanceof IOException);
 
-        IOException ioException = (IOException) exception;
-        assertTrue("IOException message should contain the blob name", ioException.getMessage().contains(blobName));
-        assertEquals(sdkException, ioException.getCause());
+        IOException listenerIoException = (IOException) listenerException;
+        assertTrue("IOException message should contain the blob name", listenerIoException.getMessage().contains(blobName));
+        assertEquals(sdkException, listenerIoException.getCause());
 
+        // Verify resource cleanup
         verify(clientReference).close();
     }
 
-    public void testExecuteSingleUploadIfEtagMatchesWithNullETag() throws IOException {
+    public void testExecuteSingleUploadIfEtagMatchesWithNullETag() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String providedETag = randomAlphaOfLengthBetween(8, 32);
@@ -1043,18 +1071,35 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         @SuppressWarnings("unchecked")
         ActionListener<String> etagListener = mock(ActionListener.class);
 
-        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize])) {
-            blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, providedETag, etagListener);
-        }
+        // Use expectThrows to handle the expected exception
+        IOException exception = expectThrows(IOException.class, () -> {
+            try (ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize])) {
+                blobContainer.executeSingleUploadIfEtagMatches(
+                    blobStore,
+                    blobName,
+                    inputStream,
+                    blobSize,
+                    null,
+                    providedETag,
+                    etagListener
+                );
+            }
+        });
 
+        // Verify the exception
+        String expectedMessage = "S3 upload for [" + blobName + "] returned null ETag, violating data integrity expectations";
+        assertEquals(expectedMessage, exception.getMessage());
+
+        // Verify the listener was notified with the same exception
         ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(etagListener).onFailure(exceptionCaptor.capture());
         verify(etagListener, never()).onResponse(anyString());
 
-        Exception exception = exceptionCaptor.getValue();
-        assertTrue("Exception should be IOException", exception instanceof IOException);
-        assertTrue("Exception message should mention null ETag", exception.getMessage().contains("null ETag"));
+        Exception listenerException = exceptionCaptor.getValue();
+        assertTrue("Exception should be IOException", listenerException instanceof IOException);
+        assertTrue("Exception message should mention null ETag", listenerException.getMessage().contains("null ETag"));
 
+        // Verify resource cleanup
         verify(clientReference).close();
     }
 
