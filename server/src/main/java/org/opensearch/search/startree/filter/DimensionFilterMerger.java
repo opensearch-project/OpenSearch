@@ -24,6 +24,10 @@ public class DimensionFilterMerger {
             return null;
         }
 
+        if (filter1.getDimensionName() == null || filter2.getDimensionName() == null) {
+            throw new IllegalArgumentException("Cannot intersect filters with null dimension name");
+        }
+
         // Verify filters are for same dimension
         if (!filter1.getDimensionName().equals(filter2.getDimensionName())) {
             throw new IllegalArgumentException(
@@ -31,31 +35,35 @@ public class DimensionFilterMerger {
             );
         }
 
+        // Handle Range + Range combination
         if (filter1 instanceof RangeMatchDimFilter && filter2 instanceof RangeMatchDimFilter) {
             return intersectRangeFilters((RangeMatchDimFilter) filter1, (RangeMatchDimFilter) filter2);
         }
 
+        // Handle ExactMatch + ExactMatch combination
         if (filter1 instanceof ExactMatchDimFilter && filter2 instanceof ExactMatchDimFilter) {
             return intersectExactMatchFilters((ExactMatchDimFilter) filter1, (ExactMatchDimFilter) filter2);
         }
 
-        // Handle Range + ExactMatch combinations
+        // Handle Range + ExactMatch combination
         if (filter1 instanceof RangeMatchDimFilter && filter2 instanceof ExactMatchDimFilter) {
             return intersectRangeWithExactMatch((RangeMatchDimFilter) filter1, (ExactMatchDimFilter) filter2);
         }
 
+        // Handle ExactMatch + Range combination
         if (filter1 instanceof ExactMatchDimFilter && filter2 instanceof RangeMatchDimFilter) {
             return intersectRangeWithExactMatch((RangeMatchDimFilter) filter2, (ExactMatchDimFilter) filter1);
         }
 
+        // throw exception for unsupported exception
         throw new IllegalArgumentException(
             "Unsupported filter combination: " + filter1.getClass().getSimpleName() + " and " + filter2.getClass().getSimpleName()
         );
     }
 
     /**
-     * Intersects two range filters.
-     * Returns null if ranges don't overlap.
+     * Intersects two range filters
+     * Returns null if ranges don't overlap
      */
     private static DimensionFilter intersectRangeFilters(RangeMatchDimFilter range1, RangeMatchDimFilter range2) {
         Object low1 = range1.getLow();
@@ -120,8 +128,8 @@ public class DimensionFilterMerger {
     }
 
     /**
-     * Intersects two exact match filters.
-     * Returns null if no common values.
+     * Intersects two exact match filters
+     * Returns null if no common values
      */
     private static DimensionFilter intersectExactMatchFilters(ExactMatchDimFilter exact1, ExactMatchDimFilter exact2) {
         List<Object> values1 = exact1.getRawValues();
@@ -178,43 +186,23 @@ public class DimensionFilterMerger {
                 return false;
             }
         }
-
         return true;
     }
 
     /**
-     * Compares two values, handling different types appropriately.
+     * Compares two values - Long for numeric fields and BytesRef for keywords field
      */
-    @SuppressWarnings("unchecked")
     private static int compareValues(Object v1, Object v2) {
-        if (v1 instanceof Number && v2 instanceof Number) {
-            double d1 = ((Number) v1).doubleValue();
-            double d2 = ((Number) v2).doubleValue();
-            return Double.compare(d1, d2);
-        }
-
-        if (v1 instanceof String && v2 instanceof String) {
-            return ((String) v1).compareTo((String) v2);
+        if (v1 instanceof Long && v2 instanceof Long) {
+            return Long.compare((Long) v1, (Long) v2);
         }
 
         if (v1 instanceof BytesRef && v2 instanceof BytesRef) {
             return ((BytesRef) v1).compareTo((BytesRef) v2);
         }
 
-        // Convert BytesRef to String if needed
-        if (v1 instanceof BytesRef) {
-            v1 = ((BytesRef) v1).utf8ToString();
-        }
-        if (v2 instanceof BytesRef) {
-            v2 = ((BytesRef) v2).utf8ToString();
-        }
-
-        if (v1 instanceof Comparable && v1.getClass().equals(v2.getClass())) {
-            return ((Comparable<Object>) v1).compareTo(v2);
-        }
-
         throw new IllegalArgumentException(
-            "Cannot compare values of types: " + v1.getClass().getName() + " and " + v2.getClass().getName()
+            "Can only compare Long or BytesRef values, got types: " + v1.getClass().getName() + " and " + v2.getClass().getName()
         );
     }
 }

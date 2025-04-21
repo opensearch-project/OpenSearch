@@ -47,11 +47,6 @@ public interface DimensionFilter {
         public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
             return true;
         }
-
-        @Override
-        public String getDimensionName() {
-            return "";
-        }
     };
 
     /**
@@ -79,7 +74,9 @@ public interface DimensionFilter {
      */
     boolean matchDimValue(long ordinal, StarTreeValues starTreeValues);
 
-    String getDimensionName();
+    default String getDimensionName() {
+        return null;
+    }
 
     /**
      * Represents how to match a value when comparing during StarTreeTraversal

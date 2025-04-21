@@ -185,7 +185,7 @@ public class DimensionFilterAndMapperTests extends OpenSearchTestCase {
         }
 
         // Testing MatchNoneFilter
-        DimensionFilter dimensionFilter = new MatchNoneFilter("random");
+        DimensionFilter dimensionFilter = new MatchNoneFilter();
         dimensionFilter.initialiseForSegment(null, null);
         ArrayBasedCollector collector = new ArrayBasedCollector();
         assertFalse(dimensionFilter.matchDimValue(1, null));

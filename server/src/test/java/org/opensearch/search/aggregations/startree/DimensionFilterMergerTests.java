@@ -24,70 +24,56 @@ public class DimensionFilterMergerTests extends OpenSearchTestCase {
     public void testRangeIntersection() {
         // Basic range intersection
         assertRangeIntersection(
-            range("status", 200, 500, true, true),
-            range("status", 300, 400, true, true),
-            range("status", 300, 400, true, true)
+            range("status", 200L, 500L, true, true),
+            range("status", 300L, 400L, true, true),
+            range("status", 300L, 400L, true, true)
         );
 
         // Boundary conditions
         assertRangeIntersection(
-            range("status", 200, 200, true, true),
-            range("status", 200, 200, true, true),
-            range("status", 200, 200, true, true)
+            range("status", 200L, 200L, true, true),
+            range("status", 200L, 200L, true, true),
+            range("status", 200L, 200L, true, true)
         );
 
         // Inclusive/Exclusive boundaries
         assertRangeIntersection(
-            range("status", 200, 300, true, false),
-            range("status", 200, 300, false, true),
-            range("status", 200, 300, false, false)
+            range("status", 200L, 300L, true, false),
+            range("status", 200L, 300L, false, true),
+            range("status", 200L, 300L, false, false)
         );
 
         // Non-overlapping ranges
-        assertNoIntersection(range("status", 200, 300, true, true), range("status", 301, 400, true, true));
+        assertNoIntersection(range("status", 200L, 300L, true, true), range("status", 301L, 400L, true, true));
 
         // Exactly touching ranges (no overlap)
-        assertNoIntersection(range("status", 200, 300, true, false), range("status", 300, 400, true, true));
+        assertNoIntersection(range("status", 200L, 300L, true, false), range("status", 300L, 400L, true, true));
 
         // Null bounds (unbounded ranges)
         assertRangeIntersection(
-            range("status", null, 500, true, true),
-            range("status", 200, null, true, true),
-            range("status", 200, 500, true, true)
+            range("status", null, 500L, true, true),
+            range("status", 200L, null, true, true),
+            range("status", 200L, 500L, true, true)
         );
 
         // Single point overlap
         assertRangeIntersection(
-            range("status", 200, 300, true, true),
-            range("status", 300, 400, true, true),
-            range("status", 300, 300, true, true)
+            range("status", 200L, 300L, true, true),
+            range("status", 300L, 400L, true, true),
+            range("status", 300L, 300L, true, true)
         );
 
         // Very large ranges
         assertRangeIntersection(
             range("status", Long.MIN_VALUE, Long.MAX_VALUE, true, true),
-            range("status", 200, 300, true, true),
-            range("status", 200, 300, true, true)
+            range("status", 200L, 300L, true, true),
+            range("status", 200L, 300L, true, true)
         );
 
         // Zero-width ranges
-        assertNoIntersection(range("status", 200, 200, true, true), range("status", 200, 200, false, false));
+        assertNoIntersection(range("status", 200L, 200L, true, true), range("status", 200L, 200L, false, false));
 
-        // Floating point precision
-        assertRangeIntersection(
-            range("latency", 1.0, 2.0, true, true),
-            range("latency", 2.0, 3.0, true, true),
-            range("latency", 2.0, 2.0, true, true)
-        );
-
-        // Different numeric types
-        assertRangeIntersection(
-            range("size", 1.0f, 2.0f, true, true),
-            range("size", 1L, 2L, true, true),
-            range("size", 1.0f, 2.0f, true, true)
-        );
-
-        // String to numeric conversion
+        // incompatible types
         assertThrows(
             IllegalArgumentException.class,
             () -> DimensionFilterMerger.intersect(range("status", "200", "300", true, true), range("status", 200, 300, true, true))
@@ -136,33 +122,33 @@ public class DimensionFilterMergerTests extends OpenSearchTestCase {
     public void testRangeExactMatchIntersection() {
         // Value in range
         assertRangeExactMatchIntersection(
-            range("status", 200, 300, true, true),
-            exactMatch("status", List.of(250)),
-            exactMatch("status", List.of(250))
+            range("status", 200L, 300L, true, true),
+            exactMatch("status", List.of(250L)),
+            exactMatch("status", List.of(250L))
         );
 
         // Value at range boundaries
         assertRangeExactMatchIntersection(
-            range("status", 200, 300, true, true),
-            exactMatch("status", Arrays.asList(200, 300)),
-            exactMatch("status", Arrays.asList(200, 300))
+            range("status", 200L, 300L, true, true),
+            exactMatch("status", Arrays.asList(200L, 300L)),
+            exactMatch("status", Arrays.asList(200L, 300L))
         );
 
         // Value at exclusive boundaries
         assertRangeExactMatchIntersection(
-            range("status", 200, 300, false, false),
-            exactMatch("status", Arrays.asList(201, 299)),
-            exactMatch("status", Arrays.asList(201, 299))
+            range("status", 200L, 300L, false, false),
+            exactMatch("status", Arrays.asList(201L, 299L)),
+            exactMatch("status", Arrays.asList(201L, 299L))
         );
 
         // No values in range
-        assertNoIntersection(range("status", 200, 300, true, true), exactMatch("status", Arrays.asList(199, 301)));
+        assertNoIntersection(range("status", 200L, 300L, true, true), exactMatch("status", Arrays.asList(199L, 301L)));
 
         // Multiple values, some in range
         assertRangeExactMatchIntersection(
-            range("status", 200, 300, true, true),
-            exactMatch("status", Arrays.asList(199, 200, 250, 300, 301)),
-            exactMatch("status", Arrays.asList(200, 250, 300))
+            range("status", 200L, 300L, true, true),
+            exactMatch("status", Arrays.asList(199L, 200L, 250L, 300L, 301L)),
+            exactMatch("status", Arrays.asList(200L, 250L, 300L))
         );
     }
 
@@ -171,22 +157,6 @@ public class DimensionFilterMergerTests extends OpenSearchTestCase {
         assertThrows(
             IllegalArgumentException.class,
             () -> DimensionFilterMerger.intersect(range("status", 200, 300, true, true), range("port", 80, 443, true, true))
-        );
-    }
-
-    public void testTypeConversion() {
-        // Integer and Long
-        assertRangeIntersection(
-            range("port", 80, 443, true, true),
-            range("port", 80L, 443L, true, true),
-            range("port", 80, 443, true, true)
-        );
-
-        // Double and Integer
-        assertRangeIntersection(
-            range("latency", 1.0, 2.0, true, true),
-            range("latency", 1, 2, true, true),
-            range("latency", 1.0, 2.0, true, true)
         );
     }
 
