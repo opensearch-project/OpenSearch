@@ -41,7 +41,7 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
     /**
      * constructor for RuleFrameworkPlugin
      */
-    private RuleFrameworkPlugin() {}
+    public RuleFrameworkPlugin() {}
 
     private final RulePersistenceServiceRegistry rulePersistenceServiceRegistry = new RulePersistenceServiceRegistry();
     private final List<RuleFrameworkExtension> ruleFrameworkExtensions = new ArrayList<>();

@@ -8,15 +8,14 @@
 
 package org.opensearch.rule;
 
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -124,9 +123,13 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
     public enum WLMFeatureType implements FeatureType {
         WLM;
 
+        static {
+            WLM.registerFeatureType();
+        }
+
         @Override
         public String getName() {
-            return "";
+            return "wlm";
         }
 
         @Override
@@ -135,7 +138,9 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void registerFeatureType() {}
+        public void registerFeatureType() {
+            AutoTaggingRegistry.registerFeatureType(WLM);
+        }
     }
 
     public enum TestAttribute implements Attribute {
@@ -155,8 +160,5 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
 
         @Override
         public void validateAttribute() {}
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

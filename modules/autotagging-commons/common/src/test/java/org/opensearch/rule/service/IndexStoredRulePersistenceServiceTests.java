@@ -26,6 +26,7 @@ import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleQueryMapper;
 import org.opensearch.rule.autotagging.Rule;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
@@ -90,6 +91,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
             return null;
         }).when(searchRequestBuilder).execute(any(ActionListener.class));
 
+        when(getRuleRequest.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
         rulePersistenceService.getRule(getRuleRequest, listener);
 
         ArgumentCaptor<GetRuleResponse> responseCaptor = ArgumentCaptor.forClass(GetRuleResponse.class);
@@ -132,6 +134,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
             return null;
         }).when(searchRequestBuilder).execute(any(ActionListener.class));
 
+        when(getRuleRequest.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
         rulePersistenceService.getRule(getRuleRequest, listener);
 
         ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);

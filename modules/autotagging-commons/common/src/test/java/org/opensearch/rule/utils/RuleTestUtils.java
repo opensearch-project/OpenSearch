@@ -70,7 +70,6 @@ public class RuleTestUtils {
         MOCK_RULE_ATTRIBUTE_ONE(ATTRIBUTE_VALUE_ONE),
         MOCK_RULE_ATTRIBUTE_TWO(ATTRIBUTE_VALUE_TWO),
         INVALID_ATTRIBUTE(RuleTestUtils.INVALID_ATTRIBUTE);
-        ;
 
         private final String name;
 
