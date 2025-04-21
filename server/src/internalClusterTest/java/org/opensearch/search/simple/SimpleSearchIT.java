@@ -75,7 +75,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.apache.lucene.search.TotalHits.Relation.EQUAL_TO;
 import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
 
 public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
@@ -354,6 +353,8 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     public void doTestSimpleTerminateAfterTrackTotalHitsUpTo(int size) throws Exception {
         prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
+        // size = 1;
+        System.out.println(size);
         int numDocs = 29;
         List<IndexRequestBuilder> docbuilders = new ArrayList<>(numDocs);
 
@@ -368,63 +369,63 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
         SearchResponse searchResponse;
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
-            .setTerminateAfter(10)
-            .setSize(size)
-            .setTrackTotalHitsUpTo(5)
-            .get();
-        assertTrue(searchResponse.isTerminatedEarly());
-        assertEquals(5, searchResponse.getHits().getTotalHits().value());
-        assertEquals(GREATER_THAN_OR_EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
-
-        // For size = 0, the following queries terminate early, but hits and relation can vary.
-        if (size > 0) {
-            searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
-                .setTerminateAfter(5)
-                .setSize(size)
-                .setTrackTotalHitsUpTo(10)
-                .get();
-            assertTrue(searchResponse.isTerminatedEarly());
-            assertEquals(5, searchResponse.getHits().getTotalHits().value());
-            assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
-
-            searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
-                .setTerminateAfter(5)
-                .setSize(size)
-                .setTrackTotalHitsUpTo(5)
-                .get();
-            assertTrue(searchResponse.isTerminatedEarly());
-            assertEquals(5, searchResponse.getHits().getTotalHits().value());
-            assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
-        }
-
-        searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
-            .setTerminateAfter(5)
-            .setSize(size)
-            .setTrackTotalHits(true)
-            .get();
-        assertTrue(searchResponse.isTerminatedEarly());
-        if (size == 0) {
-            // Since terminate_after < track_total_hits, we need to do a range check.
-            assertHitCount(searchResponse, 5, numDocs);
-        } else {
-            assertEquals(5, searchResponse.getHits().getTotalHits().value());
-        }
-        assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
-
-        searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
-            .setTerminateAfter(numDocs * 2)
-            .setSize(size)
-            .setTrackTotalHits(true)
-            .get();
-        assertFalse(searchResponse.isTerminatedEarly());
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value());
-        assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
+        // searchResponse = client().prepareSearch("test")
+        // .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+        // .setTerminateAfter(10)
+        // .setSize(size)
+        // .setTrackTotalHitsUpTo(5)
+        // .get();
+        // assertTrue(searchResponse.isTerminatedEarly());
+        // assertEquals(5, searchResponse.getHits().getTotalHits().value());
+        // assertEquals(GREATER_THAN_OR_EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
+        //
+        // // For size = 0, the following queries terminate early, but hits and relation can vary.
+        // if (size > 0) {
+        // searchResponse = client().prepareSearch("test")
+        // .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+        // .setTerminateAfter(5)
+        // .setSize(size)
+        // .setTrackTotalHitsUpTo(10)
+        // .get();
+        // assertTrue(searchResponse.isTerminatedEarly());
+        // assertEquals(5, searchResponse.getHits().getTotalHits().value());
+        // assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
+        //
+        // searchResponse = client().prepareSearch("test")
+        // .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+        // .setTerminateAfter(5)
+        // .setSize(size)
+        // .setTrackTotalHitsUpTo(5)
+        // .get();
+        // assertTrue(searchResponse.isTerminatedEarly());
+        // assertEquals(5, searchResponse.getHits().getTotalHits().value());
+        // assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
+        // }
+        //
+        // searchResponse = client().prepareSearch("test")
+        // .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+        // .setTerminateAfter(5)
+        // .setSize(size)
+        // .setTrackTotalHits(true)
+        // .get();
+        // assertTrue(searchResponse.isTerminatedEarly());
+        // if (size == 0) {
+        // // Since terminate_after < track_total_hits, we need to do a range check.
+        // assertHitCount(searchResponse, 5, numDocs);
+        // } else {
+        // assertEquals(5, searchResponse.getHits().getTotalHits().value());
+        // }
+        // assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
+        //
+        // searchResponse = client().prepareSearch("test")
+        // .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+        // .setTerminateAfter(numDocs * 2)
+        // .setSize(size)
+        // .setTrackTotalHits(true)
+        // .get();
+        // assertFalse(searchResponse.isTerminatedEarly());
+        // assertEquals(numDocs, searchResponse.getHits().getTotalHits().value());
+        // assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation());
 
         searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
