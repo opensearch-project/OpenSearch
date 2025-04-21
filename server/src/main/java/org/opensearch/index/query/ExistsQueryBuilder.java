@@ -205,7 +205,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             try {
                 Query existsQuery = context.getMapperService().fieldType(field).existsQuery(context);
                 booleanQuery.add(existsQuery, Occur.SHOULD);
-            } catch (Exception e) {
+            } catch (UnsupportedOperationException e) {
                 // ignore some subfields which not support exists query
                 // if none of the subfields support the exists query, this is equivalent to MatchNoDocsQuery
             }

@@ -176,7 +176,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     public void testObjectFieldWithDerivedSubField() throws IOException {
         QueryShardContext shardContext = createShardContext();
         final ExistsQueryBuilder queryBuilder1 = new ExistsQueryBuilder("raw.derived_keyword");
-        expectThrows(IllegalArgumentException.class, () -> queryBuilder1.toQuery(shardContext));
+        expectThrows(UnsupportedOperationException.class, () -> queryBuilder1.toQuery(shardContext));
         final ExistsQueryBuilder queryBuilder2 = new ExistsQueryBuilder("raw");
         Query actual = queryBuilder2.toQuery(shardContext);
         Query expected = new ConstantScoreQuery(
