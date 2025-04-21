@@ -71,7 +71,6 @@ dependencies {
   api project(":libs:opensearch-task-commons")
   api "org.apache.commons:commons-lang3:${versions.commonslang}"
   compileOnly group: 'commons-lang', name: 'commons-lang', version: '2.6'
-  implementation project(':libs:opensearch-arrow-spi')
 
   compileOnly project(":libs:agent-sm:bootstrap")
   compileOnly project(':libs:opensearch-plugin-classloader')
