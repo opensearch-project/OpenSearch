@@ -600,11 +600,19 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * Must be implemented for each mapper based on the type of mapper and its mapper settings
      */
     protected void canDeriveSourceInternal() {
-        throw new UnsupportedOperationException("Derive source is not supported for field [" + name() + "]");
+        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored and " + "docValues disabled");
+        }
     }
 
     /**
      * Method used for deriving source and building it to XContentBuilder object
+     * <p>
+     * Considerations:
+     *  1. If "null_value" is defined in field mapping and if ingested doc contains "null" field value then derived
+     *     source will contain "null_value" as a displayed field value instead of null and if "null_value" is not
+     *     defined in mapping then field itself will not be present in derived source
+     *
      * @param builder - builder to store the derived source filed
      * @param leafReader - leafReader to read data from
      * @param docId - docId for which we want to derive the source

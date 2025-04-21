@@ -34,7 +34,7 @@ public abstract class FieldValueFetcher {
      * @param reader - LeafReader to read data from
      * @param docId - document id to read
      */
-    abstract List<Object> fetch(LeafReader reader, int docId) throws IOException;
+    public abstract List<Object> fetch(LeafReader reader, int docId) throws IOException;
 
     /**
      * Converts the field value to required representation, should be overridden by field mappers as needed

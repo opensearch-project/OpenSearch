@@ -232,9 +232,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
      * <p>
      * Considerations:
      *     1. When building source using doc_values, for multi-value field, it will result values in sorted order
-     *     2. If "null_value" is defined in field mapping and doc contains "null" field value then derived source will
-     *        contain "null_value" as field value instead of null and if "null_value" is not defined in mapping then
-     *        field will not be present in derived source
      * <p>
      * Date format:
      *     1. If "print_format" specified in field mapping, then derived source will have date in this format
@@ -254,13 +251,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 return fieldType().dateTimeFormatter().formatMillis(val);
             }
         }, new StoredFieldFetcher(mappedFieldType, simpleName()));
-    }
-
-    @Override
-    protected void canDeriveSourceInternal() {
-        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
-            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored and " + "docValues disabled");
-        }
     }
 
     /**
