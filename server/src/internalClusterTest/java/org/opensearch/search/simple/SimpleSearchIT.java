@@ -75,6 +75,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.apache.lucene.search.TotalHits.Relation.EQUAL_TO;
 import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
 
 public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
