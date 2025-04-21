@@ -206,7 +206,7 @@ public class DefaultStreamPoller implements StreamPoller {
                     results = consumer.readNext(initialBatchStartPointer, true, maxPollSize, pollTimeout);
                     includeBatchStartPointer = false;
                 } else if (failedShardPointer != null) {
-                    results = consumer.readNext(failedShardPointer, true, MAX_POLL_SIZE, POLL_TIMEOUT);
+                    results = consumer.readNext(failedShardPointer, true, maxPollSize, pollTimeout);
                     failedShardPointer = null;
                 } else {
                     results = consumer.readNext(maxPollSize, pollTimeout);
