@@ -290,14 +290,13 @@ public interface StarTreeFilterProvider {
 
                 if (clause instanceof BoolQueryBuilder) {
                     BoolQueryBuilder boolClause = (BoolQueryBuilder) clause;
-
-                    // Reject if contains MUST clauses
                     if (boolClause.must().isEmpty() == false) {
-                        return null; // Cannot have MUST inside SHOULD
+                        clauseFilter = processMustClauses(boolClause.must(), context, compositeFieldType);
+                    } else if (boolClause.should().isEmpty() == false) {
+                        clauseFilter = processShouldClauses(boolClause.should(), context, compositeFieldType);
+                    } else {
+                        return null;
                     }
-
-                    // Process nested SHOULD
-                    clauseFilter = processShouldClauses(boolClause.should(), context, compositeFieldType);
                 } else {
                     // Only allow term, terms, and range queries
                     if (!(clause instanceof TermQueryBuilder)
@@ -325,7 +324,7 @@ public interface StarTreeFilterProvider {
                 String dimension = clauseFilter.getDimensions().iterator().next();
                 if (commonDimension == null) {
                     commonDimension = dimension;
-                } else if (!commonDimension.equals(dimension)) {
+                } else if (commonDimension.equals(dimension) == false) {
                     return null; // All SHOULD clauses must operate on same dimension
                 }
 
