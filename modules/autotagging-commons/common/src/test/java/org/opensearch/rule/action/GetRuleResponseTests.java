@@ -14,9 +14,9 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rule.GetRuleResponse;
-import org.opensearch.rule.InMemoryRuleProcessingServiceTests;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.Rule;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -36,13 +36,13 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
     public static final String DESCRIPTION_ONE = "description_1";
     public static final String TIMESTAMP_ONE = "2024-01-26T08:58:57.558Z";
     static final Map<Attribute, Set<String>> ATTRIBUTE_MAP = Map.of(
-        InMemoryRuleProcessingServiceTests.TestAttribute.TEST_ATTRIBUTE,
+        RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE,
         Set.of(ATTRIBUTE_VALUE_ONE)
     );
 
     public static final Rule ruleOne = Rule.builder()
         .description(DESCRIPTION_ONE)
-        .featureType(InMemoryRuleProcessingServiceTests.WLMFeatureType.WLM)
+        .featureType(RuleTestUtils.MockRuleFeatureType.INSTANCE)
         .featureValue(FEATURE_VALUE_ONE)
         .attributeMap(ATTRIBUTE_MAP)
         .updatedAt(TIMESTAMP_ONE)
@@ -111,10 +111,10 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
             + "    {\n"
             + "      \"_id\" : \"id_1\",\n"
             + "      \"description\" : \"description_1\",\n"
-            + "      \"test_attribute\" : [\n"
+            + "      \"mock_attribute_one\" : [\n"
             + "        \"mock_attribute_one\"\n"
             + "      ],\n"
-            + "      \"wlm\" : \"feature_value_one\",\n"
+            + "      \"mock_feature_type\" : \"feature_value_one\",\n"
             + "      \"updated_at\" : \"2024-01-26T08:58:57.558Z\"\n"
             + "    }\n"
             + "  ],\n"

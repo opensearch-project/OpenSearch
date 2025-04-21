@@ -17,15 +17,9 @@ import java.util.Set;
 
 public class RuleTestUtils {
     public static final String _ID_ONE = "AgfUO5Ja9yfvhdONlYi3TQ==";
-    public static final String _ID_TWO = "G5iIq84j7eK1qIAAAAIH53=1";
-    public static final String FEATURE_VALUE_ONE = "feature_value_one";
-    public static final String FEATURE_VALUE_TWO = "feature_value_two";
     public static final String ATTRIBUTE_VALUE_ONE = "mock_attribute_one";
     public static final String ATTRIBUTE_VALUE_TWO = "mock_attribute_two";
     public static final String DESCRIPTION_ONE = "description_1";
-    public static final String DESCRIPTION_TWO = "description_2";
-    public static final String TIMESTAMP_ONE = "2024-01-26T08:58:57.558Z";
-    public static final String TIMESTAMP_TWO = "2023-01-26T08:58:57.558Z";
     public static final String FEATURE_TYPE_NAME = "mock_feature_type";
     public static final String TEST_INDEX_NAME = ".test_index_for_rule";
     public static final Map<Attribute, Set<String>> ATTRIBUTE_MAP = Map.of(

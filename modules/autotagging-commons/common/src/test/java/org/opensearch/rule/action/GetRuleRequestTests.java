@@ -11,9 +11,9 @@ package org.opensearch.rule.action;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.rule.GetRuleRequest;
-import org.opensearch.rule.InMemoryRuleProcessingServiceTests;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.Rule;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -21,14 +21,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.rule.InMemoryRuleProcessingServiceTests.WLMFeatureType;
-
 public class GetRuleRequestTests extends OpenSearchTestCase {
     /**
      * Test case to verify the serialization and deserialization of GetRuleRequest
      */
     public void testSerialization() throws IOException {
-        GetRuleRequest request = new GetRuleRequest(_ID_ONE, ATTRIBUTE_MAP, null, WLMFeatureType.WLM);
+        GetRuleRequest request = new GetRuleRequest(_ID_ONE, ATTRIBUTE_MAP, null, RuleTestUtils.MockRuleFeatureType.INSTANCE);
         assertEquals(_ID_ONE, request.getId());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
@@ -42,7 +40,12 @@ public class GetRuleRequestTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleRequest when name is null
      */
     public void testSerializationWithNull() throws IOException {
-        GetRuleRequest request = new GetRuleRequest((String) null, new HashMap<>(), SEARCH_AFTER, WLMFeatureType.WLM);
+        GetRuleRequest request = new GetRuleRequest(
+            (String) null,
+            new HashMap<>(),
+            SEARCH_AFTER,
+            RuleTestUtils.MockRuleFeatureType.INSTANCE
+        );
         assertNull(request.getId());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
@@ -64,13 +67,13 @@ public class GetRuleRequestTests extends OpenSearchTestCase {
     public static final String TIMESTAMP_ONE = "2024-01-26T08:58:57.558Z";
     public static final String TIMESTAMP_TWO = "2023-01-26T08:58:57.558Z";
     public static final Map<Attribute, Set<String>> ATTRIBUTE_MAP = Map.of(
-        InMemoryRuleProcessingServiceTests.TestAttribute.TEST_ATTRIBUTE,
+        RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE,
         Set.of(ATTRIBUTE_VALUE_ONE)
     );
 
     public static final Rule ruleOne = Rule.builder()
         .description(DESCRIPTION_ONE)
-        .featureType(WLMFeatureType.WLM)
+        .featureType(RuleTestUtils.MockRuleFeatureType.INSTANCE)
         .featureValue(FEATURE_VALUE_ONE)
         .attributeMap(ATTRIBUTE_MAP)
         .updatedAt(TIMESTAMP_ONE)
@@ -78,9 +81,9 @@ public class GetRuleRequestTests extends OpenSearchTestCase {
 
     public static final Rule ruleTwo = Rule.builder()
         .description(DESCRIPTION_TWO)
-        .featureType(WLMFeatureType.WLM)
+        .featureType(RuleTestUtils.MockRuleFeatureType.INSTANCE)
         .featureValue(FEATURE_VALUE_TWO)
-        .attributeMap(Map.of(InMemoryRuleProcessingServiceTests.TestAttribute.TEST_ATTRIBUTE, Set.of(ATTRIBUTE_VALUE_TWO)))
+        .attributeMap(Map.of(RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO, Set.of(ATTRIBUTE_VALUE_TWO)))
         .updatedAt(TIMESTAMP_TWO)
         .build();
 
