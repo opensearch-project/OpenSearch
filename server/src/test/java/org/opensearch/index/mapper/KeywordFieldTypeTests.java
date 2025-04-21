@@ -81,6 +81,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
@@ -196,6 +197,27 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
             e.getMessage()
         );
+    }
+
+    public void testTermsSortedQuery() {
+        String[] seedStrings = generateRandomStringArray(10, 10, false, true);
+        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).collect(Collectors.toList());
+        List<String> sortedStrings = bytesRefList.stream().sorted().map(BytesRef::utf8ToString).collect(Collectors.toList());
+
+        MappedFieldType ft = new KeywordFieldType("field");
+        Query expected = new IndexOrDocValuesQuery(
+            new TermInSetQuery("field", bytesRefList),
+            new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", bytesRefList)
+        );
+        assertEquals(expected, ft.termsQuery(sortedStrings, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
+        MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        Query expectedIndex = new TermInSetQuery("field", bytesRefList);
+        assertEquals(expectedIndex, onlyIndexed.termsQuery(sortedStrings, null));
+
+        MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        Query expectedDocValues = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", bytesRefList);
+        assertEquals(expectedDocValues, onlyDocValues.termsQuery(sortedStrings, null));
     }
 
     public void testExistsQuery() {
