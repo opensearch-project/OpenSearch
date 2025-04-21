@@ -535,7 +535,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         final String ETag,
         ActionListener<String> etagListener
     ) throws IOException {
-        // Extra safety checks remain the same.
+        // Extra safety checks remain the same
         if (blobSize > MAX_FILE_SIZE.getBytes()) {
             throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than " + MAX_FILE_SIZE);
         }
