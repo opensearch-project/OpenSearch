@@ -572,18 +572,30 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
             if (response.eTag() != null) {
                 etagListener.onResponse(response.eTag());
+            } else {
+                IOException exception = new IOException(
+                    "S3 upload for [" + blobName + "] returned null ETag, violating data integrity expectations"
+                );
+                etagListener.onFailure(exception);
+                throw exception;
             }
 
         } catch (S3Exception e) {
             if (e.statusCode() == 412) {
                 etagListener.onFailure(new OpenSearchException("stale_primary_shard", e, "Precondition Failed : Etag Mismatch", blobName));
+                throw new IOException("Unable to upload object [" + blobName + "] due to ETag mismatch", e);
             } else {
-                etagListener.onFailure(
-                    new IOException(String.format(Locale.ROOT, "S3 error during upload [%s]: %s", blobName, e.getMessage()), e)
+                IOException exception = new IOException(
+                    String.format(Locale.ROOT, "S3 error during upload [%s]: %s", blobName, e.getMessage()),
+                    e
                 );
+                etagListener.onFailure(exception);
+                throw exception;
             }
         } catch (SdkException e) {
-            etagListener.onFailure(new IOException(String.format(Locale.ROOT, "S3 upload failed for [%s]", blobName), e));
+            IOException exception = new IOException(String.format(Locale.ROOT, "S3 upload failed for [%s]", blobName), e);
+            etagListener.onFailure(exception);
+            throw exception;
         }
     }
 

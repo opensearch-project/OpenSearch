@@ -1047,8 +1047,13 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, providedETag, etagListener);
         }
 
-        verify(etagListener, never()).onFailure(any());
+        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(etagListener).onFailure(exceptionCaptor.capture());
         verify(etagListener, never()).onResponse(anyString());
+
+        Exception exception = exceptionCaptor.getValue();
+        assertTrue("Exception should be IOException", exception instanceof IOException);
+        assertTrue("Exception message should mention null ETag", exception.getMessage().contains("null ETag"));
 
         verify(clientReference).close();
     }
