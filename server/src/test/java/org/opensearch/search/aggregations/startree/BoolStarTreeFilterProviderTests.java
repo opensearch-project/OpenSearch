@@ -852,6 +852,36 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertEquals(100, statusFilters.size());
     }
 
+    public void testMustInsideShould() throws IOException {
+        // Test valid case - all clauses on same dimension
+        BoolQueryBuilder validBoolQuery = new BoolQueryBuilder().should(
+            new BoolQueryBuilder().must(new RangeQueryBuilder("status").gte(200).lt(300)).must(new TermQueryBuilder("status", 201))
+        ).should(new TermQueryBuilder("status", 404));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(validBoolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, validBoolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null for same dimension", filter);
+        assertEquals("Should have one dimension", 1, filter.getDimensions().size());
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertEquals("Should have two filters", 2, statusFilters.size());
+        Set<Object> expectedValues = Set.of(201L, 404L);
+        Set<Object> actualValues = new HashSet<>();
+        for (DimensionFilter dimFilter : statusFilters) {
+            assertTrue("Should be ExactMatchDimFilter", dimFilter instanceof ExactMatchDimFilter);
+            actualValues.addAll(((ExactMatchDimFilter) dimFilter).getRawValues());
+        }
+        assertEquals("Should contain expected values", expectedValues, actualValues);
+
+        // Test invalid case - multiple dimensions in MUST inside SHOULD
+        BoolQueryBuilder invalidBoolQuery = new BoolQueryBuilder().should(
+            new BoolQueryBuilder().must(new TermQueryBuilder("status", 200)).must(new TermQueryBuilder("method", "GET"))
+        ).should(new TermQueryBuilder("status", 404));
+
+        filter = provider.getFilter(searchContext, invalidBoolQuery, compositeFieldType);
+        assertNull("Filter should be null for multiple dimensions in MUST inside SHOULD", filter);
+    }
+
     // Helper methods for assertions
     private void assertExactMatchValue(ExactMatchDimFilter filter, String expectedValue) {
         assertEquals(new BytesRef(expectedValue), filter.getRawValues().getFirst());
