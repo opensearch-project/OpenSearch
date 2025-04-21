@@ -32,8 +32,10 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -171,6 +173,26 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         if (lookup == null) {
             initLookup(dvs);
         }
+
+        // unwrapSingleton() returns non-null only if the field is single-valued
+        final SortedDocValues singleton = DocValues.unwrapSingleton(dvs);
+
+        // Direct ordinal access for single-valued fields
+        if (singleton != null) {
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (singleton.advanceExact(doc)) {
+                        currentValue = singleton.ordValue();
+                        next.collect(doc, bucket);
+                    } else if (missingBucket) {
+                        currentValue = -1;
+                        next.collect(doc, bucket);
+                    }
+                }
+            };
+        }
+
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {

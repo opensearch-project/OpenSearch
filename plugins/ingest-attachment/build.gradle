@@ -40,7 +40,7 @@ opensearchplugin {
 versions << [
   'tika'  : '2.9.2',
   'pdfbox': '2.0.31',
-  'poi'   : '5.2.5',
+  'poi'   : '5.4.1',
   'mime4j': '0.8.11'
 ]
 

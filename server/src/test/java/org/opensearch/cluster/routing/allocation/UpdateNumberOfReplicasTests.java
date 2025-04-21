@@ -230,7 +230,7 @@ public class UpdateNumberOfReplicasTests extends OpenSearchAllocationTestCase {
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newSearchNode("node3")))
             .build();
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -354,7 +354,7 @@ public class UpdateNumberOfReplicasTests extends OpenSearchAllocationTestCase {
 
         logger.info("Adding three nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newSearchNode("node3")))
             .build();
 
         clusterState = strategy.reroute(clusterState, "reroute");
@@ -407,7 +407,9 @@ public class UpdateNumberOfReplicasTests extends OpenSearchAllocationTestCase {
         assertEquals(shardRoutingTable.searchOnlyReplicas().get(1).state(), UNASSIGNED);
 
         logger.info("Add another node and start the added replica");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newSearchNode("node4")))
+            .build();
         newState = strategy.reroute(clusterState, "reroute");
         newState = startInitializingShardsAndReroute(strategy, newState);
         assertNotEquals(newState, clusterState);

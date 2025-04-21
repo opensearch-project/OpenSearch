@@ -31,12 +31,15 @@
 
 package org.opensearch.cluster.health;
 
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -64,8 +67,19 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
         indexShardRoutingBuilder.addShard(
             TestShardRouting.newShardRouting(indexName, shardID, "node_1", null, false, ShardRoutingState.STARTED)
         );
+
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+            .creationDate(System.currentTimeMillis());
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingBuilder.build();
-        ClusterShardHealth clusterShardHealth = new ClusterShardHealth(shardID, indexShardRoutingTable);
+
+        ClusterShardHealth clusterShardHealth = new ClusterShardHealth(shardID, indexShardRoutingTable, indexMetadata);
         assertEquals(2, clusterShardHealth.getActiveShards());
         assertEquals(0, clusterShardHealth.getInitializingShards());
         assertEquals(0, clusterShardHealth.getRelocatingShards());
@@ -112,7 +126,18 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
             )
         );
         IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingBuilder.build();
-        ClusterShardHealth clusterShardHealth = new ClusterShardHealth(shardID, indexShardRoutingTable);
+
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+            .creationDate(System.currentTimeMillis());
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
+
+        ClusterShardHealth clusterShardHealth = new ClusterShardHealth(shardID, indexShardRoutingTable, indexMetadata);
         assertEquals(2, clusterShardHealth.getActiveShards());
         assertEquals(1, clusterShardHealth.getInitializingShards());
         assertEquals(1, clusterShardHealth.getRelocatingShards());
@@ -150,7 +175,18 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
             TestShardRouting.newShardRouting(indexName, shardID, null, null, false, ShardRoutingState.UNASSIGNED)
         );
         IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingBuilder.build();
-        ClusterShardHealth clusterShardHealth = new ClusterShardHealth(shardID, indexShardRoutingTable);
+
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
+            .creationDate(System.currentTimeMillis());
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
+
+        ClusterShardHealth clusterShardHealth = new ClusterShardHealth(shardID, indexShardRoutingTable, indexMetadata);
         assertEquals(0, clusterShardHealth.getActiveShards());
         assertEquals(0, clusterShardHealth.getInitializingShards());
         assertEquals(0, clusterShardHealth.getRelocatingShards());
@@ -161,7 +197,30 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
     }
 
     public void testShardRoutingNullCheck() {
-        assertThrows(AssertionError.class, () -> ClusterShardHealth.getShardHealth(null, 0, 0));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            );
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
+
+        // When search-only is not enabled (default), expect RED status
+        assertEquals(ClusterHealthStatus.RED, ClusterShardHealth.getShardHealth(null, 0, 0, indexMetadata));
+
+        // When search-only is enabled, expect RED status
+        IndexMetadata.Builder searchOnlyMetadataBuilder = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), true)
+            );
+        IndexMetadata searchOnlyMetadata = searchOnlyMetadataBuilder.build();
+
+        assertEquals(ClusterHealthStatus.RED, ClusterShardHealth.getShardHealth(null, 0, 0, searchOnlyMetadata));
     }
 
     @Override

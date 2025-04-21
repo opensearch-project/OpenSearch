@@ -18,7 +18,7 @@ import java.net.SocketPermission;
 import java.net.UnixDomainSocketAddress;
 import java.security.Policy;
 import java.security.ProtectionDomain;
-import java.util.stream.Stream;
+import java.util.Collection;
 
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.asm.Advice.Origin;
@@ -47,26 +47,26 @@ public class SocketChannelInterceptor {
         }
 
         final StackWalker walker = StackWalker.getInstance(Option.RETAIN_CLASS_REFERENCE);
-        final Stream<ProtectionDomain> callers = walker.walk(StackCallerChainExtractor.INSTANCE);
+        final Collection<ProtectionDomain> callers = walker.walk(StackCallerProtectionDomainChainExtractor.INSTANCE);
 
         if (args[0] instanceof InetSocketAddress address) {
             if (!AgentPolicy.isTrustedHost(address.getHostString())) {
                 final String host = address.getHostString() + ":" + address.getPort();
 
                 final SocketPermission permission = new SocketPermission(host, "connect,resolve");
-                callers.forEach(domain -> {
+                for (ProtectionDomain domain : callers) {
                     if (!policy.implies(domain, permission)) {
                         throw new SecurityException("Denied access to: " + host + ", domain " + domain);
                     }
-                });
+                }
             }
         } else if (args[0] instanceof UnixDomainSocketAddress address) {
             final NetPermission permission = new NetPermission("accessUnixDomainSocket");
-            callers.forEach(domain -> {
+            for (ProtectionDomain domain : callers) {
                 if (!policy.implies(domain, permission)) {
                     throw new SecurityException("Denied access to: " + address + ", domain " + domain);
                 }
-            });
+            }
         }
     }
 }

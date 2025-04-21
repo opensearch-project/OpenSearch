@@ -1095,8 +1095,8 @@ public final class IndexSettings {
             tieredMergePolicyProvider::setFloorSegmentSetting
         );
         scopedSettings.addSettingsUpdateConsumer(
-            TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
-            tieredMergePolicyProvider::setMaxMergesAtOnce
+            this::updateMaxMergesAtOnce,
+            List.of(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING)
         );
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
@@ -1251,6 +1251,33 @@ public final class IndexSettings {
     }
 
     /**
+     * Update the default maxMergesAtOnce
+     * 1. sets the new default in {@code TieredMergePolicyProvider}
+     * 2. sets the maxMergesAtOnce on the actual TieredMergePolicy used by the engine if no index level override exists
+     */
+    void setDefaultMaxMergesAtOnce(int newDefaultMaxMergesAtOnce) {
+        tieredMergePolicyProvider.setDefaultMaxMergesAtOnce(newDefaultMaxMergesAtOnce);
+        if (TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.exists(getSettings()) == false) {
+            tieredMergePolicyProvider.setMaxMergesAtOnceToDefault();
+        }
+    }
+
+    /**
+     * Updates the maxMergesAtOnce for actual TieredMergePolicy used by the engine.
+     * Sets it to default maxMergesAtOnce if index level settings is being removed
+     */
+    void updateMaxMergesAtOnce(Settings updatedSettings) {
+        if (TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.exists(updatedSettings) == false) {
+            logger.debug("Resetting maxMergesAtOnce to cluster default");
+            tieredMergePolicyProvider.setMaxMergesAtOnceToDefault();
+        } else {
+            tieredMergePolicyProvider.setMaxMergesAtOnce(
+                TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.get(updatedSettings)
+            );
+        }
+    }
+
+    /**
      * Returns the settings for this index. These settings contain the node and index level settings where
      * settings that are specified on both index and node level are overwritten by the index settings.
      */
@@ -1338,6 +1365,10 @@ public final class IndexSettings {
 
     public boolean isSegRepLocalEnabled() {
         return ReplicationType.SEGMENT.equals(replicationType) && !isRemoteStoreEnabled();
+    }
+
+    public boolean isDocumentReplication() {
+        return ReplicationType.DOCUMENT.equals(replicationType);
     }
 
     /**

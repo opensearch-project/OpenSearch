@@ -67,7 +67,7 @@ public class NRTReplicationEngine extends Engine {
 
     private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
 
-    private static final int SI_COUNTER_INCREMENT = 10;
+    private static final int SI_COUNTER_INCREMENT = 100000;
 
     public NRTReplicationEngine(EngineConfig engineConfig) {
         super(engineConfig);

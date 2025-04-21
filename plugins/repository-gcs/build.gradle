@@ -57,7 +57,7 @@ dependencies {
   api 'com.google.api-client:google-api-client:2.7.0'
 
   api 'com.google.api.grpc:proto-google-common-protos:2.54.1'
-  api 'com.google.api.grpc:proto-google-iam-v1:1.33.0'
+  api 'com.google.api.grpc:proto-google-iam-v1:1.49.1'
 
   api "com.google.auth:google-auth-library-credentials:${versions.google_auth}"
   api "com.google.auth:google-auth-library-oauth2-http:${versions.google_auth}"
@@ -66,7 +66,7 @@ dependencies {
   api 'com.google.cloud:google-cloud-core-http:2.47.0'
   api 'com.google.cloud:google-cloud-storage:1.113.1'
 
-  api 'com.google.code.gson:gson:2.12.1'
+  api 'com.google.code.gson:gson:2.13.0'
 
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api 'com.google.guava:failureaccess:1.0.1'
