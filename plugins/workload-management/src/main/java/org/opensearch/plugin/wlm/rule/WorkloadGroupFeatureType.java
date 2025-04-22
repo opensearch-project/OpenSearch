@@ -21,7 +21,7 @@ import java.util.Map;
  */
 public class WorkloadGroupFeatureType implements FeatureType {
     /**
-     * The instance for QueryGroupFeatureType
+     * The instance for WorkloadGroupFeatureType
      */
     public static final WorkloadGroupFeatureType INSTANCE = new WorkloadGroupFeatureType();
     /**
