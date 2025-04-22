@@ -215,10 +215,11 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info"),
             metricsRegistry
         );
+        assertEquals(Integer.valueOf(2), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
         assertEquals(
             Double.valueOf(2),
             metricsRegistry.getCounterStore()
-                .get("followers.checker.failure.count")
+                .get("node.followers.checker.failure.count")
                 .getCounterValueForTags()
                 .get((Map.of("node_id", "other-node")))
         );
@@ -235,10 +236,11 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info"),
             metricsRegistry
         );
+        assertEquals(Integer.valueOf(2), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
         assertEquals(
             Double.valueOf(2),
             metricsRegistry.getCounterStore()
-                .get("followers.checker.failure.count")
+                .get("node.followers.checker.failure.count")
                 .getCounterValueForTags()
                 .get((Map.of("node_id", "other-node")))
         );
@@ -271,10 +273,11 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info"),
             metricsRegistry
         );
+        assertEquals(Integer.valueOf(2), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
         assertEquals(
             Double.valueOf(2),
             metricsRegistry.getCounterStore()
-                .get("followers.checker.failure.count")
+                .get("node.followers.checker.failure.count")
                 .getCounterValueForTags()
                 .get((Map.of("node_id", "other-node")))
         );
@@ -290,10 +293,11 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info"),
             metricsRegistry
         );
+        assertEquals(Integer.valueOf(2), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
         assertEquals(
             Double.valueOf(2),
             metricsRegistry.getCounterStore()
-                .get("followers.checker.failure.count")
+                .get("node.followers.checker.failure.count")
                 .getCounterValueForTags()
                 .get((Map.of("node_id", "other-node")))
         );
@@ -364,10 +368,11 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(nodeFailed.get());
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
+        assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
         assertEquals(
             Double.valueOf(1),
             metricsRegistry.getCounterStore()
-                .get("followers.checker.failure.count")
+                .get("node.followers.checker.failure.count")
                 .getCounterValueForTags()
                 .get((Map.of("node_id", "other-node")))
         );
@@ -383,10 +388,11 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info"),
             metricsRegistry
         );
+        assertEquals(Integer.valueOf(2), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
         assertEquals(
             Double.valueOf(2),
             metricsRegistry.getCounterStore()
-                .get("followers.checker.failure.count")
+                .get("node.followers.checker.failure.count")
                 .getCounterValueForTags()
                 .get((Map.of("node_id", "other-node")))
         );

@@ -33,7 +33,9 @@ public final class ClusterManagerMetrics {
     public final Histogram clusterStatePublishHistogram;
 
     public final Counter leaderCheckFailureCounter;
+    public final Counter nodeLeaderCheckFailureCounter;
     public final Counter followerChecksFailureCounter;
+    public final Counter nodeFollowerChecksFailureCounter;
     public final Counter asyncFetchFailureCounter;
     public final Counter asyncFetchSuccessCounter;
 
@@ -68,9 +70,19 @@ public final class ClusterManagerMetrics {
             "Counter for number of failed follower checks",
             COUNTER_METRICS_UNIT
         );
+        nodeFollowerChecksFailureCounter = metricsRegistry.createCounter(
+            "node.followers.checker.failure.count",
+            "Counter for number of failed follower checks with node_id tag",
+            COUNTER_METRICS_UNIT
+        );
         leaderCheckFailureCounter = metricsRegistry.createCounter(
             "leader.checker.failure.count",
             "Counter for number of failed leader checks",
+            COUNTER_METRICS_UNIT
+        );
+        nodeLeaderCheckFailureCounter = metricsRegistry.createCounter(
+            "node.leader.checker.failure.count",
+            "Counter for number of failed leader checks with node_id tag",
             COUNTER_METRICS_UNIT
         );
         asyncFetchFailureCounter = metricsRegistry.createCounter(

@@ -426,8 +426,9 @@ public class FollowersChecker {
         }
 
         void failNode(String reason) {
+            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerChecksFailureCounter, 1.0);
             clusterManagerMetrics.incrementCounter(
-                clusterManagerMetrics.followerChecksFailureCounter,
+                clusterManagerMetrics.nodeFollowerChecksFailureCounter,
                 1.0,
                 Optional.ofNullable(Tags.create().addTag(NODE_ID, discoveryNode.getId()))
             );

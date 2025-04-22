@@ -234,10 +234,11 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
             );
         }
         leaderChecker.updateLeader(null);
+        assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
         assertEquals(
             Double.valueOf(1),
             metricsRegistry.getCounterStore()
-                .get("leader.checker.failure.count")
+                .get("node.leader.checker.failure.count")
                 .getCounterValueForTags()
                 .get((Map.of("node_id", leader2.getId())))
         );
@@ -366,10 +367,11 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(leaderFailed.get());
         }
+        assertEquals(Integer.valueOf(3), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
         assertEquals(
             Double.valueOf(3),
             metricsRegistry.getCounterStore()
-                .get("leader.checker.failure.count")
+                .get("node.leader.checker.failure.count")
                 .getCounterValueForTags()
                 .get((Map.of("node_id", "leader")))
         );
@@ -455,10 +457,11 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
             assertTrue(leaderFailed.get());
         }
 
+        assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
         assertEquals(
             Double.valueOf(1),
             metricsRegistry.getCounterStore()
-                .get("leader.checker.failure.count")
+                .get("node.leader.checker.failure.count")
                 .getCounterValueForTags()
                 .get((Map.of("node_id", "leader")))
         );

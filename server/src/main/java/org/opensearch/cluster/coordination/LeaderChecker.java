@@ -358,8 +358,9 @@ public class LeaderChecker {
 
         void leaderFailed(Exception e) {
             if (isClosed.compareAndSet(false, true)) {
+                clusterManagerMetrics.incrementCounter(clusterManagerMetrics.leaderCheckFailureCounter, 1.0);
                 clusterManagerMetrics.incrementCounter(
-                    clusterManagerMetrics.leaderCheckFailureCounter,
+                    clusterManagerMetrics.nodeLeaderCheckFailureCounter,
                     1.0,
                     Optional.ofNullable(Tags.create().addTag(NODE_ID, leader.getId()))
                 );
