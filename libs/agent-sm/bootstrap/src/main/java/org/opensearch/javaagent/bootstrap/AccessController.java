@@ -29,8 +29,6 @@ public final class AccessController {
      * @param action the action to be performed
      *
      * @return the value returned by the action's {@code run} method
-     *
-     * @throws    NullPointerException if the action is {@code null}
      */
     public static <T> T doPrivileged(PrivilegedAction<T> action) {
         T result = action.run();
@@ -56,7 +54,6 @@ public final class AccessController {
      *
      * @throws    PrivilegedActionException if the specified action's
      *         {@code run} method threw a <i>checked</i> exception
-     * @throws    NullPointerException if the action is {@code null}
      */
     public static <T> T doPrivileged(PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
         try {
