@@ -115,4 +115,76 @@ public class StackCallerProtectionDomainExtractorTests {
             }
         });
     }
+
+    @Test
+    public void testStackTruncationWithOpenSearchAccessController() throws Exception {
+        org.opensearch.javaagent.bootstrap.AccessController.doPrivileged(new org.opensearch.javaagent.bootstrap.PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                StackCallerProtectionDomainChainExtractor extractor = StackCallerProtectionDomainChainExtractor.INSTANCE;
+                Set<ProtectionDomain> protectionDomains = (Set<ProtectionDomain>) extractor.apply(captureStackFrames().stream());
+                assertEquals(1, protectionDomains.size());
+                List<String> simpleNames = protectionDomains.stream().map(pd -> {
+                    try {
+                        return pd.getCodeSource().getLocation().toURI();
+                    } catch (URISyntaxException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                    .map(URI::getPath)
+                    .map(Paths::get)
+                    .map(Path::getFileName)
+                    .map(Path::toString)
+                    // strip trailing “-VERSION.jar” if present
+                    .map(name -> name.replaceFirst("-\\d[\\d\\.]*\\.jar$", ""))
+                    // otherwise strip “.jar”
+                    .map(name -> name.replaceFirst("\\.jar$", ""))
+                    .toList();
+                assertThat(
+                    simpleNames,
+                    containsInAnyOrder(
+                        "test"    // from the build/classes/java/test directory
+                    )
+                );
+                return null;
+            }
+        });
+    }
+
+    @Test
+    public void testStackTruncationWithOpenSearchAccessControllerWithCheckedException() throws Exception {
+        org.opensearch.javaagent.bootstrap.AccessController.doPrivileged(
+            new org.opensearch.javaagent.bootstrap.PrivilegedExceptionAction<Void>() {
+                @Override
+                public Void run() {
+                    StackCallerProtectionDomainChainExtractor extractor = StackCallerProtectionDomainChainExtractor.INSTANCE;
+                    Set<ProtectionDomain> protectionDomains = (Set<ProtectionDomain>) extractor.apply(captureStackFrames().stream());
+                    assertEquals(1, protectionDomains.size());
+                    List<String> simpleNames = protectionDomains.stream().map(pd -> {
+                        try {
+                            return pd.getCodeSource().getLocation().toURI();
+                        } catch (URISyntaxException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                        .map(URI::getPath)
+                        .map(Paths::get)
+                        .map(Path::getFileName)
+                        .map(Path::toString)
+                        // strip trailing “-VERSION.jar” if present
+                        .map(name -> name.replaceFirst("-\\d[\\d\\.]*\\.jar$", ""))
+                        // otherwise strip “.jar”
+                        .map(name -> name.replaceFirst("\\.jar$", ""))
+                        .toList();
+                    assertThat(
+                        simpleNames,
+                        containsInAnyOrder(
+                            "test"    // from the build/classes/java/test directory
+                        )
+                    );
+                    return null;
+                }
+            }
+        );
+    }
 }
