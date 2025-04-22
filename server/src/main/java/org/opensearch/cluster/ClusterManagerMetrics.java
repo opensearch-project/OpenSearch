@@ -38,6 +38,7 @@ public final class ClusterManagerMetrics {
     public final Counter nodeFollowerChecksFailureCounter;
     public final Counter asyncFetchFailureCounter;
     public final Counter asyncFetchSuccessCounter;
+    public final Counter lagCounter;
 
     public ClusterManagerMetrics(MetricsRegistry metricsRegistry) {
         clusterStateAppliersHistogram = metricsRegistry.createHistogram(
@@ -95,7 +96,11 @@ public final class ClusterManagerMetrics {
             "Counter for number of successful async fetches",
             COUNTER_METRICS_UNIT
         );
-
+        lagCounter = metricsRegistry.createCounter(
+            "lag.count",
+            "Counter for difference between current version and latest version",
+            COUNTER_METRICS_UNIT
+        );
     }
 
     public void recordLatency(Histogram histogram, Double value) {

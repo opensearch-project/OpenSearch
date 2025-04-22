@@ -306,7 +306,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             clusterSettings,
             transportService.getThreadPool(),
             n -> removeNode(n, "lagging"),
-            transportService::getLocalNode
+            transportService::getLocalNode,
+            clusterManagerMetrics
         );
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(
             settings,
