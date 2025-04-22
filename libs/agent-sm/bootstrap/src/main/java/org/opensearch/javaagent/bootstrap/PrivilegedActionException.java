@@ -32,24 +32,6 @@ public class PrivilegedActionException extends Exception {
     }
 
     /**
-     * Returns the exception thrown by the computation that
-     * resulted in this {@code PrivilegedActionException}.
-     *
-     * @apiNote
-     * This method predates the general-purpose exception chaining facility.
-     * The {@link Throwable#getCause()} method is now the preferred means of
-     * obtaining this information.
-     *
-     * @return the exception thrown by the computation that
-     *         resulted in this {@code PrivilegedActionException}.
-     * @see PrivilegedExceptionAction
-     * @see AccessController#doPrivileged(PrivilegedExceptionAction)
-     */
-    public Exception getException() {
-        return (Exception) super.getCause();
-    }
-
-    /**
      * Returns a string representation of this exception.
      *
      * @return a string representation of this exception.
