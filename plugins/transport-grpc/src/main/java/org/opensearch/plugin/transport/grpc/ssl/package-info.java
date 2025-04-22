@@ -9,4 +9,4 @@
 /**
  * gRPC transport for OpenSearch implementing TLS.
  */
-package org.opensearch.transport.grpc.ssl;
+package org.opensearch.plugin.transport.grpc.ssl;

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.transport.grpc.ssl;
+package org.opensearch.plugin.transport.grpc.ssl;
 
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
