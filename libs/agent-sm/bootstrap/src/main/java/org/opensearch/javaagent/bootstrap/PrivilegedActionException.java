@@ -49,6 +49,12 @@ public class PrivilegedActionException extends Exception {
         return (Exception) super.getCause();
     }
 
+    /**
+     * Returns a string representation of this exception.
+     *
+     * @return a string representation of this exception.
+     */
+    @Override
     public String toString() {
         String s = getClass().getName();
         Throwable cause = super.getCause();

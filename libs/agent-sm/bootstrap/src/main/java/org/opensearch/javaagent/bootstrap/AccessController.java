@@ -8,6 +8,9 @@
 
 package org.opensearch.javaagent.bootstrap;
 
+/**
+ * Utility class to run code in a privileged block.
+ */
 public final class AccessController {
     /**
      * Don't allow instantiation an {@code AccessController}
