@@ -31,9 +31,6 @@ public final class AccessController {
      * @return the value returned by the action's {@code run} method
      *
      * @throws    NullPointerException if the action is {@code null}
-     *
-     * @apiNote This method performs the specified
-     *     {@code PrivilegedAction} with privileges enabled.
      */
     public static <T> T doPrivileged(PrivilegedAction<T> action) {
         T result = action.run();
