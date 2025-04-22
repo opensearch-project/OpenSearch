@@ -8,7 +8,9 @@
 
 package org.opensearch.search.aggregations.startree;
 
+import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
@@ -69,11 +71,18 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
             "response_time",
             NumberFieldMapper.NumberType.INTEGER
         );
+        NumberFieldMapper.NumberFieldType latencyType = new NumberFieldMapper.NumberFieldType(
+            "latency",
+            NumberFieldMapper.NumberType.FLOAT
+        );
+        KeywordFieldMapper.KeywordFieldType regionType = new KeywordFieldMapper.KeywordFieldType("region");
         when(mapperService.fieldType("method")).thenReturn(methodType);
         when(mapperService.fieldType("status")).thenReturn(statusType);
         when(mapperService.fieldType("port")).thenReturn(portType);
         when(mapperService.fieldType("zone")).thenReturn(zoneType);
         when(mapperService.fieldType("response_time")).thenReturn(responseTimeType);
+        when(mapperService.fieldType("latency")).thenReturn(latencyType);
+        when(mapperService.fieldType("region")).thenReturn(regionType);
 
         // Create composite field type with dimensions
         compositeFieldType = new StarTreeMapper.StarTreeFieldType(
@@ -85,7 +94,9 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
                     new OrdinalDimension("status"),
                     new OrdinalDimension("port"),
                     new OrdinalDimension("zone"),
-                    new OrdinalDimension("response_time")
+                    new OrdinalDimension("response_time"),
+                    new OrdinalDimension("latency"),
+                    new OrdinalDimension("region")
                 ),
                 List.of(new Metric("size", List.of(MetricStat.SUM))),
                 new StarTreeFieldConfiguration(
@@ -949,6 +960,113 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertNull("Filter should be null for conflicting conditions", filter);
     }
 
+    public void testKeywordRanges() throws IOException {
+        BoolQueryBuilder keywordRangeQuery = new BoolQueryBuilder().must(new RangeQueryBuilder("region").gte("eu-").lt("eu-z"))  // Range of
+                                                                                                                                 // region
+                                                                                                                                 // codes
+            .must(new TermQueryBuilder("method", "GET"));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(keywordRangeQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, keywordRangeQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        List<DimensionFilter> regionFilters = filter.getFiltersForDimension("region");
+        assertTrue(regionFilters.getFirst() instanceof RangeMatchDimFilter);
+        RangeMatchDimFilter regionRange = (RangeMatchDimFilter) regionFilters.getFirst();
+        assertEquals(new BytesRef("eu-"), regionRange.getLow());
+        assertEquals(new BytesRef("eu-z"), regionRange.getHigh());
+        assertTrue(regionRange.isIncludeLow());
+        assertFalse(regionRange.isIncludeHigh());
+    }
+
+    public void testFloatRanges() throws IOException {
+        BoolQueryBuilder floatRangeQuery = new BoolQueryBuilder().must(new RangeQueryBuilder("latency").gte(0.5f).lte(2.0f))
+            .must(new TermQueryBuilder("status", 200));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(floatRangeQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, floatRangeQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        List<DimensionFilter> latencyFilters = filter.getFiltersForDimension("latency");
+        assertTrue(latencyFilters.getFirst() instanceof RangeMatchDimFilter);
+        RangeMatchDimFilter latencyRange = (RangeMatchDimFilter) latencyFilters.getFirst();
+        assertEquals(NumericUtils.floatToSortableInt(0.5f), ((Number) latencyRange.getLow()).floatValue(), 0.0001);
+        assertEquals(NumericUtils.floatToSortableInt(2.0f), ((Number) latencyRange.getHigh()).floatValue(), 0.0001);
+        assertTrue(latencyRange.isIncludeLow());
+        assertTrue(latencyRange.isIncludeHigh());
+
+        // Test combined ranges in SHOULD
+        BoolQueryBuilder combinedRangeQuery = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"))
+            .must(
+                new BoolQueryBuilder().should(new RangeQueryBuilder("latency").gte(0.0).lt(1.0))
+                    .should(new RangeQueryBuilder("latency").gte(2.0).lt(3.0))
+            );
+
+        filter = provider.getFilter(searchContext, combinedRangeQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        latencyFilters = filter.getFiltersForDimension("latency");
+        assertEquals(2, latencyFilters.size());
+        for (DimensionFilter dimFilter : latencyFilters) {
+            assertTrue(dimFilter instanceof RangeMatchDimFilter);
+        }
+    }
+
+    public void testFloatRanges_Exclusive() throws IOException {
+        // Test float range with different inclusivity combinations
+        BoolQueryBuilder floatRangeQuery = new BoolQueryBuilder().must(new RangeQueryBuilder("latency").gt(0.5).lt(2.0))  // exclusive
+                                                                                                                          // bounds
+            .must(new TermQueryBuilder("status", 200));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(floatRangeQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, floatRangeQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        List<DimensionFilter> latencyFilters = filter.getFiltersForDimension("latency");
+        assertTrue(latencyFilters.getFirst() instanceof RangeMatchDimFilter);
+        RangeMatchDimFilter latencyRange = (RangeMatchDimFilter) latencyFilters.getFirst();
+
+        // For exclusive bounds (gt/lt), we need to use next/previous float values
+        long expectedLow = NumericUtils.floatToSortableInt(FloatPoint.nextUp(0.5f));
+        long expectedHigh = NumericUtils.floatToSortableInt(FloatPoint.nextDown(2.0f));
+
+        assertEquals(expectedLow, ((Number) latencyRange.getLow()).longValue());
+        assertEquals(expectedHigh, ((Number) latencyRange.getHigh()).longValue());
+        assertTrue(latencyRange.isIncludeLow());   // After using nextUp, bound becomes inclusive
+        assertTrue(latencyRange.isIncludeHigh());  // After using nextDown, bound becomes inclusive
+    }
+
+    public void testKeywordRangeEdgeCases() throws IOException {
+        // Test unbounded ranges
+        BoolQueryBuilder unboundedQuery = new BoolQueryBuilder().must(new RangeQueryBuilder("region").gt("eu-"))  // No upper bound
+            .must(new TermQueryBuilder("status", 200));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(unboundedQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, unboundedQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        List<DimensionFilter> regionFilters = filter.getFiltersForDimension("region");
+        RangeMatchDimFilter regionRange = (RangeMatchDimFilter) regionFilters.get(0);
+        assertEquals(new BytesRef("eu-"), regionRange.getLow());
+        assertNull(regionRange.getHigh());  // Unbounded high
+        assertFalse(regionRange.isIncludeLow());
+        assertTrue(regionRange.isIncludeHigh());
+
+        // Test range intersection
+        BoolQueryBuilder intersectionQuery = new BoolQueryBuilder().must(new RangeQueryBuilder("region").gte("eu-").lt("eu-z"))
+            .must(new RangeQueryBuilder("region").gt("eu-a").lte("eu-m"));
+
+        filter = provider.getFilter(searchContext, intersectionQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        regionFilters = filter.getFiltersForDimension("region");
+        regionRange = (RangeMatchDimFilter) regionFilters.get(0);
+        assertEquals(new BytesRef("eu-a"), regionRange.getLow());
+        assertEquals(new BytesRef("eu-m"), regionRange.getHigh());
+        assertFalse(regionRange.isIncludeLow());
+        assertTrue(regionRange.isIncludeHigh());
+    }
+
     // Helper methods for assertions
     private void assertExactMatchValue(ExactMatchDimFilter filter, String expectedValue) {
         assertEquals(new BytesRef(expectedValue), filter.getRawValues().getFirst());
@@ -957,5 +1075,4 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
     private void assertExactMatchValue(ExactMatchDimFilter filter, Long expectedValue) {
         assertEquals(expectedValue, filter.getRawValues().getFirst());
     }
-
 }
