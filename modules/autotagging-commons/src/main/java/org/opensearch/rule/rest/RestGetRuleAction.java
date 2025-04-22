@@ -32,7 +32,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rule.autotagging.Rule._ID_STRING;
@@ -80,7 +79,7 @@ public class RestGetRuleAction extends BaseRestHandler {
             .keySet()
             .stream()
             .filter(key -> !key.equals(FEATURE_TYPE) && !key.equals(_ID_STRING) && !key.equals(SEARCH_AFTER_STRING))
-            .collect(Collectors.toList());
+            .toList();
 
         for (String attributeName : requestParams) {
             Attribute attribute = featureType.getAttributeFromName(attributeName);
