@@ -100,13 +100,22 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
                     dimensionToFilters.put(dimension, new ArrayList<>(newFilters));
                 } else {
                     // We have existing filters for this dimension
+                    // Get the appropriate mapper for this dimension
+                    DimensionFilterMapper mapper = DimensionFilterMapper.Factory.fromMappedFieldType(
+                        context.mapperService().fieldType(dimension)
+                    );
+                    if (mapper == null) {
+                        return null; // Unsupported field type
+                    }
+
+                    // We have existing filters for this dimension
                     if (newFilters.size() > 1) {
                         // New filters are from SHOULD clause (multiple filters = OR condition)
                         // Need to intersect each SHOULD filter with existing filters
                         List<DimensionFilter> intersectedFilters = new ArrayList<>();
                         for (DimensionFilter shouldFilter : newFilters) {
                             for (DimensionFilter existingFilter : existingFilters) {
-                                DimensionFilter intersected = DimensionFilterMerger.intersect(existingFilter, shouldFilter);
+                                DimensionFilter intersected = DimensionFilterMerger.intersect(existingFilter, shouldFilter, mapper);
                                 if (intersected != null) {
                                     intersectedFilters.add(intersected);
                                 }
@@ -120,7 +129,11 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
                         // Here's where we need the DimensionFilter merging logic
                         // For example: merging range with term, or range with range
                         // And a single dimension filter coming from should clause is as good as must clause
-                        DimensionFilter mergedFilter = DimensionFilterMerger.intersect(existingFilters.getFirst(), newFilters.getFirst());
+                        DimensionFilter mergedFilter = DimensionFilterMerger.intersect(
+                            existingFilters.getFirst(),
+                            newFilters.getFirst(),
+                            mapper
+                        );
                         if (mergedFilter == null) {
                             return null; // No possible matches after merging
                         }

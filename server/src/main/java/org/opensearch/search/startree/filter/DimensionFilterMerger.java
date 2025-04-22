@@ -8,7 +8,7 @@
 
 package org.opensearch.search.startree.filter;
 
-import org.apache.lucene.util.BytesRef;
+import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +19,7 @@ public class DimensionFilterMerger {
      * Gets intersection of two DimensionFilters
      * Returns null if intersection results in no possible matches.
      */
-    public static DimensionFilter intersect(DimensionFilter filter1, DimensionFilter filter2) {
+    public static DimensionFilter intersect(DimensionFilter filter1, DimensionFilter filter2, DimensionFilterMapper mapper) {
         if (filter1 == null || filter2 == null) {
             return null;
         }
@@ -37,7 +37,7 @@ public class DimensionFilterMerger {
 
         // Handle Range + Range combination
         if (filter1 instanceof RangeMatchDimFilter && filter2 instanceof RangeMatchDimFilter) {
-            return intersectRangeFilters((RangeMatchDimFilter) filter1, (RangeMatchDimFilter) filter2);
+            return intersectRangeFilters((RangeMatchDimFilter) filter1, (RangeMatchDimFilter) filter2, mapper);
         }
 
         // Handle ExactMatch + ExactMatch combination
@@ -47,12 +47,12 @@ public class DimensionFilterMerger {
 
         // Handle Range + ExactMatch combination
         if (filter1 instanceof RangeMatchDimFilter && filter2 instanceof ExactMatchDimFilter) {
-            return intersectRangeWithExactMatch((RangeMatchDimFilter) filter1, (ExactMatchDimFilter) filter2);
+            return intersectRangeWithExactMatch((RangeMatchDimFilter) filter1, (ExactMatchDimFilter) filter2, mapper);
         }
 
         // Handle ExactMatch + Range combination
         if (filter1 instanceof ExactMatchDimFilter && filter2 instanceof RangeMatchDimFilter) {
-            return intersectRangeWithExactMatch((RangeMatchDimFilter) filter2, (ExactMatchDimFilter) filter1);
+            return intersectRangeWithExactMatch((RangeMatchDimFilter) filter2, (ExactMatchDimFilter) filter1, mapper);
         }
 
         // throw exception for unsupported exception
@@ -65,7 +65,11 @@ public class DimensionFilterMerger {
      * Intersects two range filters
      * Returns null if ranges don't overlap
      */
-    private static DimensionFilter intersectRangeFilters(RangeMatchDimFilter range1, RangeMatchDimFilter range2) {
+    private static DimensionFilter intersectRangeFilters(
+        RangeMatchDimFilter range1,
+        RangeMatchDimFilter range2,
+        DimensionFilterMapper mapper
+    ) {
         Object low1 = range1.getLow();
         Object high1 = range1.getHigh();
         Object low2 = range2.getLow();
@@ -81,7 +85,7 @@ public class DimensionFilterMerger {
             newLow = low1;
             includeLow = range1.isIncludeLow();
         } else {
-            int comparison = compareValues(low1, low2);
+            int comparison = mapper.compareValues(low1, low2);
             if (comparison > 0) {
                 newLow = low1;
                 includeLow = range1.isIncludeLow();
@@ -103,7 +107,7 @@ public class DimensionFilterMerger {
             newHigh = high1;
             includeHigh = range1.isIncludeHigh();
         } else {
-            int comparison = compareValues(high1, high2);
+            int comparison = mapper.compareValues(high1, high2);
             if (comparison < 0) {
                 newHigh = high1;
                 includeHigh = range1.isIncludeHigh();
@@ -118,7 +122,7 @@ public class DimensionFilterMerger {
 
         // Check if range is valid
         if (newLow != null && newHigh != null) {
-            int comparison = compareValues(newLow, newHigh);
+            int comparison = mapper.compareValues(newLow, newHigh);
             if (comparison > 0 || (comparison == 0 && (!includeLow || !includeHigh))) {
                 return null; // No overlap
             }
@@ -153,11 +157,15 @@ public class DimensionFilterMerger {
      * Intersects a range filter with an exact match filter.
      * Returns null if no values from exact match are within range.
      */
-    private static DimensionFilter intersectRangeWithExactMatch(RangeMatchDimFilter range, ExactMatchDimFilter exact) {
+    private static DimensionFilter intersectRangeWithExactMatch(
+        RangeMatchDimFilter range,
+        ExactMatchDimFilter exact,
+        DimensionFilterMapper mapper
+    ) {
         List<Object> validValues = new ArrayList<>();
 
         for (Object value : exact.getRawValues()) {
-            if (isValueInRange(value, range)) {
+            if (isValueInRange(value, range, mapper)) {
                 validValues.add(value);
             }
         }
@@ -172,37 +180,20 @@ public class DimensionFilterMerger {
     /**
      * Checks if a value falls within a range.
      */
-    private static boolean isValueInRange(Object value, RangeMatchDimFilter range) {
+    private static boolean isValueInRange(Object value, RangeMatchDimFilter range, DimensionFilterMapper mapper) {
         if (range.getLow() != null) {
-            int comparison = compareValues(value, range.getLow());
+            int comparison = mapper.compareValues(value, range.getLow());
             if (comparison < 0 || (comparison == 0 && !range.isIncludeLow())) {
                 return false;
             }
         }
 
         if (range.getHigh() != null) {
-            int comparison = compareValues(value, range.getHigh());
+            int comparison = mapper.compareValues(value, range.getHigh());
             if (comparison > 0 || (comparison == 0 && !range.isIncludeHigh())) {
                 return false;
             }
         }
         return true;
-    }
-
-    /**
-     * Compares two values - Long for numeric fields and BytesRef for keywords field
-     */
-    private static int compareValues(Object v1, Object v2) {
-        if (v1 instanceof Long && v2 instanceof Long) {
-            return Long.compare((Long) v1, (Long) v2);
-        }
-
-        if (v1 instanceof BytesRef && v2 instanceof BytesRef) {
-            return ((BytesRef) v1).compareTo((BytesRef) v2);
-        }
-
-        throw new IllegalArgumentException(
-            "Can only compare Long or BytesRef values, got types: " + v1.getClass().getName() + " and " + v2.getClass().getName()
-        );
     }
 }

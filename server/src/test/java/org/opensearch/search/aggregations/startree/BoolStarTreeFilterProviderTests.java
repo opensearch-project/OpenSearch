@@ -1038,8 +1038,7 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
     public void testFloatRanges_Intersection() throws IOException {
         // Test float range with different inclusivity combinations
-        BoolQueryBuilder floatRangeQuery = new BoolQueryBuilder()
-            .must(new RangeQueryBuilder("latency").gt(0.5).lt(2.0))
+        BoolQueryBuilder floatRangeQuery = new BoolQueryBuilder().must(new RangeQueryBuilder("latency").gt(0.5).lt(2.0))
             .must(new RangeQueryBuilder("latency").gte(0.6).lt(1.8))
             .must(new TermQueryBuilder("status", 200));
 

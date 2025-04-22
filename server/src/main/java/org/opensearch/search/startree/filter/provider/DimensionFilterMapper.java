@@ -88,6 +88,8 @@ public interface DimensionFilterMapper {
         DimensionFilter.MatchType matchType
     );
 
+    int compareValues(Object v1, Object v2);
+
     /**
      * Singleton Factory for @{@link DimensionFilterMapper}
      */
@@ -133,6 +135,14 @@ abstract class NumericMapper implements DimensionFilterMapper {
     ) {
         // Casting to long ensures that all numeric fields have been converted to equivalent long at request parsing time.
         return Optional.of((long) value);
+    }
+
+    @Override
+    public int compareValues(Object v1, Object v2) {
+        if (!(v1 instanceof Long) || !(v2 instanceof Long)) {
+            throw new IllegalArgumentException("Expected Long values for numeric comparison");
+        }
+        return Long.compare((Long) v1, (Long) v2);
     }
 }
 
@@ -405,6 +415,14 @@ class KeywordFieldMapper implements DimensionFilterMapper {
             }
         }
         return parsedValue;
+    }
+
+    @Override
+    public int compareValues(Object v1, Object v2) {
+        if (!(v1 instanceof BytesRef) || !(v2 instanceof BytesRef)) {
+            throw new IllegalArgumentException("Expected BytesRef values for keyword comparison");
+        }
+        return ((BytesRef) v1).compareTo((BytesRef) v2);
     }
 
 }
