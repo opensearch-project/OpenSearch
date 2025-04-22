@@ -30,20 +30,41 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
     @Override
     public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
         throws IOException {
-        BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) rawFilter;
-        if (!boolQueryBuilder.hasClauses()) {
+        return processBoolQuery((BoolQueryBuilder) rawFilter, context, compositeFieldType);
+    }
+
+    private StarTreeFilter processBoolQuery(
+        BoolQueryBuilder boolQuery,
+        SearchContext context,
+        CompositeDataCubeFieldType compositeFieldType
+    ) throws IOException {
+        if (boolQuery.hasClauses() == false) {
             return null;
         }
-
-        if (boolQueryBuilder.must().isEmpty() == false) {
-            return processMustClauses(getCombinedMustAndFilterClauses(boolQueryBuilder), context, compositeFieldType);
+        if (boolQuery.must().isEmpty() == false || boolQuery.filter().isEmpty() == false) {
+            return processMustClauses(getCombinedMustAndFilterClauses(boolQuery), context, compositeFieldType);
         }
-
-        if (boolQueryBuilder.should().isEmpty() == false) {
-            return processShouldClauses(boolQueryBuilder.should(), context, compositeFieldType);
+        if (boolQuery.should().isEmpty() == false) {
+            return processShouldClauses(boolQuery.should(), context, compositeFieldType);
         }
-
         return null;
+    }
+
+    private StarTreeFilter processNonBoolSupportedQueries(
+        QueryBuilder query,
+        SearchContext context,
+        CompositeDataCubeFieldType compositeFieldType
+    ) throws IOException {
+        // Only allow other supported QueryBuilders
+        if (!(query instanceof TermQueryBuilder) && !(query instanceof TermsQueryBuilder) && !(query instanceof RangeQueryBuilder)) {
+            return null;
+        }
+        // Process individual clause
+        StarTreeFilterProvider provider = SingletonFactory.getProvider(query);
+        if (provider == null) {
+            return null;
+        }
+        return provider.getFilter(context, query, compositeFieldType);
     }
 
     private StarTreeFilter processMustClauses(
@@ -60,30 +81,9 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
             StarTreeFilter clauseFilter;
 
             if (clause instanceof BoolQueryBuilder) {
-                BoolQueryBuilder boolClause = (BoolQueryBuilder) clause;
-                if (boolClause.must().isEmpty() == false) {
-                    // Process nested MUST
-                    clauseFilter = processMustClauses(getCombinedMustAndFilterClauses(boolClause), context, compositeFieldType);
-                } else if (boolClause.should().isEmpty() == false) {
-                    // Process SHOULD inside MUST
-                    clauseFilter = processShouldClauses(boolClause.should(), context, compositeFieldType);
-                    // Note: clauseFilter now contains all SHOULD conditions as separate filters
-                } else {
-                    return null;
-                }
+                clauseFilter = processBoolQuery((BoolQueryBuilder) clause, context, compositeFieldType);
             } else {
-                // Only allow other supported QueryBuilders
-                if (!(clause instanceof TermQueryBuilder)
-                    && !(clause instanceof TermsQueryBuilder)
-                    && !(clause instanceof RangeQueryBuilder)) {
-                    return null;
-                }
-                // Process individual clause
-                StarTreeFilterProvider provider = SingletonFactory.getProvider(clause);
-                if (provider == null) {
-                    return null;
-                }
-                clauseFilter = provider.getFilter(context, clause, compositeFieldType);
+                clauseFilter = processNonBoolSupportedQueries(clause, context, compositeFieldType);
             }
 
             if (clauseFilter == null) {
@@ -120,10 +120,7 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
                         // Here's where we need the DimensionFilter merging logic
                         // For example: merging range with term, or range with range
                         // And a single dimension filter coming from should clause is as good as must clause
-                        DimensionFilter mergedFilter = DimensionFilterMerger.intersect(
-                            existingFilters.getFirst(),
-                            newFilters.getFirst()
-                        );
+                        DimensionFilter mergedFilter = DimensionFilterMerger.intersect(existingFilters.getFirst(), newFilters.getFirst());
                         if (mergedFilter == null) {
                             return null; // No possible matches after merging
                         }
@@ -152,27 +149,9 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
             StarTreeFilter clauseFilter;
 
             if (clause instanceof BoolQueryBuilder) {
-                BoolQueryBuilder boolClause = (BoolQueryBuilder) clause;
-                if (boolClause.must().isEmpty() == false) {
-                    clauseFilter = processMustClauses(getCombinedMustAndFilterClauses(boolClause), context, compositeFieldType);
-                } else if (boolClause.should().isEmpty() == false) {
-                    clauseFilter = processShouldClauses(boolClause.should(), context, compositeFieldType);
-                } else {
-                    return null;
-                }
+                clauseFilter = processBoolQuery((BoolQueryBuilder) clause, context, compositeFieldType);
             } else {
-                // Only allow other supported QueryBuilders
-                if (!(clause instanceof TermQueryBuilder)
-                    && !(clause instanceof TermsQueryBuilder)
-                    && !(clause instanceof RangeQueryBuilder)) {
-                    return null;
-                }
-
-                StarTreeFilterProvider provider = SingletonFactory.getProvider(clause);
-                if (provider == null) {
-                    return null;
-                }
-                clauseFilter = provider.getFilter(context, clause, compositeFieldType);
+                clauseFilter = processNonBoolSupportedQueries(clause, context, compositeFieldType);
             }
 
             if (clauseFilter == null) {
@@ -192,8 +171,7 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
             }
 
             // Simply collect all filters - StarTreeTraversal will handle OR operation
-            dimensionToFilters.computeIfAbsent(dimension, k -> new ArrayList<>())
-                .addAll(clauseFilter.getFiltersForDimension(dimension));
+            dimensionToFilters.computeIfAbsent(dimension, k -> new ArrayList<>()).addAll(clauseFilter.getFiltersForDimension(dimension));
         }
         return new StarTreeFilter(dimensionToFilters);
     }

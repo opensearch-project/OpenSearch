@@ -884,8 +884,7 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
     public void testCombinedMustAndFilterClauses() throws IOException {
         // Test combination of MUST and FILTER clauses
-        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
-            .must(new TermQueryBuilder("method", "GET"))
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"))
             .filter(new TermQueryBuilder("status", 200))
             .filter(new RangeQueryBuilder("port").gte(80).lte(443));
 
@@ -913,11 +912,11 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
     public void testNestedBoolWithMustAndFilter() throws IOException {
         // Test nested bool query with both MUST and FILTER clauses
-        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
-            .must(new TermQueryBuilder("method", "GET"))
-            .must(new BoolQueryBuilder()
-                .filter(new RangeQueryBuilder("status").gte(200).lt(300))
-                .must(new TermQueryBuilder("status", 201)))  // Should intersect with range
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"))
+            .must(new BoolQueryBuilder().filter(new RangeQueryBuilder("status").gte(200).lt(300)).must(new TermQueryBuilder("status", 201)))  // Should
+                                                                                                                                              // intersect
+                                                                                                                                              // with
+                                                                                                                                              // range
             .filter(new TermQueryBuilder("port", 443));
 
         StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
@@ -941,8 +940,7 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
     public void testInvalidMustAndFilterCombination() throws IOException {
         // Test invalid combination - same dimension in MUST and FILTER
-        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
-            .must(new TermQueryBuilder("status", 200))
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().must(new TermQueryBuilder("status", 200))
             .filter(new TermQueryBuilder("status", 404));  // Different value for same dimension
 
         StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
