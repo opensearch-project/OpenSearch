@@ -161,7 +161,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     public Set<String> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, OpenSearchParseException {
         if (fieldName != null) {
             MappedFieldType fieldType = parseContext.mapperService().fieldType(fieldName);
-            if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
+            if (!(fieldType != null && fieldType.unwrap() instanceof GeoPointFieldMapper.GeoPointFieldType)) {
                 throw new OpenSearchParseException("referenced field must be mapped to geo_point");
             }
         }
