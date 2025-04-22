@@ -740,7 +740,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             etagListener.onFailure(exception);
             throw exception;
         } catch (Exception e) {
-            // Catch-all for unexpected exceptions
             IOException exception = new IOException(
                 String.format(Locale.ROOT, "Unexpected error during multipart upload [%s]: %s", blobName, e.getMessage()),
                 e
