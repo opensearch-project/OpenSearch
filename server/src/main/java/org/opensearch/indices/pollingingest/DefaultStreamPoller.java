@@ -17,12 +17,11 @@ import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -31,9 +30,6 @@ import java.util.concurrent.Executors;
  */
 public class DefaultStreamPoller implements StreamPoller {
     private static final Logger logger = LogManager.getLogger(DefaultStreamPoller.class);
-
-    public static final long MAX_POLL_SIZE = 1000;
-    public static final int POLL_TIMEOUT = 1000;
 
     private volatile State state = State.NONE;
 
@@ -47,8 +43,6 @@ public class DefaultStreamPoller implements StreamPoller {
 
     private ExecutorService consumerThread;
 
-    private ExecutorService processorThread;
-
     // start of the batch, inclusive
     private IngestionShardPointer initialBatchStartPointer;
     private boolean includeBatchStartPointer = false;
@@ -56,17 +50,18 @@ public class DefaultStreamPoller implements StreamPoller {
     private ResetState resetState;
     private final String resetValue;
 
+    private long maxPollSize;
+    private int pollTimeout;
+
     private Set<IngestionShardPointer> persistedPointers;
-
-    private BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
-
-    private MessageProcessorRunnable processorRunnable;
 
     private final CounterMetric totalPolledCount = new CounterMetric();
 
     // A pointer to the max persisted pointer for optimizing the check
     @Nullable
     private IngestionShardPointer maxPersistedPointer;
+
+    private PartitionedBlockingQueueContainer blockingQueueContainer;
 
     public DefaultStreamPoller(
         IngestionShardPointer startPointer,
@@ -78,17 +73,20 @@ public class DefaultStreamPoller implements StreamPoller {
         IngestionErrorStrategy errorStrategy,
         State initialState,
         long maxPollSize,
-        int pollTimeout
+        int pollTimeout,
+        int numProcessorThreads
     ) {
         this(
             startPointer,
             persistedPointers,
             consumer,
-            new MessageProcessorRunnable(new ArrayBlockingQueue<>(100), ingestionEngine, errorStrategy),
+            new PartitionedBlockingQueueContainer(numProcessorThreads, consumer.getShardId(), ingestionEngine, errorStrategy),
             resetState,
             resetValue,
             errorStrategy,
-            initialState
+            initialState,
+            maxPollSize,
+            pollTimeout
         );
     }
 
@@ -96,11 +94,13 @@ public class DefaultStreamPoller implements StreamPoller {
         IngestionShardPointer startPointer,
         Set<IngestionShardPointer> persistedPointers,
         IngestionShardConsumer consumer,
-        MessageProcessorRunnable processorRunnable,
+        PartitionedBlockingQueueContainer blockingQueueContainer,
         ResetState resetState,
         String resetValue,
         IngestionErrorStrategy errorStrategy,
-        State initialState
+        State initialState,
+        long maxPollSize,
+        int pollTimeout
     ) {
         this.consumer = Objects.requireNonNull(consumer);
         this.resetState = resetState;
@@ -108,23 +108,16 @@ public class DefaultStreamPoller implements StreamPoller {
         this.initialBatchStartPointer = startPointer;
         this.state = initialState;
         this.persistedPointers = persistedPointers;
+        this.maxPollSize = maxPollSize;
+        this.pollTimeout = pollTimeout;
         if (!this.persistedPointers.isEmpty()) {
             maxPersistedPointer = this.persistedPointers.stream().max(IngestionShardPointer::compareTo).get();
         }
-        this.processorRunnable = processorRunnable;
-        blockingQueue = processorRunnable.getBlockingQueue();
+        this.blockingQueueContainer = blockingQueueContainer;
         this.consumerThread = Executors.newSingleThreadExecutor(
             r -> new Thread(
                 r,
                 String.format(Locale.ROOT, "stream-poller-consumer-%d-%d", consumer.getShardId(), System.currentTimeMillis())
-            )
-        );
-
-        // TODO: allow multiple threads for processing the messages in parallel
-        this.processorThread = Executors.newSingleThreadExecutor(
-            r -> new Thread(
-                r,
-                String.format(Locale.ROOT, "stream-poller-processor-%d-%d", consumer.getShardId(), System.currentTimeMillis())
             )
         );
         this.errorStrategy = errorStrategy;
@@ -144,7 +137,7 @@ public class DefaultStreamPoller implements StreamPoller {
         // when we start, we need to include the batch start pointer in the read for the first read
         includeBatchStartPointer = true;
         consumerThread.submit(this::startPoll);
-        processorThread.submit(processorRunnable);
+        blockingQueueContainer.startProcessorThreads();
     }
 
     /**
@@ -159,6 +152,7 @@ public class DefaultStreamPoller implements StreamPoller {
         }
         logger.info("Starting poller for shard {}", consumer.getShardId());
 
+        IngestionShardPointer failedShardPointer = null;
         while (true) {
             try {
                 if (closed) {
@@ -209,10 +203,13 @@ public class DefaultStreamPoller implements StreamPoller {
                 List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results;
 
                 if (includeBatchStartPointer) {
-                    results = consumer.readNext(initialBatchStartPointer, true, MAX_POLL_SIZE, POLL_TIMEOUT);
+                    results = consumer.readNext(initialBatchStartPointer, true, maxPollSize, pollTimeout);
                     includeBatchStartPointer = false;
+                } else if (failedShardPointer != null) {
+                    results = consumer.readNext(failedShardPointer, true, maxPollSize, pollTimeout);
+                    failedShardPointer = null;
                 } else {
-                    results = consumer.readNext(MAX_POLL_SIZE, POLL_TIMEOUT);
+                    results = consumer.readNext(maxPollSize, pollTimeout);
                 }
 
                 if (results.isEmpty()) {
@@ -221,7 +218,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 }
 
                 state = State.PROCESSING;
-                processRecords(results);
+                failedShardPointer = processRecords(results);
             } catch (Exception e) {
                 // Pause ingestion when an error is encountered while polling the streaming source.
                 // Currently we do not have a good way to skip past the failing messages.
@@ -233,7 +230,14 @@ public class DefaultStreamPoller implements StreamPoller {
         }
     }
 
-    private void processRecords(List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results) {
+    /**
+     * Process records and write to the blocking queue. In case of error, return the shard pointer of the failed message.
+     */
+    private IngestionShardPointer processRecords(
+        List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results
+    ) {
+        IngestionShardPointer failedShardPointer = null;
+
         for (IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> result : results) {
             try {
                 // check if the message is already processed
@@ -242,7 +246,7 @@ public class DefaultStreamPoller implements StreamPoller {
                     continue;
                 }
                 totalPolledCount.inc();
-                blockingQueue.put(result);
+                blockingQueueContainer.add(result);
 
                 logger.debug(
                     "Put message {} with pointer {} to the blocking queue",
@@ -261,10 +265,13 @@ public class DefaultStreamPoller implements StreamPoller {
                 if (!errorStrategy.shouldIgnoreError(e, IngestionErrorStrategy.ErrorStage.POLLING)) {
                     // Blocking error encountered. Pause poller to stop processing remaining updates.
                     pause();
+                    failedShardPointer = result.getPointer();
                     break;
                 }
             }
         }
+
+        return failedShardPointer;
     }
 
     private boolean isProcessed(IngestionShardPointer pointer) {
@@ -322,10 +329,8 @@ public class DefaultStreamPoller implements StreamPoller {
                 logger.error("Error in closing the poller of shard {}: {}", consumer.getShardId(), e);
             }
         }
-        blockingQueue.clear();
         consumerThread.shutdown();
-        // interrupts the processor
-        processorThread.shutdownNow();
+        blockingQueueContainer.close();
         logger.info("closed the poller of shard {}", consumer.getShardId());
     }
 
@@ -343,20 +348,24 @@ public class DefaultStreamPoller implements StreamPoller {
      * Returns the batch start pointer from where the poller can resume in case of shard recovery. The poller and
      * processor are decoupled in this implementation, and hence the latest pointer tracked by the processor acts as the
      * recovery/start point. In case the processor has not started tracking, then the initial batchStartPointer used by
-     * the poller acts as the start point.
+     * the poller acts as the start point. If multiple processor threads are used, the minimum shard pointer across
+     * processors indicates the start point.
      */
     @Override
     public IngestionShardPointer getBatchStartPointer() {
-        IngestionShardPointer currentShardPointer = processorRunnable.getCurrentShardPointer();
-        return currentShardPointer == null ? initialBatchStartPointer : currentShardPointer;
+        return blockingQueueContainer.getCurrentShardPointers()
+            .stream()
+            .filter(Objects::nonNull)
+            .min(Comparator.naturalOrder())
+            .orElseGet(() -> initialBatchStartPointer);
     }
 
     @Override
     public PollingIngestStats getStats() {
         PollingIngestStats.Builder builder = new PollingIngestStats.Builder();
         builder.setTotalPolledCount(totalPolledCount.count());
-        builder.setTotalProcessedCount(processorRunnable.getProcessedCounter().count());
-        builder.setTotalSkippedCount(processorRunnable.getSkippedCounter().count());
+        builder.setTotalProcessedCount(blockingQueueContainer.getTotalProcessedCount());
+        builder.setTotalSkippedCount(blockingQueueContainer.getTotalSkippedCount());
         return builder.build();
     }
 
@@ -372,6 +381,6 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public void updateErrorStrategy(IngestionErrorStrategy errorStrategy) {
         this.errorStrategy = errorStrategy;
-        processorRunnable.setErrorStrategy(errorStrategy);
+        blockingQueueContainer.updateErrorStrategy(errorStrategy);
     }
 }

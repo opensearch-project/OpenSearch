@@ -2674,7 +2674,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (timeout != null) {
             builder.setTimeout(timeout);
         }
-        if (finalSettings == false) {
+        if (finalSettings == false && settings.keys().contains(BlobStoreRepository.SHARD_PATH_TYPE.getKey()) == false) {
             settings.put(BlobStoreRepository.SHARD_PATH_TYPE.getKey(), randomFrom(PathType.values()));
         }
         builder.setSettings(settings);

@@ -13,6 +13,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.UnixDomainSocketAddress;
 import java.nio.channels.SocketChannel;
 
@@ -28,6 +29,8 @@ public class SocketChannelInterceptorTests extends AgentTestCase {
 
             assertThrows(SecurityException.class, () -> channel.connect(new InetSocketAddress("opensearch.org", 80)));
         }
+
+        assertThrows(SecurityException.class, () -> new Socket("localhost", 9200));
     }
 
     @Test

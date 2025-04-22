@@ -188,7 +188,7 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
         }
 
         public Request(Map<ShardId, ShardAttributes> shardAttributes, DiscoveryNode[] nodes) {
-            super(false, nodes);
+            super(nodes);
             this.shardAttributes = Objects.requireNonNull(shardAttributes);
         }
 
