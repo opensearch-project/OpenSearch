@@ -95,6 +95,7 @@ import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -721,7 +722,11 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             false,
             IndexShardTestUtils.getFakeDiscoveryNodes(initializingShardRouting),
             mock(Function.class),
-            new MergedSegmentWarmerFactory(null, null, null)
+            new MergedSegmentWarmerFactory(null, null, null),
+            false,
+            OpenSearchTestCase::randomBoolean,
+            () -> indexService.getIndexSettings().getRefreshInterval(),
+            indexService.getRefreshMutex()
         );
     }
 

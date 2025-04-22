@@ -199,6 +199,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
+    private final Object refreshMutex = new Object();
+    private volatile TimeValue refreshInterval;
+    private volatile boolean shardLevelRefreshEnabled;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -234,6 +237,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        boolean shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
         FileCache fileCache,
@@ -311,8 +315,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.clusterDefaultRefreshIntervalSupplier = clusterDefaultRefreshIntervalSupplier;
         this.fixedRefreshIntervalSchedulingEnabled = fixedRefreshIntervalSchedulingEnabled;
+        this.shardLevelRefreshEnabled = shardLevelRefreshEnabled;
+        this.refreshInterval = getRefreshInterval();
         // kick off async ops for the first shard in this index
-        this.refreshTask = new AsyncRefreshTask(this);
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         // disable these checks for ingestion source engine
         if (!indexSettings.getIndexMetadata().useIngestionSource()) {
@@ -329,6 +334,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
         updateFsyncTaskIfNecessary();
+        synchronized (refreshMutex) {
+            if (shardLevelRefreshEnabled == false) {
+                logger.debug("shard level refresh is disabled for index [{}]", indexSettings.getIndex().getName());
+                startIndexLevelRefreshTask();
+            }
+        }
     }
 
     public IndexService(
@@ -365,6 +376,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        boolean shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
         Supplier<Integer> clusterDefaultMaxMergeAtOnce
@@ -403,6 +415,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             translogFactorySupplier,
             clusterDefaultRefreshIntervalSupplier,
             fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
             recoverySettings,
             remoteStoreSettings,
             null,
@@ -708,7 +721,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 seedRemote,
                 discoveryNodes,
                 segmentReplicationStatsProvider,
-                mergedSegmentWarmerFactory
+                mergedSegmentWarmerFactory,
+                shardLevelRefreshEnabled,
+                fixedRefreshIntervalSchedulingEnabled,
+                this::getRefreshInterval,
+                refreshMutex
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -1142,9 +1159,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * 2. {@code index.refresh_interval} index setting changes.
      */
     public void onRefreshIntervalChange() {
-        if (refreshTask.getInterval().equals(getRefreshInterval())) {
+        if (refreshInterval.equals(getRefreshInterval())) {
             return;
         }
+        refreshInterval = getRefreshInterval();
         // once we change the refresh interval we schedule yet another refresh
         // to ensure we are in a clean and predictable state.
         // it doesn't matter if we move from or to <code>-1</code> in both cases we want
@@ -1186,10 +1204,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void rescheduleRefreshTasks() {
-        try {
-            refreshTask.close();
-        } finally {
-            refreshTask = new AsyncRefreshTask(this);
+        synchronized (refreshMutex) {
+            if (shardLevelRefreshEnabled) {
+                try {
+                    stopShardLevelRefreshTasks();
+                } finally {
+                    startShardLevelRefreshTasks();
+                }
+            } else {
+                try {
+                    stopIndexLevelRefreshTask();
+                } finally {
+                    startIndexLevelRefreshTask();
+                }
+            }
         }
     }
 
@@ -1593,4 +1621,69 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return clearedAtLeastOne;
     }
 
+    /**
+     * This method is called when the refresh level is changed from index level to shard level or vice versa.
+     */
+    public void onRefreshLevelChange(boolean newShardLevelRefreshVal) {
+        synchronized (refreshMutex) {
+            if (this.shardLevelRefreshEnabled != newShardLevelRefreshVal) {
+                boolean prevShardLevelRefreshVal = this.shardLevelRefreshEnabled;
+                this.shardLevelRefreshEnabled = newShardLevelRefreshVal;
+                // The refresh mode has changed from index level to shard level and vice versa
+                logger.info("refresh tasks rescheduled oldVal={} newVal={}", prevShardLevelRefreshVal, newShardLevelRefreshVal);
+                if (newShardLevelRefreshVal) {
+                    try {
+                        stopIndexLevelRefreshTask();
+                    } finally {
+                        startShardLevelRefreshTasks();
+                    }
+                } else {
+                    try {
+                        stopShardLevelRefreshTasks();
+                    } finally {
+                        startIndexLevelRefreshTask();
+                    }
+                }
+            }
+        }
+    }
+
+    private void stopIndexLevelRefreshTask() {
+        assert Thread.holdsLock(refreshMutex);
+        // The refresh task is expected to be non-null at this point.
+        assert Objects.nonNull(refreshTask);
+        refreshTask.close();
+        refreshTask = null;
+    }
+
+    private void startShardLevelRefreshTasks() {
+        assert Thread.holdsLock(refreshMutex);
+        for (IndexShard shard : this.shards.values()) {
+            shard.startRefreshTask();
+        }
+    }
+
+    private void stopShardLevelRefreshTasks() {
+        assert Thread.holdsLock(refreshMutex);
+        for (IndexShard shard : this.shards.values()) {
+            shard.stopRefreshTask();
+        }
+    }
+
+    private void startIndexLevelRefreshTask() {
+        assert Thread.holdsLock(refreshMutex);
+        // The refresh task is expected to be null at this point.
+        assert Objects.isNull(refreshTask);
+        refreshTask = new AsyncRefreshTask(this);
+    }
+
+    // Visible for testing
+    boolean isShardLevelRefreshEnabled() {
+        return shardLevelRefreshEnabled;
+    }
+
+    // Visible for testing
+    public Object getRefreshMutex() {
+        return refreshMutex;
+    }
 }

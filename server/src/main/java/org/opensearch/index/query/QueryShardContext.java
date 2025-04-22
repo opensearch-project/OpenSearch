@@ -496,7 +496,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null) {
-            if (fieldMapping instanceof DerivedFieldType) {
+            if (fieldMapping.unwrap() instanceof DerivedFieldType) {
                 // resolveDerivedFieldType() will give precedence to search time definitions over index mapping, thus
                 // calling it instead of directly returning. It also ensures the feature flags are honoured.
                 return resolveDerivedFieldType(name);

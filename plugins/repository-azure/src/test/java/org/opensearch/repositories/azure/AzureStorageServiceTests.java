@@ -205,7 +205,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
                 // Expect the client to use managed identity for authentication, and it should fail because managed identity environment is
                 // not setup in the test
                 final MsalServiceException e = expectThrows(MsalServiceException.class, () -> client1.getAccountInfo());
-                assertThat(e.getMessage(), containsString("HttpStatusCode: 401"));
+                assertThat(e.getMessage(), containsString("[Managed Identity] MSI returned 401"));
             }
         }
     }
