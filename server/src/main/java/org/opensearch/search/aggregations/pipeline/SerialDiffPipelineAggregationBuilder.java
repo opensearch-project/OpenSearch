@@ -220,7 +220,7 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
                         String path = parser.text();
                         paths.add(path);
                     }
-                    bucketsPaths = paths.toArray(new String[paths.size()]);
+                    bucketsPaths = paths.toArray(new String[0]);
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),

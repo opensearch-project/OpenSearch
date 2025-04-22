@@ -23,7 +23,7 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
-import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ final class Helper {
         queryWrappers.put(FunctionScoreQuery.class, q -> ((FunctionScoreQuery) q).getSubQuery());
         queryWrappers.put(DateRangeIncludingNowQuery.class, q -> ((DateRangeIncludingNowQuery) q).getQuery());
         queryWrappers.put(IndexOrDocValuesQuery.class, q -> ((IndexOrDocValuesQuery) q).getIndexQuery());
-        queryWrappers.put(ApproximateIndexOrDocValuesQuery.class, q -> ((ApproximateIndexOrDocValuesQuery) q).getOriginalQuery());
+        queryWrappers.put(ApproximateScoreQuery.class, q -> ((ApproximateScoreQuery) q).getOriginalQuery());
     }
 
     /**

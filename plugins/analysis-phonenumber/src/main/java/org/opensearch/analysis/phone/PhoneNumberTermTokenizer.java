@@ -98,7 +98,9 @@ public final class PhoneNumberTermTokenizer extends Tokenizer {
 
         // Rip off the "tel:" or "sip:" prefix
         if (input.indexOf("tel:") == 0 || input.indexOf("sip:") == 0) {
-            tokens.add(input.substring(0, 4));
+            if (addNgrams) {
+                tokens.add(input.substring(0, 4));
+            }
             input = input.substring(4);
         }
 
@@ -128,14 +130,23 @@ public final class PhoneNumberTermTokenizer extends Tokenizer {
                 countryCode = Optional.of(String.valueOf(numberProto.getCountryCode()));
                 input = String.valueOf(numberProto.getNationalNumber());
 
-                // Add Country code, extension, and the number as tokens
-                tokens.add(countryCode.get());
+                // add full number as tokens
                 tokens.add(countryCode.get() + input);
-                if (!Strings.isEmpty(numberProto.getExtension())) {
-                    tokens.add(numberProto.getExtension());
+
+                if (addNgrams) {
+                    // Consider the country code as an ngram - it makes no sense in the search analyzer as it'd match all values with the
+                    // same country code
+                    tokens.add(countryCode.get());
+
+                    // Add extension without country code (not done for search analyzer as that might match numbers in other countries as
+                    // well!)
+                    if (!Strings.isEmpty(numberProto.getExtension())) {
+                        tokens.add(numberProto.getExtension());
+                    }
+                    // Add unformatted input (most likely the same as the extension now since the prefix has been removed)
+                    tokens.add(input);
                 }
 
-                tokens.add(input);
             }
         } catch (final NumberParseException | StringIndexOutOfBoundsException e) {
             // Libphone didn't like it, no biggie. We'll just ngram the number as it is.

@@ -33,12 +33,21 @@
 package org.opensearch.discovery;
 
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.coordination.JoinHelper;
+import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.coordination.PublicationTransportHandler;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryMissingException;
+import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
@@ -46,10 +55,15 @@ import org.opensearch.test.disruption.SlowClusterStateProcessing;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
+import org.junit.Assert;
 
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -248,6 +262,144 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         clusterManagerTransportService.clearAllRules();
 
         ensureStableCluster(3);
+    }
+
+    /**
+     * Tests the scenario where-in a cluster-state containing new repository meta-data as part of a node-join from a
+     * repository-configured node fails on a commit stag and has a master switch. This would lead to master nodes
+     * doing another round of node-joins with the new cluster-state as the previous attempt had a successful publish.
+     */
+    public void testElectClusterManagerRemotePublicationConfigurationNodeJoinCommitFails() throws Exception {
+        final String remoteStateRepoName = "remote-state-repo";
+        final String remoteRoutingTableRepoName = "routing-table-repo";
+
+        Settings remotePublicationSettings = buildRemotePublicationNodeAttributes(
+            remoteStateRepoName,
+            ReloadableFsRepository.TYPE,
+            remoteRoutingTableRepoName,
+            ReloadableFsRepository.TYPE
+        );
+        internalCluster().startClusterManagerOnlyNodes(3);
+        internalCluster().startDataOnlyNodes(3);
+
+        String clusterManagerNode = internalCluster().getClusterManagerName();
+        List<String> nonClusterManagerNodes = Arrays.stream(internalCluster().getNodeNames())
+            .filter(node -> !node.equals(clusterManagerNode))
+            .collect(Collectors.toList());
+
+        ensureStableCluster(6);
+
+        MockTransportService clusterManagerTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            clusterManagerNode
+        );
+        logger.info("Blocking Cluster Manager Commit Request on all nodes");
+        // This is to allow the new node to have commit failures on the nodes in the send path itself. This will lead to the
+        // nodes have a successful publish operation but failed commit operation. This will come into play once the new node joins
+        nonClusterManagerNodes.forEach(node -> {
+            TransportService targetTransportService = internalCluster().getInstance(TransportService.class, node);
+            clusterManagerTransportService.addSendBehavior(targetTransportService, (connection, requestId, action, request, options) -> {
+                if (action.equals(PublicationTransportHandler.COMMIT_STATE_ACTION_NAME)) {
+                    logger.info("--> preventing {} request", PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
+                    throw new FailedToCommitClusterStateException("Blocking Commit");
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        });
+
+        logger.info("Starting Node with remote publication settings");
+        // Start a node with remote-publication repositories configured. This will lead to the active cluster-manager create
+        // a new cluster-state event with the new node-join along with new repositories setup in the cluster meta-data.
+        internalCluster().startDataOnlyNodes(1, remotePublicationSettings, Boolean.TRUE);
+
+        // Checking if publish succeeded in the nodes before shutting down the blocked cluster-manager
+        assertBusy(() -> {
+            String randomNode = nonClusterManagerNodes.get(Randomness.get().nextInt(nonClusterManagerNodes.size()));
+            PersistedStateRegistry registry = internalCluster().getInstance(PersistedStateRegistry.class, randomNode);
+
+            ClusterState state = registry.getPersistedState(PersistedStateRegistry.PersistedStateType.LOCAL).getLastAcceptedState();
+            RepositoriesMetadata repositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
+            Boolean isRemoteStateRepoConfigured = Boolean.FALSE;
+            Boolean isRemoteRoutingTableRepoConfigured = Boolean.FALSE;
+
+            assertNotNull(repositoriesMetadata);
+            assertNotNull(repositoriesMetadata.repositories());
+
+            for (RepositoryMetadata repo : repositoriesMetadata.repositories()) {
+                if (repo.name().equals(remoteStateRepoName)) {
+                    isRemoteStateRepoConfigured = Boolean.TRUE;
+                } else if (repo.name().equals(remoteRoutingTableRepoName)) {
+                    isRemoteRoutingTableRepoConfigured = Boolean.TRUE;
+                }
+            }
+            // Asserting that the metadata is present in the persisted cluster-state
+            assertTrue(isRemoteStateRepoConfigured);
+            assertTrue(isRemoteRoutingTableRepoConfigured);
+
+            RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, randomNode);
+
+            isRemoteStateRepoConfigured = isRepoPresentInRepositoryService(repositoriesService, remoteStateRepoName);
+            isRemoteRoutingTableRepoConfigured = isRepoPresentInRepositoryService(repositoriesService, remoteRoutingTableRepoName);
+
+            // Asserting that the metadata is not present in the repository service.
+            Assert.assertFalse(isRemoteStateRepoConfigured);
+            Assert.assertFalse(isRemoteRoutingTableRepoConfigured);
+        });
+
+        logger.info("Stopping current Cluster Manager");
+        // We stop the current cluster-manager whose outbound paths were blocked. This is to force a new election onto nodes
+        // we had the new cluster-state published but not commited.
+        internalCluster().stopCurrentClusterManagerNode();
+
+        // We expect that the repositories validations are skipped in this case and node-joins succeeds as expected. The
+        // repositories validations are skipped because even though the cluster-state is updated in the persisted registry,
+        // the repository service will not be updated as the commit attempt failed.
+        ensureStableCluster(6);
+
+        String randomNode = nonClusterManagerNodes.get(Randomness.get().nextInt(nonClusterManagerNodes.size()));
+
+        // Checking if the final cluster-state is updated.
+        RepositoriesMetadata repositoriesMetadata = internalCluster().getInstance(ClusterService.class, randomNode)
+            .state()
+            .metadata()
+            .custom(RepositoriesMetadata.TYPE);
+
+        Boolean isRemoteStateRepoConfigured = Boolean.FALSE;
+        Boolean isRemoteRoutingTableRepoConfigured = Boolean.FALSE;
+
+        for (RepositoryMetadata repo : repositoriesMetadata.repositories()) {
+            if (repo.name().equals(remoteStateRepoName)) {
+                isRemoteStateRepoConfigured = Boolean.TRUE;
+            } else if (repo.name().equals(remoteRoutingTableRepoName)) {
+                isRemoteRoutingTableRepoConfigured = Boolean.TRUE;
+            }
+        }
+
+        Assert.assertTrue("RemoteState Repo is not set in RepositoriesMetadata", isRemoteStateRepoConfigured);
+        Assert.assertTrue("RemoteRoutingTable Repo is not set in RepositoriesMetadata", isRemoteRoutingTableRepoConfigured);
+
+        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, randomNode);
+
+        isRemoteStateRepoConfigured = isRepoPresentInRepositoryService(repositoriesService, remoteStateRepoName);
+        isRemoteRoutingTableRepoConfigured = isRepoPresentInRepositoryService(repositoriesService, remoteRoutingTableRepoName);
+
+        Assert.assertTrue("RemoteState Repo is not set in RepositoryService", isRemoteStateRepoConfigured);
+        Assert.assertTrue("RemoteRoutingTable Repo is not set in RepositoryService", isRemoteRoutingTableRepoConfigured);
+
+        logger.info("Stopping current Cluster Manager");
+    }
+
+    private Boolean isRepoPresentInRepositoryService(RepositoriesService repositoriesService, String repoName) {
+        try {
+            Repository remoteStateRepo = repositoriesService.repository(repoName);
+            if (Objects.nonNull(remoteStateRepo)) {
+                return Boolean.TRUE;
+            }
+        } catch (RepositoryMissingException e) {
+            return Boolean.FALSE;
+        }
+
+        return Boolean.FALSE;
     }
 
 }

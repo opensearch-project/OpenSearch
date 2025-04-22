@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         java: [ 11, 17, 21 ]
-        os: [ubuntu-latest, windows-latest, macos-13]
+        os: [ubuntu-latest, windows-latest, macos-13, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK ${{ matrix.java }}
@@ -32,10 +32,7 @@ jobs:
         if: runner.os == 'macos'
         continue-on-error: true
         run: |
-          # Force QEMU 9.0.2 usage
-          curl https://raw.githubusercontent.com/Homebrew/homebrew-core/f1a9cf104a9a51779c7a532b658c490f69974839/Formula/q/qemu.rb > qemu.rb
-          brew install qemu.rb
-          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install docker colima coreutils
+          brew install docker colima coreutils
           gtimeout 15m colima start
         shell: bash
       - name: Run Gradle (assemble)

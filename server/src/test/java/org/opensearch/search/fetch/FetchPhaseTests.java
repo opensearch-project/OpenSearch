@@ -32,7 +32,21 @@
 
 package org.opensearch.search.fetch;
 
+import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.opensearch.index.fieldvisitor.FieldsVisitor;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FetchPhaseTests extends OpenSearchTestCase {
     public void testSequentialDocs() {
@@ -52,4 +66,54 @@ public class FetchPhaseTests extends OpenSearchTestCase {
         }
         assertFalse(FetchPhase.hasSequentialDocs(docs));
     }
+
+    public void testFieldsVisitorsInFetchPhase() {
+
+        FetchPhase fetchPhase = new FetchPhase(new ArrayList<>());
+        SearchContext mockSearchContext = mock(SearchContext.class);
+        when(mockSearchContext.docIdsToLoadSize()).thenReturn(1);
+        when(mockSearchContext.docIdsToLoad()).thenReturn(new int[] { 1 });
+        String[] includes = new String[] { "field1", "field2" };
+        String[] excludes = new String[] { "field7", "field8" };
+
+        FetchSourceContext mockFetchSourceContext = new FetchSourceContext(true, includes, excludes);
+        when(mockSearchContext.hasFetchSourceContext()).thenReturn(true);
+        when(mockSearchContext.fetchSourceContext()).thenReturn(mockFetchSourceContext);
+
+        // Case 1
+        // if storedFieldsContext is null
+        FieldsVisitor fieldsVisitor = fetchPhase.createStoredFieldsVisitor(mockSearchContext, null);
+        assertArrayEquals(fieldsVisitor.excludes(), excludes);
+        assertArrayEquals(fieldsVisitor.includes(), includes);
+
+        // Case 2
+        // if storedFieldsContext is not null
+        StoredFieldsContext storedFieldsContext = mock(StoredFieldsContext.class);
+        when(mockSearchContext.storedFieldsContext()).thenReturn(storedFieldsContext);
+
+        fieldsVisitor = fetchPhase.createStoredFieldsVisitor(mockSearchContext, null);
+        assertNull(fieldsVisitor);
+
+        // Case 3
+        // if storedFieldsContext is true but fieldNames are empty
+        when(storedFieldsContext.fetchFields()).thenReturn(true);
+        when(storedFieldsContext.fieldNames()).thenReturn(List.of());
+        fieldsVisitor = fetchPhase.createStoredFieldsVisitor(mockSearchContext, Collections.emptyMap());
+        assertArrayEquals(fieldsVisitor.excludes(), excludes);
+        assertArrayEquals(fieldsVisitor.includes(), includes);
+
+        // Case 4
+        // if storedToRequested Fields is not empty
+        // creates an instance of CustomFieldsVisitor
+        Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
+        storedToRequestedFields.put("test_field_key", Set.of("test_field_value"));
+
+        fieldsVisitor = fetchPhase.createStoredFieldsVisitor(mockSearchContext, storedToRequestedFields);
+
+        assertTrue(fieldsVisitor instanceof CustomFieldsVisitor);
+        assertArrayEquals(fieldsVisitor.excludes(), excludes);
+        assertArrayEquals(fieldsVisitor.includes(), includes);
+
+    }
+
 }

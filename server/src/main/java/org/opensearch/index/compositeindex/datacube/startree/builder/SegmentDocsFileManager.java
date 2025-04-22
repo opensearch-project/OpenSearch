@@ -40,9 +40,13 @@ public class SegmentDocsFileManager extends AbstractDocumentsFileManager impleme
     private RandomAccessInput segmentRandomInput;
     final IndexOutput segmentDocsFileOutput;
 
-    public SegmentDocsFileManager(SegmentWriteState state, StarTreeField starTreeField, List<MetricAggregatorInfo> metricAggregatorInfos)
-        throws IOException {
-        super(state, starTreeField, metricAggregatorInfos);
+    public SegmentDocsFileManager(
+        SegmentWriteState state,
+        StarTreeField starTreeField,
+        List<MetricAggregatorInfo> metricAggregatorInfos,
+        int numDimensions
+    ) throws IOException {
+        super(state, starTreeField, metricAggregatorInfos, numDimensions);
         try {
             segmentDocsFileOutput = tmpDirectory.createTempOutput(SEGMENT_DOC_FILE_NAME, state.segmentSuffix, state.context);
         } catch (IOException e) {
@@ -78,7 +82,7 @@ public class SegmentDocsFileManager extends AbstractDocumentsFileManager impleme
     @Override
     public Long[] readDimensions(int docId) throws IOException {
         maybeInitializeSegmentInput();
-        Long[] dims = new Long[starTreeField.getDimensionsOrder().size()];
+        Long[] dims = new Long[numDimensions];
         readDimensions(dims, segmentRandomInput, (long) docId * docSizeInBytes);
         return dims;
     }

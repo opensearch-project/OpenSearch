@@ -54,7 +54,7 @@ public class RestGetAllPitsAction extends BaseRestHandler {
         for (DiscoveryNode node : nodesInCluster.get()) {
             nodes.add(node);
         }
-        DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[nodes.size()]);
+        DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[0]);
         GetAllPitNodesRequest getAllPitNodesRequest = new GetAllPitNodesRequest(disNodesArr);
         return channel -> client.getAllPits(getAllPitNodesRequest, new RestBuilderListener<GetAllPitNodesResponse>(channel) {
             @Override

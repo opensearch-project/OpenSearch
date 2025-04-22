@@ -14,8 +14,8 @@ import org.opensearch.gradle.info.BuildParams
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Opentelemetry based telemetry implementation.'
-  classname 'org.opensearch.telemetry.OTelTelemetryPlugin'
+  description = 'Opentelemetry based telemetry implementation.'
+  classname = 'org.opensearch.telemetry.OTelTelemetryPlugin'
   hasClientJar = false
 }
 
@@ -88,6 +88,7 @@ thirdPartyAudit {
     'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider',
     'io.opentelemetry.sdk.autoconfigure.spi.internal.AutoConfigureListener',
     'io.opentelemetry.sdk.autoconfigure.spi.internal.ComponentProvider',
+    'io.opentelemetry.sdk.autoconfigure.spi.internal.DefaultConfigProperties',
     'io.opentelemetry.sdk.autoconfigure.spi.internal.StructuredConfigProperties'
   )
 }

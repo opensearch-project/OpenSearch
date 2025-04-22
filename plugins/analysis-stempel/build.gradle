@@ -30,8 +30,8 @@
 apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
-  description 'The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into opensearch.'
-  classname 'org.opensearch.plugin.analysis.stempel.AnalysisStempelPlugin'
+  description = 'The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into opensearch.'
+  classname = 'org.opensearch.plugin.analysis.stempel.AnalysisStempelPlugin'
 }
 
 dependencies {

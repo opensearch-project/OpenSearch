@@ -339,7 +339,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             allNodes.add(createNode());
         }
-        ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[allNodes.size()]));
+        ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[0]));
         // add nodes to clusterStateServiceMap
         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
         return state;
@@ -421,7 +421,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             indicesToDelete.add(state.metadata().index(index).getIndex().getName());
         }
         if (indicesToDelete.isEmpty() == false) {
-            DeleteIndexRequest deleteRequest = new DeleteIndexRequest(indicesToDelete.toArray(new String[indicesToDelete.size()]));
+            DeleteIndexRequest deleteRequest = new DeleteIndexRequest(indicesToDelete.toArray(new String[0]));
             state = cluster.deleteIndices(state, deleteRequest);
             for (String index : indicesToDelete) {
                 assertFalse(state.metadata().hasIndex(index));
@@ -453,9 +453,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             }
         }
         if (indicesToUpdate.isEmpty() == false) {
-            UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(
-                indicesToUpdate.toArray(new String[indicesToUpdate.size()])
-            );
+            UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indicesToUpdate.toArray(new String[0]));
             Settings.Builder settings = Settings.builder();
             if (containsClosedIndex == false) {
                 settings.put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));

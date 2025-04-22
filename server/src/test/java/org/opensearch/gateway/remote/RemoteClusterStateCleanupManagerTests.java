@@ -42,6 +42,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -200,6 +201,7 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID(ClusterState.UNKNOWN_UUID)
+            .clusterStateCustomMetadataMap(Map.of("snapshots", new UploadedMetadataAttribute("snapshots", "snapshot_file1")))
             .committed(true)
             .build();
         ClusterMetadataManifest manifest2 = ClusterMetadataManifest.builder(manifest1)
@@ -209,10 +211,12 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
             .coordinationMetadata(coordinationMetadata)
             .templatesMetadata(templateMetadata)
             .settingMetadata(settingMetadata)
+            .clusterStateCustomMetadataMap(Map.of("restore", new UploadedMetadataAttribute("restore", "restore_file1")))
             .build();
         ClusterMetadataManifest manifest3 = ClusterMetadataManifest.builder(manifest2)
             .indices(List.of(index1UpdatedMetadata, index2Metadata))
             .settingMetadata(settingMetadataUpdated)
+            .clusterStateCustomMetadataMap(Map.of())
             .build();
 
         UploadedIndexMetadata index3Metadata = new UploadedIndexMetadata("index3", "indexUUID3", "index_metadata3__2");
@@ -286,6 +290,7 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
             )
         );
         verify(container).deleteBlobsIgnoringIfNotExists(List.of(getFormattedIndexFileName(index1Metadata.getUploadedFilePath())));
+        verify(container).deleteBlobsIgnoringIfNotExists(List.of("restore_file1", "snapshot_file1"));
         Set<String> staleManifest = new HashSet<>();
         inactiveBlobs.forEach(
             blob -> staleManifest.add(

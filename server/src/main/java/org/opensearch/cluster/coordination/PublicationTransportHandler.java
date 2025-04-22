@@ -43,6 +43,7 @@ import org.opensearch.cluster.IncompatibleClusterStateVersionException;
 import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.TriConsumer;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -65,7 +66,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -110,7 +110,7 @@ public class PublicationTransportHandler {
         TransportService transportService,
         NamedWriteableRegistry namedWriteableRegistry,
         Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
-        BiConsumer<ApplyCommitRequest, ActionListener<Void>> handleApplyCommit,
+        TriConsumer<ApplyCommitRequest, Consumer<ClusterState>, ActionListener<Void>> handleApplyCommit,
         RemoteClusterStateService remoteClusterStateService
     ) {
         this.transportService = transportService;
@@ -142,7 +142,7 @@ public class PublicationTransportHandler {
             false,
             false,
             ApplyCommitRequest::new,
-            (request, channel, task) -> handleApplyCommit.accept(request, transportCommitCallback(channel))
+            (request, channel, task) -> handleApplyCommit.apply(request, this::updateLastSeen, transportCommitCallback(channel))
         );
     }
 
@@ -258,7 +258,7 @@ public class PublicationTransportHandler {
             }
 
             if (applyFullState == true) {
-                logger.debug(
+                logger.info(
                     () -> new ParameterizedMessage(
                         "Downloading full cluster state for term {}, version {}, stateUUID {}",
                         manifest.getClusterTerm(),
@@ -298,9 +298,9 @@ public class PublicationTransportHandler {
             }
         } catch (Exception e) {
             if (applyFullState) {
-                remoteClusterStateService.fullDownloadFailed();
+                remoteClusterStateService.fullIncomingPublicationFailed();
             } else {
-                remoteClusterStateService.diffDownloadFailed();
+                remoteClusterStateService.diffIncomingPublicationFailed();
             }
             throw e;
         }
@@ -367,7 +367,6 @@ public class PublicationTransportHandler {
     }
 
     private boolean validateRemotePublicationConfiguredOnAllNodes(DiscoveryNodes discoveryNodes) {
-        assert ClusterMetadataManifest.getCodecForVersion(discoveryNodes.getMinNodeVersion()) >= ClusterMetadataManifest.CODEC_V0;
         for (DiscoveryNode node : discoveryNodes.getNodes().values()) {
             // if a node is non-remote then created local publication context
             if (node.isRemoteStatePublicationEnabled() == false) {
@@ -375,6 +374,10 @@ public class PublicationTransportHandler {
             }
         }
         return true;
+    }
+
+    private void updateLastSeen(final ClusterState clusterState) {
+        lastSeenClusterState.set(clusterState);
     }
 
     // package private for testing

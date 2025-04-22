@@ -184,6 +184,13 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns true if the state in appliedClusterState is not null
+     */
+    public boolean isStateInitialised() {
+        return clusterApplierService.isStateInitialised();
+    }
+
+    /**
      * The state that is persisted to store but may not be applied to cluster.
      * @return ClusterState
      */

@@ -48,6 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class QueryGroupServiceTests extends OpenSearchTestCase {
+    public static final String QUERY_GROUP_ID = "queryGroupId1";
     private QueryGroupService queryGroupService;
     private QueryGroupTaskCancellationService mockCancellationService;
     private ClusterService mockClusterService;
@@ -68,6 +69,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         mockNodeDuressTrackers = Mockito.mock(NodeDuressTrackers.class);
         mockCancellationService = Mockito.mock(TestQueryGroupCancellationService.class);
         mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor();
+        when(mockNodeDuressTrackers.isNodeInDuress()).thenReturn(false);
 
         queryGroupService = new QueryGroupService(
             mockCancellationService,
@@ -203,25 +205,51 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         verify(spyMap, never()).get(any());
     }
 
-    public void testRejectIfNeeded_whenQueryGroupIsSoftMode() {
-        QueryGroup testQueryGroup = new QueryGroup(
+    public void testRejectIfNeeded_whenSoftModeQueryGroupIsContendedAndNodeInDuress() {
+        Set<QueryGroup> activeQueryGroups = getActiveQueryGroups(
             "testQueryGroup",
-            "queryGroupId1",
-            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.SOFT, Map.of(ResourceType.CPU, 0.10)),
-            1L
+            QUERY_GROUP_ID,
+            MutableQueryGroupFragment.ResiliencyMode.SOFT,
+            Map.of(ResourceType.CPU, 0.10)
         );
-        Set<QueryGroup> activeQueryGroups = new HashSet<>() {
-            {
-                add(testQueryGroup);
-            }
-        };
+        mockQueryGroupStateMap = new HashMap<>();
+        mockQueryGroupStateMap.put("queryGroupId1", new QueryGroupState());
+        QueryGroupState state = new QueryGroupState();
+        QueryGroupState.ResourceTypeState cpuResourceState = new QueryGroupState.ResourceTypeState(ResourceType.CPU);
+        cpuResourceState.setLastRecordedUsage(0.10);
+        state.getResourceState().put(ResourceType.CPU, cpuResourceState);
+        QueryGroupState spyState = spy(state);
+        mockQueryGroupStateMap.put(QUERY_GROUP_ID, spyState);
+
+        mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor(mockQueryGroupStateMap);
+
+        queryGroupService = new QueryGroupService(
+            mockCancellationService,
+            mockClusterService,
+            mockThreadPool,
+            mockWorkloadManagementSettings,
+            mockNodeDuressTrackers,
+            mockQueryGroupsStateAccessor,
+            activeQueryGroups,
+            new HashSet<>()
+        );
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        when(mockNodeDuressTrackers.isNodeInDuress()).thenReturn(true);
+        assertThrows(OpenSearchRejectedExecutionException.class, () -> queryGroupService.rejectIfNeeded("queryGroupId1"));
+    }
+
+    public void testRejectIfNeeded_whenQueryGroupIsSoftMode() {
+        Set<QueryGroup> activeQueryGroups = getActiveQueryGroups(
+            "testQueryGroup",
+            QUERY_GROUP_ID,
+            MutableQueryGroupFragment.ResiliencyMode.SOFT,
+            Map.of(ResourceType.CPU, 0.10)
+        );
         mockQueryGroupStateMap = new HashMap<>();
         QueryGroupState spyState = spy(new QueryGroupState());
         mockQueryGroupStateMap.put("queryGroupId1", spyState);
 
         mockQueryGroupsStateAccessor = new QueryGroupsStateAccessor(mockQueryGroupStateMap);
-
-        Map<String, QueryGroupState> spyMap = spy(mockQueryGroupStateMap);
 
         queryGroupService = new QueryGroupService(
             mockCancellationService,
@@ -239,11 +267,11 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
     }
 
     public void testRejectIfNeeded_whenQueryGroupIsEnforcedMode_andNotBreaching() {
-        QueryGroup testQueryGroup = new QueryGroup(
+        QueryGroup testQueryGroup = getQueryGroup(
             "testQueryGroup",
             "queryGroupId1",
-            new MutableQueryGroupFragment(MutableQueryGroupFragment.ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.10)),
-            1L
+            MutableQueryGroupFragment.ResiliencyMode.ENFORCED,
+            Map.of(ResourceType.CPU, 0.10)
         );
         QueryGroup spuQueryGroup = spy(testQueryGroup);
         Set<QueryGroup> activeQueryGroups = new HashSet<>() {
@@ -367,7 +395,7 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
     }
 
     public void testOnTaskCompleted() {
-        Task task = createMockTaskWithResourceStats(SearchTask.class, 100, 200, 0, 12);
+        Task task = new SearchTask(12, "", "", () -> "", null, null);
         mockThreadPool = new TestThreadPool("queryGroupServiceTests");
         mockThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, "testId");
         QueryGroupState queryGroupState = new QueryGroupState();
@@ -401,20 +429,20 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         ((QueryGroupTask) task).setQueryGroupId(mockThreadPool.getThreadContext());
         queryGroupService.onTaskCompleted(task);
 
-        assertEquals(1, queryGroupState.completions.count());
+        assertEquals(1, queryGroupState.totalCompletions.count());
 
         // test non QueryGroupTask
         task = new Task(1, "simple", "test", "mock task", null, null);
         queryGroupService.onTaskCompleted(task);
 
         // It should still be 1
-        assertEquals(1, queryGroupState.completions.count());
+        assertEquals(1, queryGroupState.totalCompletions.count());
 
         mockThreadPool.shutdown();
     }
 
     public void testShouldSBPHandle() {
-        QueryGroupTask task = createMockTaskWithResourceStats(SearchTask.class, 100, 200, 0, 12);
+        SearchTask task = createMockTaskWithResourceStats(SearchTask.class, 100, 200, 0, 12);
         QueryGroupState queryGroupState = new QueryGroupState();
         Set<QueryGroup> activeQueryGroups = new HashSet<>();
         mockQueryGroupStateMap.put("testId", queryGroupState);
@@ -436,6 +464,8 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         mockThreadPool = new TestThreadPool("queryGroupServiceTests");
         mockThreadPool.getThreadContext()
             .putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get());
+        // we haven't set the queryGroupId yet SBP should still track the task for cancellation
+        assertTrue(queryGroupService.shouldSBPHandle(task));
         task.setQueryGroupId(mockThreadPool.getThreadContext());
         assertTrue(queryGroupService.shouldSBPHandle(task));
 
@@ -462,6 +492,40 @@ public class QueryGroupServiceTests extends OpenSearchTestCase {
         );
         assertTrue(queryGroupService.shouldSBPHandle(task));
 
+        mockThreadPool.shutdownNow();
+
+        // test the case when SBP should not track the task
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        task = new SearchTask(1, "", "test", () -> "", null, null);
+        mockThreadPool = new TestThreadPool("queryGroupServiceTests");
+        mockThreadPool.getThreadContext().putHeader(QueryGroupTask.QUERY_GROUP_ID_HEADER, "testId");
+        task.setQueryGroupId(mockThreadPool.getThreadContext());
+        assertFalse(queryGroupService.shouldSBPHandle(task));
+    }
+
+    private static Set<QueryGroup> getActiveQueryGroups(
+        String name,
+        String id,
+        MutableQueryGroupFragment.ResiliencyMode mode,
+        Map<ResourceType, Double> resourceLimits
+    ) {
+        QueryGroup testQueryGroup = getQueryGroup(name, id, mode, resourceLimits);
+        Set<QueryGroup> activeQueryGroups = new HashSet<>() {
+            {
+                add(testQueryGroup);
+            }
+        };
+        return activeQueryGroups;
+    }
+
+    private static QueryGroup getQueryGroup(
+        String name,
+        String id,
+        MutableQueryGroupFragment.ResiliencyMode mode,
+        Map<ResourceType, Double> resourceLimits
+    ) {
+        QueryGroup testQueryGroup = new QueryGroup(name, id, new MutableQueryGroupFragment(mode, resourceLimits), 1L);
+        return testQueryGroup;
     }
 
     // This is needed to test the behavior of QueryGroupService#doRun method

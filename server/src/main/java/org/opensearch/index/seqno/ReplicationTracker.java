@@ -633,6 +633,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          */
         final boolean renewalNeeded = StreamSupport.stream(routingTable.spliterator(), false)
             .filter(ShardRouting::assignedToNode)
+            .filter(r -> r.isSearchOnly() == false)
             .anyMatch(shardRouting -> {
                 final RetentionLease retentionLease = retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting));
                 if (retentionLease == null) {

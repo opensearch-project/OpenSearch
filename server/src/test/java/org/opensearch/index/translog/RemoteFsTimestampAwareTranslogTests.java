@@ -63,6 +63,7 @@ import java.util.stream.LongStream;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.index.translog.RemoteFsTranslog.REMOTE_DELETION_PERMITS;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
@@ -285,9 +286,9 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
 
         assertBusy(() -> {
-            assertEquals(0, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+            assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
             assertEquals(
-                0,
+                12,
                 blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
             );
         });
@@ -480,10 +481,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
                         // we will not delete them
                         if (dataFilesAfterTrim.equals(dataFilesBeforeTrim) == false) {
                             // We check for number of pinned timestamp or +1 due to latest metadata.
-                            assertTrue(
-                                metadataFilesAfterTrim.size() == pinnedTimestamps.size()
-                                    || metadataFilesAfterTrim.size() == pinnedTimestamps.size() + 1
-                            );
+                            assertTrue(metadataFilesAfterTrim.size() >= pinnedTimestamps.size());
                         }
 
                         for (String md : pinnedTimestampMatchingMetadataFiles) {
@@ -757,17 +755,21 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         assertTrue(generations.isEmpty());
     }
 
-    public void testGetMetadataFilesToBeDeletedNoExclusion() {
+    public void testGetMetadataFilesToBeDeletedExclusionDueToRefreshTimestamp() {
         updatePinnedTimstampTask.run();
 
-        List<String> metadataFiles = List.of(
-            "metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__9223372036854775106__1",
-            "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__9223372036854775803__1",
-            "metadata__9223372036438563903__9223372036854775701__9223370311919910403__31__9223372036854775701__1"
-        );
+        List<String> metadataFiles = new ArrayList<>();
+        metadataFiles.add("metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__9223372036854775106__1");
+        metadataFiles.add("metadata__9223372036438563903__9223372036854775701__9223370311919910403__31__9223372036854775701__1");
+        metadataFiles.add("metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__9223372036854775803__1");
 
+        // Removing file that is pinned by latest refresh timestamp
+        List<String> metadataFilesToBeDeleted = new ArrayList<>(metadataFiles);
+        metadataFilesToBeDeleted.remove(
+            "metadata__9223372036438563903__9223372036854774799__9223370311919910393__31__9223372036854775106__1"
+        );
         assertEquals(
-            metadataFiles,
+            metadataFilesToBeDeleted,
             RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(metadataFiles, new HashMap<>(), Long.MAX_VALUE, false, logger)
         );
     }
@@ -776,13 +778,15 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         updatePinnedTimstampTask.run();
         long currentTimeInMillis = System.currentTimeMillis();
         String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
-        String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 30000);
-        String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 60000);
+        String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 400000);
+        String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 30000);
+        String md4Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis + 60000);
 
         List<String> metadataFiles = List.of(
-            "metadata__9223372036438563903__9223372036854774799__" + md1Timestamp + "__31__9223372036854775106__1",
-            "metadata__9223372036438563903__9223372036854775800__" + md2Timestamp + "__31__9223372036854775803__1",
-            "metadata__9223372036438563903__9223372036854775701__" + md3Timestamp + "__31__9223372036854775701__1"
+            "metadata__9223372036438563903__9223372036854774500__" + md1Timestamp + "__31__9223372036854775106__1",
+            "metadata__9223372036438563903__9223372036854774799__" + md2Timestamp + "__31__9223372036854775106__1",
+            "metadata__9223372036438563903__9223372036854775800__" + md3Timestamp + "__31__9223372036854775803__1",
+            "metadata__9223372036438563903__9223372036854775701__" + md4Timestamp + "__31__9223372036854775701__1"
         );
 
         List<String> metadataFilesToBeDeleted = RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(
@@ -793,24 +797,26 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             logger
         );
         assertEquals(1, metadataFilesToBeDeleted.size());
-        assertEquals(metadataFiles.get(0), metadataFilesToBeDeleted.get(0));
+        assertEquals(metadataFiles.get(1), metadataFilesToBeDeleted.get(0));
     }
 
     public void testGetMetadataFilesToBeDeletedExclusionBasedOnPinningOnly() throws IOException {
         long currentTimeInMillis = System.currentTimeMillis();
-        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
-        String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
-        String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
+        String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 190000);
+        String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
+        String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
+        String md4Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
 
-        long pinnedTimestamp = RemoteStoreUtils.invertLong(md2Timestamp) + 10000;
+        long pinnedTimestamp = RemoteStoreUtils.invertLong(md3Timestamp) + 10000;
         when(blobContainer.listBlobs()).thenReturn(Map.of(randomInt(100) + "__" + pinnedTimestamp, new PlainBlobMetadata("xyz", 100)));
 
         updatePinnedTimstampTask.run();
 
         List<String> metadataFiles = List.of(
-            "metadata__9223372036438563903__9223372036854774799__" + md1Timestamp + "__31__9223372036854775106__1",
-            "metadata__9223372036438563903__9223372036854775600__" + md2Timestamp + "__31__9223372036854775803__1",
-            "metadata__9223372036438563903__9223372036854775701__" + md3Timestamp + "__31__9223372036854775701__1"
+            "metadata__9223372036438563903__9223372036854774500__" + md1Timestamp + "__31__9223372036854775701__1",
+            "metadata__9223372036438563903__9223372036854774799__" + md2Timestamp + "__31__9223372036854775106__1",
+            "metadata__9223372036438563903__9223372036854775600__" + md3Timestamp + "__31__9223372036854775803__1",
+            "metadata__9223372036438563903__9223372036854775701__" + md4Timestamp + "__31__9223372036854775701__1"
         );
 
         List<String> metadataFilesToBeDeleted = RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(
@@ -821,8 +827,8 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             logger
         );
         assertEquals(2, metadataFilesToBeDeleted.size());
-        assertEquals(metadataFiles.get(0), metadataFilesToBeDeleted.get(0));
-        assertEquals(metadataFiles.get(2), metadataFilesToBeDeleted.get(1));
+        assertEquals(metadataFiles.get(1), metadataFilesToBeDeleted.get(0));
+        assertEquals(metadataFiles.get(3), metadataFilesToBeDeleted.get(1));
     }
 
     public void testGetMetadataFilesToBeDeletedExclusionBasedOnAgeAndPinning() throws IOException {
@@ -858,6 +864,7 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
         String md1Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 200000);
         String md2Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 300000);
         String md3Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 600000);
+        String md4Timestamp = RemoteStoreUtils.invertLong(currentTimeInMillis - 800000);
 
         when(blobContainer.listBlobs()).thenReturn(Map.of());
 
@@ -868,8 +875,10 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             "metadata__9223372036438563903__9223372036854775800__" + md1Timestamp + "__31__9223372036854775106__1",
             // MaxGen 12
             "metadata__9223372036438563903__9223372036854775795__" + md2Timestamp + "__31__9223372036854775803__1",
+            // MaxGen 9
+            "metadata__9223372036438563903__9223372036854775798__" + md3Timestamp + "__31__9223372036854775701__1",
             // MaxGen 10
-            "metadata__9223372036438563903__9223372036854775798__" + md3Timestamp + "__31__9223372036854775701__1"
+            "metadata__9223372036438563903__9223372036854775797__" + md4Timestamp + "__31__9223372036854775701__1"
         );
 
         List<String> metadataFilesToBeDeleted = RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(
@@ -880,8 +889,8 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             logger
         );
         assertEquals(2, metadataFilesToBeDeleted.size());
-        assertEquals(metadataFiles.get(0), metadataFilesToBeDeleted.get(0));
-        assertEquals(metadataFiles.get(2), metadataFilesToBeDeleted.get(1));
+        assertEquals(metadataFiles.get(2), metadataFilesToBeDeleted.get(0));
+        assertEquals(metadataFiles.get(0), metadataFilesToBeDeleted.get(1));
     }
 
     public void testGetMetadataFilesToBeDeletedExclusionBasedOnGenerationDeleteIndex() throws IOException {
@@ -894,13 +903,15 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
 
         updatePinnedTimstampTask.run();
 
-        List<String> metadataFiles = List.of(
-            // MaxGen 7
-            "metadata__9223372036438563903__9223372036854775800__" + md1Timestamp + "__31__9223372036854775106__1",
-            // MaxGen 12
-            "metadata__9223372036438563903__9223372036854775795__" + md2Timestamp + "__31__9223372036854775803__1",
-            // MaxGen 17
-            "metadata__9223372036438563903__9223372036854775790__" + md3Timestamp + "__31__9223372036854775701__1"
+        List<String> metadataFiles = new ArrayList<>(
+            List.of(
+                // MaxGen 12
+                "metadata__9223372036438563903__9223372036854775795__" + md2Timestamp + "__31__9223372036854775803__1",
+                // MaxGen 7
+                "metadata__9223372036438563903__9223372036854775800__" + md1Timestamp + "__31__9223372036854775106__1",
+                // MaxGen 17
+                "metadata__9223372036438563903__9223372036854775790__" + md3Timestamp + "__31__9223372036854775701__1"
+            )
         );
 
         List<String> metadataFilesToBeDeleted = RemoteFsTimestampAwareTranslog.getMetadataFilesToBeDeleted(
@@ -910,6 +921,10 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             true,
             logger
         );
+
+        // Metadata file corresponding to latest pinned timestamp fetch is always considered pinned
+        metadataFiles.remove(metadataFiles.get(2));
+
         assertEquals(metadataFiles, metadataFilesToBeDeleted);
     }
 
@@ -1061,15 +1076,14 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
     public void testGetMinMaxPrimaryTermFromMetadataFile() throws IOException {
         TranslogTransferManager translogTransferManager = mock(TranslogTransferManager.class);
 
-        RemoteFsTimestampAwareTranslog translog = (RemoteFsTimestampAwareTranslog) this.translog;
-
         // Fetch generations directly from the filename
         assertEquals(
             new Tuple<>(1L, 1008L),
             RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
                 "metadata__9223372036854774799__9223372036854774799__9223370311919910393__31__9223372036854775106__1__1",
                 translogTransferManager,
-                new HashMap<>()
+                new HashMap<>(),
+                logger
             )
         );
         assertEquals(
@@ -1077,7 +1091,8 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
                 "metadata__9223372036854775800__9223372036854775800__9223370311919910398__31__9223372036854775803__4__1",
                 translogTransferManager,
-                new HashMap<>()
+                new HashMap<>(),
+                logger
             )
         );
         assertEquals(
@@ -1085,7 +1100,8 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
                 "metadata__9223372036854775797__9223372036854775800__9223370311919910398__31__9223372036854775803__10__1",
                 translogTransferManager,
-                new HashMap<>()
+                new HashMap<>(),
+                logger
             )
         );
 
@@ -1099,7 +1115,8 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
                 "metadata__9223372036854775805__9223372036854774799__9223370311919910393__31__1",
                 translogTransferManager,
-                new HashMap<>()
+                new HashMap<>(),
+                logger
             )
         );
         assertEquals(
@@ -1107,13 +1124,44 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
                 "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__1",
                 translogTransferManager,
-                Map.of("metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__1", new Tuple<>(4L, 7L))
+                Map.of("metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__1", new Tuple<>(4L, 7L)),
+                logger
             )
         );
 
         verify(translogTransferManager).readMetadata("metadata__9223372036854775805__9223372036854774799__9223370311919910393__31__1");
         verify(translogTransferManager, times(0)).readMetadata(
             "metadata__9223372036438563903__9223372036854775800__9223370311919910398__31__1"
+        );
+
+        // Older md files with empty GenerationToPrimaryTermMap
+        md1 = mock(TranslogTransferMetadata.class);
+        when(md1.getGenerationToPrimaryTermMapper()).thenReturn(Map.of());
+        when(translogTransferManager.readMetadata("metadata__9223372036854775805__9223372036854774799__9223370311919910393__31__1"))
+            .thenReturn(md1);
+        assertEquals(
+            new Tuple<>(-1L, 2L),
+            RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
+                "metadata__9223372036854775805__9223372036854774799__9223370311919910393__31__1",
+                translogTransferManager,
+                new HashMap<>(),
+                logger
+            )
+        );
+
+        // Older md files with empty GenerationToPrimaryTermMap
+        md1 = mock(TranslogTransferMetadata.class);
+        when(md1.getGenerationToPrimaryTermMapper()).thenReturn(null);
+        when(translogTransferManager.readMetadata("metadata__9223372036854775805__9223372036854774799__9223370311919910393__31__1"))
+            .thenReturn(md1);
+        assertEquals(
+            new Tuple<>(-1L, 2L),
+            RemoteFsTimestampAwareTranslog.getMinMaxPrimaryTermFromMetadataFile(
+                "metadata__9223372036854775805__9223372036854774799__9223370311919910393__31__1",
+                translogTransferManager,
+                new HashMap<>(),
+                logger
+            )
         );
     }
 
@@ -1331,5 +1379,165 @@ public class RemoteFsTimestampAwareTranslogTests extends RemoteFsTranslogTests {
             RemoteFsTimestampAwareTranslog.getMinPrimaryTermInRemote(new AtomicLong(Long.MAX_VALUE), translogTransferManager, logger)
         );
         verify(translogTransferManager).listPrimaryTermsInRemote();
+    }
+
+    public void testTrimUnreferencedReadersStalePinnedTimestamps() throws Exception {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("0", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
+
+        // First reader is created at the init of translog
+        assertEquals(3, translog.readers.size());
+        assertEquals(2, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+        assertBusy(() -> {
+            assertEquals(6, translog.allUploaded().size());
+            assertEquals(
+                6,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        });
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 3, primaryTerm.get(), new byte[] { 1 }));
+
+        assertBusy(() -> {
+            assertEquals(
+                10,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        });
+
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+
+        translog.setMinSeqNoToKeep(3);
+        translog.trimUnreferencedReaders();
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 4, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("5", 5, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("6", 6, primaryTerm.get(), new byte[] { 1 }));
+
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+        translog.setMinSeqNoToKeep(6);
+        translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+
+        assertEquals(1, translog.readers.size());
+        assertBusy(() -> {
+            assertEquals(2, translog.allUploaded().size());
+            assertEquals(7, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+            assertEquals(
+                16,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        }, 30, TimeUnit.SECONDS);
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("7", 7, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("8", 8, primaryTerm.get(), new byte[] { 1 }));
+
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+        translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+
+        assertEquals(3, translog.readers.size());
+        assertBusy(() -> {
+            assertEquals(6, translog.allUploaded().size());
+            assertEquals(9, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+            assertEquals(
+                20,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testTrimUnreferencedReadersNoPermits() throws Exception {
+        // Acquire the permits so that remote translog deletion will not happen
+        translog.remoteGenerationDeletionPermits.acquire(REMOTE_DELETION_PERMITS);
+
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("0", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
+
+        // First reader is created at the init of translog
+        assertEquals(3, translog.readers.size());
+        assertEquals(2, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+        assertBusy(() -> {
+            assertEquals(6, translog.allUploaded().size());
+            assertEquals(
+                6,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        });
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 3, primaryTerm.get(), new byte[] { 1 }));
+
+        assertBusy(() -> {
+            assertEquals(
+                10,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        });
+
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+        // Fetch pinned timestamps so that it won't be stale
+        updatePinnedTimstampTask.run();
+        translog.setMinSeqNoToKeep(3);
+        translog.trimUnreferencedReaders();
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 4, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("5", 5, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("6", 6, primaryTerm.get(), new byte[] { 1 }));
+
+        // Fetch pinned timestamps so that it won't be stale
+        updatePinnedTimstampTask.run();
+        translog.setMinSeqNoToKeep(6);
+        translog.trimUnreferencedReaders();
+
+        assertEquals(1, translog.readers.size());
+        assertBusy(() -> {
+            assertEquals(2, translog.allUploaded().size());
+            assertEquals(7, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+            assertEquals(
+                16,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        }, 30, TimeUnit.SECONDS);
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("7", 7, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("8", 8, primaryTerm.get(), new byte[] { 1 }));
+
+        // Fetch pinned timestamps so that it won't be stale
+        updatePinnedTimstampTask.run();
+        translog.trimUnreferencedReaders();
+
+        assertEquals(3, translog.readers.size());
+        assertBusy(() -> {
+            assertEquals(6, translog.allUploaded().size());
+            assertEquals(9, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+            assertEquals(
+                20,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testTrimUnreferencedReadersFailAlwaysRepo() throws Exception {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("0", 0, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 3, primaryTerm.get(), new byte[] { 1 }));
+
+        translog.setMinSeqNoToKeep(2);
+        RemoteStoreSettings.setPinnedTimestampsLookbackInterval(TimeValue.ZERO);
+        updatePinnedTimstampTask.run();
+
+        fail.failAlways();
+        translog.trimUnreferencedReaders();
+
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
     }
 }

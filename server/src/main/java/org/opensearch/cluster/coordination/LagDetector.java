@@ -34,6 +34,7 @@ package org.opensearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -68,10 +69,11 @@ public class LagDetector {
         "cluster.follower_lag.timeout",
         TimeValue.timeValueMillis(90000),
         TimeValue.timeValueMillis(1),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
-    private final TimeValue clusterStateApplicationTimeout;
+    private TimeValue clusterStateApplicationTimeout;
     private final Consumer<DiscoveryNode> onLagDetected;
     private final Supplier<DiscoveryNode> localNodeSupplier;
     private final ThreadPool threadPool;
@@ -79,12 +81,14 @@ public class LagDetector {
 
     public LagDetector(
         final Settings settings,
+        final ClusterSettings clusterSettings,
         final ThreadPool threadPool,
         final Consumer<DiscoveryNode> onLagDetected,
         final Supplier<DiscoveryNode> localNodeSupplier
     ) {
         this.threadPool = threadPool;
         this.clusterStateApplicationTimeout = CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING, this::setFollowerLagTimeout);
         this.onLagDetected = onLagDetected;
         this.localNodeSupplier = localNodeSupplier;
     }
@@ -134,6 +138,10 @@ public class LagDetector {
                 }
             });
         }
+    }
+
+    private void setFollowerLagTimeout(TimeValue followerCheckLagTimeout) {
+        this.clusterStateApplicationTimeout = followerCheckLagTimeout;
     }
 
     @Override

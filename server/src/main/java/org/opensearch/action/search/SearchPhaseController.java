@@ -48,6 +48,7 @@ import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -604,36 +605,51 @@ public final class SearchPhaseController {
      * support sort optimization, we removed type widening there and taking care here during merging.
      * More details here https://github.com/opensearch-project/OpenSearch/issues/6326
      */
+    // TODO: should we check the compatibility between types
     private static Sort createSort(TopFieldDocs[] topFieldDocs) {
         final SortField[] firstTopDocFields = topFieldDocs[0].fields;
         final SortField[] newFields = new SortField[firstTopDocFields.length];
+        for (int fieldIndex = 0; fieldIndex < firstTopDocFields.length; fieldIndex++) {
+            SortField.Type firstType = getSortType(firstTopDocFields[fieldIndex]);
+            newFields[fieldIndex] = firstTopDocFields[fieldIndex];
+            if (SortedWiderNumericSortField.isTypeSupported(firstType) == false) {
+                continue;
+            }
 
-        for (int i = 0; i < firstTopDocFields.length; i++) {
-            final SortField delegate = firstTopDocFields[i];
-            final SortField.Type type = delegate instanceof SortedNumericSortField
-                ? ((SortedNumericSortField) delegate).getNumericType()
-                : delegate.getType();
+            boolean requireWiden = false;
+            boolean isFloat = firstType == SortField.Type.FLOAT || firstType == SortField.Type.DOUBLE;
+            for (int shardIndex = 1; shardIndex < topFieldDocs.length; shardIndex++) {
+                final SortField sortField = topFieldDocs[shardIndex].fields[fieldIndex];
+                SortField.Type sortType = getSortType(sortField);
+                if (SortedWiderNumericSortField.isTypeSupported(sortType) == false) {
+                    // throw exception if sortType is not CUSTOM?
+                    // skip this shard or do not widen?
+                    requireWiden = false;
+                    break;
+                }
+                requireWiden = requireWiden || sortType != firstType;
+                isFloat = isFloat || sortType == SortField.Type.FLOAT || sortType == SortField.Type.DOUBLE;
+            }
 
-            if (SortedWiderNumericSortField.isTypeSupported(type) && isSortWideningRequired(topFieldDocs, i)) {
-                newFields[i] = new SortedWiderNumericSortField(delegate.getField(), type, delegate.getReverse());
-            } else {
-                newFields[i] = firstTopDocFields[i];
+            if (requireWiden) {
+                newFields[fieldIndex] = new SortedWiderNumericSortField(
+                    firstTopDocFields[fieldIndex].getField(),
+                    isFloat ? SortField.Type.DOUBLE : SortField.Type.LONG,
+                    firstTopDocFields[fieldIndex].getReverse()
+                );
             }
         }
         return new Sort(newFields);
     }
 
-    /**
-     * It will compare respective SortField between shards to see if any shard results have different
-     * field mapping type, accordingly it will decide to widen the sort fields.
-     */
-    private static boolean isSortWideningRequired(TopFieldDocs[] topFieldDocs, int sortFieldindex) {
-        for (int i = 0; i < topFieldDocs.length - 1; i++) {
-            if (!topFieldDocs[i].fields[sortFieldindex].equals(topFieldDocs[i + 1].fields[sortFieldindex])) {
-                return true;
-            }
+    private static SortField.Type getSortType(SortField sortField) {
+        if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) {
+            return ((IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource()).reducedType();
+        } else {
+            return sortField instanceof SortedNumericSortField
+                ? ((SortedNumericSortField) sortField).getNumericType()
+                : sortField.getType();
         }
-        return false;
     }
 
     /*

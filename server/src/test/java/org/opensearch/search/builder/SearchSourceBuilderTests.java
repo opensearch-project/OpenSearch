@@ -703,6 +703,30 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testVerbosePipeline() throws IOException {
+        {
+            String restContent = "{ \"verbose_pipeline\": true }";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertTrue(searchSourceBuilder.verbosePipeline());
+            }
+        }
+        {
+            String restContent = "{ \"verbose_pipeline\": false }";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertFalse(searchSourceBuilder.verbosePipeline());
+            }
+        }
+        {
+            String restContent = "{ \"query\": { \"match_all\": {} } }";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertFalse(searchSourceBuilder.verbosePipeline());
+            }
+        }
+    }
+
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser));

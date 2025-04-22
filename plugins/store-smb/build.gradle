@@ -31,8 +31,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'The Store SMB plugin adds support for SMB stores.'
-  classname 'org.opensearch.plugin.store.smb.SMBStorePlugin'
+  description = 'The Store SMB plugin adds support for SMB stores.'
+  classname = 'org.opensearch.plugin.store.smb.SMBStorePlugin'
 }
 restResources {
   restApi {

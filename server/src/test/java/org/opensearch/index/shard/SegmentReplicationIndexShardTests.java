@@ -68,6 +68,7 @@ import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfoTests;
@@ -892,10 +893,21 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             replicateSegments(primaryShard, shards.getReplicas());
             shards.assertAllEqual(10);
 
-            final SnapshotShardsService shardsService = getSnapshotShardsService(replicaShard);
+            final SnapshotShardsService shardsService = getSnapshotShardsService(
+                replicaShard,
+                shards.getIndexMetadata(),
+                false,
+                createRepositoriesService()
+            );
             final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
 
-            final ClusterState initState = addSnapshotIndex(clusterService.state(), snapshot, replicaShard, SnapshotsInProgress.State.INIT);
+            final ClusterState initState = addSnapshotIndex(
+                clusterService.state(),
+                snapshot,
+                replicaShard,
+                SnapshotsInProgress.State.INIT,
+                false
+            );
             shardsService.clusterChanged(new ClusterChangedEvent("test", initState, clusterService.state()));
 
             CountDownLatch latch = new CountDownLatch(1);
@@ -907,7 +919,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 shardsService.clusterChanged(
                     new ClusterChangedEvent(
                         "test",
-                        addSnapshotIndex(clusterService.state(), snapshot, replicaShard, SnapshotsInProgress.State.STARTED),
+                        addSnapshotIndex(clusterService.state(), snapshot, replicaShard, SnapshotsInProgress.State.STARTED, false),
                         initState
                     )
                 );
@@ -956,21 +968,30 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
-    private SnapshotShardsService getSnapshotShardsService(IndexShard replicaShard) {
+    protected SnapshotShardsService getSnapshotShardsService(
+        IndexShard indexShard,
+        IndexMetadata indexMetadata,
+        boolean closedIdx,
+        RepositoriesService repositoriesService
+    ) {
         final TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         final IndicesService indicesService = mock(IndicesService.class);
         final IndexService indexService = mock(IndexService.class);
         when(indicesService.indexServiceSafe(any())).thenReturn(indexService);
-        when(indexService.getShardOrNull(anyInt())).thenReturn(replicaShard);
-        return new SnapshotShardsService(settings, clusterService, createRepositoriesService(), transportService, indicesService);
+        when(indexService.getShardOrNull(anyInt())).thenReturn(indexShard);
+        when(indexService.getMetadata()).thenReturn(
+            new IndexMetadata.Builder(indexMetadata).state(closedIdx ? IndexMetadata.State.CLOSE : IndexMetadata.State.OPEN).build()
+        );
+        return new SnapshotShardsService(settings, clusterService, repositoriesService, transportService, indicesService);
     }
 
-    private ClusterState addSnapshotIndex(
+    protected ClusterState addSnapshotIndex(
         ClusterState state,
         Snapshot snapshot,
         IndexShard shard,
-        SnapshotsInProgress.State snapshotState
+        SnapshotsInProgress.State snapshotState,
+        boolean shallowCopySnapshot
     ) {
         final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = new HashMap<>();
         ShardRouting shardRouting = shard.shardRouting;
@@ -991,7 +1012,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             null,
             SnapshotInfoTests.randomUserMetadata(),
             VersionUtils.randomVersion(random()),
-            false
+            shallowCopySnapshot
         );
         return ClusterState.builder(state)
             .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(Collections.singletonList(entry)))

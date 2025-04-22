@@ -34,7 +34,15 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
 
     int maxRewriteFilters;
 
-    protected boolean canOptimize(ValuesSourceConfig config) {
+    protected boolean canOptimize(ValuesSourceConfig config, Rounding rounding) {
+        /**
+         * The filter rewrite optimized path does not support bucket intervals which are not fixed.
+         * For this reason we exclude non UTC timezones.
+         */
+        if (rounding.isUTC() == false) {
+            return false;
+        }
+
         if (config.script() == null && config.missing() == null) {
             MappedFieldType fieldType = config.fieldType();
             if (fieldType instanceof DateFieldMapper.DateFieldType) {

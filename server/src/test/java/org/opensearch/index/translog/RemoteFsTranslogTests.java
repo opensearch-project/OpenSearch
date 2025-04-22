@@ -20,6 +20,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
@@ -32,6 +33,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -1964,6 +1966,28 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 }
             }
             super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+        }
+
+        @Override
+        public void listBlobsByPrefixInSortedOrder(
+            String blobNamePrefix,
+            int limit,
+            BlobNameSortOrder blobNameSortOrder,
+            ActionListener<List<BlobMetadata>> listener
+        ) {
+            if (fail.fail()) {
+                listener.onFailure(new RuntimeException("blob container throwing error"));
+                return;
+            }
+            if (slowDown.getSleepSeconds() > 0) {
+                try {
+                    Thread.sleep(slowDown.getSleepSeconds() * 1000L);
+                } catch (InterruptedException e) {
+                    listener.onFailure(new RuntimeException(e));
+                    return;
+                }
+            }
+            super.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder, listener);
         }
     }
 

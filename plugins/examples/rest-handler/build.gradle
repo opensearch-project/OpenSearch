@@ -35,11 +35,11 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 
 opensearchplugin {
-  name 'rest-handler'
-  description 'An example plugin showing how to register a REST handler'
-  classname 'org.opensearch.example.resthandler.ExampleRestHandlerPlugin'
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+  name = 'rest-handler'
+  description = 'An example plugin showing how to register a REST handler'
+  classname = 'org.opensearch.example.resthandler.ExampleRestHandlerPlugin'
+  licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile = rootProject.file('NOTICE.txt')
 }
 
 // No unit tests in this example
@@ -47,7 +47,7 @@ test.enabled = false
 
 tasks.register("exampleFixture", org.opensearch.gradle.test.AntFixture) {
   dependsOn sourceSets.javaRestTest.runtimeClasspath
-  env 'CLASSPATH', "${-> project.sourceSets.javaRestTest.runtimeClasspath.asPath}"
+  env 'CLASSPATH', "${-> sourceSets.javaRestTest.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.opensearch.example.resthandler.ExampleFixture', baseDir, 'TEST'
 }

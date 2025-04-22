@@ -11,6 +11,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.DimensionFactory;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -22,6 +23,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -44,8 +46,8 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
     public static final String CONFIG = "config";
     public static final String MAX_LEAF_DOCS = "max_leaf_docs";
     public static final String SKIP_STAR_NODE_IN_DIMS = "skip_star_node_creation_for_dimensions";
-    public static final String BUILD_MODE = "build_mode";
     public static final String ORDERED_DIMENSIONS = "ordered_dimensions";
+    public static final String DATE_DIMENSION = "date_dimension";
     public static final String METRICS = "metrics";
     public static final String STATS = "stats";
 
@@ -84,6 +86,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                 StarTreeFieldConfiguration.StarTreeBuildMode buildMode = StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP;
 
                 List<Dimension> dimensions = buildDimensions(name, paramMap, context);
+                paramMap.remove(DATE_DIMENSION);
                 paramMap.remove(ORDERED_DIMENSIONS);
                 List<Metric> metrics = buildMetrics(name, paramMap, context);
                 paramMap.remove(METRICS);
@@ -119,16 +122,21 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
          */
         @SuppressWarnings("unchecked")
         private List<Dimension> buildDimensions(String fieldName, Map<String, Object> map, Mapper.TypeParser.ParserContext context) {
+            List<Dimension> dimensions = new LinkedList<>();
+            DateDimension dateDim = buildDateDimension(fieldName, map, context);
+            if (dateDim != null) {
+                dimensions.add(dateDim);
+            }
             Object dims = XContentMapValues.extractValue("ordered_dimensions", map);
             if (dims == null) {
                 throw new IllegalArgumentException(
                     String.format(Locale.ROOT, "ordered_dimensions is required for star tree field [%s]", fieldName)
                 );
             }
-            List<Dimension> dimensions = new LinkedList<>();
+
             if (dims instanceof List<?>) {
-                List<Object> dimList = (List<Object>) dims;
-                if (dimList.size() > context.getSettings()
+                List<Object> orderedDimensionsList = (List<Object>) dims;
+                if (orderedDimensionsList.size() + dimensions.size() > context.getSettings()
                     .getAsInt(
                         StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING.getKey(),
                         StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_DEFAULT
@@ -146,13 +154,13 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                         )
                     );
                 }
-                if (dimList.size() < 2) {
+                if (dimensions.size() + orderedDimensionsList.size() < 2) {
                     throw new IllegalArgumentException(
                         String.format(Locale.ROOT, "Atleast two dimensions are required to build star tree index field [%s]", fieldName)
                     );
                 }
                 Set<String> dimensionFieldNames = new HashSet<>();
-                for (Object dim : dimList) {
+                for (Object dim : orderedDimensionsList) {
                     Dimension dimension = getDimension(fieldName, dim, context);
                     if (dimensionFieldNames.add(dimension.getField()) == false) {
                         throw new IllegalArgumentException(
@@ -172,6 +180,52 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                 );
             }
             return dimensions;
+        }
+
+        private DateDimension buildDateDimension(String fieldName, Map<String, Object> map, Mapper.TypeParser.ParserContext context) {
+            Object dims = XContentMapValues.extractValue("date_dimension", map);
+            if (dims == null) {
+                return null;
+            }
+            return getDateDimension(fieldName, dims, context);
+        }
+
+        /**
+         * Get dimension based on mapping
+         */
+        @SuppressWarnings("unchecked")
+        private DateDimension getDateDimension(String fieldName, Object dimensionMapping, Mapper.TypeParser.ParserContext context) {
+            DateDimension dimension;
+            Map<String, Object> dimensionMap = (Map<String, Object>) dimensionMapping;
+            String name = (String) XContentMapValues.extractValue(CompositeDataCubeFieldType.NAME, dimensionMap);
+            dimensionMap.remove(CompositeDataCubeFieldType.NAME);
+            if (this.objbuilder == null || this.objbuilder.mappersBuilders == null) {
+                String type = (String) XContentMapValues.extractValue(CompositeDataCubeFieldType.TYPE, dimensionMap);
+                dimensionMap.remove(CompositeDataCubeFieldType.TYPE);
+                if (type == null || type.equals(DateDimension.DATE) == false) {
+                    throw new MapperParsingException(
+                        String.format(Locale.ROOT, "unable to parse date dimension for star tree field [%s]", fieldName)
+                    );
+                }
+                return (DateDimension) DimensionFactory.parseAndCreateDimension(name, type, dimensionMap, context);
+            } else {
+                Optional<Mapper.Builder> dimBuilder = findMapperBuilderByName(name, this.objbuilder.mappersBuilders);
+                if (dimBuilder.isEmpty()) {
+                    throw new IllegalArgumentException(String.format(Locale.ROOT, "unknown date dimension field [%s]", name));
+                }
+                if (dimBuilder.get() instanceof DateFieldMapper.Builder == false) {
+                    throw new IllegalArgumentException(
+                        String.format(Locale.ROOT, "date_dimension [%s] should be of type date for star tree field [%s]", name, fieldName)
+                    );
+                }
+                dimension = (DateDimension) DimensionFactory.parseAndCreateDimension(name, dimBuilder.get(), dimensionMap, context);
+            }
+            DocumentMapperParser.checkNoRemainingFields(
+                dimensionMap,
+                context.indexVersionCreated(),
+                "Star tree mapping definition has unsupported parameters: "
+            );
+            return dimension;
         }
 
         /**
@@ -378,8 +432,46 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
             return builder.isDataCubeMetricSupported();
         }
 
-        private Optional<Mapper.Builder> findMapperBuilderByName(String field, List<Mapper.Builder> mappersBuilders) {
-            return mappersBuilders.stream().filter(builder -> builder.name().equals(field)).findFirst();
+        private Optional<Mapper.Builder> findMapperBuilderByName(String name, List<Mapper.Builder> mappersBuilders) {
+            String[] parts = name.split("\\.");
+
+            // Start with the top-level builders
+            Optional<Mapper.Builder> currentBuilder = mappersBuilders.stream()
+                .filter(builder -> builder.name().equals(parts[0]))
+                .findFirst();
+
+            // If we can't find the first part, or if there's only one part, return the result
+            if (currentBuilder.isEmpty() || parts.length == 1) {
+                return currentBuilder;
+            }
+
+            // Navigate through the nested structure
+            try {
+                Mapper.Builder builder = currentBuilder.get();
+                for (int i = 1; i < parts.length; i++) {
+                    List<Mapper.Builder> childBuilders = getChildBuilders(builder);
+                    int finalI = i;
+                    builder = childBuilders.stream()
+                        .filter(b -> b.name().equals(parts[finalI]))
+                        .findFirst()
+                        .orElseThrow(
+                            () -> new IllegalArgumentException(
+                                String.format(Locale.ROOT, "Could not find nested field [%s] in path [%s]", parts[finalI], name)
+                            )
+                        );
+                }
+                return Optional.of(builder);
+            } catch (Exception e) {
+                return Optional.empty();
+            }
+        }
+
+        // Helper method to get child builders from a parent builder
+        private List<Mapper.Builder> getChildBuilders(Mapper.Builder builder) {
+            if (builder instanceof ObjectMapper.Builder) {
+                return ((ObjectMapper.Builder) builder).mappersBuilders;
+            }
+            return Collections.emptyList();
         }
 
         public Builder(String name, ObjectMapper.Builder objBuilder) {

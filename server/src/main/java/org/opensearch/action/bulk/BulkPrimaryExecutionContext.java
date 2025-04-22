@@ -38,6 +38,7 @@ import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.action.support.replication.TransportWriteAction;
+import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.Translog;
@@ -297,20 +298,36 @@ class BulkPrimaryExecutionContext {
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
                 break;
             case FAILURE:
-                executionResult = new BulkItemResponse(
-                    current.id(),
-                    docWriteRequest.opType(),
-                    // Make sure to use request.index() here, if you
-                    // use docWriteRequest.index() it will use the
-                    // concrete index instead of an alias if used!
-                    new BulkItemResponse.Failure(
-                        request.index(),
-                        docWriteRequest.id(),
-                        result.getFailure(),
+                if (result.getFailure() instanceof AppendOnlyIndexOperationRetryException) {
+                    Engine.IndexResult indexResult = (Engine.IndexResult) result;
+                    DocWriteResponse indexResponse = new IndexResponse(
+                        primary.shardId(),
+                        requestToExecute.id(),
                         result.getSeqNo(),
-                        result.getTerm()
-                    )
-                );
+                        result.getTerm(),
+                        indexResult.getVersion(),
+                        indexResult.isCreated()
+                    );
+
+                    executionResult = new BulkItemResponse(current.id(), current.request().opType(), indexResponse);
+                    // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
+                    executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
+                } else {
+                    executionResult = new BulkItemResponse(
+                        current.id(),
+                        docWriteRequest.opType(),
+                        // Make sure to use request.index() here, if you
+                        // use docWriteRequest.index() it will use the
+                        // concrete index instead of an alias if used!
+                        new BulkItemResponse.Failure(
+                            request.index(),
+                            docWriteRequest.id(),
+                            result.getFailure(),
+                            result.getSeqNo(),
+                            result.getTerm()
+                        )
+                    );
+                }
                 break;
             default:
                 throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());

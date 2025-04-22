@@ -77,6 +77,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
@@ -127,6 +128,9 @@ public class QueryShardContext extends QueryRewriteContext {
     private BitSetProducer parentFilter;
     private DerivedFieldResolver derivedFieldResolver;
     private boolean keywordIndexOrDocValuesEnabled;
+    private boolean isInnerHitQuery;
+
+    private StarTreeQueryContext starTreeQueryContext;
 
     public QueryShardContext(
         int shardId,
@@ -377,6 +381,14 @@ public class QueryShardContext extends QueryRewriteContext {
             fullyQualifiedIndex.getName(),
             () -> this.lookup().forkAndTrackFieldReferences(fieldType.name())
         );
+    }
+
+    public StarTreeQueryContext getStarTreeQueryContext() {
+        return starTreeQueryContext;
+    }
+
+    public void setStarTreeQueryContext(StarTreeQueryContext starTreeQueryContext) {
+        this.starTreeQueryContext = starTreeQueryContext;
     }
 
     public void addNamedQuery(String name, Query query) {
@@ -737,5 +749,13 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public void setParentFilter(BitSetProducer parentFilter) {
         this.parentFilter = parentFilter;
+    }
+
+    public boolean isInnerHitQuery() {
+        return isInnerHitQuery;
+    }
+
+    public void setInnerHitQuery(boolean isInnerHitQuery) {
+        this.isInnerHitQuery = isInnerHitQuery;
     }
 }

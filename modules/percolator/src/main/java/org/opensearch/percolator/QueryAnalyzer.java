@@ -510,19 +510,25 @@ final class QueryAnalyzer {
     }
 
     private static int minTermLength(Set<QueryExtraction> extractions) {
-        // In case there are only range extractions, then we return Integer.MIN_VALUE,
-        // so that selectBestExtraction(...) we are likely to prefer the extractions that contains at least a single extraction
-        if (extractions.stream().filter(queryExtraction -> queryExtraction.term != null).count() == 0
-            && extractions.stream().filter(queryExtraction -> queryExtraction.range != null).count() > 0) {
+        boolean hasTerm = false;
+        boolean hasRange = false;
+        int min = Integer.MAX_VALUE;
+
+        for (QueryExtraction qt : extractions) {
+            if (qt.term != null) {
+                hasTerm = true;
+                min = Math.min(min, qt.bytes().length);
+            }
+            if (qt.range != null) {
+                hasRange = true;
+            }
+        }
+
+        // If there are no terms but there are ranges, return Integer.MIN_VALUE
+        if (!hasTerm && hasRange) {
             return Integer.MIN_VALUE;
         }
 
-        int min = Integer.MAX_VALUE;
-        for (QueryExtraction qt : extractions) {
-            if (qt.term != null) {
-                min = Math.min(min, qt.bytes().length);
-            }
-        }
         return min;
     }
 

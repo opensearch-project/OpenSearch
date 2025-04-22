@@ -68,4 +68,22 @@ public class AdjacencyMatrixTests extends BaseAggregationTestCase<AdjacencyMatri
         assertEquals(original, builder.filters());
         assert original != builder.filters();
     }
+
+    public void testShowOnlyIntersecting() {
+        Map<String, QueryBuilder> original = new HashMap<>();
+        original.put("bbb", new MatchNoneQueryBuilder());
+        original.put("aaa", new MatchNoneQueryBuilder());
+        AdjacencyMatrixAggregationBuilder builder;
+        builder = new AdjacencyMatrixAggregationBuilder("my-agg", "&", original, true);
+        assertTrue(builder.isShowOnlyIntersecting());
+    }
+
+    public void testShowOnlyIntersectingAsFalse() {
+        Map<String, QueryBuilder> original = new HashMap<>();
+        original.put("bbb", new MatchNoneQueryBuilder());
+        original.put("aaa", new MatchNoneQueryBuilder());
+        AdjacencyMatrixAggregationBuilder builder;
+        builder = new AdjacencyMatrixAggregationBuilder("my-agg", original, false);
+        assertFalse(builder.isShowOnlyIntersecting());
+    }
 }

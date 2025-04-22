@@ -86,6 +86,7 @@ import org.opensearch.index.query.SpanNotQueryBuilder;
 import org.opensearch.index.query.SpanOrQueryBuilder;
 import org.opensearch.index.query.SpanTermQueryBuilder;
 import org.opensearch.index.query.SpanWithinQueryBuilder;
+import org.opensearch.index.query.TemplateQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.query.TermsSetQueryBuilder;
@@ -1208,7 +1209,7 @@ public class SearchModule {
         registerQuery(
             new QuerySpec<>(MatchBoolPrefixQueryBuilder.NAME, MatchBoolPrefixQueryBuilder::new, MatchBoolPrefixQueryBuilder::fromXContent)
         );
-
+        registerQuery(new QuerySpec<>(TemplateQueryBuilder.NAME, TemplateQueryBuilder::new, TemplateQueryBuilder::fromXContent));
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
         }

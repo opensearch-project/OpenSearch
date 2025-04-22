@@ -100,6 +100,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_1_3_18 = new Version(1031899, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_1_3_19 = new Version(1031999, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_1_3_20 = new Version(1032099, org.apache.lucene.util.Version.LUCENE_8_10_1);
+    public static final Version V_1_3_21 = new Version(1032199, org.apache.lucene.util.Version.LUCENE_8_10_1);
     public static final Version V_2_0_0 = new Version(2000099, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version V_2_0_1 = new Version(2000199, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version V_2_0_2 = new Version(2000299, org.apache.lucene.util.Version.LUCENE_9_1_0);
@@ -142,7 +143,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_2_17_1 = new Version(2170199, org.apache.lucene.util.Version.LUCENE_9_11_1);
     public static final Version V_2_17_2 = new Version(2170299, org.apache.lucene.util.Version.LUCENE_9_11_1);
     public static final Version V_2_18_0 = new Version(2180099, org.apache.lucene.util.Version.LUCENE_9_12_0);
-    public static final Version CURRENT = V_2_18_0;
+    public static final Version V_2_18_1 = new Version(2180199, org.apache.lucene.util.Version.LUCENE_9_12_1);
+    public static final Version V_2_19_0 = new Version(2190099, org.apache.lucene.util.Version.LUCENE_9_12_1);
+    public static final Version V_2_19_1 = new Version(2190199, org.apache.lucene.util.Version.LUCENE_9_12_1);
+    public static final Version V_2_19_2 = new Version(2190299, org.apache.lucene.util.Version.LUCENE_9_12_1);
+    public static final Version V_2_20_0 = new Version(2200099, org.apache.lucene.util.Version.LUCENE_9_12_1);
+    public static final Version CURRENT = V_2_20_0;
 
     public static Version fromId(int id) {
         final Version known = LegacyESVersion.idToVersion.get(id);

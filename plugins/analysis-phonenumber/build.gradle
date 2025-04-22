@@ -12,8 +12,8 @@
 apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
-  description 'Adds an analyzer for phone numbers to OpenSearch.'
-  classname 'org.opensearch.analysis.phone.PhoneNumberAnalysisPlugin'
+  description = 'Adds an analyzer for phone numbers to OpenSearch.'
+  classname = 'org.opensearch.analysis.phone.PhoneNumberAnalysisPlugin'
 }
 
 dependencies {

@@ -116,9 +116,12 @@ public class DeprecationLogger {
     public class DeprecationLoggerBuilder {
 
         public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
-            DeprecatedMessage deprecationMessage = new DeprecatedMessage(key, HeaderWarning.getXOpaqueId(), msg, params);
-            if (!deprecationMessage.isAlreadyLogged()) {
-                logger.log(DEPRECATION, deprecationMessage);
+            // Check if the logger is enabled to skip the overhead of deduplicating messages if the logger is disabled
+            if (logger.isEnabled(DEPRECATION)) {
+                DeprecatedMessage deprecationMessage = new DeprecatedMessage(key, HeaderWarning.getXOpaqueId(), msg, params);
+                if (!deprecationMessage.isAlreadyLogged()) {
+                    logger.log(DEPRECATION, deprecationMessage);
+                }
             }
             return this;
         }

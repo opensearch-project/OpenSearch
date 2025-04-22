@@ -188,7 +188,7 @@ public class MaxBucketIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         assertThat(maxBucketValue, notNullValue());
         assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
         assertThat(maxBucketValue.value(), equalTo(maxValue));
-        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
+        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
     }
 
     public void testDocCountAsSubAgg() throws Exception {
@@ -240,7 +240,7 @@ public class MaxBucketIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
             assertThat(maxBucketValue, notNullValue());
             assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
             assertThat(maxBucketValue.value(), equalTo(maxValue));
-            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
+            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
         }
     }
 
@@ -280,7 +280,7 @@ public class MaxBucketIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         assertThat(maxBucketValue, notNullValue());
         assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
         assertThat(maxBucketValue.value(), equalTo(maxValue));
-        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
+        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
     }
 
     public void testMetricAsSubAgg() throws Exception {
@@ -339,7 +339,7 @@ public class MaxBucketIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
             assertThat(maxBucketValue, notNullValue());
             assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
             assertThat(maxBucketValue.value(), equalTo(maxValue));
-            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
+            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
         }
     }
 
@@ -388,7 +388,7 @@ public class MaxBucketIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         assertThat(maxBucketValue, notNullValue());
         assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
         assertThat(maxBucketValue.value(), equalTo(maxValue));
-        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
+        assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
     }
 
     public void testMetricAsSubAggWithInsertZeros() throws Exception {
@@ -445,7 +445,7 @@ public class MaxBucketIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
             assertThat(maxBucketValue, notNullValue());
             assertThat(maxBucketValue.getName(), equalTo("max_bucket"));
             assertThat(maxBucketValue.value(), equalTo(maxValue));
-            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[maxKeys.size()])));
+            assertThat(maxBucketValue.keys(), equalTo(maxKeys.toArray(new String[0])));
         }
     }
 
@@ -526,7 +526,7 @@ public class MaxBucketIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
             assertThat(maxBucketValue, notNullValue());
             assertThat(maxBucketValue.getName(), equalTo("max_histo_bucket"));
             assertThat(maxBucketValue.value(), equalTo(maxHistoValue));
-            assertThat(maxBucketValue.keys(), equalTo(maxHistoKeys.toArray(new String[maxHistoKeys.size()])));
+            assertThat(maxBucketValue.keys(), equalTo(maxHistoKeys.toArray(new String[0])));
             if (maxHistoValue > maxTermsValue) {
                 maxTermsValue = maxHistoValue;
                 maxTermsKeys = new ArrayList<>();
@@ -540,7 +540,7 @@ public class MaxBucketIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         assertThat(maxBucketValue, notNullValue());
         assertThat(maxBucketValue.getName(), equalTo("max_terms_bucket"));
         assertThat(maxBucketValue.value(), equalTo(maxTermsValue));
-        assertThat(maxBucketValue.keys(), equalTo(maxTermsKeys.toArray(new String[maxTermsKeys.size()])));
+        assertThat(maxBucketValue.keys(), equalTo(maxTermsKeys.toArray(new String[0])));
     }
 
     /**

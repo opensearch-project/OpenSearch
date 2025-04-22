@@ -47,12 +47,17 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class DeprecatedMessage extends OpenSearchLogMessage {
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
-    private static final Set<String> keys = ConcurrentHashMap.newKeySet();
+
+    // Arbitrary maximum size, should be much larger than unique number of
+    // loggers, but small relative to heap size.
+    static final int MAX_DEDUPE_CACHE_ENTRIES = 16_384;
+
+    private static final Set<String> keyDedupeCache = ConcurrentHashMap.newKeySet();
     private final String keyWithXOpaqueId;
 
     public DeprecatedMessage(String key, String xOpaqueId, String messagePattern, Object... args) {
         super(fieldMap(key, xOpaqueId), messagePattern, args);
-        this.keyWithXOpaqueId = new StringBuilder().append(key).append(xOpaqueId).toString();
+        this.keyWithXOpaqueId = key + xOpaqueId;
     }
 
     /**
@@ -62,7 +67,7 @@ public class DeprecatedMessage extends OpenSearchLogMessage {
      * Otherwise, a warning can be logged by some test and the upcoming test can be impacted by it.
      */
     public static void resetDeprecatedMessageForTests() {
-        keys.clear();
+        keyDedupeCache.clear();
     }
 
     private static Map<String, Object> fieldMap(String key, String xOpaqueId) {
@@ -77,6 +82,15 @@ public class DeprecatedMessage extends OpenSearchLogMessage {
     }
 
     public boolean isAlreadyLogged() {
-        return !keys.add(keyWithXOpaqueId);
+        if (keyDedupeCache.contains(keyWithXOpaqueId)) {
+            return true;
+        }
+        if (keyDedupeCache.size() >= MAX_DEDUPE_CACHE_ENTRIES) {
+            // Stop logging if max size is breached to avoid performance problems from
+            // excessive logging. The historical logs will be full of deprecation warnings
+            // at this point anyway.
+            return true;
+        }
+        return !keyDedupeCache.add(keyWithXOpaqueId);
     }
 }

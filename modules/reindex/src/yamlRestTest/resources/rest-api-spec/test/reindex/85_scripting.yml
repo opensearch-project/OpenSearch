@@ -440,3 +440,41 @@
             lang: painless
             source: syntax errors are fun!
   - match: {error.reason: 'compile error'}
+
+# script in reindex supports java.lang.String.sha1() and java.lang.String.sha256() methods
+# related issue: https://github.com/opensearch-project/OpenSearch/issues/16423
+---
+"Script supports sha1() and sha256() method for strings":
+  - skip:
+      version: " - 2.18.99"
+      reason: "introduced in 2.19.0"
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "foobar" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: twitter
+          dest:
+            index: new_twitter
+          script:
+            lang: painless
+            source: ctx._source.user_sha1 = ctx._source.user.sha1();ctx._source.user_sha256 = ctx._source.user.sha256()
+  - match: {created: 1}
+  - match: {noops: 0}
+
+  - do:
+      get:
+        index:  new_twitter
+        id:     1
+
+  - match: { _source.user:        foobar }
+  - match: { _source.user_sha1:      "8843d7f92416211de9ebb963ff4ce28125932878"   }
+  - match: { _source.user_sha256:      "c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2"   }

@@ -58,7 +58,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DateUtilsTests extends OpenSearchTestCase {
-    private static final Set<String> IGNORE = new HashSet<>(Arrays.asList("Antarctica/Vostok"));
+    private static final Set<String> IGNORE = new HashSet<>(
+        Arrays.asList("America/Bahia_Banderas", "America/Hermosillo", "America/Mazatlan", "Mexico/BajaSur", "WET")
+    );
 
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
@@ -259,5 +261,22 @@ public class DateUtilsTests extends OpenSearchTestCase {
         long endOf1996 = ZonedDateTime.of(1996, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.UTC).toInstant().toEpochMilli();
         long startOf1996 = Year.of(1996).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundYear(endOf1996), is(startOf1996));
+    }
+
+    public void testClampToMillisRange() {
+        Instant normalInstant = Instant.now();
+        assertEquals(normalInstant, DateUtils.clampToMillisRange(normalInstant));
+
+        Instant beforeMinInstant = DateUtils.INSTANT_LONG_MIN_VALUE.minusMillis(1);
+        assertEquals(DateUtils.INSTANT_LONG_MIN_VALUE, DateUtils.clampToMillisRange(beforeMinInstant));
+
+        Instant afterMaxInstant = DateUtils.INSTANT_LONG_MAX_VALUE.plusMillis(1);
+        assertEquals(DateUtils.INSTANT_LONG_MAX_VALUE, DateUtils.clampToMillisRange(afterMaxInstant));
+
+        assertEquals(DateUtils.INSTANT_LONG_MIN_VALUE, DateUtils.clampToMillisRange(DateUtils.INSTANT_LONG_MIN_VALUE));
+
+        assertEquals(DateUtils.INSTANT_LONG_MAX_VALUE, DateUtils.clampToMillisRange(DateUtils.INSTANT_LONG_MAX_VALUE));
+
+        assertThrows(NullPointerException.class, () -> DateUtils.clampToMillisRange(null));
     }
 }

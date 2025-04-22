@@ -230,6 +230,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                     spec -> spec.maxChunkSize(maxChunkSize.bytesAsInt())
                         .maxHeaderSize(maxHeaderSize.bytesAsInt())
                         .maxInitialLineLength(maxInitialLineLength.bytesAsInt())
+                        .allowPartialChunks(false)
                 )
                 .handle((req, res) -> incomingRequest(req, res))
         );

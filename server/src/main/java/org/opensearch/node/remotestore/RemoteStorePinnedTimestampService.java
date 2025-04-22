@@ -21,7 +21,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.indices.RemoteStoreSettings;
-import org.opensearch.node.Node;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -41,6 +40,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo;
 
 /**
  * Service for managing pinned timestamps in a remote store.
@@ -86,9 +87,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     }
 
     private static BlobContainer validateAndCreateBlobContainer(Settings settings, RepositoriesService repositoriesService) {
-        final String remoteStoreRepo = settings.get(
-            Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
-        );
+        final String remoteStoreRepo = getRemoteStoreSegmentRepo(settings);
         assert remoteStoreRepo != null : "Remote Segment Store repository is not configured";
         final Repository repository = repositoriesService.repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";

@@ -43,6 +43,8 @@ import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.pagination.IndexPaginationStrategy;
+import org.opensearch.action.pagination.PageToken;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
@@ -64,8 +66,6 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rest.action.list.AbstractListAction;
-import org.opensearch.rest.pagination.IndexPaginationStrategy;
-import org.opensearch.rest.pagination.PageToken;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -205,13 +205,19 @@ public class RestIndicesAction extends AbstractListAction {
                                     groupedListener.onResponse(getSettingsResponse);
                                     groupedListener.onResponse(clusterStateResponse);
 
-                                    sendIndicesStatsRequest(
-                                        indicesToBeQueried,
-                                        subRequestIndicesOptions,
-                                        includeUnloadedSegments,
-                                        client,
-                                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                                    );
+                                    // For paginated queries, if strategy outputs no indices to be returned,
+                                    // avoid fetching indices stats.
+                                    if (shouldSkipIndicesStatsRequest(paginationStrategy)) {
+                                        groupedListener.onResponse(IndicesStatsResponse.getEmptyResponse());
+                                    } else {
+                                        sendIndicesStatsRequest(
+                                            indicesToBeQueried,
+                                            subRequestIndicesOptions,
+                                            includeUnloadedSegments,
+                                            client,
+                                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                                        );
+                                    }
 
                                     sendClusterHealthRequest(
                                         indicesToBeQueried,
@@ -1084,6 +1090,10 @@ public class RestIndicesAction extends AbstractListAction {
                 return new Tuple<>(index, indexSettingsMap.get(index));
             }
         };
+    }
+
+    private boolean shouldSkipIndicesStatsRequest(IndexPaginationStrategy paginationStrategy) {
+        return Objects.nonNull(paginationStrategy) && paginationStrategy.getRequestedEntities().isEmpty();
     }
 
 }

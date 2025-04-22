@@ -36,13 +36,17 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequ
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -121,5 +125,38 @@ public class RestoreServiceTests extends OpenSearchTestCase {
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(Collections.singletonList(renamedIndex), renamedDataStream.getIndices());
+    }
+
+    public void testValidateReplicationTypeRestoreSettings_WhenSnapshotIsDocument_RestoreToDocument() {
+        SnapshotId snapshotId = new SnapshotId("snapshotId", "123");
+        Snapshot snapshot = new Snapshot("testRepo", snapshotId);
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        Settings settings = Settings.builder()
+            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT.toString())
+            .build();
+        when(indexMetadata.getSettings()).thenReturn(settings);
+
+        assertThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.validateReplicationTypeRestoreSettings(snapshot, ReplicationType.DOCUMENT.toString(), indexMetadata)
+        );
+
+    }
+
+    public void testValidateReplicationTypeRestoreSettings_WhenSnapshotIsSegment_RestoreToDocument() {
+        SnapshotId snapshotId = new SnapshotId("snapshotId", "123");
+        Snapshot snapshot = new Snapshot("testRepo", snapshotId);
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        Settings settings = Settings.builder()
+            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT.toString())
+            .build();
+        when(indexMetadata.getSettings()).thenReturn(settings);
+
+        assertThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.validateReplicationTypeRestoreSettings(snapshot, ReplicationType.SEGMENT.toString(), indexMetadata)
+        );
     }
 }

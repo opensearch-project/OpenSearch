@@ -248,7 +248,7 @@ public class UpdateThreadPoolSettingsTests extends OpenSearchThreadPoolTestCase 
 
     private String randomThreadPoolName() {
         Set<String> threadPoolNames = ThreadPool.THREAD_POOL_TYPES.keySet();
-        return randomFrom(threadPoolNames.toArray(new String[threadPoolNames.size()]));
+        return randomFrom(threadPoolNames.toArray(new String[0]));
     }
 
 }

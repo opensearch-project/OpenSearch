@@ -33,6 +33,7 @@
 package org.opensearch.gradle.precommit;
 
 import org.opensearch.gradle.LoggedExec;
+import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.CacheableTask;
@@ -45,6 +46,8 @@ import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 
+import javax.inject.Inject;
+
 import java.io.File;
 
 /**
@@ -54,14 +57,18 @@ import java.io.File;
 public class LoggerUsageTask extends PrecommitTask {
 
     private FileCollection classpath;
+    private final Project project;
 
-    public LoggerUsageTask() {
+    @Inject
+    public LoggerUsageTask(Project project) {
+        super(project);
         setDescription("Runs LoggerUsageCheck on output directories of all source sets");
+        this.project = project;
     }
 
     @TaskAction
     public void runLoggerUsageTask() {
-        LoggedExec.javaexec(getProject(), spec -> {
+        LoggedExec.javaexec(project, spec -> {
             spec.getMainClass().set("org.opensearch.test.loggerusage.OpenSearchLoggerUsageChecker");
             spec.classpath(getClasspath());
             getClassDirectories().forEach(spec::args);
@@ -82,7 +89,7 @@ public class LoggerUsageTask extends PrecommitTask {
     @SkipWhenEmpty
     @IgnoreEmptyDirectories
     public FileCollection getClassDirectories() {
-        return getProject().getExtensions()
+        return project.getExtensions()
             .getByType(JavaPluginExtension.class)
             .getSourceSets()
             .stream()
@@ -93,7 +100,7 @@ public class LoggerUsageTask extends PrecommitTask {
             )
             .map(sourceSet -> sourceSet.getOutput().getClassesDirs())
             .reduce(FileCollection::plus)
-            .orElse(getProject().files())
+            .orElse(project.files())
             .filter(File::exists);
     }
 

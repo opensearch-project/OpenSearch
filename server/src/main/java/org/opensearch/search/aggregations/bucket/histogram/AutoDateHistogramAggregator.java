@@ -149,7 +149,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
-
         super(name, factories, aggregationContext, parent, metadata);
         this.targetBuckets = targetBuckets;
         // TODO: Remove null usage here, by using a different aggregator for create
@@ -162,7 +161,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         DateHistogramAggregatorBridge bridge = new DateHistogramAggregatorBridge() {
             @Override
             protected boolean canOptimize() {
-                return canOptimize(valuesSourceConfig);
+                return canOptimize(valuesSourceConfig, roundingInfos[0].rounding);
             }
 
             @Override
@@ -170,6 +169,17 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 buildRanges(context);
             }
 
+            /**
+             * The filter rewrite optimization uses this method to pre-emptively update the preparedRounding
+             * when considering the optimized path for a single segment. This is necessary since the optimized path
+             * skips doc collection entirely which is where the preparedRounding is normally updated.
+             *
+             * @param low lower bound of rounding to prepare
+             * @param high upper bound of rounding to prepare
+             * @return select a prepared rounding which satisfies the conditions:
+             * 1. Is at least as large as our previously prepared rounding
+             * 2. Must span a range of [low, high] with buckets <= targetBuckets
+             */
             @Override
             protected Rounding getRounding(final long low, final long high) {
                 // max - min / targetBuckets = bestDuration
@@ -177,7 +187,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 // since we cannot exceed targetBuckets, bestDuration should go up,
                 // so the right innerInterval should be an upper bound
                 long bestDuration = (high - low) / targetBuckets;
-                // reset so this function is idempotent
+
+                int prevRoundingIdx = roundingIdx;
                 roundingIdx = 0;
                 while (roundingIdx < roundingInfos.length - 1) {
                     final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
@@ -190,7 +201,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     roundingIdx++;
                 }
 
-                preparedRounding = prepareRounding(roundingIdx);
+                // Ensure preparedRounding never shrinks
+                if (roundingIdx > prevRoundingIdx) {
+                    preparedRounding = prepareRounding(roundingIdx);
+                }
+
                 return roundingInfos[roundingIdx].rounding;
             }
 
@@ -403,12 +418,39 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     increaseRoundingIfNeeded(rounded);
                 }
 
+                /**
+                 * Examine our current bucket count and the most recently added bucket to determine if an update to
+                 * preparedRounding is required to keep total bucket count in compliance with targetBuckets.
+                 *
+                 * @param rounded the most recently collected value rounded
+                 */
                 private void increaseRoundingIfNeeded(long rounded) {
+                    // If we are already using the rounding with the largest interval nothing can be done
                     if (roundingIdx >= roundingInfos.length - 1) {
                         return;
                     }
+
+                    // Re calculate the max and min values we expect to bucket according to most recently rounded val
                     min = Math.min(min, rounded);
                     max = Math.max(max, rounded);
+
+                    /**
+                     * Quick explanation of the two below conditions:
+                     *
+                     * 1. [targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval()]
+                     * Represents the total bucket count possible before we will exceed targetBuckets
+                     * even if we use the maximum inner interval of our current rounding. For example, consider the
+                     * DAYS_OF_MONTH rounding where the maximum inner interval is 7 days (i.e. 1 week buckets).
+                     * targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval() would then be the number of
+                     * 1 day buckets possible such that if we re-bucket to 1 week buckets we will have more 1 week buckets
+                     * than our targetBuckets limit. If the current count of buckets exceeds this limit we must update
+                     * our rounding.
+                     *
+                     * 2. [targetBuckets * roundingInfos[roundingIdx].getMaximumRoughEstimateDurationMillis()]
+                     * The total duration of ms covered by our current rounding. In the case of MINUTES_OF_HOUR rounding
+                     * getMaximumRoughEstimateDurationMillis is 60000. If our current total range in millis (max - min)
+                     * exceeds this range we must update our rounding.
+                     */
                     if (bucketOrds.size() <= targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval()
                         && max - min <= targetBuckets * roundingInfos[roundingIdx].getMaximumRoughEstimateDurationMillis()) {
                         return;

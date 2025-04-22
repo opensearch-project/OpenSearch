@@ -49,6 +49,7 @@ import org.junit.AfterClass;
 import java.util.List;
 
 import reactor.core.scheduler.Schedulers;
+import reactor.netty.http.HttpResources;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -57,6 +58,7 @@ import static org.mockito.Mockito.mock;
 public class AzureRepositorySettingsTests extends OpenSearchTestCase {
     @AfterClass
     public static void shutdownSchedulers() {
+        HttpResources.disposeLoopsAndConnections();
         Schedulers.shutdownNow();
     }
 

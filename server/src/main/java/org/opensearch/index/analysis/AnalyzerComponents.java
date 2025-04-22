@@ -109,8 +109,8 @@ public final class AnalyzerComponents {
 
         return new AnalyzerComponents(
             tokenizer,
-            charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
-            tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])
+            charFiltersList.toArray(new CharFilterFactory[0]),
+            tokenFilterList.toArray(new TokenFilterFactory[0])
         );
     }
 

@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
@@ -288,6 +289,16 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
                 }
             }
             return new SourceFieldMatchQuery(builder.build(), phrasePrefixQuery, this, context);
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            return new ConstantScoreQuery(super.termQuery(value, context));
+        }
+
+        @Override
+        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+            return new ConstantScoreQuery(super.termQueryCaseInsensitive(value, context));
         }
 
         private List<List<Term>> getTermsFromTokenStream(TokenStream stream) throws IOException {

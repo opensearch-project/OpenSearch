@@ -8,16 +8,16 @@
 
 package org.opensearch.rest.action.list;
 
+import org.opensearch.action.pagination.PageParams;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.AbstractCatAction;
-import org.opensearch.rest.pagination.PageParams;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.opensearch.rest.pagination.PageParams.PARAM_ASC_SORT_VALUE;
-import static org.opensearch.rest.pagination.PageParams.PARAM_DESC_SORT_VALUE;
+import static org.opensearch.action.pagination.PageParams.PARAM_ASC_SORT_VALUE;
+import static org.opensearch.action.pagination.PageParams.PARAM_DESC_SORT_VALUE;
 
 /**
  * Base Transport action class for _list API.

@@ -207,6 +207,7 @@ import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.opensearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteDataAttributePresent;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -362,6 +363,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
+    private volatile int maxSizeInRequestCache;
 
     @Override
     protected void doStart() {
@@ -509,6 +511,9 @@ public class IndicesService extends AbstractLifecycleComponent
         this.compositeIndexSettings = compositeIndexSettings;
         this.fileCache = fileCache;
         this.replicator = replicator;
+        this.maxSizeInRequestCache = INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING, this::setMaxSizeInRequestCache);
     }
 
     public IndicesService(
@@ -1813,11 +1818,10 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexSettings settings = context.indexShard().indexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false) {
-                return false;
-            } else if (context.size() != 0) {
+            if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false
+                || (context.size() > maxSizeInRequestCache)) {
                 // If no request cache query parameter and shard request cache
-                // is enabled in settings don't cache for requests with size > 0
+                // is enabled in settings, use cluster setting to check the maximum size allowed in the cache
                 return false;
             }
         } else if (request.requestCache() == false) {
@@ -2184,5 +2188,10 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public CompositeIndexSettings getCompositeIndexSettings() {
         return this.compositeIndexSettings;
+    }
+
+    // Package-private for testing
+    void setMaxSizeInRequestCache(Integer maxSizeInRequestCache) {
+        this.maxSizeInRequestCache = maxSizeInRequestCache;
     }
 }

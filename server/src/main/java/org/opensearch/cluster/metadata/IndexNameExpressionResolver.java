@@ -356,7 +356,7 @@ public class IndexNameExpressionResolver {
             throw infe;
         }
         checkSystemIndexAccess(context, metadata, concreteIndices, indexExpressions);
-        return concreteIndices.toArray(new Index[concreteIndices.size()]);
+        return concreteIndices.toArray(new Index[0]);
     }
 
     private void checkSystemIndexAccess(Context context, Metadata metadata, Set<Index> concreteIndices, String[] originalPatterns) {
@@ -604,7 +604,7 @@ public class IndexNameExpressionResolver {
         if (aliases == null) {
             return null;
         }
-        return aliases.toArray(new String[aliases.size()]);
+        return aliases.toArray(new String[0]);
     }
 
     /**

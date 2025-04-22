@@ -1023,7 +1023,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             .startObject("ip_field")
             .field("type", "ip")
             .endObject()
-            .startObject("flat_object_field")
+            .startObject("flat_object_field1")
             .field("type", "flat_object")
             .endObject()
             .endObject()
@@ -1050,9 +1050,11 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                     .field("boolean_field", true)
                     .field("binary_field", new byte[] { 42, 100 })
                     .field("ip_field", "::1")
-                    .field("flat_object_field")
+                    .field("flat_object_field1")
                     .startObject()
+                    .field("fooa", "bara")
                     .field("foo", "bar")
+                    .field("foob", "barb")
                     .endObject()
                     .endObject()
             )
@@ -1075,7 +1077,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             .addDocValueField("boolean_field")
             .addDocValueField("binary_field")
             .addDocValueField("ip_field")
-            .addDocValueField("flat_object_field");
+            .addDocValueField("flat_object_field1.foo");
         SearchResponse searchResponse = builder.get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -1097,7 +1099,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                     "keyword_field",
                     "binary_field",
                     "ip_field",
-                    "flat_object_field"
+                    "flat_object_field1.foo"
                 )
             )
         );
@@ -1116,7 +1118,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("flat_object_field").getValue(), equalTo("flat_object_field.foo"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("flat_object_field1.foo").getValue(), equalTo("bar"));
 
         builder = client().prepareSearch().setQuery(matchAllQuery()).addDocValueField("*field");
         searchResponse = builder.get();
@@ -1139,8 +1141,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                     "text_field",
                     "keyword_field",
                     "binary_field",
-                    "ip_field",
-                    "flat_object_field"
+                    "ip_field"
                 )
             )
         );
@@ -1160,7 +1161,6 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("flat_object_field").getValue(), equalTo("flat_object_field.foo"));
 
         builder = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -1176,7 +1176,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             .addDocValueField("boolean_field", "use_field_mapping")
             .addDocValueField("binary_field", "use_field_mapping")
             .addDocValueField("ip_field", "use_field_mapping")
-            .addDocValueField("flat_object_field", "use_field_mapping");
+            .addDocValueField("flat_object_field1.foo", null);
         ;
         searchResponse = builder.get();
 
@@ -1199,7 +1199,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                     "keyword_field",
                     "binary_field",
                     "ip_field",
-                    "flat_object_field"
+                    "flat_object_field1.foo"
                 )
             )
         );
@@ -1219,7 +1219,7 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("flat_object_field").getValue(), equalTo("flat_object_field.foo"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("flat_object_field1.foo").getValue(), equalTo("bar"));
 
         builder = client().prepareSearch()
             .setQuery(matchAllQuery())

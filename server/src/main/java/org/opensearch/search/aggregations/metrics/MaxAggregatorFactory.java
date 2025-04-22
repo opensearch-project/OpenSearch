@@ -32,13 +32,13 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
-import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
@@ -52,7 +52,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
+class MaxAggregatorFactory extends MetricAggregatorFactory {
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -72,6 +72,11 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+    }
+
+    @Override
+    public MetricStat getMetricStat() {
+        return MetricStat.MAX;
     }
 
     @Override

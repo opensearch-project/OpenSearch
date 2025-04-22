@@ -92,6 +92,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.repositories.RepositoryDataTests.generateRandomRepoData;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.calculateMaxWithinIntLimit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -652,5 +653,54 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         assertTrue(settings.contains(BlobStoreRepository.READONLY_SETTING));
         assertTrue(settings.contains(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY));
         repository.close();
+    }
+
+    public void testSnapshotRepositoryDataCacheDefaultSetting() {
+        // given
+        BlobStoreRepository repository = setupRepo();
+        long maxThreshold = BlobStoreRepository.calculateMaxSnapshotRepositoryDataCacheThreshold();
+
+        // when
+        long expectedThreshold = Math.max(ByteSizeUnit.KB.toBytes(500), maxThreshold / 2);
+
+        // then
+        assertEquals(repository.repositoryDataCacheThreshold, expectedThreshold);
+    }
+
+    public void testHeapThresholdUsed() {
+        // given
+        long defaultThresholdOfHeap = ByteSizeUnit.GB.toBytes(1);
+        long defaultAbsoluteThreshold = ByteSizeUnit.KB.toBytes(500);
+
+        // when
+        long expectedThreshold = calculateMaxWithinIntLimit(defaultThresholdOfHeap, defaultAbsoluteThreshold);
+
+        // then
+        assertEquals(defaultThresholdOfHeap, expectedThreshold);
+    }
+
+    public void testAbsoluteThresholdUsed() {
+        // given
+        long defaultThresholdOfHeap = ByteSizeUnit.KB.toBytes(499);
+        long defaultAbsoluteThreshold = ByteSizeUnit.KB.toBytes(500);
+
+        // when
+        long result = calculateMaxWithinIntLimit(defaultThresholdOfHeap, defaultAbsoluteThreshold);
+
+        // then
+        assertEquals(defaultAbsoluteThreshold, result);
+    }
+
+    public void testThresholdCappedAtIntMax() {
+        // given
+        int maxSafeArraySize = Integer.MAX_VALUE - 8;
+        long defaultThresholdOfHeap = (long) maxSafeArraySize + 1;
+        long defaultAbsoluteThreshold = ByteSizeUnit.KB.toBytes(500);
+
+        // when
+        long expectedThreshold = calculateMaxWithinIntLimit(defaultThresholdOfHeap, defaultAbsoluteThreshold);
+
+        // then
+        assertEquals(maxSafeArraySize, expectedThreshold);
     }
 }

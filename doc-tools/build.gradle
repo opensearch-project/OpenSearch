@@ -3,8 +3,8 @@ plugins {
 }
 
 base {
-  group 'org.opensearch'
-  version '1.0.0-SNAPSHOT'
+  group = 'org.opensearch'
+  version = '1.0.0-SNAPSHOT'
 }
 
 repositories {

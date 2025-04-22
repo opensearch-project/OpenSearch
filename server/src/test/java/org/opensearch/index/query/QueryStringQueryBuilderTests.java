@@ -47,6 +47,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -76,8 +77,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.search.QueryStringQueryParser;
-import org.opensearch.search.approximate.ApproximateIndexOrDocValuesQuery;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -863,7 +864,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
             is(true)
         );
-        assertThat(query, instanceOf(ApproximateIndexOrDocValuesQuery.class));
+        assertThat(query, instanceOf(ApproximateScoreQuery.class));
         long lower = 0; // 1970-01-01T00:00:00.999 UTC
         long upper = 86399999;  // 1970-01-01T23:59:59.999 UTC
         assertEquals(calculateExpectedDateQuery(lower, upper), query);
@@ -872,9 +873,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(calculateExpectedDateQuery(lower + msPerHour, upper + msPerHour), qsq.timeZone("-01:00").toQuery(context));
     }
 
-    private ApproximateIndexOrDocValuesQuery calculateExpectedDateQuery(long lower, long upper) {
-        return new ApproximateIndexOrDocValuesQuery(
-            LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+    private ApproximateScoreQuery calculateExpectedDateQuery(long lower, long upper) {
+        return new ApproximateScoreQuery(
+            new IndexOrDocValuesQuery(
+                LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+                SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+            ),
             new ApproximatePointRangeQuery(
                 DATE_FIELD_NAME,
                 pack(new long[] { lower }).bytes,
@@ -885,8 +889,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 protected String toString(int dimension, byte[] value) {
                     return Long.toString(LongPoint.decodeDimension(value, 0));
                 }
-            },
-            SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+            }
         );
     }
 

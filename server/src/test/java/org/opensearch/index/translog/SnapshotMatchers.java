@@ -68,7 +68,7 @@ public final class SnapshotMatchers {
      * Consumes a snapshot and make sure it's content is as expected
      */
     public static Matcher<Translog.Snapshot> equalsTo(List<Translog.Operation> ops) {
-        return new EqualMatcher(ops.toArray(new Translog.Operation[ops.size()]));
+        return new EqualMatcher(ops.toArray(new Translog.Operation[0]));
     }
 
     public static Matcher<Translog.Snapshot> containsOperationsInAnyOrder(Collection<Translog.Operation> expectedOperations) {

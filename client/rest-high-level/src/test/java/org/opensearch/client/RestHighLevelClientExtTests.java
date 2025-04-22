@@ -153,7 +153,7 @@ public class RestHighLevelClientExtTests extends OpenSearchTestCase {
                 values.add(parser.text());
             }
             assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
-            CustomResponseSection2 responseSection2 = new CustomResponseSection2(values.toArray(new String[values.size()]));
+            CustomResponseSection2 responseSection2 = new CustomResponseSection2(values.toArray(new String[0]));
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             return responseSection2;
         }

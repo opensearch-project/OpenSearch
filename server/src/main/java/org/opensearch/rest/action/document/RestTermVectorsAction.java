@@ -123,7 +123,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
             }
         }
         if (selectedFields != null) {
-            termVectorsRequest.selectedFields(selectedFields.toArray(new String[selectedFields.size()]));
+            termVectorsRequest.selectedFields(selectedFields.toArray(new String[0]));
         }
     }
 

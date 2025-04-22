@@ -361,7 +361,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(sortedBundles, Matchers.contains(bundle1, bundle2, bundle3));
     }
 
-    public void testSortBundlesMissingDep() throws Exception {
+    public void testSortBundlesMissingRequiredDep() throws Exception {
         Path pluginDir = createTempDir();
         PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.singletonList("dne"), false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
@@ -370,6 +370,33 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             () -> PluginsService.sortBundles(Collections.singleton(bundle))
         );
         assertEquals("Missing plugin [dne], dependency of [foo]", e.getMessage());
+    }
+
+    public void testSortBundlesMissingOptionalDep() throws Exception {
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(PluginsService.class))) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "[.test] warning",
+                    "org.opensearch.plugins.PluginsService",
+                    Level.WARN,
+                    "Missing plugin [dne], dependency of [foo]"
+                )
+            );
+            Path pluginDir = createTempDir();
+            PluginInfo info = new PluginInfo(
+                "foo",
+                "desc",
+                "1.0",
+                Version.CURRENT,
+                "1.8",
+                "MyPlugin",
+                Collections.singletonList("dne;optional=true"),
+                false
+            );
+            PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+            PluginsService.sortBundles(Collections.singleton(bundle));
+            mockLogAppender.assertAllExpectationsMatched();
+        }
     }
 
     public void testSortBundlesCommonDep() throws Exception {

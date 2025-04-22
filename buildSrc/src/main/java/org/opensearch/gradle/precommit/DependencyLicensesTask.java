@@ -36,6 +36,7 @@ import org.opensearch.gradle.precommit.LicenseAnalyzer.LicenseInfo;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -47,6 +48,8 @@ import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
+
+import javax.inject.Inject;
 
 import java.io.File;
 import java.io.IOException;
@@ -127,7 +130,7 @@ public class DependencyLicensesTask extends DefaultTask {
     /**
      * The directory to find the license and sha files in.
      */
-    private File licensesDir = new File(getProject().getProjectDir(), "licenses");
+    private File licensesDir;
 
     /**
      * A map of patterns to prefix, used to find the LICENSE and NOTICE file.
@@ -138,6 +141,14 @@ public class DependencyLicensesTask extends DefaultTask {
      * Names of dependencies whose shas should not exist.
      */
     private Set<String> ignoreShas = new HashSet<>();
+
+    private final Project project;
+
+    @Inject
+    public DependencyLicensesTask(Project project) {
+        this.project = project;
+        this.licensesDir = new File(project.getProjectDir(), "licenses");
+    }
 
     /**
      * Add a mapping from a regex pattern for the jar name, to a prefix to find
@@ -161,7 +172,7 @@ public class DependencyLicensesTask extends DefaultTask {
     @InputFiles
     public Property<FileCollection> getDependencies() {
         if (dependenciesProvider == null) {
-            dependenciesProvider = getProject().getObjects().property(FileCollection.class);
+            dependenciesProvider = project.getObjects().property(FileCollection.class);
         }
         return dependenciesProvider;
     }
@@ -250,7 +261,7 @@ public class DependencyLicensesTask extends DefaultTask {
     // by this output but when successful we can safely mark the task as up-to-date.
     @OutputDirectory
     public File getOutputMarker() {
-        return new File(getProject().getBuildDir(), "dependencyLicense");
+        return new File(project.getBuildDir(), "dependencyLicense");
     }
 
     private void failIfAnyMissing(String item, Boolean exists, String type) {

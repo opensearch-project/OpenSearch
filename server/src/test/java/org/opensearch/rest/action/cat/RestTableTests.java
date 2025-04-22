@@ -32,12 +32,12 @@
 
 package org.opensearch.rest.action.cat;
 
+import org.opensearch.action.pagination.PageToken;
 import org.opensearch.common.Table;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.pagination.PageToken;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.junit.Before;

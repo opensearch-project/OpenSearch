@@ -33,6 +33,7 @@
 package org.opensearch.http.nio;
 
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.Nullable;
 import org.opensearch.nio.FlushOperation;
 import org.opensearch.nio.Page;
 import org.opensearch.nio.WriteOperation;
@@ -49,6 +50,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.ssl.SslHandler;
 
 class NettyAdaptor {
 
@@ -56,9 +58,13 @@ class NettyAdaptor {
     private final LinkedList<FlushOperation> flushOperations = new LinkedList<>();
 
     NettyAdaptor(ChannelHandler... handlers) {
-        nettyChannel = new EmbeddedChannel();
-        nettyChannel.pipeline().addLast("write_captor", new ChannelOutboundHandlerAdapter() {
+        this(null, handlers);
+    }
 
+    NettyAdaptor(@Nullable SslHandler sslHandler, ChannelHandler... handlers) {
+        this.nettyChannel = new EmbeddedChannel();
+
+        nettyChannel.pipeline().addLast("write_captor", new ChannelOutboundHandlerAdapter() {
             @Override
             public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
                 // This is a little tricky. The embedded channel will complete the promise once it writes the message
@@ -75,11 +81,21 @@ class NettyAdaptor {
                 }
             }
         });
+        if (sslHandler != null) {
+            nettyChannel.pipeline().addAfter("write_captor", "ssl_handler", sslHandler);
+        }
         nettyChannel.pipeline().addLast(handlers);
     }
 
     public void close() throws Exception {
         assert flushOperations.isEmpty() : "Should close outbound operations before calling close";
+
+        final SslHandler sslHandler = (SslHandler) nettyChannel.pipeline().get("ssl_handler");
+        if (sslHandler != null) {
+            // The nettyChannel.close() or sslHandler.closeOutbound() futures will block indefinitely,
+            // removing the handler instead from the channel.
+            nettyChannel.pipeline().remove(sslHandler);
+        }
 
         ChannelFuture closeFuture = nettyChannel.close();
         // This should be safe as we are not a real network channel

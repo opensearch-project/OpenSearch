@@ -140,7 +140,7 @@ public class FilterableTermsEnum extends TermsEnum {
             }
             enums.add(new Holder(termsEnum, bits));
         }
-        this.enums = enums.toArray(new Holder[enums.size()]);
+        this.enums = enums.toArray(new Holder[0]);
     }
 
     @Override

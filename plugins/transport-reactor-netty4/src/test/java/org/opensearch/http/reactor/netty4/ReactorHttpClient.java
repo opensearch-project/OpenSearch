@@ -181,7 +181,7 @@ public class ReactorHttpClient implements Closeable {
     private List<FullHttpResponse> sendRequests(
         final InetSocketAddress remoteAddress,
         final Collection<FullHttpRequest> requests,
-        boolean orderer
+        boolean ordered
     ) {
         final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(1);
         try {
@@ -209,7 +209,7 @@ public class ReactorHttpClient implements Closeable {
                 )
                 .toArray(Mono[]::new);
 
-            if (orderer == false) {
+            if (ordered == false) {
                 return ParallelFlux.from(monos).sequential().collectList().block();
             } else {
                 return Flux.concat(monos).flatMapSequential(r -> Mono.just(r)).collectList().block();

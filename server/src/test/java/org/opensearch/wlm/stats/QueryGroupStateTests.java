@@ -23,13 +23,7 @@ public class QueryGroupStateTests extends OpenSearchTestCase {
 
         for (int i = 0; i < 25; i++) {
             if (i % 5 == 0) {
-                updaterThreads.add(new Thread(() -> {
-                    if (randomBoolean()) {
-                        queryGroupState.completions.inc();
-                    } else {
-                        queryGroupState.shardCompletions.inc();
-                    }
-                }));
+                updaterThreads.add(new Thread(() -> { queryGroupState.totalCompletions.inc(); }));
             } else if (i % 5 == 1) {
                 updaterThreads.add(new Thread(() -> {
                     queryGroupState.totalRejections.inc();
@@ -63,7 +57,7 @@ public class QueryGroupStateTests extends OpenSearchTestCase {
             }
         });
 
-        assertEquals(5, queryGroupState.getCompletions() + queryGroupState.getShardCompletions());
+        assertEquals(5, queryGroupState.getTotalCompletions());
         assertEquals(5, queryGroupState.getTotalRejections());
 
         final long sumOfRejectionsDueToResourceTypes = queryGroupState.getResourceState().get(ResourceType.CPU).rejections.count()

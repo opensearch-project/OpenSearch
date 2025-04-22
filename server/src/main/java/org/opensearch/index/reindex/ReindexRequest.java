@@ -400,7 +400,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (value instanceof List) {
             @SuppressWarnings("unchecked")
             List<String> list = (List<String>) value;
-            return list.toArray(new String[list.size()]);
+            return list.toArray(new String[0]);
         } else if (value instanceof String) {
             return Strings.splitStringByCommaToArray((String) value);
         } else {

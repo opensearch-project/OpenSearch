@@ -25,25 +25,51 @@ public class RemoteShardsRebalanceShardsTests extends RemoteShardsBalancerBaseTe
      * Post rebalance primaries should be balanced across all the nodes.
      */
     public void testShardAllocationAndRebalance() {
-        int localOnlyNodes = 20;
-        int remoteCapableNodes = 40;
-        int localIndices = 40;
-        int remoteIndices = 80;
+        final int localOnlyNodes = 20;
+        final int remoteCapableNodes = 40;
+        final int halfRemoteCapableNodes = remoteCapableNodes / 2;
+        final int localIndices = 40;
+        final int remoteIndices = 80;
         ClusterState clusterState = createInitialCluster(localOnlyNodes, remoteCapableNodes, localIndices, remoteIndices);
-        AllocationService service = this.createRemoteCapableAllocationService();
+        final StringBuilder excludeNodes = new StringBuilder();
+        for (int i = 0; i < halfRemoteCapableNodes; i++) {
+            excludeNodes.append(getNodeId(i, true));
+            if (i != (remoteCapableNodes / 2 - 1)) {
+                excludeNodes.append(", ");
+            }
+        }
+        AllocationService service = this.createRemoteCapableAllocationService(excludeNodes.toString());
         clusterState = allocateShardsAndBalance(clusterState, service);
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         RoutingAllocation allocation = getRoutingAllocation(clusterState, routingNodes);
 
-        final Map<String, Integer> nodePrimariesCounter = getShardCounterPerNodeForRemoteCapablePool(clusterState, allocation, true);
-        final Map<String, Integer> nodeReplicaCounter = getShardCounterPerNodeForRemoteCapablePool(clusterState, allocation, false);
+        Map<String, Integer> nodePrimariesCounter = getShardCounterPerNodeForRemoteCapablePool(clusterState, allocation, true);
+        Map<String, Integer> nodeReplicaCounter = getShardCounterPerNodeForRemoteCapablePool(clusterState, allocation, false);
         int avgPrimariesPerNode = getTotalShardCountAcrossNodes(nodePrimariesCounter) / remoteCapableNodes;
 
-        // Primary and replica are balanced post first reroute
+        // Primary and replica are balanced after first allocating unassigned
         for (RoutingNode node : routingNodes) {
             if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getNodePool(node))) {
-                assertInRange(nodePrimariesCounter.get(node.nodeId()), avgPrimariesPerNode, remoteCapableNodes - 1);
-                assertTrue(nodeReplicaCounter.get(node.nodeId()) >= 0);
+                if (Integer.parseInt(node.nodeId().split("-")[4]) < halfRemoteCapableNodes) {
+                    assertEquals(0, (int) nodePrimariesCounter.getOrDefault(node.nodeId(), 0));
+                } else {
+                    assertEquals(avgPrimariesPerNode * 2, (int) nodePrimariesCounter.get(node.nodeId()));
+                }
+                assertTrue(nodeReplicaCounter.getOrDefault(node.nodeId(), 0) >= 0);
+            }
+        }
+
+        // Remove exclude constraint and rebalance
+        service = this.createRemoteCapableAllocationService();
+        clusterState = allocateShardsAndBalance(clusterState, service);
+        routingNodes = clusterState.getRoutingNodes();
+        allocation = getRoutingAllocation(clusterState, routingNodes);
+        nodePrimariesCounter = getShardCounterPerNodeForRemoteCapablePool(clusterState, allocation, true);
+        nodeReplicaCounter = getShardCounterPerNodeForRemoteCapablePool(clusterState, allocation, false);
+        for (RoutingNode node : routingNodes) {
+            if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getNodePool(node))) {
+                assertEquals(avgPrimariesPerNode, (int) nodePrimariesCounter.get(node.nodeId()));
+                assertTrue(nodeReplicaCounter.getOrDefault(node.nodeId(), 0) >= 0);
             }
         }
     }

@@ -23,30 +23,19 @@ apply plugin: 'opensearch.internal-cluster-test'
 apply plugin: 'opensearch.publish'
 
 opensearchplugin {
-  description 'Reactor Netty 4 based transport implementation'
-  classname 'org.opensearch.transport.reactor.ReactorNetty4Plugin'
+  description = 'Reactor Netty 4 based transport implementation'
+  classname = 'org.opensearch.transport.reactor.ReactorNetty4Plugin'
   hasClientJar = true
 }
 
 dependencies {
   // network stack
-  api "io.netty:netty-buffer:${versions.netty}"
-  api "io.netty:netty-codec:${versions.netty}"
-  api "io.netty:netty-codec-dns:${versions.netty}"
-  api "io.netty:netty-codec-http:${versions.netty}"
-  api "io.netty:netty-codec-http2:${versions.netty}"
-  api "io.netty:netty-common:${versions.netty}"
-  api "io.netty:netty-handler:${versions.netty}"
-  api "io.netty:netty-resolver-dns:${versions.netty}"
-  api "io.netty:netty-resolver:${versions.netty}"
-  api "io.netty:netty-transport:${versions.netty}"
-  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  api libs.bundles.netty
 
-  api "io.projectreactor.netty:reactor-netty-http:${versions.reactor_netty}"
-  api "io.projectreactor.netty:reactor-netty-core:${versions.reactor_netty}"
+  api libs.bundles.reactornetty
 
-  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  javaRestTestImplementation "io.projectreactor:reactor-test:${versions.reactor}"
+  testImplementation libs.log4jslf4jimpl
+  javaRestTestImplementation libs.reactor.test
   testImplementation project(":modules:transport-netty4")
 }
 
@@ -258,6 +247,9 @@ thirdPartyAudit {
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',

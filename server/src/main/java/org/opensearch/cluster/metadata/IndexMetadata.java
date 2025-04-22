@@ -229,7 +229,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     + "]"
             );
         }
-        return Setting.intSetting(SETTING_NUMBER_OF_SHARDS, defaultNumShards, 1, maxNumShards, Property.IndexScope, Property.Final);
+        return Setting.intSetting(
+            SETTING_NUMBER_OF_SHARDS,
+            defaultNumShards,
+            1,
+            maxNumShards,
+            Property.IndexScope,
+            Property.Final,
+            Property.UnmodifiableOnRestore
+        );
     }
 
     public static final String INDEX_SETTING_PREFIX = "index.";
@@ -299,7 +307,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
         },
-        Property.IndexScope
+        Property.IndexScope,
+        Property.NotCopyableOnResize
     );
 
     /**
@@ -341,6 +350,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
+    public static final String SETTING_INDEX_APPEND_ONLY_ENABLED = "index.append_only.enabled";
 
     public static final String SETTING_REMOTE_SEGMENT_STORE_REPOSITORY = "index.remote_store.segment.repository";
 
@@ -381,6 +391,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope,
         Property.PrivateIndex,
         Property.Dynamic
+    );
+
+    /**
+     * Used to specify if the index data should be persisted in the remote store.
+     */
+    public static final Setting<Boolean> INDEX_APPEND_ONLY_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_INDEX_APPEND_ONLY_ENABLED,
+        false,
+        Property.IndexScope,
+        Property.Final
     );
 
     /**
@@ -557,13 +577,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         SETTING_VERSION_CREATED,
         Version.V_EMPTY,
         Property.IndexScope,
-        Property.PrivateIndex
+        Property.PrivateIndex,
+        Property.UnmodifiableOnRestore
     );
 
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
+
     /**
      * The user provided name for an index. This is the plain string provided by the user when the index was created.
      * It might still contain date math expressions etc. (added in 5.0)
@@ -587,6 +609,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Function.identity(),
         Property.IndexScope
     );
+
     public static final String INDEX_UUID_NA_VALUE = Strings.UNKNOWN_UUID_VALUE;
 
     public static final String INDEX_ROUTING_REQUIRE_GROUP_PREFIX = "index.routing.allocation.require";
@@ -711,6 +734,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final boolean isRemoteSnapshot;
 
     private final int indexTotalShardsPerNodeLimit;
+    private final boolean isAppendOnlyIndex;
 
     private final Context context;
 
@@ -742,6 +766,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final Map<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
         final int indexTotalShardsPerNodeLimit,
+        boolean isAppendOnlyIndex,
         final Context context
     ) {
 
@@ -779,6 +804,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.isSystem = isSystem;
         this.isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
         this.indexTotalShardsPerNodeLimit = indexTotalShardsPerNodeLimit;
+        this.isAppendOnlyIndex = isAppendOnlyIndex;
         this.context = context;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
@@ -941,6 +967,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return this.indexTotalShardsPerNodeLimit;
     }
 
+    public boolean isAppendOnlyIndex() {
+        return this.isAppendOnlyIndex;
+    }
+
     @Nullable
     public DiscoveryNodeFilters requireFilters() {
         return requireFilters;
@@ -1061,7 +1091,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      *
      * @opensearch.internal
      */
-    private static class IndexMetadataDiff implements Diff<IndexMetadata> {
+    static class IndexMetadataDiff implements Diff<IndexMetadata> {
 
         private final String index;
         private final int routingNumShards;
@@ -1191,7 +1221,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.customMetadata.putAll(customData.apply(part.customData));
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
-            builder.system(part.isSystem);
+            builder.system(isSystem);
             builder.context(context);
             return builder.build();
         }
@@ -1754,6 +1784,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final int indexTotalShardsPerNodeLimit = ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
+            final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings);
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
@@ -1785,6 +1816,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 rolloverInfos,
                 isSystem,
                 indexTotalShardsPerNodeLimit,
+                isAppendOnlyIndex,
                 context
             );
         }

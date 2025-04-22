@@ -20,6 +20,7 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.serializer.BytesReferenceSerializer;
 import org.opensearch.common.cache.serializer.Serializer;
+import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.metrics.CounterMetric;
@@ -1199,6 +1200,64 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         doNothing().when(cacheManager).close();
         doThrow(new RuntimeException("test")).when(cacheManager).destroyCache(anyString());
         ehcacheDiskCache.close();
+    }
+
+    public void testWithCacheConfigSizeSettings() throws Exception {
+        // The cache should get its size from the config if present, and otherwise should get it from the setting.
+        long maxSizeFromSetting = between(MINIMUM_MAX_SIZE_IN_BYTES + 1000, MINIMUM_MAX_SIZE_IN_BYTES + 2000);
+        long maxSizeFromConfig = between(MINIMUM_MAX_SIZE_IN_BYTES + 3000, MINIMUM_MAX_SIZE_IN_BYTES + 4000);
+
+        EhcacheDiskCache<String, String> cache = setupMaxSizeTest(maxSizeFromSetting, maxSizeFromConfig, false);
+        assertEquals(maxSizeFromSetting, cache.getMaximumWeight());
+
+        cache = setupMaxSizeTest(maxSizeFromSetting, maxSizeFromConfig, true);
+        assertEquals(maxSizeFromConfig, cache.getMaximumWeight());
+    }
+
+    // Modified from OpenSearchOnHeapCacheTests. Can't reuse, as we can't add a dependency on the server.test module.
+    private EhcacheDiskCache<String, String> setupMaxSizeTest(long maxSizeFromSetting, long maxSizeFromConfig, boolean putSizeInConfig)
+        throws Exception {
+        MockRemovalListener<String, String> listener = new MockRemovalListener<>();
+        try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
+            Settings settings = Settings.builder()
+                .put(
+                    CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME
+                )
+                .put(
+                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                        .get(DISK_MAX_SIZE_IN_BYTES_KEY)
+                        .getKey(),
+                    maxSizeFromSetting
+                )
+                .put(
+                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                        .get(DISK_STORAGE_PATH_KEY)
+                        .getKey(),
+                    env.nodePaths()[0].indicesPath.toString() + "/request_cache/" + 0
+                )
+                .build();
+
+            CacheConfig.Builder<String, String> cacheConfigBuilder = new CacheConfig.Builder<String, String>().setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
+                .setWeigher(getWeigher())
+                .setRemovalListener(listener)
+                .setSettings(settings)
+                .setDimensionNames(List.of(dimensionName))
+                .setStatsTrackingEnabled(true);
+            if (putSizeInConfig) {
+                cacheConfigBuilder.setMaxSizeInBytes(maxSizeFromConfig);
+            }
+
+            ICache.Factory cacheFactory = new EhcacheDiskCache.EhcacheDiskCacheFactory();
+            return (EhcacheDiskCache<String, String>) cacheFactory.create(
+                cacheConfigBuilder.build(),
+                CacheType.INDICES_REQUEST_CACHE,
+                null
+            );
+        }
     }
 
     static class MockEhcahceDiskCache extends EhcacheDiskCache<String, String> {

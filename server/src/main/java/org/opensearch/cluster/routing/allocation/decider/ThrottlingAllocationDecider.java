@@ -191,7 +191,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             }
         } else {
             // Peer recovery
-            assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() == RecoverySource.Type.PEER;
+            assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() == RecoverySource.Type.PEER
+                || shardRouting.isSearchOnly();
 
             if (shardRouting.unassignedReasonIndexCreated()) {
                 return allocateInitialShardCopies(shardRouting, node, allocation);
@@ -204,7 +205,6 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     private Decision allocateInitialShardCopies(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         int currentInRecoveries = allocation.routingNodes().getInitialIncomingRecoveries(node.nodeId());
         assert shardRouting.unassignedReasonIndexCreated() && !shardRouting.primary();
-
         return allocateShardCopies(
             shardRouting,
             allocation,
@@ -212,7 +212,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             replicasInitialRecoveries,
             this::getInitialPrimaryNodeOutgoingRecoveries,
             replicasInitialRecoveries,
-            true
+            true,
+            node
         );
     }
 
@@ -228,7 +229,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             concurrentIncomingRecoveries,
             this::getPrimaryNodeOutgoingRecoveries,
             concurrentOutgoingRecoveries,
-            false
+            false,
+            node
         );
     }
 
@@ -249,7 +251,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         int inRecoveriesLimit,
         BiFunction<ShardRouting, RoutingAllocation, Integer> primaryNodeOutRecoveriesFunc,
         int outRecoveriesLimit,
-        boolean isInitialShardCopies
+        boolean isInitialShardCopies,
+        RoutingNode candidateNode
     ) {
         // Allocating a shard to this node will increase the incoming recoveries
         if (currentInRecoveries >= inRecoveriesLimit) {
@@ -274,6 +277,16 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 );
             }
         } else {
+            // if this is a search shard that recovers from remote store, ignore outgoing recovery limits.
+            if (shardRouting.isSearchOnly() && candidateNode.node().isRemoteStoreNode()) {
+                return allocation.decision(
+                    YES,
+                    NAME,
+                    "Remote based search replica below incoming recovery limit: [%d < %d]",
+                    currentInRecoveries,
+                    inRecoveriesLimit
+                );
+            }
             // search for corresponding recovery source (= primary shard) and check number of outgoing recoveries on that node
             ShardRouting primaryShard = allocation.routingNodes().activePrimary(shardRouting.shardId());
             if (primaryShard == null) {
@@ -319,6 +332,10 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         }
     }
 
+    private static boolean isRemoteStoreNode(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return allocation.nodes().getNodes().get(shardRouting.currentNodeId()).isRemoteStoreNode();
+    }
+
     /**
      * The shard routing passed to {@link #canAllocate(ShardRouting, RoutingNode, RoutingAllocation)} is not the initializing shard to this
      * node but:
@@ -357,9 +374,18 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     @Override
     public Decision canMoveAway(ShardRouting shardRouting, RoutingAllocation allocation) {
         int outgoingRecoveries = 0;
-        if (!shardRouting.primary() && !shardRouting.isSearchOnly()) {
+        if (!shardRouting.primary()) {
             ShardRouting primaryShard = allocation.routingNodes().activePrimary(shardRouting.shardId());
-            outgoingRecoveries = allocation.routingNodes().getOutgoingRecoveries(primaryShard.currentNodeId());
+            if (primaryShard != null) {
+                outgoingRecoveries = allocation.routingNodes().getOutgoingRecoveries(primaryShard.currentNodeId());
+            } else {
+                assert shardRouting.isSearchOnly();
+                // check if the moving away search replica is using remote store, if not
+                // throw an error as the primary it will use for recovery is not active.
+                if (isRemoteStoreNode(shardRouting, allocation) == false) {
+                    return allocation.decision(Decision.NO, NAME, "primary shard for this replica is not yet active");
+                }
+            }
         } else {
             outgoingRecoveries = allocation.routingNodes().getOutgoingRecoveries(shardRouting.currentNodeId());
         }

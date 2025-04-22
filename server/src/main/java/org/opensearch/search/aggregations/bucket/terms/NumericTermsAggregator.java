@@ -64,6 +64,7 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -202,9 +203,19 @@ public class NumericTermsAggregator extends TermsAggregator {
                 // Get the top buckets
                 B[] bucketsForOrd = buildBuckets(ordered.size());
                 topBucketsPerOrd[ordIdx] = bucketsForOrd;
-                for (int b = ordered.size() - 1; b >= 0; --b) {
-                    topBucketsPerOrd[ordIdx][b] = ordered.pop();
-                    otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                if (isKeyOrder(order)) {
+                    for (int b = ordered.size() - 1; b >= 0; --b) {
+                        topBucketsPerOrd[ordIdx][b] = ordered.pop();
+                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                    }
+                } else {
+                    // sorted buckets not needed as they will be sorted by key in buildResult() which is different from
+                    // order in priority queue ordered
+                    Iterator<B> itr = ordered.iterator();
+                    for (int b = ordered.size() - 1; b >= 0; --b) {
+                        topBucketsPerOrd[ordIdx][b] = itr.next();
+                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                    }
                 }
             }
 

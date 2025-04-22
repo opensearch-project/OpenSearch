@@ -18,9 +18,9 @@ import org.apache.lucene.util.Counter;
  *
  * @opensearch.experimental
  */
-public class SortedNumericDocValuesWriterWrapper {
+public class SortedNumericDocValuesWriterWrapper implements DocValuesWriterWrapper<SortedNumericDocValues> {
 
-    private final SortedNumericDocValuesWriter sortedNumericDocValuesWriter;
+    private final SortedNumericDocValuesWriter sortedNumericDocValuesWriterDelegate;
 
     /**
      * Sole constructor. Constructs a new {@link SortedNumericDocValuesWriterWrapper} instance.
@@ -29,7 +29,7 @@ public class SortedNumericDocValuesWriterWrapper {
      * @param counter a counter for tracking memory usage
      */
     public SortedNumericDocValuesWriterWrapper(FieldInfo fieldInfo, Counter counter) {
-        sortedNumericDocValuesWriter = new SortedNumericDocValuesWriter(fieldInfo, counter);
+        sortedNumericDocValuesWriterDelegate = new SortedNumericDocValuesWriter(fieldInfo, counter);
     }
 
     /**
@@ -39,7 +39,7 @@ public class SortedNumericDocValuesWriterWrapper {
      * @param value the value to add
      */
     public void addValue(int docID, long value) {
-        sortedNumericDocValuesWriter.addValue(docID, value);
+        sortedNumericDocValuesWriterDelegate.addValue(docID, value);
     }
 
     /**
@@ -47,7 +47,8 @@ public class SortedNumericDocValuesWriterWrapper {
      *
      * @return the {@link SortedNumericDocValues} instance
      */
+    @Override
     public SortedNumericDocValues getDocValues() {
-        return sortedNumericDocValuesWriter.getDocValues();
+        return sortedNumericDocValuesWriterDelegate.getDocValues();
     }
 }

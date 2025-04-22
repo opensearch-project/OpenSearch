@@ -8,11 +8,14 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
+import org.apache.lucene.index.DocValuesType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Represents a dimension for reconstructing StarTreeField from file formats during searches and merges.
@@ -22,13 +25,49 @@ import java.util.Objects;
 public class ReadDimension implements Dimension {
     public static final String READ = "read";
     private final String field;
+    private final DocValuesType docValuesType;
+    private final DimensionDataType dimensionDataType;
 
     public ReadDimension(String field) {
         this.field = field;
+        this.docValuesType = DocValuesType.SORTED_NUMERIC;
+        this.dimensionDataType = DimensionDataType.LONG;
+    }
+
+    public ReadDimension(String field, DocValuesType docValuesType) {
+        this.field = field;
+        this.docValuesType = docValuesType;
+        this.dimensionDataType = DimensionDataType.LONG;
+    }
+
+    public ReadDimension(String field, DocValuesType docValuesType, DimensionDataType dimensionDataType) {
+        this.field = field;
+        this.docValuesType = docValuesType;
+        this.dimensionDataType = dimensionDataType;
     }
 
     public String getField() {
         return field;
+    }
+
+    @Override
+    public int getNumSubDimensions() {
+        return 1;
+    }
+
+    @Override
+    public void setDimensionValues(final Long val, final Consumer<Long> dimSetter) {
+        dimSetter.accept(val);
+    }
+
+    @Override
+    public List<String> getSubDimensionNames() {
+        return List.of(field);
+    }
+
+    @Override
+    public DocValuesType getDocValuesType() {
+        return docValuesType;
     }
 
     @Override
@@ -52,4 +91,10 @@ public class ReadDimension implements Dimension {
     public int hashCode() {
         return Objects.hash(field);
     }
+
+    @Override
+    public DimensionDataType getDimensionDataType() {
+        return dimensionDataType;
+    }
+
 }

@@ -56,7 +56,7 @@ public class IndicesStoreTests extends OpenSearchTestCase {
         Set<ShardRoutingState> set = new HashSet<>();
         set.addAll(Arrays.asList(ShardRoutingState.values()));
         set.remove(ShardRoutingState.STARTED);
-        NOT_STARTED_STATES = set.toArray(new ShardRoutingState[set.size()]);
+        NOT_STARTED_STATES = set.toArray(new ShardRoutingState[0]);
     }
 
     private DiscoveryNode localNode;

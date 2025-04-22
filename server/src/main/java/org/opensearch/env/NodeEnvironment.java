@@ -71,6 +71,7 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
@@ -199,7 +200,7 @@ public final class NodeEnvironment implements Closeable {
 
     private final NodeMetadata nodeMetadata;
 
-    private final IndexStoreListener indexStoreListener;
+    private final org.opensearch.index.store.IndexStoreListener indexStoreListener;
 
     /**
      * Maximum number of data nodes that should run in an environment.
@@ -298,14 +299,24 @@ public final class NodeEnvironment implements Closeable {
     }
 
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-        this(settings, environment, IndexStoreListener.EMPTY);
+        this(settings, environment, org.opensearch.index.store.IndexStoreListener.EMPTY);
+    }
+
+    /**
+     * Use {@link NodeEnvironment#NodeEnvironment(Settings, Environment, org.opensearch.index.store.IndexStoreListener)} instead.
+     * This constructor is kept around on 2.x to avoid breaking changes.
+     */
+    @Deprecated(forRemoval = true, since = "2.19.0")
+    public NodeEnvironment(Settings settings, Environment environment, IndexStoreListener indexStoreListener) throws IOException {
+        this(settings, environment, (org.opensearch.index.store.IndexStoreListener) indexStoreListener);
     }
 
     /**
      * Setup the environment.
      * @param settings settings from opensearch.yml
      */
-    public NodeEnvironment(Settings settings, Environment environment, IndexStoreListener indexStoreListener) throws IOException {
+    public NodeEnvironment(Settings settings, Environment environment, org.opensearch.index.store.IndexStoreListener indexStoreListener)
+        throws IOException {
         if (DiscoveryNode.nodeRequiresLocalStorage(settings) == false) {
             nodePaths = null;
             fileCacheNodePath = null;
@@ -313,7 +324,7 @@ public final class NodeEnvironment implements Closeable {
             locks = null;
             nodeLockId = -1;
             nodeMetadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT);
-            this.indexStoreListener = IndexStoreListener.EMPTY;
+            this.indexStoreListener = org.opensearch.index.store.IndexStoreListener.EMPTY;
             return;
         }
         boolean success = false;
@@ -1062,7 +1073,7 @@ public final class NodeEnvironment implements Closeable {
                 paths.add(indexFolder);
             }
         }
-        return paths.toArray(new Path[paths.size()]);
+        return paths.toArray(new Path[0]);
     }
 
     /**
@@ -1414,15 +1425,12 @@ public final class NodeEnvironment implements Closeable {
     }
 
     /**
-     * A listener that is executed on per-index and per-shard store events, like deleting shard path
+     * Use {@link org.opensearch.index.store.IndexStoreListener} instead. This interface is kept around on 2.x to avoid breaking changes.
      *
      * @opensearch.internal
      */
-    public interface IndexStoreListener {
-        default void beforeShardPathDeleted(ShardId shardId, IndexSettings indexSettings, NodeEnvironment env) {}
-
-        default void beforeIndexPathDeleted(Index index, IndexSettings indexSettings, NodeEnvironment env) {}
-
+    @Deprecated(forRemoval = true, since = "2.19.0")
+    public interface IndexStoreListener extends org.opensearch.index.store.IndexStoreListener {
         IndexStoreListener EMPTY = new IndexStoreListener() {
         };
     }

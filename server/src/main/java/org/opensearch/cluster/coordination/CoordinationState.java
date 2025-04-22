@@ -53,7 +53,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
-import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
@@ -81,7 +80,6 @@ public class CoordinationState {
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
     private final boolean isRemoteStateEnabled;
-    private boolean isRemotePublicationEnabled;
 
     public CoordinationState(
         DiscoveryNode localNode,
@@ -105,14 +103,6 @@ public class CoordinationState {
             .getLastAcceptedConfiguration();
         this.publishVotes = new VoteCollection();
         this.isRemoteStateEnabled = isRemoteStoreClusterStateEnabled(settings);
-        // ToDo: revisit this check while making the setting dynamic
-        this.isRemotePublicationEnabled = isRemoteStateEnabled
-            && REMOTE_PUBLICATION_SETTING.get(settings)
-            && localNode.isRemoteStatePublicationEnabled();
-    }
-
-    public boolean isRemotePublicationEnabled() {
-        return isRemotePublicationEnabled;
     }
 
     public long getCurrentTerm() {

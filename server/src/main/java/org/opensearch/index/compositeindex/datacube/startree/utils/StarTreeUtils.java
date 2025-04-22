@@ -16,6 +16,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricA
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Util class for building star tree
@@ -67,14 +68,17 @@ public class StarTreeUtils {
      * @param fields field names
      * @return field infos
      */
-    public static FieldInfo[] getFieldInfoList(List<String> fields) {
+    public static FieldInfo[] getFieldInfoList(List<String> fields, Map<String, DocValuesType> dimDocValuesTypeMap) {
         FieldInfo[] fieldInfoList = new FieldInfo[fields.size()];
-
         // field number is not really used. We depend on unique field names to get the desired iterator
         int fieldNumber = 0;
-
         for (String fieldName : fields) {
-            fieldInfoList[fieldNumber] = getFieldInfo(fieldName, DocValuesType.SORTED_NUMERIC, fieldNumber);
+            fieldInfoList[fieldNumber] = getFieldInfo(
+                fieldName,
+                // default is sortedNumeric since all metrics right now are sorted numeric
+                dimDocValuesTypeMap.getOrDefault(fieldName, DocValuesType.SORTED_NUMERIC),
+                fieldNumber
+            );
             fieldNumber++;
         }
         return fieldInfoList;

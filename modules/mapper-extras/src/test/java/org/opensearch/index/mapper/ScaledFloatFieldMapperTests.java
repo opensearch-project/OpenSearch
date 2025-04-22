@@ -34,6 +34,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -132,6 +133,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     protected Settings getIndexSettings() {
         return Settings.builder()
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .put(super.getIndexSettings())
             .build();
     }

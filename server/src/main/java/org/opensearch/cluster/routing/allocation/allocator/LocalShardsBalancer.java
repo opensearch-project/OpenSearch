@@ -111,7 +111,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      * Returns an array view on the nodes in the balancer. Nodes should not be removed from this list.
      */
     private BalancedShardsAllocator.ModelNode[] nodesArray() {
-        return nodes.values().toArray(new BalancedShardsAllocator.ModelNode[nodes.size()]);
+        return nodes.values().toArray(new BalancedShardsAllocator.ModelNode[0]);
     }
 
     /**

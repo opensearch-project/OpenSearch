@@ -85,6 +85,7 @@ import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryCoordinatorContext;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
@@ -126,6 +127,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchRequest;
@@ -138,6 +140,8 @@ import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.search.startree.StarTreeQueryContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -165,6 +169,7 @@ import java.util.function.LongSupplier;
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
+import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
  * The main search service
@@ -722,14 +727,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         } catch (Exception e) {
             // execution exception can happen while loading the cache, strip it
-            if (e instanceof ExecutionException) {
-                e = (e.getCause() == null || e.getCause() instanceof Exception)
-                    ? (Exception) e.getCause()
-                    : new OpenSearchException(e.getCause());
+            Exception exception = e;
+            if (exception instanceof ExecutionException) {
+                exception = (exception.getCause() == null || exception.getCause() instanceof Exception)
+                    ? (Exception) exception.getCause()
+                    : new OpenSearchException(exception.getCause());
             }
-            logger.trace("Query phase failed", e);
-            processFailure(readerContext, e);
-            throw e;
+            logger.trace("Query phase failed", exception);
+            processFailure(readerContext, exception);
+            throw exception;
         } finally {
             taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
         }
@@ -1358,6 +1364,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.evaluateRequestShouldUseConcurrentSearch();
             return;
         }
+
         SearchShardTarget shardTarget = context.shardTarget();
         QueryShardContext queryShardContext = context.getQueryShardContext();
         context.from(source.from());
@@ -1371,7 +1378,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);
             context.parsedPostFilter(queryShardContext.toQuery(source.postFilter()));
         }
-        if (innerHitBuilders.size() > 0) {
+        if (!innerHitBuilders.isEmpty()) {
             for (Map.Entry<String, InnerHitContextBuilder> entry : innerHitBuilders.entrySet()) {
                 try {
                     entry.getValue().build(context, context.innerHits());
@@ -1383,9 +1390,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.sorts() != null) {
             try {
                 Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(source.sorts(), context.getQueryShardContext());
-                if (optionalSort.isPresent()) {
-                    context.sort(optionalSort.get());
-                }
+                optionalSort.ifPresent(context::sort);
             } catch (IOException e) {
                 throw new SearchException(shardTarget, "failed to create sort elements", e);
             }
@@ -1539,6 +1544,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.evaluateRequestShouldUseConcurrentSearch();
         if (source.profile()) {
             context.setProfilers(new Profilers(context.searcher(), context.shouldUseConcurrentSearch()));
+        }
+
+        if (this.indicesService.getCompositeIndexSettings() != null
+            && this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
+            && StarTreeQueryHelper.isStarTreeSupported(context)) {
+            StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(context, source.query());
+            boolean consolidated = starTreeQueryContext.consolidateAllFilters(context);
+            if (consolidated) {
+                queryShardContext.setStarTreeQueryContext(starTreeQueryContext);
+            }
         }
     }
 
@@ -1699,7 +1714,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             && minMax != null
             && primarySortField != null
             && primarySortField.missing() == null
-            && Objects.equals(trackTotalHitsUpto, SearchContext.TRACK_TOTAL_HITS_DISABLED)) {
+            && Objects.equals(trackTotalHitsUpto, TRACK_TOTAL_HITS_DISABLED)) {
             final Object searchAfterPrimary = searchAfter.fields[0];
             if (primarySortField.order() == SortOrder.DESC) {
                 if (minMax.compareMin(searchAfterPrimary) > 0) {
@@ -1759,8 +1774,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return indicesService.getRewriteContext(nowInMillis);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, PipelinedRequest searchRequest) {
+        return new QueryCoordinatorContext(indicesService.getRewriteContext(nowInMillis), searchRequest);
     }
 
     /**

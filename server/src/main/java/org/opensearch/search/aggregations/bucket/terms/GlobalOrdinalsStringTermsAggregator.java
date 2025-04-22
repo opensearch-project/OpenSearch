@@ -40,7 +40,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -166,35 +165,32 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      @return A LeafBucketCollector implementation with collection termination, since collection is complete
      @throws IOException If an I/O error occurs during reading
      */
-    LeafBucketCollector termDocFreqCollector(
-        LeafReaderContext ctx,
-        SortedSetDocValues globalOrds,
-        BiConsumer<Long, Integer> ordCountConsumer
-    ) throws IOException {
+    boolean tryCollectFromTermFrequencies(LeafReaderContext ctx, SortedSetDocValues globalOrds, BiConsumer<Long, Integer> ordCountConsumer)
+        throws IOException {
         if (weight == null) {
             // Weight not assigned - cannot use this optimization
-            return null;
+            return false;
         } else {
             if (weight.count(ctx) == 0) {
                 // No documents matches top level query on this segment, we can skip the segment entirely
-                return LeafBucketCollector.NO_OP_COLLECTOR;
+                return true;
             } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
                 // weight.count(ctx) == ctx.reader().maxDoc() implies there are no deleted documents and
                 // top-level query matches all docs in the segment
-                return null;
+                return false;
             }
         }
 
         Terms segmentTerms = ctx.reader().terms(this.fieldName);
         if (segmentTerms == null) {
             // Field is not indexed.
-            return null;
+            return false;
         }
 
         NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
         if (docCountValues.nextDoc() != NO_MORE_DOCS) {
             // This segment has at least one document with the _doc_count field.
-            return null;
+            return false;
         }
 
         TermsEnum indexTermsEnum = segmentTerms.iterator();
@@ -218,31 +214,28 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 ordinalTerm = globalOrdinalTermsEnum.next();
             }
         }
-        return new LeafBucketCollector() {
-            @Override
-            public void collect(int doc, long owningBucketOrd) throws IOException {
-                throw new CollectionTerminatedException();
-            }
-        };
+        return true;
+    }
+
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
+        if (collectionStrategy instanceof DenseGlobalOrds
+            && this.resultStrategy instanceof StandardTermsResults
+            && subAggregators.length == 0) {
+            return tryCollectFromTermFrequencies(
+                ctx,
+                globalOrds,
+                (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, ord), docCount)
+            );
+        }
+        return false;
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
         collectionStrategy.globalOrdsReady(globalOrds);
-
-        if (collectionStrategy instanceof DenseGlobalOrds
-            && this.resultStrategy instanceof StandardTermsResults
-            && sub == LeafBucketCollector.NO_OP_COLLECTOR) {
-            LeafBucketCollector termDocFreqCollector = termDocFreqCollector(
-                ctx,
-                globalOrds,
-                (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, ord), docCount)
-            );
-            if (termDocFreqCollector != null) {
-                return termDocFreqCollector;
-            }
-        }
 
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
         if (singleValues != null) {
@@ -434,6 +427,24 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
+        protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+            if (subAggregators.length == 0) {
+                if (mapping != null) {
+                    mapSegmentCountsToGlobalCounts(mapping);
+                }
+                final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
+                segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
+                mapping = valuesSource.globalOrdinalsMapping(ctx);
+                return tryCollectFromTermFrequencies(
+                    ctx,
+                    segmentOrds,
+                    (ord, docCount) -> incrementBucketDocCount(mapping.applyAsLong(ord), docCount)
+                );
+            }
+            return false;
+        }
+
+        @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
             if (mapping != null) {
                 mapSegmentCountsToGlobalCounts(mapping);
@@ -442,17 +453,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
             mapping = valuesSource.globalOrdinalsMapping(ctx);
-
-            if (this.resultStrategy instanceof StandardTermsResults) {
-                LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(
-                    ctx,
-                    segmentOrds,
-                    (ord, docCount) -> incrementBucketDocCount(mapping.applyAsLong(ord), docCount)
-                );
-                if (termDocFreqCollector != null) {
-                    return termDocFreqCollector;
-                }
-            }
 
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
             if (singleValues != null) {

@@ -32,6 +32,7 @@ import org.apache.rat.anttasks.Report
 import org.apache.rat.anttasks.SubstringLicenseMatcher
 import org.apache.rat.license.SimpleLicenseFamily
 import org.opensearch.gradle.AntTask
+import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
@@ -40,6 +41,8 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SkipWhenEmpty
+
+import javax.inject.Inject
 
 import java.nio.file.Files
 
@@ -65,14 +68,18 @@ class LicenseHeadersTask extends AntTask {
     @Input
     List<String> excludes = []
 
+    private final Project project
+
     /**
      * Additional license families that may be found. The key is the license category name (5 characters),
      * followed by the family name and the value list of patterns to search for.
      */
     protected Map<String, String> additionalLicenses = new HashMap<>()
 
-    LicenseHeadersTask() {
-        description = "Checks sources for missing, incorrect, or unacceptable license headers"
+    @Inject
+    LicenseHeadersTask(Project project) {
+        this.project = project
+        this.description = "Checks sources for missing, incorrect, or unacceptable license headers"
     }
 
     /**

@@ -161,7 +161,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         int slices = randomSlices(1, 10);
         int expectedSlices = expectedSliceStatuses(slices, docs.keySet());
 
-        String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);
+        String[] sourceIndexNames = docs.keySet().toArray(new String[0]);
         ReindexRequestBuilder request = reindex().source(sourceIndexNames).destination("dest").refresh(true).setSlices(slices);
 
         BulkByScrollResponse response = request.get();

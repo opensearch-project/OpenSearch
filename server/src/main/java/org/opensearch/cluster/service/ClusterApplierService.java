@@ -236,6 +236,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     /**
      * Returns true if the appliedClusterState is not null
      */
+    public boolean isStateInitialised() {
+        return this.state.get() != null;
+    }
+
+    /**
+     * Returns true if the appliedClusterState is not null
+     */
     public boolean isInitialClusterStateSet() {
         return Objects.nonNull(this.state.get());
     }

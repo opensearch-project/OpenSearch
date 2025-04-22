@@ -43,6 +43,8 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
     /** Dimension value for on-disk cache, like EhcacheDiskCache. */
     public static final String TIER_DIMENSION_VALUE_DISK = "disk";
 
+    static final List<String> TIER_VALUES = List.of(TIER_DIMENSION_VALUE_ON_HEAP, TIER_DIMENSION_VALUE_DISK);
+
     /**
      * Constructor for the stats holder.
      * @param originalDimensionNames the original dimension names, not including TIER_DIMENSION_NAME
@@ -166,5 +168,18 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
 
     void setDiskCacheEnabled(boolean diskCacheEnabled) {
         this.diskCacheEnabled = diskCacheEnabled;
+    }
+
+    @Override
+    public void removeDimensions(List<String> dimensionValues) {
+        assert dimensionValues.size() == dimensionNames.size() - 1
+            : "Must specify a value for every dimension except tier when removing from StatsHolder";
+        // As we are removing nodes from the tree, obtain the lock
+        lock.lock();
+        try {
+            removeDimensionsHelper(dimensionValues, statsRoot, 0);
+        } finally {
+            lock.unlock();
+        }
     }
 }

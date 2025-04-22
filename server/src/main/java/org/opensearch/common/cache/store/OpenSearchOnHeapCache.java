@@ -17,6 +17,7 @@ import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.CacheStatsHolder;
 import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
@@ -28,7 +29,6 @@ import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.List;
@@ -80,7 +80,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         this.weigher = builder.getWeigher();
     }
 
-    // package private for testing
+    // pkg-private for testing
     long getMaximumWeight() {
         return this.maximumWeight;
     }
@@ -181,7 +181,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
             Map<String, Setting<?>> settingList = OpenSearchOnHeapCacheSettings.getSettingListForCacheType(cacheType);
             Settings settings = config.getSettings();
-            boolean statsTrackingEnabled = statsTrackingEnabled(config.getSettings(), config.getStatsTrackingEnabled());
+            boolean statsTrackingEnabled = config.getStatsTrackingEnabled();
             ICacheBuilder<K, V> builder = new Builder<K, V>().setDimensionNames(config.getDimensionNames())
                 .setStatsTrackingEnabled(statsTrackingEnabled)
                 .setExpireAfterAccess(((TimeValue) settingList.get(EXPIRE_AFTER_ACCESS_KEY).get(settings)))
@@ -192,8 +192,12 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
             );
             long maxSizeInBytes = ((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes();
 
-            if (config.getMaxSizeInBytes() > 0) { // If this is passed from upstream(like tieredCache), then use this
-                // instead.
+            if (config.getMaxSizeInBytes() > 0) {
+                /*
+                Use the cache config value if present.
+                This can be passed down from the TieredSpilloverCache when creating individual segments,
+                but is not passed in from the IRC if a store name setting is present.
+                 */
                 builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
             } else {
                 builder.setMaximumWeightInBytes(maxSizeInBytes);
@@ -204,8 +208,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
                 builder.setNumberOfSegments(-1); // By default it will use 256 segments.
             }
 
-            String storeName = cacheSettingForCacheType.get(settings);
-            if (!FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) || (storeName == null || storeName.isBlank())) {
+            if (!CacheService.storeNamePresent(cacheType, settings)) {
                 // For backward compatibility as the user intent is to use older settings.
                 builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
                 builder.setExpireAfterAccess(config.getExpireAfterAccess());
@@ -218,11 +221,6 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         @Override
         public String getCacheName() {
             return NAME;
-        }
-
-        private boolean statsTrackingEnabled(Settings settings, boolean statsTrackingEnabledConfig) {
-            // Don't track stats when pluggable caching is off, or when explicitly set to false in the CacheConfig
-            return FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) && statsTrackingEnabledConfig;
         }
     }
 

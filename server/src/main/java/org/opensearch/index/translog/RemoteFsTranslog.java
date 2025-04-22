@@ -590,7 +590,14 @@ public class RemoteFsTranslog extends Translog {
             generationsToDelete.add(generation);
         }
         if (generationsToDelete.isEmpty() == false) {
-            deleteRemoteGeneration(generationsToDelete);
+            try {
+                deleteRemoteGeneration(generationsToDelete);
+            } catch (Exception e) {
+                logger.error("Exception in delete generations flow", e);
+                // Release permit that is meant for metadata files and return
+                remoteGenerationDeletionPermits.release();
+                return;
+            }
             translogTransferManager.deleteStaleTranslogMetadataFilesAsync(remoteGenerationDeletionPermits::release);
             deleteStaleRemotePrimaryTerms();
         } else {

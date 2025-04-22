@@ -114,7 +114,7 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
         if (shardFailures == null) {
             this.shardFailures = EMPTY;
         } else {
-            this.shardFailures = shardFailures.toArray(new DefaultShardOperationFailedException[shardFailures.size()]);
+            this.shardFailures = shardFailures.toArray(new DefaultShardOperationFailedException[0]);
         }
     }
 

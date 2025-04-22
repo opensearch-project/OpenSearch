@@ -39,6 +39,9 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -1077,5 +1080,80 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         client().admin().indices().close(Requests.closeIndexRequest(INDEX_NAME)).actionGet();
         Thread.sleep(10000);
         ensureGreen(INDEX_NAME);
+    }
+
+    public void testSuccessfulShallowV1SnapshotPostIndexClose() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNodes(1).get(0);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 10000L, -1));
+        ensureGreen(INDEX_NAME);
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(Settings.builder().put(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "0ms"));
+
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        logger.info("Create shallow snapshot setting enabled repo");
+        String shallowSnapshotRepoName = "shallow-snapshot-repo-name";
+        Path shallowSnapshotRepoPath = randomRepoPath();
+        Settings.Builder settings = Settings.builder()
+            .put("location", shallowSnapshotRepoPath)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), Boolean.TRUE);
+        createRepository(shallowSnapshotRepoName, "fs", settings);
+
+        for (int i = 0; i < 10; i++) {
+            indexBulk(INDEX_NAME, 1);
+        }
+        flushAndRefresh(INDEX_NAME);
+
+        logger.info("Verify shallow snapshot created before close");
+        final String snapshot1 = "snapshot1";
+        SnapshotInfo snapshotInfo1 = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareCreateSnapshot(shallowSnapshotRepoName, snapshot1)
+            .setIndices(INDEX_NAME)
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
+
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo1.state());
+        assertTrue(snapshotInfo1.successfulShards() > 0);
+        assertEquals(0, snapshotInfo1.failedShards());
+
+        for (int i = 0; i < 10; i++) {
+            indexBulk(INDEX_NAME, 1);
+        }
+
+        // close index
+        client().admin().indices().close(Requests.closeIndexRequest(INDEX_NAME)).actionGet();
+        Thread.sleep(1000);
+        logger.info("Verify shallow snapshot created after close");
+        final String snapshot2 = "snapshot2";
+
+        SnapshotInfo snapshotInfo2 = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareCreateSnapshot(shallowSnapshotRepoName, snapshot2)
+            .setIndices(INDEX_NAME)
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
+
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo2.state());
+        assertTrue(snapshotInfo2.successfulShards() > 0);
+        assertEquals(0, snapshotInfo2.failedShards());
+
+        // delete the index
+        cluster().wipeIndices(INDEX_NAME);
+        // try restoring the snapshot
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(shallowSnapshotRepoName, snapshot2)
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        ensureGreen(INDEX_NAME);
+        flushAndRefresh(INDEX_NAME);
+        assertBusy(() -> { assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), 20); });
     }
 }

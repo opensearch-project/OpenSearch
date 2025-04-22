@@ -258,7 +258,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             directoryFileTransferTracker,
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        long bytesStarted = randomLongBetween(10000, 100000);
+        long bytesStarted = randomLongBetween(12000, 100000);
         long bytesSucceeded = randomLongBetween(1000, 10000);
         long bytesFailed = randomLongBetween(100, 1000);
         transferTracker.addUploadBytesStarted(bytesStarted);

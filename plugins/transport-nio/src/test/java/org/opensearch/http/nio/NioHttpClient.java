@@ -71,6 +71,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.ChannelHandler;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
@@ -83,6 +84,10 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
@@ -92,7 +97,7 @@ import static org.junit.Assert.fail;
 /**
  * Tiny helper to send http requests over nio.
  */
-class NioHttpClient implements Closeable {
+public class NioHttpClient implements Closeable {
 
     static Collection<String> returnOpaqueIds(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
@@ -105,9 +110,11 @@ class NioHttpClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(NioHttpClient.class);
 
     private final NioSelectorGroup nioGroup;
+    private final boolean secure;
 
-    NioHttpClient() {
+    private NioHttpClient(final boolean secure) {
         try {
+            this.secure = secure;
             nioGroup = new NioSelectorGroup(
                 daemonThreadFactory(Settings.EMPTY, "nio-http-client"),
                 1,
@@ -116,6 +123,14 @@ class NioHttpClient implements Closeable {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    public static NioHttpClient http() {
+        return new NioHttpClient(false);
+    }
+
+    public static NioHttpClient https() {
+        return new NioHttpClient(true);
     }
 
     public Collection<FullHttpResponse> get(InetSocketAddress remoteAddress, String... uris) throws InterruptedException {
@@ -138,7 +153,8 @@ class NioHttpClient implements Closeable {
     public final NioSocketChannel connect(InetSocketAddress remoteAddress) {
         ChannelFactory<NioServerSocketChannel, NioSocketChannel> factory = new ClientChannelFactory(
             new CountDownLatch(0),
-            new ArrayList<>()
+            new ArrayList<>(),
+            secure
         );
         try {
             NioSocketChannel nioSocketChannel = nioGroup.openChannel(remoteAddress, factory);
@@ -160,7 +176,7 @@ class NioHttpClient implements Closeable {
         final CountDownLatch latch = new CountDownLatch(requests.size());
         final Collection<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
 
-        ChannelFactory<NioServerSocketChannel, NioSocketChannel> factory = new ClientChannelFactory(latch, content);
+        ChannelFactory<NioServerSocketChannel, NioSocketChannel> factory = new ClientChannelFactory(latch, content, secure);
 
         NioSocketChannel nioSocketChannel = null;
         try {
@@ -196,8 +212,9 @@ class NioHttpClient implements Closeable {
 
         private final CountDownLatch latch;
         private final Collection<FullHttpResponse> content;
+        private final boolean secure;
 
-        private ClientChannelFactory(CountDownLatch latch, Collection<FullHttpResponse> content) {
+        private ClientChannelFactory(CountDownLatch latch, Collection<FullHttpResponse> content, final boolean secure) {
             super(
                 NetworkService.TCP_NO_DELAY.get(Settings.EMPTY),
                 NetworkService.TCP_KEEP_ALIVE.get(Settings.EMPTY),
@@ -210,12 +227,14 @@ class NioHttpClient implements Closeable {
             );
             this.latch = latch;
             this.content = content;
+            this.secure = secure;
         }
 
         @Override
-        public NioSocketChannel createChannel(NioSelector selector, java.nio.channels.SocketChannel channel, Config.Socket socketConfig) {
+        public NioSocketChannel createChannel(NioSelector selector, java.nio.channels.SocketChannel channel, Config.Socket socketConfig)
+            throws IOException {
             NioSocketChannel nioSocketChannel = new NioSocketChannel(channel);
-            HttpClientHandler handler = new HttpClientHandler(nioSocketChannel, latch, content);
+            HttpClientHandler handler = new HttpClientHandler(nioSocketChannel, latch, content, secure);
             Consumer<Exception> exceptionHandler = (e) -> {
                 latch.countDown();
                 onException(e);
@@ -249,17 +268,34 @@ class NioHttpClient implements Closeable {
         private final CountDownLatch latch;
         private final Collection<FullHttpResponse> content;
 
-        private HttpClientHandler(NioSocketChannel channel, CountDownLatch latch, Collection<FullHttpResponse> content) {
+        private HttpClientHandler(
+            NioSocketChannel channel,
+            CountDownLatch latch,
+            Collection<FullHttpResponse> content,
+            final boolean secure
+        ) throws IOException {
             this.latch = latch;
             this.content = content;
             final int maxContentLength = Math.toIntExact(new ByteSizeValue(100, ByteSizeUnit.MB).getBytes());
             List<ChannelHandler> handlers = new ArrayList<>(5);
+
+            SslHandler sslHandler = null;
+            if (secure) {
+                sslHandler = new SslHandler(
+                    SslContextBuilder.forClient()
+                        .clientAuth(ClientAuth.NONE)
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                        .build()
+                        .newEngine(UnpooledByteBufAllocator.DEFAULT)
+                );
+            }
+
             handlers.add(new HttpResponseDecoder());
             handlers.add(new HttpRequestEncoder());
             handlers.add(new HttpContentDecompressor());
             handlers.add(new HttpObjectAggregator(maxContentLength));
 
-            adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));
+            adaptor = new NettyAdaptor(sslHandler, handlers.toArray(new ChannelHandler[0]));
             adaptor.addCloseListener((v, e) -> channel.close());
         }
 

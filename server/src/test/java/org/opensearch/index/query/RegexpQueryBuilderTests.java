@@ -57,7 +57,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
             for (int i = 0; i < iter; i++) {
                 flags.add(randomFrom(RegexpFlag.values()));
             }
-            query.flags(flags.toArray(new RegexpFlag[flags.size()]));
+            query.flags(flags.toArray(new RegexpFlag[0]));
         }
         if (randomBoolean()) {
             query.caseInsensitive(true);

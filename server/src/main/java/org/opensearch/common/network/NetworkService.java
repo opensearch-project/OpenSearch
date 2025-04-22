@@ -205,7 +205,7 @@ public final class NetworkService {
         // 1. single wildcard address, probably set by network.host: expand to all interface addresses.
         if (addresses.length == 1 && addresses[0].isAnyLocalAddress()) {
             HashSet<InetAddress> all = new HashSet<>(Arrays.asList(NetworkUtils.getAllAddresses()));
-            addresses = all.toArray(new InetAddress[all.size()]);
+            addresses = all.toArray(new InetAddress[0]);
         }
 
         // 2. try to deal with some (mis)configuration
@@ -248,7 +248,7 @@ public final class NetworkService {
         for (String host : hosts) {
             set.addAll(Arrays.asList(resolveInternal(host)));
         }
-        return set.toArray(new InetAddress[set.size()]);
+        return set.toArray(new InetAddress[0]);
     }
 
     /** resolves a single host specification */

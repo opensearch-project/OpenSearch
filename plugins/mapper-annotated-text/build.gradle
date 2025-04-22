@@ -31,8 +31,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.'
-  classname 'org.opensearch.plugin.mapper.AnnotatedTextPlugin'
+  description = 'The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.'
+  classname = 'org.opensearch.plugin.mapper.AnnotatedTextPlugin'
 }
 
 restResources {

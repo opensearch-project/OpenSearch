@@ -32,6 +32,7 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
@@ -70,8 +71,9 @@ public class LagDetectorTests extends OpenSearchTestCase {
         } else {
             followerLagTimeout = CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(Settings.EMPTY);
         }
-
-        lagDetector = new LagDetector(settingsBuilder.build(), deterministicTaskQueue.getThreadPool(), failedNodes::add, () -> localNode);
+        Settings settings = settingsBuilder.build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        lagDetector = new LagDetector(settings, clusterSettings, deterministicTaskQueue.getThreadPool(), failedNodes::add, () -> localNode);
 
         localNode = CoordinationStateTests.createNode("local");
         node1 = CoordinationStateTests.createNode("node1");

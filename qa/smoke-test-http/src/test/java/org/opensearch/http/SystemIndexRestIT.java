@@ -123,6 +123,76 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         }
     }
 
+    public void testSystemIndexCreatedWithoutAnyTemplates() throws Exception {
+        // create template
+        {
+            Request templateRequest = new Request("POST", "_component_template/error_mapping_test_template");
+            String jsonBody = "{\n" +
+                "  \"template\": {\n" +
+                "    \"mappings\": {\n" +
+                "      \"properties\": {\n" +
+                "        \"error\" : {\n" +
+                "          \"type\": \"nested\",\n" +
+                "          \"properties\": {\n" +
+                "            \"message\": {\n" +
+                "              \"type\": \"text\"\n" +
+                "            },\n" +
+                "            \"status\": {\n" +
+                "              \"type\": \"integer\"\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+            templateRequest.setJsonEntity(jsonBody);
+            Response resp = getRestClient().performRequest(templateRequest);
+            assertThat(resp.getStatusLine().getStatusCode(), equalTo(200));
+        }
+
+
+        // apply template to indices
+        {
+            Request applyTemplateRequest = new Request("POST", "_index_template/match_all_test_template");
+            String jsonBody = "{\n" +
+                "  \"index_patterns\": [\n" +
+                "    \"*system-idx*\"\n" +
+                "  ],\n" +
+                "  \"template\": {\n" +
+                "    \"settings\": {}\n" +
+                "  },\n" +
+                "  \"priority\": 10,\n" +
+                "  \"composed_of\": [\n" +
+                "    \"error_mapping_test_template\"\n" +
+                "  ],\n" +
+                "  \"version\": 1\n" +
+                "}";
+
+            applyTemplateRequest.setJsonEntity(jsonBody);
+            Response resp = getRestClient().performRequest(applyTemplateRequest);
+            assertThat(resp.getStatusLine().getStatusCode(), equalTo(200));
+        }
+
+        // create system index - success
+        {
+            Request indexRequest = new Request("PUT", "/" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+            String jsonBody = "{\n" +
+                "  \"mappings\": {\n" +
+                "    \"properties\": {\n" +
+                "      \"error\": {\n" +
+                "        \"type\": \"text\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+            indexRequest.setJsonEntity(jsonBody);
+            Response resp = getRestClient().performRequest(indexRequest);
+            assertThat(resp.getStatusLine().getStatusCode(), equalTo(200));
+        }
+    }
+
     private void assertDeprecationWarningOnAccess(String queryPattern, String warningIndexName) throws IOException {
         String expectedWarning = "this request accesses system indices: [" + warningIndexName + "], but in a " +
             "future major version, direct access to system indices will be prevented by default";

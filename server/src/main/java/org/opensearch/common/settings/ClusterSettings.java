@@ -150,6 +150,7 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.decider.EnableAssignmentDecider;
+import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
@@ -277,6 +278,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BalancedShardsAllocator.THRESHOLD_SETTING,
                 BalancedShardsAllocator.IGNORE_THROTTLE_FOR_REMOTE_RESTORE,
                 BalancedShardsAllocator.ALLOCATOR_TIMEOUT_SETTING,
+                BalancedShardsAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_TYPE,
@@ -354,6 +356,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardsBatchGatewayAllocator.GATEWAY_ALLOCATOR_BATCH_SIZE,
                 ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING,
                 ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING,
+                ShardsBatchGatewayAllocator.FOLLOW_UP_REROUTE_PRIORITY_SETTING,
                 PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
                 NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                 NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
@@ -362,6 +365,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NetworkModule.TRANSPORT_SSL_DUAL_MODE_ENABLED,
                 NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION,
                 NetworkModule.TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME,
+                NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_SETTING,
                 HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS,
                 HttpTransportSettings.SETTING_CORS_ENABLED,
                 HttpTransportSettings.SETTING_CORS_MAX_AGE,
@@ -519,6 +523,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesRequestCache.INDICES_CACHE_QUERY_EXPIRE,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING,
+                IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING,
                 HunspellService.HUNSPELL_LAZY_LOAD,
                 HunspellService.HUNSPELL_IGNORE_CASE,
                 HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
@@ -785,7 +790,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Snapshot related Settings
                 BlobStoreRepository.SNAPSHOT_SHARD_PATH_PREFIX_SETTING,
-                BlobStoreRepository.SNAPSHOT_ASYNC_DELETION_ENABLE_SETTING,
+                BlobStoreRepository.SNAPSHOT_REPOSITORY_DATA_CACHE_THRESHOLD,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
@@ -810,7 +815,19 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Settings to be used for limiting rest requests
                 ResponseLimitSettings.CAT_INDICES_RESPONSE_LIMIT_SETTING,
                 ResponseLimitSettings.CAT_SHARDS_RESPONSE_LIMIT_SETTING,
-                ResponseLimitSettings.CAT_SEGMENTS_RESPONSE_LIMIT_SETTING
+                ResponseLimitSettings.CAT_SEGMENTS_RESPONSE_LIMIT_SETTING,
+
+                // Thread pool Settings
+                ThreadPool.CLUSTER_THREAD_POOL_SIZE_SETTING,
+
+                // Tiered caching settings
+                CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE),
+                OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ),
+                OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                )
             )
         )
     );
@@ -830,16 +847,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING,
             TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING,
             TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING
-        ),
-        List.of(FeatureFlags.PLUGGABLE_CACHE),
-        List.of(
-            CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE),
-            OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES.getConcreteSettingForNamespace(
-                CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-            ),
-            OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
-                CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-            )
         ),
         List.of(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL),
         List.of(SearchReplicaAllocationDecider.SEARCH_REPLICA_ROUTING_INCLUDE_GROUP_SETTING)

@@ -42,12 +42,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.COMPOSITE_FIELD_MARKER;
 import static org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter.VERSION_CURRENT;
 import static org.opensearch.index.mapper.CompositeMappedFieldType.CompositeFieldType.STAR_TREE;
+import static org.junit.Assert.assertEquals;
 
 public class StarTreeMetadataTests extends OpenSearchTestCase {
 
@@ -181,12 +183,16 @@ public class StarTreeMetadataTests extends OpenSearchTestCase {
         assertEquals(starTreeMetadata.getNumberOfNodes(), numberOfNodes);
         assertNotNull(starTreeMetadata);
 
-        for (int i = 0; i < dimensionsOrder.size(); i++) {
-            assertEquals(dimensionsOrder.get(i).getField(), starTreeMetadata.getDimensionFields().get(i));
+        assertEquals(dimensionsOrder.size(), starTreeMetadata.getDimensionFields().size());
+        int index = 0;
+        for (Map.Entry<String, DimensionConfig> entry : starTreeMetadata.getDimensionFields().entrySet()) {
+            Dimension dimension = dimensionsOrder.get(index++);
+            assertEquals(dimension.getField(), entry.getKey());
+            assertEquals(dimension.getDocValuesType(), entry.getValue().getDocValuesType());
+            assertEquals(dimension.getDimensionDataType(), entry.getValue().getDimensionDataType());
         }
 
         assertEquals(starTreeField.getMetrics().size(), starTreeMetadata.getMetrics().size());
-
         for (int i = 0; i < starTreeField.getMetrics().size(); i++) {
 
             Metric expectedMetric = starTreeField.getMetrics().get(i);

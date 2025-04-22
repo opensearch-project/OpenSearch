@@ -125,20 +125,18 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         }
 
         // Update file tracker to reflect local translog state
-        Optional<Long> minLiveGeneration = readers.stream().map(BaseTranslogReader::getGeneration).min(Long::compareTo);
-        if (minLiveGeneration.isPresent()) {
-            List<String> staleFilesInTracker = new ArrayList<>();
-            for (String file : fileTransferTracker.allUploaded()) {
-                if (file.endsWith(TRANSLOG_FILE_SUFFIX)) {
-                    long generation = Translog.parseIdFromFileName(file);
-                    if (generation < minLiveGeneration.get()) {
-                        staleFilesInTracker.add(file);
-                        staleFilesInTracker.add(Translog.getCommitCheckpointFileName(generation));
-                    }
+        long minLiveGeneration = getMinFileGeneration();
+        List<String> staleFilesInTracker = new ArrayList<>();
+        for (String file : fileTransferTracker.allUploaded()) {
+            if (file.endsWith(TRANSLOG_FILE_SUFFIX)) {
+                long generation = Translog.parseIdFromFileName(file);
+                if (generation < minLiveGeneration) {
+                    staleFilesInTracker.add(file);
+                    staleFilesInTracker.add(Translog.getCommitCheckpointFileName(generation));
                 }
-                fileTransferTracker.delete(staleFilesInTracker);
             }
         }
+        fileTransferTracker.delete(staleFilesInTracker);
 
         // This is to ensure that after the permits are acquired during primary relocation, there are no further modification on remote
         // store.
@@ -215,21 +213,42 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     logger.debug(() -> "generationsToBeDeleted = " + generationsToBeDeleted);
                     if (generationsToBeDeleted.isEmpty() == false) {
                         // Delete stale generations
-                        translogTransferManager.deleteGenerationAsync(
-                            primaryTermSupplier.getAsLong(),
-                            generationsToBeDeleted,
-                            remoteGenerationDeletionPermits::release
-                        );
+                        try {
+                            translogTransferManager.deleteGenerationAsync(
+                                primaryTermSupplier.getAsLong(),
+                                generationsToBeDeleted,
+                                remoteGenerationDeletionPermits::release
+                            );
+                        } catch (Exception e) {
+                            logger.error("Exception in delete generations flow", e);
+                            // Release permit that is meant for metadata files and return
+                            remoteGenerationDeletionPermits.release();
+                            assert remoteGenerationDeletionPermits.availablePermits() == REMOTE_DELETION_PERMITS : "Available permits "
+                                + remoteGenerationDeletionPermits.availablePermits()
+                                + " is not equal to "
+                                + REMOTE_DELETION_PERMITS;
+                            return;
+                        }
                     } else {
                         remoteGenerationDeletionPermits.release();
                     }
 
                     if (metadataFilesToBeDeleted.isEmpty() == false) {
                         // Delete stale metadata files
-                        translogTransferManager.deleteMetadataFilesAsync(
-                            metadataFilesToBeDeleted,
-                            remoteGenerationDeletionPermits::release
-                        );
+                        try {
+                            translogTransferManager.deleteMetadataFilesAsync(
+                                metadataFilesToBeDeleted,
+                                remoteGenerationDeletionPermits::release
+                            );
+                        } catch (Exception e) {
+                            logger.error("Exception in delete metadata files flow", e);
+                            // Permits is already released by deleteMetadataFilesAsync
+                            assert remoteGenerationDeletionPermits.availablePermits() == REMOTE_DELETION_PERMITS : "Available permits "
+                                + remoteGenerationDeletionPermits.availablePermits()
+                                + " is not equal to "
+                                + REMOTE_DELETION_PERMITS;
+                            return;
+                        }
 
                         // Update cache to keep only those metadata files that are not getting deleted
                         oldFormatMetadataFileGenerationMap.keySet().retainAll(metadataFilesNotToBeDeleted);
@@ -240,7 +259,12 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                         remoteGenerationDeletionPermits.release();
                     }
                 } catch (Exception e) {
+                    logger.error("Exception in trimUnreferencedReaders", e);
                     remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+                    assert remoteGenerationDeletionPermits.availablePermits() == REMOTE_DELETION_PERMITS : "Available permits "
+                        + remoteGenerationDeletionPermits.availablePermits()
+                        + " is not equal to "
+                        + REMOTE_DELETION_PERMITS;
                 }
             }
 
@@ -319,9 +343,11 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         );
 
         // Get md files matching pinned timestamps
+        Set<Long> pinnedTimestamps = new HashSet<>(pinnedTimestampsState.v2());
+        pinnedTimestamps.add(pinnedTimestampsState.v1());
         Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
             metadataFilesToBeDeleted,
-            pinnedTimestampsState.v2(),
+            pinnedTimestamps,
             metadataFilePinnedTimestampMap,
             file -> RemoteStoreUtils.invertLong(file.split(METADATA_SEPARATOR)[3]),
             TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen
@@ -441,7 +467,8 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         }
         Optional<Long> minPrimaryTermFromMetadataFiles = metadataFilesNotToBeDeleted.stream().map(file -> {
             try {
-                return getMinMaxPrimaryTermFromMetadataFile(file, translogTransferManager, oldFormatMetadataFilePrimaryTermMap).v1();
+                return getMinMaxPrimaryTermFromMetadataFile(file, translogTransferManager, oldFormatMetadataFilePrimaryTermMap, logger)
+                    .v1();
             } catch (IOException e) {
                 return Long.MIN_VALUE;
             }
@@ -482,7 +509,8 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
     protected static Tuple<Long, Long> getMinMaxPrimaryTermFromMetadataFile(
         String metadataFile,
         TranslogTransferManager translogTransferManager,
-        Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap
+        Map<String, Tuple<Long, Long>> oldFormatMetadataFilePrimaryTermMap,
+        Logger logger
     ) throws IOException {
         Tuple<Long, Long> minMaxPrimaryTermFromFileName = TranslogTransferMetadata.getMinMaxPrimaryTermFromFilename(metadataFile);
         if (minMaxPrimaryTermFromFileName != null) {
@@ -504,6 +532,8 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                     if (primaryTerm.isPresent()) {
                         minPrimaryTem = primaryTerm.get();
                     }
+                } else {
+                    logger.warn("No primary term found from GenerationToPrimaryTermMap for file [{}]", metadataFile);
                 }
                 Tuple<Long, Long> minMaxPrimaryTermTuple = new Tuple<>(minPrimaryTem, maxPrimaryTem);
                 oldFormatMetadataFilePrimaryTermMap.put(metadataFile, minMaxPrimaryTermTuple);

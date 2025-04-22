@@ -47,6 +47,7 @@ public interface StarTreeBuilder extends Closeable {
      * @param starTreeValuesSubs           contains the star tree values from multiple segments
      * @param fieldNumberAcrossStarTrees   maintains the unique field number across the fields in the star tree
      * @param starTreeDocValuesConsumer    consumer of star-tree doc values
+     *
      * @throws IOException when we are unable to build star-tree
      */
     void build(
