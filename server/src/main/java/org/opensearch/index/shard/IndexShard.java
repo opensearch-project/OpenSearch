@@ -82,6 +82,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -95,6 +96,7 @@ import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
 import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
@@ -129,6 +131,7 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.IngestionEngine;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
@@ -367,6 +370,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ShardMigrationState shardMigrationState;
     private DiscoveryNodes discoveryNodes;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
+    private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
+    private final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled;
+    private final Supplier<TimeValue> refreshInterval;
+    private final Object refreshMutex;
+    private volatile AsyncShardRefreshTask refreshTask;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -398,7 +406,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RemoteStoreSettings remoteStoreSettings,
         boolean seedRemote,
         final DiscoveryNodes discoveryNodes,
-        final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+        final boolean shardLevelRefreshEnabled,
+        final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        final Supplier<TimeValue> refreshInterval,
+        final Object refreshMutex
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -501,6 +514,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.shardMigrationState = getShardMigrationState(indexSettings, seedRemote);
         this.discoveryNodes = discoveryNodes;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
+        this.mergedSegmentWarmerFactory = mergedSegmentWarmerFactory;
+        this.fixedRefreshIntervalSchedulingEnabled = fixedRefreshIntervalSchedulingEnabled;
+        this.refreshInterval = refreshInterval;
+        this.refreshMutex = Objects.requireNonNull(refreshMutex);
+        synchronized (this.refreshMutex) {
+            if (shardLevelRefreshEnabled) {
+                startRefreshTask();
+            }
+        }
     }
 
     /**
@@ -1712,16 +1734,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Optional<NRTReplicationEngine> getReplicationEngine() {
-        if (getEngine() instanceof NRTReplicationEngine) {
-            return Optional.of((NRTReplicationEngine) getEngine());
-        } else {
+        try {
+            if (getEngine() instanceof NRTReplicationEngine) {
+                return Optional.of((NRTReplicationEngine) getEngine());
+            } else {
+                return Optional.empty();
+            }
+        } catch (AlreadyClosedException e) {
+            // If shard already closed, return empty. The logic related to segment replication will not continue to execute after judging
+            // that the return value is empty, and there will be no side effects.
+            logger.debug("failed to get ReplicationEngine", e);
             return Optional.empty();
         }
     }
 
     public void finalizeReplication(SegmentInfos infos) throws IOException {
-        if (getReplicationEngine().isPresent()) {
-            getReplicationEngine().get().updateSegments(infos);
+        Optional<NRTReplicationEngine> engineOptional = getReplicationEngine();
+        if (engineOptional.isPresent()) {
+            engineOptional.get().updateSegments(infos);
         }
     }
 
@@ -2099,7 +2129,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
+                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions, refreshTask);
 
                     if (deleted && engine != null && isPrimaryMode()) {
                         // Translog Clean up
@@ -4096,7 +4126,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             translogFactorySupplier.apply(indexSettings, shardRouting),
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for
             // timeseries
-            () -> docMapper()
+            () -> docMapper(),
+            mergedSegmentWarmerFactory.get(this)
         );
     }
 
@@ -5483,5 +5514,63 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         IngestionEngine ingestionEngine = (IngestionEngine) engine;
         return ingestionEngine.getIngestionState();
+    }
+
+    /**
+     * Async shard refresh task for running refreshes at shard level independently
+     */
+    @ExperimentalApi
+    public final class AsyncShardRefreshTask extends AbstractAsyncTask {
+
+        private final IndexShard indexShard;
+        private final Logger logger;
+
+        public AsyncShardRefreshTask(IndexShard indexShard) {
+            super(indexShard.logger, indexShard.threadPool, refreshInterval.get(), true, fixedRefreshIntervalSchedulingEnabled);
+            this.logger = indexShard.logger;
+            this.indexShard = indexShard;
+            rescheduleIfNecessary();
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            return indexShard.state != IndexShardState.CLOSED
+                && indexShard.indexSettings.getIndexMetadata().getState() == IndexMetadata.State.OPEN;
+        }
+
+        @Override
+        protected void runInternal() {
+            indexShard.scheduledRefresh();
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.REFRESH;
+        }
+
+        @Override
+        public String toString() {
+            return "shard_refresh";
+        }
+    }
+
+    public void startRefreshTask() {
+        assert Thread.holdsLock(refreshMutex);
+        // The refresh task is expected to be null at this point.
+        assert Objects.isNull(refreshTask);
+        refreshTask = new AsyncShardRefreshTask(this);
+    }
+
+    public void stopRefreshTask() {
+        assert Thread.holdsLock(refreshMutex);
+        // The refresh task is expected to be non-null at this point.
+        assert Objects.nonNull(refreshTask);
+        refreshTask.close();
+        refreshTask = null;
+    }
+
+    // Visible for testing
+    public AsyncShardRefreshTask getRefreshTask() {
+        return refreshTask;
     }
 }

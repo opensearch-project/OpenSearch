@@ -115,6 +115,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.search.SearchService.AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD;
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -207,6 +208,7 @@ final class DefaultSearchContext extends SearchContext {
     private final String concurrentSearchMode;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
     private final int maxAggRewriteFilters;
+    private final int filterRewriteSegmentThreshold;
     private final int cardinalityAggregationPruningThreshold;
     private final boolean keywordIndexOrDocValuesEnabled;
 
@@ -267,6 +269,7 @@ final class DefaultSearchContext extends SearchContext {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
 
         this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
+        this.filterRewriteSegmentThreshold = evaluateAggRewriteFilterSegThreshold();
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
@@ -1120,6 +1123,18 @@ final class DefaultSearchContext extends SearchContext {
     private int evaluateFilterRewriteSetting() {
         if (clusterService != null) {
             return clusterService.getClusterSettings().get(MAX_AGGREGATION_REWRITE_FILTERS);
+        }
+        return 0;
+    }
+
+    @Override
+    public int filterRewriteSegmentThreshold() {
+        return filterRewriteSegmentThreshold;
+    }
+
+    private int evaluateAggRewriteFilterSegThreshold() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD);
         }
         return 0;
     }

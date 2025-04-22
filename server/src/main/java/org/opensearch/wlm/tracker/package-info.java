@@ -7,6 +7,6 @@
  */
 
 /**
- * QueryGroup resource tracking artifacts
+ * WorkloadGroup resource tracking artifacts
  */
 package org.opensearch.wlm.tracker;

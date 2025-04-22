@@ -226,9 +226,6 @@ setup:
 
 ---
 "IP Range avg_bucket":
-  - skip:
-      version: " - 7.7.99"
-      reason: Fixed in 7.8.0
   - do:
       bulk:
         refresh: true
@@ -391,9 +388,6 @@ setup:
 
 ---
 "Date range unmapped with children":
-  - skip:
-      version: " - 7.9.99"
-      reason: Fixed in 7.10.0
 
   - do:
       indices.create:

@@ -41,15 +41,16 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexService.AsyncRefreshTask;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShard.AsyncShardRefreshTask;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
@@ -69,6 +70,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.opensearch.index.shard.IndexShardTestCase.getEngine;
 import static org.opensearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 /** Unit test(s) for IndexService */
@@ -175,7 +177,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testRefreshTaskIsUpdated() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
-        IndexService.AsyncRefreshTask refreshTask = indexService.getRefreshTask();
+        AsyncRefreshTask refreshTask = indexService.getRefreshTask();
         assertEquals(1000, refreshTask.getInterval().millis());
         assertTrue(indexService.getRefreshTask().mustReschedule());
 
@@ -300,7 +302,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
     public void testRefreshActuallyWorks() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
         ensureGreen("test");
-        IndexService.AsyncRefreshTask refreshTask = indexService.getRefreshTask();
+        AsyncRefreshTask refreshTask = indexService.getRefreshTask();
         assertEquals(1000, refreshTask.getInterval().millis());
         assertTrue(indexService.getRefreshTask().mustReschedule());
         IndexShard shard = indexService.getShard(0);
@@ -736,12 +738,110 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.getKey(), true)
-            .build();
+    public void testRefreshTaskUpdatesWithDynamicShardLevelRefreshes() throws Exception {
+        // By default, parallel shard refresh is disabled
+        Settings settings = client().admin().cluster().prepareState().get().getState().getMetadata().settings();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        assertFalse(indicesService.isShardLevelRefreshEnabled());
+
+        // Create an index and verify no searchable docs
+        String indexName = "test-index";
+        IndexService indexService = createIndex(indexName);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 0);
+        assertFalse(indexService.isShardLevelRefreshEnabled());
+
+        // Index a doc and verify that it is searchable
+        client().prepareIndex(indexName).setId("0").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
+        assertBusy(() -> assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 1));
+
+        IndexShard shard = indexService.getShard(0);
+
+        // Verify that index level refresh task is non-null
+        assertNotNull(indexService.getRefreshTask());
+        // Verify that shard level refresh task is null
+        assertNull(shard.getRefreshTask());
+
+        // Change refresh interval
+        AsyncRefreshTask indexRefreshTask = indexService.getRefreshTask();
+        assertEquals(1, indexRefreshTask.getInterval().seconds());
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1100ms"))
+            .get();
+        assertNotSame(indexRefreshTask, indexService.getRefreshTask());
+        assertTrue(indexRefreshTask.isClosed());
+        assertFalse(indexRefreshTask.isScheduled());
+        assertEquals(1100, indexService.getRefreshTask().getInterval().millis());
+
+        // Verify that shard level refresh task is null
+        assertNull(shard.getRefreshTask());
+
+        // Ingest another doc and see refresh is still working
+        client().prepareIndex(indexName).setId("1").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
+        assertBusy(() -> assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 2));
+
+        // Enable parallel shard refresh
+        indexRefreshTask = indexService.getRefreshTask();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(IndicesService.CLUSTER_REFRESH_SHARD_LEVEL_ENABLED_SETTING.getKey(), true))
+            .get();
+        settings = client().admin().cluster().prepareState().get().getState().getMetadata().settings();
+        assertTrue(indicesService.isShardLevelRefreshEnabled());
+        assertNotSame(indexRefreshTask, indexService.getRefreshTask());
+        assertTrue(indexRefreshTask.isClosed());
+        assertFalse(indexRefreshTask.isScheduled());
+        assertNull(indexService.getRefreshTask());
+        assertTrue(indexService.isShardLevelRefreshEnabled());
+
+        // Ingest another doc and see refresh is still working
+        client().prepareIndex(indexName).setId("2").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
+        assertBusy(() -> assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 3));
+
+        // Verify that shard level refresh task is not null
+        AsyncShardRefreshTask shardRefreshTask = shard.getRefreshTask();
+        assertNotNull(shardRefreshTask);
+        assertFalse(shardRefreshTask.isClosed());
+        assertTrue(shardRefreshTask.isScheduled());
+        assertEquals(1100, shardRefreshTask.getInterval().millis());
+
+        // Change refresh interval
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1200ms"))
+            .get();
+        assertNotSame(shardRefreshTask, shard.getRefreshTask());
+        assertTrue(shardRefreshTask.isClosed());
+        assertFalse(shardRefreshTask.isScheduled());
+        assertEquals(1200, shard.getRefreshTask().getInterval().millis());
+
+        // Ingest another doc and see refresh is still working
+        client().prepareIndex(indexName).setId("3").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
+        assertBusy(() -> assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 4));
+
+        // Disable parallel shard refresh
+        shardRefreshTask = shard.getRefreshTask();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(IndicesService.CLUSTER_REFRESH_SHARD_LEVEL_ENABLED_SETTING.getKey(), false))
+            .get();
+        settings = client().admin().cluster().prepareState().get().getState().getMetadata().settings();
+        assertFalse(indicesService.isShardLevelRefreshEnabled());
+        assertNotSame(shardRefreshTask, shard.getRefreshTask());
+        assertTrue(shardRefreshTask.isClosed());
+        assertFalse(shardRefreshTask.isScheduled());
+        assertNull(shard.getRefreshTask());
+        assertEquals(1200, indexService.getRefreshTask().getInterval().millis());
+        assertFalse(indexService.isShardLevelRefreshEnabled());
+
+        // OS test case fails if test leaves behind transient cluster setting so need to clear it.
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("*")).get();
+
     }
 
     private static String createTestMapping(String type) {

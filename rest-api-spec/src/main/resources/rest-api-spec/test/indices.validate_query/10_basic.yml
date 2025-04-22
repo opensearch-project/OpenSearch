@@ -13,8 +13,8 @@ setup:
 ---
 "Validate query api":
   - skip:
-      version: ' - 7.6.99'
-      reason: message changed in 7.7.0
+      version: ' - 2.99.99'
+      reason: message changed in 3.0.0
 
   - do:
       indices.validate_query:
@@ -66,7 +66,7 @@ setup:
   - is_true: valid
   - match: {_shards.failed: 0}
   - match: {explanations.0.index: 'testing'}
-  - match: {explanations.0.explanation: '*:*'}
+  - match: {explanations.0.explanation: 'ApproximateScoreQuery(originalQuery=*:*, approximationQuery=Approximate(*:*))'}
 
 ---
 "Validate body without query element":
