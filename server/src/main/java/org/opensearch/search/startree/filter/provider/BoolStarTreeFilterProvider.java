@@ -36,7 +36,7 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
         }
 
         if (boolQueryBuilder.must().isEmpty() == false) {
-            return processMustClauses(boolQueryBuilder.must(), context, compositeFieldType);
+            return processMustClauses(getCombinedMustAndFilterClauses(boolQueryBuilder), context, compositeFieldType);
         }
 
         if (boolQueryBuilder.should().isEmpty() == false) {
@@ -63,7 +63,7 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
                 BoolQueryBuilder boolClause = (BoolQueryBuilder) clause;
                 if (boolClause.must().isEmpty() == false) {
                     // Process nested MUST
-                    clauseFilter = processMustClauses(boolClause.must(), context, compositeFieldType);
+                    clauseFilter = processMustClauses(getCombinedMustAndFilterClauses(boolClause), context, compositeFieldType);
                 } else if (boolClause.should().isEmpty() == false) {
                     // Process SHOULD inside MUST
                     clauseFilter = processShouldClauses(boolClause.should(), context, compositeFieldType);
@@ -154,7 +154,7 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
             if (clause instanceof BoolQueryBuilder) {
                 BoolQueryBuilder boolClause = (BoolQueryBuilder) clause;
                 if (boolClause.must().isEmpty() == false) {
-                    clauseFilter = processMustClauses(boolClause.must(), context, compositeFieldType);
+                    clauseFilter = processMustClauses(getCombinedMustAndFilterClauses(boolClause), context, compositeFieldType);
                 } else if (boolClause.should().isEmpty() == false) {
                     clauseFilter = processShouldClauses(boolClause.should(), context, compositeFieldType);
                 } else {
@@ -196,5 +196,12 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
                 .addAll(clauseFilter.getFiltersForDimension(dimension));
         }
         return new StarTreeFilter(dimensionToFilters);
+    }
+
+    private List<QueryBuilder> getCombinedMustAndFilterClauses(BoolQueryBuilder boolQuery) {
+        List<QueryBuilder> mustAndFilterClauses = new ArrayList<>();
+        mustAndFilterClauses.addAll(boolQuery.must());
+        mustAndFilterClauses.addAll(boolQuery.filter());
+        return mustAndFilterClauses;
     }
 }

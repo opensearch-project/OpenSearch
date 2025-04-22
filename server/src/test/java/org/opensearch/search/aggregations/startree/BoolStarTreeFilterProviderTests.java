@@ -882,6 +882,75 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertNull("Filter should be null for multiple dimensions in MUST inside SHOULD", filter);
     }
 
+    public void testCombinedMustAndFilterClauses() throws IOException {
+        // Test combination of MUST and FILTER clauses
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .must(new TermQueryBuilder("method", "GET"))
+            .filter(new TermQueryBuilder("status", 200))
+            .filter(new RangeQueryBuilder("port").gte(80).lte(443));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have three dimensions", 3, filter.getDimensions().size());
+
+        // Verify method filter (from MUST)
+        List<DimensionFilter> methodFilters = filter.getFiltersForDimension("method");
+        assertExactMatchValue((ExactMatchDimFilter) methodFilters.getFirst(), "GET");
+
+        // Verify status filter (from FILTER)
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertExactMatchValue((ExactMatchDimFilter) statusFilters.getFirst(), 200L);
+
+        // Verify port filter (from FILTER)
+        List<DimensionFilter> portFilters = filter.getFiltersForDimension("port");
+        RangeMatchDimFilter portRange = (RangeMatchDimFilter) portFilters.getFirst();
+        assertEquals(80L, portRange.getLow());
+        assertEquals(443L, portRange.getHigh());
+        assertTrue(portRange.isIncludeLow() && portRange.isIncludeHigh());
+    }
+
+    public void testNestedBoolWithMustAndFilter() throws IOException {
+        // Test nested bool query with both MUST and FILTER clauses
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .must(new TermQueryBuilder("method", "GET"))
+            .must(new BoolQueryBuilder()
+                .filter(new RangeQueryBuilder("status").gte(200).lt(300))
+                .must(new TermQueryBuilder("status", 201)))  // Should intersect with range
+            .filter(new TermQueryBuilder("port", 443));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        assertEquals("Should have three dimensions", 3, filter.getDimensions().size());
+
+        // Verify method filter
+        List<DimensionFilter> methodFilters = filter.getFiltersForDimension("method");
+        assertExactMatchValue((ExactMatchDimFilter) methodFilters.getFirst(), "GET");
+
+        // Verify status filter (intersection of range and term)
+        List<DimensionFilter> statusFilters = filter.getFiltersForDimension("status");
+        assertExactMatchValue((ExactMatchDimFilter) statusFilters.getFirst(), 201L);
+
+        // Verify port filter
+        List<DimensionFilter> portFilters = filter.getFiltersForDimension("port");
+        assertExactMatchValue((ExactMatchDimFilter) portFilters.getFirst(), 443L);
+    }
+
+    public void testInvalidMustAndFilterCombination() throws IOException {
+        // Test invalid combination - same dimension in MUST and FILTER
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .must(new TermQueryBuilder("status", 200))
+            .filter(new TermQueryBuilder("status", 404));  // Different value for same dimension
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null for conflicting conditions", filter);
+    }
+
     // Helper methods for assertions
     private void assertExactMatchValue(ExactMatchDimFilter filter, String expectedValue) {
         assertEquals(new BytesRef(expectedValue), filter.getRawValues().getFirst());
