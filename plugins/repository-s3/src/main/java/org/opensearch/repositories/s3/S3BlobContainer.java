@@ -760,8 +760,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     logger.warn(
                         "Failed to abort incomplete multipart upload [{}] with ID [{}]. "
                             + "This may result in orphaned S3 data and charges.",
-                        blobName,
-                        uploadId.get(),
+                        new Object[] { blobName, uploadId.get() },
                         abortException
                     );
                 }
