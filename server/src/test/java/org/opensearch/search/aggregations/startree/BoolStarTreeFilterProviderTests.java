@@ -1036,6 +1036,31 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertTrue(latencyRange.isIncludeHigh());  // After using nextDown, bound becomes inclusive
     }
 
+    public void testFloatRanges_Intersection() throws IOException {
+        // Test float range with different inclusivity combinations
+        BoolQueryBuilder floatRangeQuery = new BoolQueryBuilder()
+            .must(new RangeQueryBuilder("latency").gt(0.5).lt(2.0))
+            .must(new RangeQueryBuilder("latency").gte(0.6).lt(1.8))
+            .must(new TermQueryBuilder("status", 200));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(floatRangeQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, floatRangeQuery, compositeFieldType);
+
+        assertNotNull("Filter should not be null", filter);
+        List<DimensionFilter> latencyFilters = filter.getFiltersForDimension("latency");
+        assertTrue(latencyFilters.getFirst() instanceof RangeMatchDimFilter);
+        RangeMatchDimFilter latencyRange = (RangeMatchDimFilter) latencyFilters.getFirst();
+
+        // For exclusive bounds (gt/lt), we need to use next/previous float values
+        long expectedLow = NumericUtils.floatToSortableInt(0.6f);
+        long expectedHigh = NumericUtils.floatToSortableInt(FloatPoint.nextDown(1.8f));
+
+        assertEquals(expectedLow, ((Number) latencyRange.getLow()).longValue());
+        assertEquals(expectedHigh, ((Number) latencyRange.getHigh()).longValue());
+        assertTrue(latencyRange.isIncludeLow());
+        assertTrue(latencyRange.isIncludeHigh());
+    }
+
     public void testKeywordRangeEdgeCases() throws IOException {
         // Test unbounded ranges
         BoolQueryBuilder unboundedQuery = new BoolQueryBuilder().must(new RangeQueryBuilder("region").gt("eu-"))  // No upper bound
