@@ -28,6 +28,9 @@ public class GetRuleRequestTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
         GetRuleRequest request = new GetRuleRequest(_ID_ONE, ATTRIBUTE_MAP, null, RuleTestUtils.MockRuleFeatureType.INSTANCE);
         assertEquals(_ID_ONE, request.getId());
+        assertNull(request.validate());
+        assertNull(request.getSearchAfter());
+        assertEquals(RuleTestUtils.MockRuleFeatureType.INSTANCE, request.getFeatureType());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
@@ -53,6 +56,13 @@ public class GetRuleRequestTests extends OpenSearchTestCase {
         GetRuleRequest otherRequest = new GetRuleRequest(streamInput);
         assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeFilters(), otherRequest.getAttributeFilters());
+    }
+
+    public void testValidate() {
+        GetRuleRequest request = new GetRuleRequest("", ATTRIBUTE_MAP, null, RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        assertThrows(IllegalArgumentException.class, request::validate);
+        request = new GetRuleRequest(_ID_ONE, ATTRIBUTE_MAP, "", RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        assertThrows(IllegalArgumentException.class, request::validate);
     }
 
     public static final String _ID_ONE = "id_1";
