@@ -41,6 +41,9 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
         if (boolQuery.hasClauses() == false) {
             return null;
         }
+        if (boolQuery.minimumShouldMatch() != null) {
+            return null; // We cannot support this yet and would need special handling while processing SHOULD clause
+        }
         if (boolQuery.must().isEmpty() == false || boolQuery.filter().isEmpty() == false) {
             return processMustClauses(getCombinedMustAndFilterClauses(boolQuery), context, compositeFieldType);
         }

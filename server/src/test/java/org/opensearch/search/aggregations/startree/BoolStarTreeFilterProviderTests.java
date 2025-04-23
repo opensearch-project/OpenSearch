@@ -1091,6 +1091,30 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertTrue(regionRange.isIncludeHigh());
     }
 
+    public void testMinimumShouldMatch() throws IOException {
+        // Test with minimum_should_match set
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
+            .should(new TermQueryBuilder("status", 200))
+            .should(new TermQueryBuilder("status", 404))
+            .minimumShouldMatch(2);  // Explicitly set minimum_should_match
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        assertNull("Filter should be null when minimum_should_match is set", filter);
+
+        // Test nested bool with minimum_should_match
+        BoolQueryBuilder nestedBoolQuery = new BoolQueryBuilder()
+            .must(new TermQueryBuilder("method", "GET"))
+            .must(new BoolQueryBuilder()
+                .should(new TermQueryBuilder("status", 200))
+                .should(new TermQueryBuilder("status", 404))
+                .minimumShouldMatch(1));  // Set in nested bool
+
+        filter = provider.getFilter(searchContext, nestedBoolQuery, compositeFieldType);
+        assertNull("Filter should be null when minimum_should_match is set in nested query", filter);
+    }
+
     // Helper methods for assertions
     private void assertExactMatchValue(ExactMatchDimFilter filter, String expectedValue) {
         assertEquals(new BytesRef(expectedValue), filter.getRawValues().getFirst());
