@@ -120,7 +120,7 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         StarTreeFilter starTreeFilter = new StarTreeFilter(Collections.emptyMap());
         mergedStarTreeFilter = StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
             starTreeFilter,
-            dimensionToMerge,
+            List.of(dimensionToMerge),
             List.of(exactMatchDimFilter)
         );
         assertEquals(1, mergedStarTreeFilter.getDimensions().size());
@@ -131,7 +131,7 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         starTreeFilter = new StarTreeFilter(Map.of(dimensionToMerge, List.of(rangeMatchDimFilter)));
         mergedStarTreeFilter = StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
             starTreeFilter,
-            dimensionToMerge,
+            List.of(dimensionToMerge),
             List.of(exactMatchDimFilter)
         );
         assertEquals(1, mergedStarTreeFilter.getDimensions().size());
@@ -142,7 +142,7 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         starTreeFilter = new StarTreeFilter(Map.of(dimensionToMerge, List.of(rangeMatchDimFilter), "status", List.of(rangeMatchDimFilter)));
         mergedStarTreeFilter = StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
             starTreeFilter,
-            dimensionToMerge,
+            List.of(dimensionToMerge),
             List.of(exactMatchDimFilter)
         );
         assertEquals(2, mergedStarTreeFilter.getDimensions().size());
@@ -155,7 +155,7 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         starTreeFilter = new StarTreeFilter(Map.of("status", List.of(rangeMatchDimFilter)));
         mergedStarTreeFilter = StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
             starTreeFilter,
-            dimensionToMerge,
+            List.of(dimensionToMerge),
             List.of(exactMatchDimFilter)
         );
         assertEquals(2, mergedStarTreeFilter.getDimensions().size());

@@ -11,12 +11,10 @@ package org.opensearch.search.startree.filter;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
-import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeNodeCollector;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 /**
  * Contains the logic to filter over a dimension either in StarTree Index or it's Dimension DocValues
@@ -24,30 +22,7 @@ import java.util.Iterator;
 @ExperimentalApi
 public interface DimensionFilter {
 
-    DimensionFilter MATCH_ALL_DEFAULT = new DimensionFilter() {
-        @Override
-        public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException {
-
-        }
-
-        @Override
-        public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
-            throws IOException {
-            if (parentNode != null) {
-                for (Iterator<? extends StarTreeNode> it = parentNode.getChildrenIterator(); it.hasNext();) {
-                    StarTreeNode starTreeNode = it.next();
-                    if (starTreeNode.getStarTreeNodeType() == StarTreeNodeType.DEFAULT.getValue()) {
-                        collector.collectStarTreeNode(starTreeNode);
-                    }
-                }
-            }
-        }
-
-        @Override
-        public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
-            return true;
-        }
-    };
+    DimensionFilter MATCH_ALL_DEFAULT = new MatchAllFilter();
 
     /**
      * Converts parsed user values to ordinals based on segment and other init actions can be performed.
