@@ -200,6 +200,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         return (GeoPointFieldType) mappedFieldType;
     }
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored and " + "docValues disabled");
+        }
+    }
+
     /**
      * 1. If it has doc values, build source using doc values
      * 2. If doc_values is disabled in field mapping, then build source using stored field
@@ -207,7 +214,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
      * Considerations:
      *    1. Result would be returned in fixed format: {"lat", lat_val, "lon": lon_val} for both doc values and
      *       stored field
-     *    2. There might be precision loss in a result
+     *    2. When using doc values, they are indexed in lucene with some loss of precision from the original
+     *       {@code double} values (4.190951585769653E-8 for the latitude component and 8.381903171539307E-8 for
+     *       longitude, same range of precision loss will be there in derived source result).
      *    3. When using doc values, for multi value field, result would be in sorted order
      *    4. When using stored field, order and duplicate values would be preserved
      */

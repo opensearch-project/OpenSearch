@@ -30,8 +30,10 @@ public class DerivedFieldGenerator {
     ) {
         this.mappedFieldType = mappedFieldType;
         if (Objects.requireNonNull(getDerivedFieldPreference()) == FieldValueType.DOC_VALUES) {
+            assert docValuesFetcher != null;
             this.fieldValueFetcher = docValuesFetcher;
         } else {
+            assert storedFieldFetcher != null;
             this.fieldValueFetcher = storedFieldFetcher;
         }
     }

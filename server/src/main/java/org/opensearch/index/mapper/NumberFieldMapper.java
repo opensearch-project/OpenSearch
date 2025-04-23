@@ -209,6 +209,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }, new StoredFieldFetcher(mappedFieldType, simpleName()));
     }
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [ " + name() + "] with stored and docValues disabled");
+        }
+    }
+
     /**
      * Type of number
      *

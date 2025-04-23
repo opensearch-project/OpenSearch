@@ -178,6 +178,13 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         return new Builder(n, ignoreMalformedByDefault, c.indexVersionCreated());
     });
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored and " + "docValues disabled");
+        }
+    }
+
     /**
      * 1. If it has doc values, build source using doc values
      * 2. If doc_values is disabled in field mapping, then build source using stored field

@@ -1239,7 +1239,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 if (mapper instanceof KeywordFieldMapper) {
                     try {
                         final KeywordFieldMapper subFieldMapper = (KeywordFieldMapper) mapper;
-                        subFieldMapper.canDeriveSourceInternal();
+                        subFieldMapper.canDeriveSource();
                         keywordMapperForDerivedSource = subFieldMapper;
                         keywordMapperForDerivedSource.setDerivedFieldGenerator(
                             new DerivedFieldGenerator(

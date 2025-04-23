@@ -911,12 +911,14 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
             );
         }
-        super.canDeriveSourceInternal();
+        if (!mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [ " + name() + "] with docValues disabled");
+        }
     }
 
     /**
      * 1. Doc values must be enabled to derive the source, later we can add explicit stored field in case of
-     *    derived source, so that we can always derive source
+     *    derived source, so that we can always derive source even if doc values are disabled
      * <p>
      * Support:
      *    1. If "ignore_above" is set in the field mapping, then we won't be supporting derived source for now,
