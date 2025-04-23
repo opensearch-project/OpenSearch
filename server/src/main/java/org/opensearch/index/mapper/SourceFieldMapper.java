@@ -39,7 +39,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -96,44 +95,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    /**
-     * Represents whether the source is stored or not.
-     * If disabled, the source is not added to the document and is not retrievable.
-     * If enabled, the source is added to the document and will be directly used during source retrieval.
-     * If derived, the source is not added to the document and is retrieved from lucene data structures.
-     */
-    @ExperimentalApi
-    public enum SourceOptions {
-        ENABLED("true"),
-        DISABLED("false"),
-        DERIVED("derived");
-
-        private final String option;
-
-        SourceOptions(String option) {
-            this.option = option;
-        }
-
-        public String getOption() {
-            return option;
-        }
-
-        // We need to check Enum name as well as value because of the mapping merge that happens in which, option value
-        // will be represented as Enum name rather than value
-        public static SourceOptions option(String value) {
-            try {
-                return Enum.valueOf(SourceOptions.class, value);
-            } catch (IllegalArgumentException e) {
-                for (SourceOptions option : SourceOptions.values()) {
-                    if (option.getOption().equals(value)) {
-                        return option;
-                    }
-                }
-            }
-            throw new IllegalArgumentException("Invalid _source.enabled option supplied: " + value);
-        }
-    }
-
     private static SourceFieldMapper toType(FieldMapper in) {
         return (SourceFieldMapper) in;
     }
@@ -145,11 +106,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      */
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<SourceOptions> enabled = Parameter.sourceOptionParam(
-            "enabled",
-            m -> toType(m).enabled,
-            SourceOptions.ENABLED
-        );
+        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", false, m -> toType(m).enabled, Defaults.ENABLED);
         private final Parameter<List<String>> includes = Parameter.stringArrayParam(
             "includes",
             false,
@@ -245,8 +202,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      */
     static final class SourceFieldType extends MappedFieldType {
 
-        private SourceFieldType(SourceOptions enabled) {
-            super(NAME, false, SourceOptions.ENABLED.equals(enabled), false, TextSearchInfo.NONE, Collections.emptyMap());
+        private SourceFieldType(boolean enabled) {
+            super(NAME, false, enabled, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -270,7 +227,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private final SourceOptions enabled;
+    private final boolean enabled;
     private final boolean recoverySourceEnabled;
     /** indicates whether the source will always exist and be complete, for use by features like the update API */
     private final boolean complete;
@@ -281,11 +238,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] recoverySourceExcludes;
 
     private SourceFieldMapper() {
-        this(SourceOptions.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+        this(Defaults.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Defaults.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
     }
 
     private SourceFieldMapper(
-        SourceOptions enabled,
+        boolean enabled,
         String[] includes,
         String[] excludes,
         boolean recoverySourceEnabled,
@@ -297,8 +254,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.includes = includes;
         this.excludes = excludes;
         final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
-        this.filter = !SourceOptions.DISABLED.equals(enabled) && filtered ? XContentMapValues.filter(includes, excludes) : null;
-        this.complete = !SourceOptions.DISABLED.equals(enabled) && CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes);
+        this.filter = enabled && filtered ? XContentMapValues.filter(includes, excludes) : null;
+        this.complete = enabled && CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes);
 
         // Set parameters for recovery source
         this.recoverySourceEnabled = recoverySourceEnabled;
@@ -312,11 +269,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     public boolean enabled() {
-        return SourceOptions.ENABLED.equals(enabled);
-    }
-
-    public boolean isDerivedSourceEnabled() {
-        return SourceOptions.DERIVED.equals(enabled);
+        return enabled;
     }
 
     public boolean isComplete() {
@@ -325,7 +278,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        if (isDerivedSourceEnabled()) {
+        if (context.indexSettings().isDerivedSourceEnabled()) {
             return;
         }
         BytesReference originalSource = context.sourceToParse().source();
@@ -355,7 +308,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Nullable
     public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable MediaType contentType) throws IOException {
-        return applyFilters(originalSource, contentType, !SourceOptions.DISABLED.equals(enabled), filter);
+        return applyFilters(originalSource, contentType, enabled, filter);
     }
 
     @Nullable

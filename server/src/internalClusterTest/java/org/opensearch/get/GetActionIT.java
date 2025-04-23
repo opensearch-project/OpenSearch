@@ -790,20 +790,20 @@ public class GetActionIT extends OpenSearchIntegTestCase {
     }
 
     public void testDerivedSourceSimple() throws IOException {
-        // Create index with _source option as derived source
+        // Create index with derived source index setting enabled
         String createIndexSource = """
             {
                 "settings": {
                     "index": {
                         "number_of_shards": 2,
-                        "number_of_replicas": 0
+                        "number_of_replicas": 0,
+                        "derived_source": {
+                            "enabled": true
+                        }
                     }
                 },
                 "mappings": {
                     "_doc": {
-                        "_source": {
-                            "enabled": "derived"
-                        },
                         "properties": {
                             "geopoint_field": {
                                 "type": "geo_point"
@@ -895,9 +895,6 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         // Create mapping with properly closed objects
         String mapping = XContentFactory.jsonBuilder()
             .startObject()
-            .startObject("_source")
-            .field("enabled", "derived")
-            .endObject()
             .startObject("properties")
             .startObject("level1")
             .startObject("properties")
@@ -923,8 +920,12 @@ public class GetActionIT extends OpenSearchIntegTestCase {
 
         // Create index with settings and mapping
         assertAcked(
-            prepareCreate("test_derive").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-                .setMapping(mapping)
+            prepareCreate("test_derive").setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+            ).setMapping(mapping)
         );
         ensureGreen();
 

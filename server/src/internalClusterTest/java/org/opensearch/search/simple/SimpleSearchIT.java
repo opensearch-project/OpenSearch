@@ -730,20 +730,20 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     }
 
     public void testDerivedSourceSearch() throws Exception {
-        // Create index with _source option set as derived
+        // Create index with derived source setting enabled
         String createIndexSource = """
             {
                 "settings": {
                     "index": {
                         "number_of_shards": 2,
-                        "number_of_replicas": 0
+                        "number_of_replicas": 0,
+                        "derived_source": {
+                            "enabled": true
+                        }
                     }
                 },
                 "mappings": {
                     "_doc": {
-                        "_source": {
-                            "enabled": "derived"
-                        },
                         "properties": {
                             "geopoint_field": {
                                 "type": "geo_point"

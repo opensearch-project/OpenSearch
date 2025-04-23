@@ -330,7 +330,7 @@ public final class TranslogLeafReader extends LeafReader {
                     throw new IllegalArgumentException("no such doc ID " + docID);
                 }
                 if (visitor.needsField(FAKE_SOURCE_FIELD) == StoredFieldVisitor.Status.YES) {
-                    if (mapperService.isDerivedSourceEnabled()) {
+                    if (mapperService.getIndexSettings().isDerivedSourceEnabled()) {
                         LeafReader leafReader = getInMemoryIndexReader();
                         assert leafReader != null && leafReader.leaves().size() == 1;
                         visitor.binaryField(

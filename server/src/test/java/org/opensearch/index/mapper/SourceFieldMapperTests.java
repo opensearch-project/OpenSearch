@@ -34,6 +34,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -329,7 +330,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject()
             .toString();
-        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [enabled] from [ENABLED] to [DISABLED]");
+        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [enabled] from [true] to [false]");
 
         // not changing is ok
         String mapping3 = XContentFactory.jsonBuilder()
@@ -460,38 +461,11 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    public void testDerivedSourceOption() throws IOException {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("_source")
-            .field("enabled", "derived")
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
-
-        DocumentMapper documentMapper = createIndex("test").mapperService()
-            .documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
-
-        // Verify the source is configured as derived
-        assertTrue(documentMapper.sourceMapper().isDerivedSourceEnabled());
-        assertFalse(documentMapper.sourceMapper().enabled());
-    }
-
     public void testDerivedSourceDoesNotStoreSource() throws IOException {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("_source")
-            .field("enabled", "derived")
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().toString();
 
-        DocumentMapper documentMapper = createIndex("test").mapperService()
+        DocumentMapper documentMapper = createIndex("test", Settings.builder().put("index.derived_source.enabled", true).build())
+            .mapperService()
             .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
@@ -508,46 +482,19 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
         assertNull("_source should not be stored when derived is enabled", doc.rootDoc().getField("_source"));
     }
 
-    public void testUpdateSourceOptionToDerived() throws IOException {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-
-        String mapping1 = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("_source")
-            .field("enabled", true)
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
-
-        String mapping2 = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("_source")
-            .field("enabled", "derived")
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
-
-        // Verify that changing from enabled to derived is not allowed
-        assertConflicts(mapping1, mapping2, parser, "Cannot update parameter [enabled] from [ENABLED] to [DERIVED]");
-    }
-
     public void testRecoverySourceWithDerivedSource() throws IOException {
         String mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("type")
             .startObject("_source")
-            .field("enabled", "derived")
             .field("recovery_source_enabled", true)
             .endObject()
             .endObject()
             .endObject()
             .toString();
 
-        DocumentMapper documentMapper = createIndex("test").mapperService()
+        DocumentMapper documentMapper = createIndex("test", Settings.builder().put("index.derived_source.enabled", true).build())
+            .mapperService()
             .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
@@ -563,22 +510,5 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
         // Verify _source is not stored but recovery_source is
         assertNull(doc.rootDoc().getField("_source"));
         assertNull(doc.rootDoc().getField("_recovery_source"));
-    }
-
-    public void testInvalidSourceOption() throws IOException {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("type")
-            .startObject("_source")
-            .field("enabled", "invalid_option")
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
-
-        Exception e = expectThrows(IllegalArgumentException.class, () -> {
-            createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        });
-        assertTrue(e.getMessage().contains("Invalid _source.enabled option supplied"));
     }
 }

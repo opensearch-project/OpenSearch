@@ -552,24 +552,6 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         public static Parameter<Float> boostParam() {
             return Parameter.floatParam("boost", true, m -> m.fieldType().boost(), 1.0f);
         }
-
-        /**
-         * Defines a parameter that takes the parameter for source option field and converts it to
-         * {@link SourceFieldMapper.SourceOptions}
-         * @param name          the parameter name
-         * @param initializer   a function that reads the parameter value from an existing mapper
-         * @param defaultValue  default value of the parameter
-         */
-        public static Parameter<SourceFieldMapper.SourceOptions> sourceOptionParam(
-            String name,
-            Function<FieldMapper, SourceFieldMapper.SourceOptions> initializer,
-            SourceFieldMapper.SourceOptions defaultValue
-        ) {
-            return new Parameter<>(name, false, () -> defaultValue, (n, c, o) -> {
-                String sourceOption = o.toString();
-                return SourceFieldMapper.SourceOptions.option(sourceOption);
-            }, initializer);
-        }
     }
 
     /**

@@ -496,7 +496,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
-        readerWrapper = indexReaderWrapper;
+        if (indexSettings.isDerivedSourceEnabled()) {
+            readerWrapper = reader -> {
+                final DirectoryReader wrappedReader = indexReaderWrapper == null ? reader : indexReaderWrapper.apply(reader);
+                return DerivedSourceDirectoryReader.wrap(wrappedReader, mapperService.documentMapper().root()::deriveSource);
+            };
+        } else {
+            readerWrapper = indexReaderWrapper;
+        }
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -2005,15 +2012,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : "DirectoryReader must be an instance or OpenSearchDirectoryReader";
         boolean success = false;
         try {
-            final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
-            if (mapperService.isDerivedSourceEnabled()) {
-                readerWrapper = reader -> {
-                    final DirectoryReader wrappedReader = this.readerWrapper == null ? reader : this.readerWrapper.apply(reader);
-                    return DerivedSourceDirectoryReader.wrap(wrappedReader, mapperService.documentMapper().root()::deriveSource);
-                };
-            } else {
-                readerWrapper = this.readerWrapper;
-            }
             final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
             assert newSearcher != null;
             success = true;

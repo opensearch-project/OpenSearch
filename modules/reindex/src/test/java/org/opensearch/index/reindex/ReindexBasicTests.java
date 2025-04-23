@@ -181,20 +181,20 @@ public class ReindexBasicTests extends ReindexTestCase {
     }
 
     public void testReindexWithDerivedSource() throws Exception {
-        // Create source index with _source option set as derived
+        // Create source index with derived source setting enabled
         String sourceIndexMapping = """
             {
                 "settings": {
                     "index": {
                         "number_of_shards": 1,
-                        "number_of_replicas": 0
+                        "number_of_replicas": 0,
+                        "derived_source": {
+                            "enabled": true
+                        }
                     }
                 },
                 "mappings": {
                     "_doc": {
-                        "_source": {
-                            "enabled": "derived"
-                        },
                         "properties": {
                             "foo": {
                                 "type": "keyword",

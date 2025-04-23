@@ -71,6 +71,10 @@ public final class SingleFieldsVisitor extends StoredFieldVisitor {
         return Status.NO;
     }
 
+    public void reset() {
+        destination.clear();
+    }
+
     private void addValue(Object value) {
         destination.add(field.valueForDisplay(value));
     }
