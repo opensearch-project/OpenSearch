@@ -7,6 +7,7 @@
  */
 
 /**
- * Package for the rest classes related to query groups in WorkloadManagementPlugin
+ * This package contains auto tagging constructs
  */
-package org.opensearch.plugin.wlm.rest;
+
+package org.opensearch.rule.autotagging;
