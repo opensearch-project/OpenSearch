@@ -61,7 +61,6 @@ import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Publisher;
-import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
 import software.amazon.awssdk.utils.CollectionUtils;
 
 import org.apache.logging.log4j.LogManager;
@@ -708,7 +707,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             CompleteMultipartUploadResponse completeResponse = SocketAccess.doPrivileged(
                 () -> clientReference.get().completeMultipartUpload(completeRequest)
             );
-
 
             if (completeResponse.eTag() != null) {
                 success = true;
