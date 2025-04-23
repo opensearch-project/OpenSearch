@@ -441,8 +441,8 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertEquals("Should contain all expected values", expectedValues, actualValues);
     }
 
-    public void testMustInsideShouldRejected() throws IOException {
-        // MUST inside SHOULD (should be rejected)
+    public void testMustInsideShouldDifferentDimensionRejected() throws IOException {
+        // MUST inside SHOULD for different dimension (should be rejected)
         BoolQueryBuilder boolQuery = new BoolQueryBuilder().should(
             new BoolQueryBuilder().must(new TermQueryBuilder("status", 200)).must(new TermQueryBuilder("method", "GET"))
         );

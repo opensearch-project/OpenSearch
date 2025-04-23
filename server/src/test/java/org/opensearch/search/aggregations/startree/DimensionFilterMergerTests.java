@@ -197,6 +197,60 @@ public class DimensionFilterMergerTests extends OpenSearchTestCase {
         );
     }
 
+    public void testUnsignedLongRangeIntersection() {
+        // Setup unsigned long mapper
+        DimensionFilterMapper unsignedLongMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
+            new NumberFieldMapper.NumberFieldType("unsigned_field", NumberFieldMapper.NumberType.UNSIGNED_LONG)
+        );
+
+        // Test case 1: Regular positive values
+        assertRangeIntersection(
+            range("unsigned_field", 100L, 500L, true, true),
+            range("unsigned_field", 200L, 300L, true, true),
+            range("unsigned_field", 200L, 300L, true, true),
+            unsignedLongMapper
+        );
+
+        // Test case 2: High values (near max unsigned long)
+        assertRangeIntersection(
+            range("unsigned_field", -10L, -1L, true, true),  // -1L is max unsigned long (2^64 - 1)
+            range("unsigned_field", -5L, -2L, true, true),
+            range("unsigned_field", -5L, -2L, true, true),
+            unsignedLongMapper
+        );
+
+        // Test case 3: Crossing the unsigned boundary
+        assertRangeIntersection(
+            range("unsigned_field", 2L, -2L, true, true),    // -2L is near max unsigned long
+            range("unsigned_field", 1L, -1L, true, true),    // -1L is max unsigned long
+            range("unsigned_field", 2L, -2L, true, true),
+            unsignedLongMapper
+        );
+
+        // Test case 4: Non-overlapping ranges in unsigned space
+        assertNoIntersection(
+            range("unsigned_field", -10L, -5L, true, true),  // High unsigned values
+            range("unsigned_field", 1L, 10L, true, true),    // Low unsigned values
+            unsignedLongMapper
+        );
+
+        // Test case 5: Single point intersection at max unsigned value
+        assertRangeIntersection(
+            range("unsigned_field", -2L, -1L, true, true),   // -1L is max unsigned long
+            range("unsigned_field", 0L, -1L, true, true),
+            range("unsigned_field", -2L, -1L, true, true),
+            unsignedLongMapper
+        );
+
+        // Test case 6: Full range
+        assertRangeIntersection(
+            range("unsigned_field", 0L, -1L, true, true),    // 0 to max unsigned
+            range("unsigned_field", 100L, 200L, true, true),
+            range("unsigned_field", 100L, 200L, true, true),
+            unsignedLongMapper
+        );
+    }
+
     // Helper methods
     private RangeMatchDimFilter range(String dimension, Object low, Object high, boolean includeLow, boolean includeHigh) {
         return new RangeMatchDimFilter(dimension, low, high, includeLow, includeHigh);

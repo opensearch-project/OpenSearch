@@ -122,8 +122,7 @@ public class DimensionFilterMerger {
 
         // Check if range is valid
         if (newLow != null && newHigh != null) {
-            int comparison = mapper.compareValues(newLow, newHigh);
-            if (comparison > 0 || (comparison == 0 && (!includeLow || !includeHigh))) {
+            if (!mapper.isValidRange(newLow, newHigh, includeLow, includeHigh)) {
                 return null; // No overlap
             }
         }
@@ -181,19 +180,6 @@ public class DimensionFilterMerger {
      * Checks if a value falls within a range.
      */
     private static boolean isValueInRange(Object value, RangeMatchDimFilter range, DimensionFilterMapper mapper) {
-        if (range.getLow() != null) {
-            int comparison = mapper.compareValues(value, range.getLow());
-            if (comparison < 0 || (comparison == 0 && !range.isIncludeLow())) {
-                return false;
-            }
-        }
-
-        if (range.getHigh() != null) {
-            int comparison = mapper.compareValues(value, range.getHigh());
-            if (comparison > 0 || (comparison == 0 && !range.isIncludeHigh())) {
-                return false;
-            }
-        }
-        return true;
+        return mapper.isValueInRange(value, range.getLow(), range.getHigh(), range.isIncludeLow(), range.isIncludeHigh());
     }
 }
