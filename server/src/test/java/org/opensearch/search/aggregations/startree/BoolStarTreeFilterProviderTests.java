@@ -1093,8 +1093,7 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
     public void testMinimumShouldMatch() throws IOException {
         // Test with minimum_should_match set
-        BoolQueryBuilder boolQuery = new BoolQueryBuilder()
-            .should(new TermQueryBuilder("status", 200))
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().should(new TermQueryBuilder("status", 200))
             .should(new TermQueryBuilder("status", 404))
             .minimumShouldMatch(2);  // Explicitly set minimum_should_match
 
@@ -1104,12 +1103,12 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertNull("Filter should be null when minimum_should_match is set", filter);
 
         // Test nested bool with minimum_should_match
-        BoolQueryBuilder nestedBoolQuery = new BoolQueryBuilder()
-            .must(new TermQueryBuilder("method", "GET"))
-            .must(new BoolQueryBuilder()
-                .should(new TermQueryBuilder("status", 200))
-                .should(new TermQueryBuilder("status", 404))
-                .minimumShouldMatch(1));  // Set in nested bool
+        BoolQueryBuilder nestedBoolQuery = new BoolQueryBuilder().must(new TermQueryBuilder("method", "GET"))
+            .must(
+                new BoolQueryBuilder().should(new TermQueryBuilder("status", 200))
+                    .should(new TermQueryBuilder("status", 404))
+                    .minimumShouldMatch(1)
+            );  // Set in nested bool
 
         filter = provider.getFilter(searchContext, nestedBoolQuery, compositeFieldType);
         assertNull("Filter should be null when minimum_should_match is set in nested query", filter);
