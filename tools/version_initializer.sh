@@ -1,11 +1,31 @@
 #!/bin/bash
+
+# =========================
+# Version Initializer Script
+# =========================
+# This script initializes the changelog and release notes for a new version.
+# It should be used alongside the repository_bumper.sh script in order to
+# ensure that all the necessary files are updated correctly.
+#
+# The script takes three arguments:
+# 1. The new version to set (e.g., 4.5.0)
+# 2. The previous version to compare against (e.g., 4.4.0)
+# 3. The date to set in the release notes (e.g., '2025-01-01')
+#
+# It will create or update the CHANGELOG.md and release-notes files with the
+# new version information. Both files will be formatted according to the
+# [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) standard.
+
 set -euo pipefail
 
 # ====
 # Usage info
 # ====
 function usage() {
-    echo "Usage: $0 <version> <previous_version>"
+    echo "Usage: $0 <version> <previous_version> <date>"
+    echo "  version:            The new version to set (e.g., 4.5.0)"
+    echo "  previous_version:   The previous version to compare against (e.g., 4.4.0)"
+    echo "  date:               The date to set in the release notes (e.g., '2025-01-01')"
     exit 1
 }
 
@@ -37,6 +57,11 @@ function validate_inputs() {
         log "Error: Invalid previous version format '$PREVIOUS_VERSION'."
         exit 1
     fi
+
+    if ! [[ $DATE =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+        log "Error: Invalid date format '$DATE'."
+        exit 1
+    fi
 }
 
 # ====
@@ -62,34 +87,6 @@ function navigate_to_project_root() {
 }
 
 # ====
-# Updates RPM spec file changelog
-# Globals:
-#   VERSION
-#   DISTRIBUTION_FILE
-# ====
-function update_rpm_spec() {
-    local current_date
-    current_date=$(date +"%a %b %d %Y")
-    local entry_line1="* $current_date support <info@wazuh.com> - $VERSION"
-    local entry_line2="- More info: https://documentation.wazuh.com/current/release-notes/release-$VERSION.html"
-
-    awk -v l1="$entry_line1" -v l2="$entry_line2" '
-        BEGIN { inserted=0 }
-        {
-            print
-            if (!inserted && /^%changelog/) {
-                print l1
-                print l2
-                inserted=1
-            }
-        }
-    ' "$DISTRIBUTION_FILE" > "${DISTRIBUTION_FILE}.tmp"
-
-    mv "${DISTRIBUTION_FILE}.tmp" "$DISTRIBUTION_FILE"
-    log "Updated RPM spec file: $DISTRIBUTION_FILE"
-}
-
-# ====
 # Initializes CHANGELOG.md for new version
 # Globals:
 #   CHANGELOG_FILE
@@ -111,10 +108,8 @@ function update_changelog() {
 #   VERSION
 # ====
 function update_release_notes() {
-    local today
-    today=$(date +%Y-%m-%d)
     local content
-    content=$(echo "$RELEASE_NOTES_TEMPLATE_CONTENT" | sed "s|<VERSION>|$VERSION|g" | sed "s|<DATE>|$today|g")
+    content=$(echo "$RELEASE_NOTES_TEMPLATE_CONTENT" | sed "s|<VERSION>|$VERSION|g" | sed "s|<DATE>|$DATE|g")
 
     echo "$content" > "$RELEASE_NOTES_FILE"
     log "Created release notes: $RELEASE_NOTES_FILE"
@@ -124,23 +119,23 @@ function update_release_notes() {
 # Main function
 # ====
 function main() {
-    if [ "$#" -ne 2 ]; then
+    if [ "$#" -ne 3 ]; then
         usage
     fi
 
     VERSION="$1"
     PREVIOUS_VERSION="$2"
+    DATE="$3"
 
     # Paths and files
-    DISTRIBUTION_FILE="distribution/packages/src/rpm/wazuh-indexer.rpm.spec"
     CHANGELOG_FILE="CHANGELOG.md"
     RELEASE_NOTES_FILE="release-notes/wazuh.release-notes-${VERSION}.md"
-    FILES_TO_UPDATE=("$DISTRIBUTION_FILE" "$CHANGELOG_FILE" "$RELEASE_NOTES_FILE")
+    FILES_TO_UPDATE=("$CHANGELOG_FILE" "$RELEASE_NOTES_FILE")
 
     # Log file
     local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local timestamp
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     timestamp=$(date +"%Y-%m-%d_%H-%M-%S-%3N")
     LOG_FILE="$script_dir/version_initializer_${timestamp}.log"
     exec > >(tee -a "$LOG_FILE") 2>&1
@@ -150,7 +145,6 @@ function main() {
 
     navigate_to_project_root
     validate_inputs
-    update_rpm_spec
     update_changelog
     update_release_notes
 
@@ -195,7 +189,7 @@ EOF
 )
 
 RELEASE_NOTES_TEMPLATE_CONTENT=$(cat <<'EOF'
-<DATE> Version <VERSION> Release Notes
+## <DATE> Version <VERSION> Release Notes
 
 ## [<VERSION>]
 ### Added

@@ -1,13 +1,31 @@
 #!/bin/bash
+
+# =========================
+# Repository Bumper Script
+# =========================
+# This script updates the VERSION.json file and the changelog section of the
+# RPM spec file for a new version release.
+#
+# It takes three arguments:
+# 1. The new version to set (e.g., 4.5.0)
+# 2. The new stage to set (alpha, beta, rc, stable)
+# 3. The date to set in the changelog (e.g., 'Mon Jan 02 2025')
+#
+# The changelog entry will be added to the %changelog section of the RPM spec file,
+# and will be formatted as follows:
+#   * [DATE] support <info@wazuh.com> - [VERSION]
+#   - More info: https://documentation.wazuh.com/current/release-notes/release-[VERSION].html
+
 set -euo pipefail
 
 # ====
 # Print usage instructions
 # ====
 function usage() {
-    echo "Usage: $0 <version> <stage>"
-    echo "  version:  The new version to set in VERSION.json"
+    echo "Usage: $0 <version> <stage> <date>"
+    echo "  version:  The new version to set in VERSION.json (e.g., 4.5.0)"
     echo "  stage:    The new stage to set in VERSION.json (alpha, beta, rc, stable)"
+    echo "  date:     The date to set in the changelog (e.g., 'Mon Jan 02 2025')"
     exit 1
 }
 
@@ -63,10 +81,12 @@ function navigate_to_project_root() {
 # Arguments:
 #   $1 - version
 #   $2 - stage
+#   $3 - date
 # ====
 function validate_inputs() {
     local version="$1"
     local stage="$2"
+    local date="$3"
 
     if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         log "Error: Invalid version format '$version'."
@@ -77,6 +97,11 @@ function validate_inputs() {
     normalized_stage=$(echo "$stage" | tr '[:upper:]' '[:lower:]')
     if ! [[ $normalized_stage =~ ^(alpha[0-9]*|beta[0-9]*|rc[0-9]*|stable)$ ]]; then
         log "Error: Invalid stage format '$stage'."
+        exit 1
+    fi
+
+    if ! [[ $date =~ ^[A-Za-z]{3}\ [A-Za-z]{3}\ [0-9]{1,2}\ [0-9]{4}$ ]]; then
+        log "Error: Invalid date format '$date'."
         exit 1
     fi
 }
@@ -114,23 +139,76 @@ function update_version_file() {
 }
 
 # ====
+# Update the changelog section of the RPM spec file, if needed
+# Arguments:
+#   $1 - version
+#   $2 - date
+# ====
+function update_rpm_changelog() {
+    local version="$1"
+    local date="$2"
+    local spec_file="distribution/packages/src/rpm/wazuh-indexer.rpm.spec"
+    local changelog_entry="* $date support <info@wazuh.com> - $version"
+
+    if grep -q "^- More info: .*release-$version\.html" "$spec_file"; then
+        # Update existing changelog date
+        awk -v version="$version" -v new_date="$date" '
+            BEGIN { updated = 0 }
+            {
+                if ($0 ~ "^- More info: .*release-"version"\\.html") {
+                    prev = NR - 1
+                    lines[prev] = "* " new_date " support <info@wazuh.com> - " version
+                    lines[NR] = $0
+                    updated = 1
+                } else {
+                    lines[NR] = $0
+                }
+            }
+            END {
+                for (i = 1; i <= NR; i++) print lines[i]
+                if (updated) print ""
+            }
+        ' "$spec_file" >"${spec_file}.tmp" && mv "${spec_file}.tmp" "$spec_file"
+
+        log "Updated existing changelog entry for version=$version with date=$date"
+    else
+        log "Inserting changelog entry for version=$version"
+        awk -v line1="$changelog_entry" -v line2="- More info: https://documentation.wazuh.com/current/release-notes/release-$version.html" '
+        BEGIN { inserted=0 }
+        {
+            print
+            if (!inserted && /^%changelog/) {
+                print line1
+                print line2
+                inserted=1
+            }
+        }
+        ' "$spec_file" >"${spec_file}.tmp" && mv "${spec_file}.tmp" "$spec_file"
+
+        log "Inserted new changelog entry for version=$version with date=$date"
+    fi
+}
+
+# ====
 # Main logic
 # ====
 function main() {
-    if [ "$#" -ne 2 ]; then
+    if [ "$#" -ne 3 ]; then
         usage
     fi
 
     local version="$1"
     local stage="$2"
+    local date="$3"
 
     init_logging
     log "Starting update for VERSION.json with version=$version, stage=$stage"
 
     navigate_to_project_root
     check_jq_installed
-    validate_inputs "$version" "$stage"
+    validate_inputs "$version" "$stage" "$date"
     update_version_file "$version" "$stage"
+    update_rpm_changelog "$version" "$date"
 
     log "Update complete."
 }
