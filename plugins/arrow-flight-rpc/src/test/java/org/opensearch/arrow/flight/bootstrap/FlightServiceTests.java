@@ -19,7 +19,6 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -32,10 +31,12 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class FlightServiceTests extends OpenSearchTestCase {
+    FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
 
     private Settings settings;
     private ClusterService clusterService;
@@ -47,7 +48,7 @@ public class FlightServiceTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        FeatureFlagSetter.set(FeatureFlags.ARROW_STREAMS_SETTING.getKey());
+        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(ARROW_STREAMS);
         int availablePort = getBasePort(9500) + port.addAndGet(1);
         settings = Settings.EMPTY;
         localNode = createNode(availablePort);
@@ -93,7 +94,7 @@ public class FlightServiceTests extends OpenSearchTestCase {
             testService.start();
             testService.stop();
             testService.start();
-            assertNull(testService.getStreamManager());
+            assertNotNull(testService.getStreamManager());
         }
     }
 
@@ -147,6 +148,7 @@ public class FlightServiceTests extends OpenSearchTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+        ffLock.close();
     }
 
     private DiscoveryNode createNode(int port) throws Exception {

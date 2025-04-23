@@ -39,9 +39,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.QueryGroupService;
-import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupService;
+import org.opensearch.wlm.WorkloadGroupTask;
 import org.junit.After;
 import org.junit.Before;
 
@@ -77,12 +77,12 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
     MockTransportService transportService;
     TaskManager taskManager;
     ThreadPool threadPool;
-    QueryGroupService queryGroupService;
+    WorkloadGroupService workloadGroupService;
 
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getClass().getName());
-        queryGroupService = mock(QueryGroupService.class);
+        workloadGroupService = mock(WorkloadGroupService.class);
         transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, NoopTracer.INSTANCE);
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -125,10 +125,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             new TaskResourceUsageTrackers(),
             new TaskResourceUsageTrackers(),
             taskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         // Node not in duress.
         cpuUsage.set(0.0);
@@ -171,10 +171,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             taskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         for (int i = 0; i < 100; i++) {
             // service.onTaskCompleted(new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>()));
@@ -205,10 +205,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             new TaskResourceUsageTrackers(),
             taskResourceUsageTrackers,
             taskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         // Record task completions to update the tracker state. Tasks other than SearchTask & SearchShardTask are ignored.
         service.onTaskCompleted(createMockTaskWithResourceStats(CancellableTask.class, 100, 200, 101));
@@ -260,10 +260,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             mockTaskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         // Run two iterations so that node is marked 'in duress' from the third iteration onwards.
         service.doRun();
@@ -277,7 +277,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         when(settings.getSearchTaskSettings()).thenReturn(searchTaskSettings);
 
         // Create a mix of low and high resource usage SearchTasks (50 low + 25 high resource usage tasks).
-        Map<Long, QueryGroupTask> activeSearchTasks = new HashMap<>();
+        Map<Long, WorkloadGroupTask> activeSearchTasks = new HashMap<>();
         for (long i = 0; i < 75; i++) {
             if (i % 3 == 0) {
                 activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 500, taskHeapUsageBytes, i));
@@ -285,7 +285,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 100, taskHeapUsageBytes, i));
             }
         }
-        activeSearchTasks.values().forEach(task -> task.setQueryGroupId(threadPool.getThreadContext()));
+        activeSearchTasks.values().forEach(task -> task.setWorkloadGroupId(threadPool.getThreadContext()));
         doReturn(activeSearchTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
 
         // There are 25 SearchTasks eligible for cancellation but only 5 will be cancelled (burst limit).
@@ -356,10 +356,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             new TaskResourceUsageTrackers(),
             taskResourceUsageTrackers,
             mockTaskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         // Run two iterations so that node is marked 'in duress' from the third iteration onwards.
         service.doRun();
@@ -373,7 +373,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         when(settings.getSearchShardTaskSettings()).thenReturn(searchShardTaskSettings);
 
         // Create a mix of low and high resource usage tasks (60 low + 15 high resource usage tasks).
-        Map<Long, QueryGroupTask> activeSearchShardTasks = new HashMap<>();
+        Map<Long, WorkloadGroupTask> activeSearchShardTasks = new HashMap<>();
         for (long i = 0; i < 75; i++) {
             if (i % 5 == 0) {
                 activeSearchShardTasks.put(i, createMockTaskWithResourceStats(SearchShardTask.class, 500, taskHeapUsageBytes, i));
@@ -381,7 +381,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 activeSearchShardTasks.put(i, createMockTaskWithResourceStats(SearchShardTask.class, 100, taskHeapUsageBytes, i));
             }
         }
-        activeSearchShardTasks.values().forEach(task -> task.setQueryGroupId(threadPool.getThreadContext()));
+        activeSearchShardTasks.values().forEach(task -> task.setWorkloadGroupId(threadPool.getThreadContext()));
         doReturn(activeSearchShardTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
 
         // There are 15 SearchShardTasks eligible for cancellation but only 10 will be cancelled (burst limit).
@@ -461,10 +461,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             mockTaskManager,
-            queryGroupService
+            workloadGroupService
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
 
         service.doRun();
         service.doRun();
@@ -475,7 +475,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         when(settings.getSearchTaskSettings()).thenReturn(searchTaskSettings);
 
         // Create a mix of low and high resource usage tasks (60 low + 15 high resource usage tasks).
-        Map<Long, QueryGroupTask> activeSearchTasks = new HashMap<>();
+        Map<Long, WorkloadGroupTask> activeSearchTasks = new HashMap<>();
         for (long i = 0; i < 75; i++) {
             if (i % 5 == 0) {
                 activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 500, 800, i));
@@ -483,7 +483,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 100, 800, i));
             }
         }
-        activeSearchTasks.values().forEach(task -> task.setQueryGroupId(threadPool.getThreadContext()));
+        activeSearchTasks.values().forEach(task -> task.setWorkloadGroupId(threadPool.getThreadContext()));
         doReturn(activeSearchTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
 
         // this will trigger cancellation but these cancellation should only be cpu based
@@ -560,11 +560,11 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 taskResourceUsageTrackers,
                 new TaskResourceUsageTrackers(),
                 mockTaskManager,
-                queryGroupService
+                workloadGroupService
             )
         );
 
-        when(queryGroupService.shouldSBPHandle(any())).thenReturn(true);
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
         when(service.isHeapUsageDominatedBySearch(anyList(), anyDouble())).thenReturn(false);
 
         service.doRun();
@@ -576,16 +576,16 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         when(settings.getSearchTaskSettings()).thenReturn(searchTaskSettings);
 
         // Create a mix of low and high resource usage tasks (60 low + 15 high resource usage tasks).
-        Map<Long, QueryGroupTask> activeSearchTasks = new HashMap<>();
+        Map<Long, WorkloadGroupTask> activeSearchTasks = new HashMap<>();
         for (long i = 0; i < 75; i++) {
-            Class<? extends QueryGroupTask> taskType = randomBoolean() ? SearchTask.class : SearchShardTask.class;
+            Class<? extends WorkloadGroupTask> taskType = randomBoolean() ? SearchTask.class : SearchShardTask.class;
             if (i % 5 == 0) {
                 activeSearchTasks.put(i, createMockTaskWithResourceStats(taskType, 500, 800, i));
             } else {
                 activeSearchTasks.put(i, createMockTaskWithResourceStats(taskType, 100, 800, i));
             }
         }
-        activeSearchTasks.values().forEach(task -> task.setQueryGroupId(threadPool.getThreadContext()));
+        activeSearchTasks.values().forEach(task -> task.setWorkloadGroupId(threadPool.getThreadContext()));
         doReturn(activeSearchTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
 
         // this will trigger cancellation but the cancellation should not happen as the node is not is duress because of search traffic

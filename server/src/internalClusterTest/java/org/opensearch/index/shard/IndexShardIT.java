@@ -74,6 +74,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.mapper.MapperService;
@@ -94,6 +95,7 @@ import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -719,7 +721,12 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             DefaultRemoteStoreSettings.INSTANCE,
             false,
             IndexShardTestUtils.getFakeDiscoveryNodes(initializingShardRouting),
-            mock(Function.class)
+            mock(Function.class),
+            new MergedSegmentWarmerFactory(null, null, null),
+            false,
+            OpenSearchTestCase::randomBoolean,
+            () -> indexService.getIndexSettings().getRefreshInterval(),
+            indexService.getRefreshMutex()
         );
     }
 

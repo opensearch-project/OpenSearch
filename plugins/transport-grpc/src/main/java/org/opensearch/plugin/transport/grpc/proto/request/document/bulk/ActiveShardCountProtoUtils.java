@@ -9,11 +9,12 @@
 package org.opensearch.plugin.transport.grpc.proto.request.document.bulk;
 
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.WaitForActiveShards;
 
 /**
- * Handler for bulk requests in gRPC.
+ * Utility class for handling active shard count settings in gRPC bulk requests.
+ * This class provides methods to convert between Protocol Buffer representations
+ * and OpenSearch ActiveShardCount objects.
  */
 public class ActiveShardCountProtoUtils {
     // protected final Settings settings;
@@ -21,45 +22,35 @@ public class ActiveShardCountProtoUtils {
     /**
      * Private constructor to prevent instantiation of utility class.
      */
-    protected ActiveShardCountProtoUtils() {
+    private ActiveShardCountProtoUtils() {
         // Utility class, no instances
     }
 
     /**
      * Sets the active shard count on the bulk request based on the protobuf request.
-     * Similar to {@link ActiveShardCount#parseString(String)}
+     * Similar to {@link ActiveShardCount#parseString(String)}, this method interprets
+     * the wait_for_active_shards parameter from the Protocol Buffer request and applies
+     * the appropriate ActiveShardCount setting to the OpenSearch bulk request.
      *
-     * @param bulkRequest The bulk request to modify
-     * @param request The protobuf request containing the active shard count
+     * @param waitForActiveShards The protobuf object containing the active shard count
      * @return The modified bulk request
      */
-    public static org.opensearch.action.bulk.BulkRequest getActiveShardCount(
-        org.opensearch.action.bulk.BulkRequest bulkRequest,
-        BulkRequest request
-    ) {
-        if (!request.hasWaitForActiveShards()) {
-            return bulkRequest;
-        }
-        WaitForActiveShards waitForActiveShards = request.getWaitForActiveShards();
+    public static ActiveShardCount parseProto(WaitForActiveShards waitForActiveShards) {
+
         switch (waitForActiveShards.getWaitForActiveShardsCase()) {
             case WaitForActiveShards.WaitForActiveShardsCase.WAIT_FOR_ACTIVE_SHARD_OPTIONS:
                 switch (waitForActiveShards.getWaitForActiveShardOptions()) {
                     case WAIT_FOR_ACTIVE_SHARD_OPTIONS_UNSPECIFIED:
                         throw new UnsupportedOperationException("No mapping for WAIT_FOR_ACTIVE_SHARD_OPTIONS_UNSPECIFIED");
                     case WAIT_FOR_ACTIVE_SHARD_OPTIONS_ALL:
-                        bulkRequest.waitForActiveShards(ActiveShardCount.ALL);
-                        break;
+                        return ActiveShardCount.ALL;
                     default:
-                        bulkRequest.waitForActiveShards(ActiveShardCount.DEFAULT);
-                        break;
+                        return ActiveShardCount.DEFAULT;
                 }
-                break;
             case WaitForActiveShards.WaitForActiveShardsCase.INT32_VALUE:
-                bulkRequest.waitForActiveShards(waitForActiveShards.getInt32Value());
-                break;
+                return ActiveShardCount.from(waitForActiveShards.getInt32Value());
             default:
-                throw new UnsupportedOperationException("No mapping for WAIT_FOR_ACTIVE_SHARD_OPTIONS_UNSPECIFIED");
+                return ActiveShardCount.DEFAULT;
         }
-        return bulkRequest;
     }
 }

@@ -8,7 +8,6 @@
 package org.opensearch.plugin.transport.grpc.proto.response.document.get;
 
 import com.google.protobuf.ByteString;
-import com.google.protobuf.Struct;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -17,6 +16,7 @@ import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.plugin.transport.grpc.proto.response.document.common.DocumentFieldProtoUtils;
 import org.opensearch.protobufs.InlineGetDictUserDefined;
+import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.ResponseItem;
 
 /**
@@ -74,7 +74,7 @@ public class GetResultProtoUtils {
         }
 
         // TODO test output once GetDocument GRPC endpoint is implemented
-        Struct.Builder metadataFieldsBuilder = Struct.newBuilder();
+        ObjectMap.Builder metadataFieldsBuilder = ObjectMap.newBuilder();
         for (DocumentField field : getResult.getMetadataFields().values()) {
             if (field.getName().equals(IgnoredFieldMapper.NAME)) {
                 metadataFieldsBuilder.putFields(field.getName(), DocumentFieldProtoUtils.toProto(field.getValues()));
@@ -93,7 +93,7 @@ public class GetResultProtoUtils {
         }
 
         // TODO test output once GetDocument GRPC endpoint is implemented
-        Struct.Builder documentFieldsBuilder = Struct.newBuilder();
+        ObjectMap.Builder documentFieldsBuilder = ObjectMap.newBuilder();
         if (!getResult.getDocumentFields().isEmpty()) {
             for (DocumentField field : getResult.getDocumentFields().values()) {
                 documentFieldsBuilder.putFields(field.getName(), DocumentFieldProtoUtils.toProto(field.getValues()));

@@ -690,7 +690,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Set<URL> urls = new HashSet<>();
             for (String extendedPlugin : exts) {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
-                if (pluginUrls == null && bundle.plugin.isExtendedPluginOptional(extendedPlugin)) {
+                if (bundle.plugin.isExtendedPluginOptional(extendedPlugin)) {
                     continue;
                 }
                 assert pluginUrls != null : "transitive urls should have already been set for " + extendedPlugin;

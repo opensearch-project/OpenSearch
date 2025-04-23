@@ -101,7 +101,7 @@ public abstract class MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        setBoost(1.0f);
+        this.boost = 1.0f;
         this.name = Objects.requireNonNull(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
@@ -496,6 +496,9 @@ public abstract class MappedFieldType {
                 BytesRef term = it.next();
                 return new Term(tisQuery.getField(), term);
             }
+        }
+        if (termQuery instanceof ConstantScoreQuery) {
+            termQuery = ((ConstantScoreQuery) termQuery).getQuery();
         }
         if (termQuery instanceof TermQuery == false) {
             throw new IllegalArgumentException("Cannot extract a term from a query of type " + termQuery.getClass() + ": " + termQuery);

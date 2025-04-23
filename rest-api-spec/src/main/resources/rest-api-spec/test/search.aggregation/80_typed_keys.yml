@@ -205,9 +205,7 @@ setup:
 
 ---
 "Test typed keys parameter for date_histogram aggregation and max_bucket pipeline aggregation":
-  - skip:
-      version: " - 7.1.99"
-      reason:  "calendar_interval added in 7.2"
+
   - do:
       search:
         rest_total_hits_as_int: true

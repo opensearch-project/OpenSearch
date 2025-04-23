@@ -93,18 +93,36 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
     }
 
     protected void produceData(String id, String name, String age) {
-        produceData(id, name, age, defaultMessageTimestamp);
+        produceData(id, name, age, defaultMessageTimestamp, "index");
     }
 
-    protected void produceData(String id, String name, String age, long timestamp) {
+    protected void produceData(String id, String name, String age, long timestamp, String opType) {
         String payload = String.format(
             Locale.ROOT,
-            "{\"_id\":\"%s\", \"_op_type:\":\"index\",\"_source\":{\"name\":\"%s\", \"age\": %s}}",
+            "{\"_id\":\"%s\", \"_op_type\":\"%s\",\"_source\":{\"name\":\"%s\", \"age\": %s}}",
             id,
+            opType,
             name,
             age
         );
         producer.send(new ProducerRecord<>(topicName, null, timestamp, "null", payload));
+    }
+
+    protected void produceDataWithExternalVersion(String id, long version, String name, String age, long timestamp, String opType) {
+        String payload = String.format(
+            Locale.ROOT,
+            "{\"_id\":\"%s\", \"_version\":\"%d\", \"_op_type\":\"%s\",\"_source\":{\"name\":\"%s\", \"age\": %s}}",
+            id,
+            version,
+            opType,
+            name,
+            age
+        );
+        producer.send(new ProducerRecord<>(topicName, null, timestamp, "null", payload));
+    }
+
+    protected void produceData(String payload) {
+        producer.send(new ProducerRecord<>(topicName, null, defaultMessageTimestamp, "null", payload));
     }
 
     protected void waitForSearchableDocs(long docCount, List<String> nodes) throws Exception {
@@ -159,10 +177,10 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
     }
 
     protected void createIndexWithDefaultSettings(int numShards, int numReplicas) {
-        createIndexWithDefaultSettings(indexName, numShards, numReplicas);
+        createIndexWithDefaultSettings(indexName, numShards, numReplicas, 1);
     }
 
-    protected void createIndexWithDefaultSettings(String indexName, int numShards, int numReplicas) {
+    protected void createIndexWithDefaultSettings(String indexName, int numShards, int numReplicas, int numProcessorThreads) {
         createIndex(
             indexName,
             Settings.builder()
@@ -173,6 +191,7 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.num_processor_threads", numProcessorThreads)
                 // set custom kafka consumer properties
                 .put("ingestion_source.param.fetch.min.bytes", 30000)
                 .put("ingestion_source.param.enable.auto.commit", false)

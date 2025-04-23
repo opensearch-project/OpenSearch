@@ -14,9 +14,11 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.index.compositeindex.datacube.DimensionDataType;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -29,6 +31,7 @@ import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,6 +43,7 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.HALF_FLOA
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.INTEGER;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.UNSIGNED_LONG;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.hasDecimalPart;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.signum;
 
@@ -90,6 +94,10 @@ public interface DimensionFilterMapper {
 
     int compareValues(Object v1, Object v2);
 
+    default Comparator<Long> comparator() {
+        return DimensionDataType.LONG::compare;
+    }
+
     /**
      * Singleton Factory for @{@link DimensionFilterMapper}
      */
@@ -111,7 +119,9 @@ public interface DimensionFilterMapper {
             DOUBLE.typeName(),
             new DoubleFieldMapperNumeric(),
             org.opensearch.index.mapper.KeywordFieldMapper.CONTENT_TYPE,
-            new KeywordFieldMapper()
+            new KeywordFieldMapper(),
+            UNSIGNED_LONG.typeName(),
+            new UnsignedLongFieldMapperNumeric()
         );
 
         public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType) {
@@ -216,6 +226,25 @@ class SignedLongFieldMapperNumeric extends NumericNonDecimalMapper {
     Long defaultMaximum() {
         return Long.MAX_VALUE;
     }
+}
+
+class UnsignedLongFieldMapperNumeric extends NumericNonDecimalMapper {
+
+    @Override
+    Long defaultMinimum() {
+        return Numbers.MIN_UNSIGNED_LONG_VALUE_AS_LONG;
+    }
+
+    @Override
+    Long defaultMaximum() {
+        return Numbers.MAX_UNSIGNED_LONG_VALUE_AS_LONG;
+    }
+
+    @Override
+    public Comparator<Long> comparator() {
+        return DimensionDataType.UNSIGNED_LONG::compare;
+    }
+
 }
 
 abstract class NumericDecimalFieldMapper extends NumericMapper {

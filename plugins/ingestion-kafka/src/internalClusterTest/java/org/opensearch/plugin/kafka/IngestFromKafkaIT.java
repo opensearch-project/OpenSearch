@@ -15,7 +15,9 @@ import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -67,14 +69,14 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
             assertNotNull(stats);
-            assertThat(stats.getMessageProcessorStats().getTotalProcessedCount(), is(2L));
-            assertThat(stats.getConsumerStats().getTotalPolledCount(), is(2L));
+            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(2L));
+            assertThat(stats.getConsumerStats().totalPolledCount(), is(2L));
         });
     }
 
     public void testKafkaIngestion_RewindByTimeStamp() {
-        produceData("1", "name1", "24", 1739459500000L);
-        produceData("2", "name2", "20", 1739459800000L);
+        produceData("1", "name1", "24", 1739459500000L, "index");
+        produceData("2", "name2", "20", 1739459800000L, "index");
 
         // create an index with ingestion source from kafka
         createIndex(
@@ -134,5 +136,95 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         createIndexWithDefaultSettings(1, 0);
         ensureGreen(indexName);
         client().admin().indices().close(Requests.closeIndexRequest(indexName)).get();
+    }
+
+    public void testUpdateAndDelete() throws Exception {
+        // Step 1: Produce message and wait for it to be searchable
+
+        produceData("1", "name", "25", defaultMessageTimestamp, "index");
+        createIndexWithDefaultSettings(1, 0);
+        ensureGreen(indexName);
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 25 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
+        });
+
+        // Step 2: Update age field from 25 to 30 and validate
+
+        produceData("1", "name", "30", defaultMessageTimestamp, "index");
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 30 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
+        });
+
+        // Step 3: Delete the document and validate
+        produceData("1", "name", "30", defaultMessageTimestamp, "delete");
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            return response.getHits().getTotalHits().value() == 0;
+        });
+    }
+
+    public void testUpdateWithoutIDField() throws Exception {
+        // Step 1: Produce message without ID
+        String payload = "{\"_op_type\":\"index\",\"_source\":{\"name\":\"name\", \"age\": 25}}";
+        produceData(payload);
+
+        createIndexWithDefaultSettings(1, 0);
+        ensureGreen(indexName);
+
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("age", "25"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 25 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
+        });
+
+        SearchResponse searchableDocsResponse = client().prepareSearch(indexName).setSize(10).setPreference("_only_local").get();
+        assertThat(searchableDocsResponse.getHits().getTotalHits().value(), is(1L));
+        assertEquals(25, searchableDocsResponse.getHits().getHits()[0].getSourceAsMap().get("age"));
+        String id = searchableDocsResponse.getHits().getHits()[0].getId();
+
+        // Step 2: Produce an update message using retrieved ID and validate
+
+        produceData(id, "name", "30", defaultMessageTimestamp, "index");
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", id));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 30 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
+        });
+    }
+
+    public void testMultiThreadedWrites() throws Exception {
+        // create index with 5 writer threads
+        createIndexWithDefaultSettings(indexName, 1, 0, 5);
+        ensureGreen(indexName);
+
+        // Step 1: Produce messages
+        for (int i = 0; i < 1000; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        waitForState(() -> {
+            SearchResponse searchableDocsResponse = client().prepareSearch(indexName).setSize(2000).setPreference("_only_local").get();
+            return searchableDocsResponse.getHits().getTotalHits().value() == 1000;
+        });
+
+        // Step 2: Produce an update message and validate
+        for (int i = 0; i < 1000; i++) {
+            produceData(Integer.toString(i), "name" + i, "30");
+        }
+
+        waitForState(() -> {
+            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            return response.getHits().getTotalHits().value() == 1000;
+        });
     }
 }

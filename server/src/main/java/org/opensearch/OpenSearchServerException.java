@@ -1224,5 +1224,13 @@ public final class OpenSearchServerException {
                 V_3_0_0
             )
         );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.index.engine.IngestionEngineException.class,
+                org.opensearch.index.engine.IngestionEngineException::new,
+                176,
+                V_3_0_0
+            )
+        );
     }
 }

@@ -23,11 +23,13 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.plugin.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
 import org.opensearch.plugin.transport.grpc.proto.request.common.ScriptProtoUtils;
+import org.opensearch.plugin.transport.grpc.proto.response.document.common.VersionTypeProtoUtils;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.BulkRequestBody;
 import org.opensearch.protobufs.CreateOperation;
 import org.opensearch.protobufs.DeleteOperation;
 import org.opensearch.protobufs.IndexOperation;
+import org.opensearch.protobufs.OpType;
 import org.opensearch.protobufs.UpdateOperation;
 import org.opensearch.script.Script;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -110,7 +112,7 @@ public class BulkRequestParserProtoUtils {
             String id = null;
             String routing = valueOrDefault(defaultRouting, request.getRouting());
             FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
-            IndexOperation.OpType opType = null;
+            OpType opType = null;
             long version = Versions.MATCH_ANY;
             VersionType versionType = VersionType.INTERNAL;
             long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -226,17 +228,8 @@ public class BulkRequestParserProtoUtils {
         routing = createOperation.hasRouting() ? createOperation.getRouting() : routing;
         version = createOperation.hasVersion() ? createOperation.getVersion() : version;
         if (createOperation.hasVersionType()) {
-            switch (createOperation.getVersionType()) {
-                case VERSION_TYPE_EXTERNAL:
-                    versionType = VersionType.EXTERNAL;
-                    break;
-                case VERSION_TYPE_EXTERNAL_GTE:
-                    versionType = VersionType.EXTERNAL_GTE;
-                    break;
-                default:
-                    versionType = VersionType.INTERNAL;
-                    break;
-            }
+            versionType = VersionTypeProtoUtils.fromProto(createOperation.getVersionType());
+
         }
         pipeline = createOperation.hasPipeline() ? createOperation.getPipeline() : pipeline;
         ifSeqNo = createOperation.hasIfSeqNo() ? createOperation.getIfSeqNo() : ifSeqNo;
@@ -276,7 +269,7 @@ public class BulkRequestParserProtoUtils {
     public static IndexRequest buildIndexRequest(
         IndexOperation indexOperation,
         byte[] document,
-        IndexOperation.OpType opType,
+        OpType opType,
         String index,
         String id,
         String routing,
@@ -293,17 +286,7 @@ public class BulkRequestParserProtoUtils {
         routing = indexOperation.hasRouting() ? indexOperation.getRouting() : routing;
         version = indexOperation.hasVersion() ? indexOperation.getVersion() : version;
         if (indexOperation.hasVersionType()) {
-            switch (indexOperation.getVersionType()) {
-                case VERSION_TYPE_EXTERNAL:
-                    versionType = VersionType.EXTERNAL;
-                    break;
-                case VERSION_TYPE_EXTERNAL_GTE:
-                    versionType = VersionType.EXTERNAL_GTE;
-                    break;
-                default:
-                    versionType = VersionType.INTERNAL;
-                    break;
-            }
+            versionType = VersionTypeProtoUtils.fromProto(indexOperation.getVersionType());
         }
         pipeline = indexOperation.hasPipeline() ? indexOperation.getPipeline() : pipeline;
         ifSeqNo = indexOperation.hasIfSeqNo() ? indexOperation.getIfSeqNo() : ifSeqNo;
@@ -326,7 +309,7 @@ public class BulkRequestParserProtoUtils {
                 .routing(routing)
                 .version(version)
                 .versionType(versionType)
-                .create(opType.equals(IndexOperation.OpType.OP_TYPE_CREATE))
+                .create(opType.equals(OpType.OP_TYPE_CREATE))
                 .setPipeline(pipeline)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm)
@@ -487,17 +470,7 @@ public class BulkRequestParserProtoUtils {
         routing = deleteOperation.hasRouting() ? deleteOperation.getRouting() : routing;
         version = deleteOperation.hasVersion() ? deleteOperation.getVersion() : version;
         if (deleteOperation.hasVersionType()) {
-            switch (deleteOperation.getVersionType()) {
-                case VERSION_TYPE_EXTERNAL:
-                    versionType = VersionType.EXTERNAL;
-                    break;
-                case VERSION_TYPE_EXTERNAL_GTE:
-                    versionType = VersionType.EXTERNAL_GTE;
-                    break;
-                default:
-                    versionType = VersionType.INTERNAL;
-                    break;
-            }
+            versionType = VersionTypeProtoUtils.fromProto(deleteOperation.getVersionType());
         }
         ifSeqNo = deleteOperation.hasIfSeqNo() ? deleteOperation.getIfSeqNo() : ifSeqNo;
         ifPrimaryTerm = deleteOperation.hasIfPrimaryTerm() ? deleteOperation.getIfPrimaryTerm() : ifPrimaryTerm;
