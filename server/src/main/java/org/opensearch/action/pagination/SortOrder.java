@@ -11,6 +11,7 @@ package org.opensearch.action.pagination;
 import org.opensearch.wlm.stats.WlmStats;
 
 import java.util.Comparator;
+import java.util.Locale;
 
 /**
  * Represents the sort order for WLM statistics.
@@ -34,11 +35,9 @@ public enum SortOrder {
 
     public static SortOrder fromString(String input) {
         try {
-            return SortOrder.valueOf(input.toUpperCase());
+            return SortOrder.valueOf(input.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                    "Invalid sort order: " + input + ". Allowed values: asc, desc"
-            );
+            throw new IllegalArgumentException("Invalid sort order: " + input + ". Allowed values: asc, desc");
         }
     }
 }

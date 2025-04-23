@@ -6,7 +6,6 @@
  * compatible open source license.
  */
 
-
 package org.opensearch.action.pagination;
 
 import org.opensearch.OpenSearchParseException;
@@ -17,13 +16,14 @@ import org.opensearch.wlm.stats.WorkloadGroupStats;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
-import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.ArrayList;
 
 /**
  * Pagination strategy for Workload Management (WLM) Stats.
@@ -47,19 +47,17 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         this.sortBy = sortBy;
         this.sortOrder = sortOrder;
 
-        this.snapshotWorkloadGroupCount = response.getNodes().stream()
+        this.snapshotWorkloadGroupCount = response.getNodes()
+            .stream()
             .mapToInt(stat -> stat.getWorkloadGroupStats().getStats().size())
             .sum();
 
         String currentHash = computeWorkloadGroupHash(response.getNodes());
 
-        WlmStrategyToken requestedToken = (nextToken == null || nextToken.isEmpty())
-            ? null
-            : new WlmStrategyToken(nextToken);
+        WlmStrategyToken requestedToken = (nextToken == null || nextToken.isEmpty()) ? null : new WlmStrategyToken(nextToken);
 
         if (requestedToken != null) {
-            if (requestedToken.getWorkloadGroupCount() != snapshotWorkloadGroupCount ||
-                !requestedToken.getHash().equals(currentHash)) {
+            if (requestedToken.getWorkloadGroupCount() != snapshotWorkloadGroupCount || !requestedToken.getHash().equals(currentHash)) {
                 throw new OpenSearchParseException("Workload group state has changed since the last request. Pagination is invalidated.");
             }
         }
@@ -70,8 +68,13 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
     // Compute the hash for all (nodeId|workloadGroupId) pairs
     private String computeWorkloadGroupHash(List<WlmStats> stats) {
         return stats.stream()
-            .flatMap(stat -> stat.getWorkloadGroupStats().getStats().keySet().stream()
-                .map(WorkloadGroupId -> stat.getNode().getId() + "|" + WorkloadGroupId))
+            .flatMap(
+                stat -> stat.getWorkloadGroupStats()
+                    .getStats()
+                    .keySet()
+                    .stream()
+                    .map(WorkloadGroupId -> stat.getNode().getId() + "|" + WorkloadGroupId)
+            )
             .sorted()
             .collect(Collectors.collectingAndThen(Collectors.joining(","), this::sha256Hex));
     }
@@ -82,7 +85,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
             byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
             StringBuilder hexString = new StringBuilder();
             for (byte b : hash) {
-                hexString.append(String.format("%02x", b));
+                hexString.append(String.format(Locale.ROOT, "%02x", b));
             }
             return hexString.toString();
         } catch (NoSuchAlgorithmException e) {
@@ -111,9 +114,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
 
         List<WlmStats> perWorkloadGroupStats = extractWorkloadGroupStats(rawStats);
 
-        perWorkloadGroupStats = perWorkloadGroupStats.stream()
-                .sorted(sortOrder.apply(sortBy.getComparator()))
-                .collect(Collectors.toList());
+        perWorkloadGroupStats = perWorkloadGroupStats.stream().sorted(sortOrder.apply(sortBy.getComparator())).collect(Collectors.toList());
 
         int startIndex = getStartIndex(perWorkloadGroupStats, requestedToken);
 
@@ -142,11 +143,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
             return 0;
         }
 
-        OptionalInt index = findIndex(
-                sortedStats,
-                token.getNodeId(),
-                token.getWorkloadGroupId()
-        );
+        OptionalInt index = findIndex(sortedStats, token.getNodeId(), token.getWorkloadGroupId());
 
         if (index.isEmpty()) {
             throw new OpenSearchParseException("Invalid or outdated token: " + nextToken);
@@ -167,8 +164,15 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
             String workloadGroupId = lastEntry.getWorkloadGroupStats().getStats().keySet().iterator().next();
 
             this.responseToken = new PageToken(
-                    WlmStrategyToken.generateEncryptedToken(nodeId, workloadGroupId, snapshotWorkloadGroupCount, currentHash, sortOrder.name(), sortBy.name()),
-                    DEFAULT_PAGINATED_ENTITY
+                WlmStrategyToken.generateEncryptedToken(
+                    nodeId,
+                    workloadGroupId,
+                    snapshotWorkloadGroupCount,
+                    currentHash,
+                    sortOrder.name(),
+                    sortBy.name()
+                ),
+                DEFAULT_PAGINATED_ENTITY
             );
         } else {
             this.responseToken = null;
@@ -178,8 +182,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
     private OptionalInt findIndex(List<WlmStats> stats, String nodeId, String workloadGroupId) {
         for (int i = 0; i < stats.size(); i++) {
             WlmStats stat = stats.get(i);
-            if (stat.getNode().getId().equals(nodeId)
-                && stat.getWorkloadGroupStats().getStats().containsKey(workloadGroupId)) {
+            if (stat.getNode().getId().equals(nodeId) && stat.getWorkloadGroupStats().getStats().containsKey(workloadGroupId)) {
                 return OptionalInt.of(i + 1);
             }
         }
@@ -234,7 +237,14 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
             this.sortBy = parts[SORT_BY_POS];
         }
 
-        public static String generateEncryptedToken(String nodeId, String workloadGroupId, int workloadGroupCount, String hash, String sortOrder, String sortBy) {
+        public static String generateEncryptedToken(
+            String nodeId,
+            String workloadGroupId,
+            int workloadGroupCount,
+            String hash,
+            String sortOrder,
+            String sortBy
+        ) {
             String raw = String.join(JOIN_DELIMITER, nodeId, workloadGroupId, String.valueOf(workloadGroupCount), hash, sortOrder, sortBy);
             return PaginationStrategy.encryptStringToken(raw);
         }
@@ -267,12 +277,12 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
             Objects.requireNonNull(token, "Token cannot be null");
             String decrypted = PaginationStrategy.decryptStringToken(token);
             final String[] parts = decrypted.split(SPLIT_REGEX);
-            if (parts.length != 6 ||
-                parts[NODE_ID_POS].isEmpty() ||
-                parts[WORKLOAD_GROUP_ID_POS].isEmpty() ||
-                parts[HASH_POS].isEmpty() ||
-                parts[SORT_ORDER_POS].isEmpty() ||
-                parts[SORT_BY_POS].isEmpty()) {
+            if (parts.length != 6
+                || parts[NODE_ID_POS].isEmpty()
+                || parts[WORKLOAD_GROUP_ID_POS].isEmpty()
+                || parts[HASH_POS].isEmpty()
+                || parts[SORT_ORDER_POS].isEmpty()
+                || parts[SORT_BY_POS].isEmpty()) {
                 throw new OpenSearchParseException("Invalid pagination token format");
             }
         }

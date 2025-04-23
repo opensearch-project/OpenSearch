@@ -12,6 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
+import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
+import org.opensearch.action.pagination.PageToken;
+import org.opensearch.action.pagination.SortBy;
+import org.opensearch.action.pagination.SortOrder;
+import org.opensearch.action.pagination.WlmPaginationStrategy;
+import org.opensearch.common.Table;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
@@ -22,23 +28,17 @@ import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActions;
-import org.opensearch.transport.client.node.NodeClient;
-import org.opensearch.wlm.ResourceType;
-import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
-import org.opensearch.common.Table;
-import org.opensearch.wlm.stats.WorkloadGroupStats;
-import org.opensearch.wlm.stats.WlmStats;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rest.action.cat.RestTable;
-import org.opensearch.action.pagination.WlmPaginationStrategy;
-import org.opensearch.action.pagination.SortBy;
-import org.opensearch.action.pagination.SortOrder;
-import org.opensearch.action.pagination.PageToken;
+import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.stats.WlmStats;
+import org.opensearch.wlm.stats.WorkloadGroupStats;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -54,7 +54,6 @@ public class RestWlmStatsAction extends BaseRestHandler {
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
     private static final Logger logger = LogManager.getLogger(RestWlmStatsAction.class);
-
 
     @Override
     public List<Route> routes() {
@@ -102,29 +101,26 @@ public class RestWlmStatsAction extends BaseRestHandler {
         SortBy sortBy,
         SortOrder sortOrder
     ) {
-        return channel -> client.admin().cluster().wlmStats(wlmStatsRequest,
-            new RestResponseListener<WlmStatsResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(WlmStatsResponse response) throws Exception {
-                    try {
-                        WlmPaginationStrategy paginationStrategy =
-                            new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
+        return channel -> client.admin().cluster().wlmStats(wlmStatsRequest, new RestResponseListener<WlmStatsResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(WlmStatsResponse response) throws Exception {
+                try {
+                    WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
 
-                        List<WlmStats> paginatedStats = paginationStrategy.getPaginatedStats();
-                        PageToken nextPageToken = paginationStrategy.getResponseToken();
+                    List<WlmStats> paginatedStats = paginationStrategy.getPaginatedStats();
+                    PageToken nextPageToken = paginationStrategy.getResponseToken();
 
-                        Table paginatedTable = createTableWithHeaders(nextPageToken);
-                        buildTable(paginatedTable, paginatedStats, paginationStrategy);
+                    Table paginatedTable = createTableWithHeaders(nextPageToken);
+                    buildTable(paginatedTable, paginatedStats, paginationStrategy);
 
-                        request.params().put("v", "true");
-                        return RestTable.buildResponse(paginatedTable, channel);
-                    } catch (OpenSearchParseException e) {
-                        handlePaginationError(channel, nextToken, pageSize, sortBy, sortOrder, e);
-                        return null;
-                    }
+                    // request.params().put("v", "true");
+                    return RestTable.buildResponse(paginatedTable, channel);
+                } catch (OpenSearchParseException e) {
+                    handlePaginationError(channel, nextToken, pageSize, sortBy, sortOrder, e);
+                    return null;
                 }
             }
-        );
+        });
     }
 
     private SortBy parseSortBy(String sortByParam) throws OpenSearchParseException {
@@ -151,12 +147,24 @@ public class RestWlmStatsAction extends BaseRestHandler {
         return pageSize;
     }
 
-    private void handlePaginationError(RestChannel channel, String nextToken, int pageSize, SortBy sortBy, SortOrder sortOrder, OpenSearchParseException e) throws IOException {
+    private void handlePaginationError(
+        RestChannel channel,
+        String nextToken,
+        int pageSize,
+        SortBy sortBy,
+        SortOrder sortOrder,
+        OpenSearchParseException e
+    ) throws IOException {
         String userMessage = "Pagination state has changed (e.g., new workload groups added or removed). "
             + "Please restart pagination from the beginning by omitting the 'next_token' parameter.";
 
-        logger.error("Failed to paginate WLM stats. next_token={}, pageSize={}, sortBy={}, sortOrder={}. Reason: {}",
-            nextToken, pageSize, sortBy, sortOrder, e.getMessage(), e);
+        logger.error(
+            "Failed to paginate WLM stats: next_token={}, pageSize={}, sortBy={}, sortOrder={}",
+            nextToken,
+            pageSize,
+            sortBy,
+            sortOrder
+        );
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();

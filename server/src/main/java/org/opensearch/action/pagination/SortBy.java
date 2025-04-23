@@ -11,6 +11,7 @@ package org.opensearch.action.pagination;
 import org.opensearch.wlm.stats.WlmStats;
 
 import java.util.Comparator;
+import java.util.Locale;
 
 /**
  * Represents the different fields by which WLM statistics can be sorted.
@@ -29,13 +30,12 @@ public enum SortBy {
     NODE_ID {
         @Override
         public Comparator<WlmStats> getComparator() {
-            return Comparator.comparing(
-                (WlmStats wlmStats) -> wlmStats.getNode().getId()
-            ).thenComparing(
-                wlmStats -> wlmStats.getWorkloadGroupStats().getStats().isEmpty()
-                    ? ""
-                    : wlmStats.getWorkloadGroupStats().getStats().keySet().iterator().next()
-            );
+            return Comparator.comparing((WlmStats wlmStats) -> wlmStats.getNode().getId())
+                .thenComparing(
+                    wlmStats -> wlmStats.getWorkloadGroupStats().getStats().isEmpty()
+                        ? ""
+                        : wlmStats.getWorkloadGroupStats().getStats().keySet().iterator().next()
+                );
         }
     };
 
@@ -43,12 +43,9 @@ public enum SortBy {
 
     public static SortBy fromString(String input) {
         try {
-            return SortBy.valueOf(input.toUpperCase());
+            return SortBy.valueOf(input.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                    "Invalid sort field: " + input + ". Allowed values: workload_group, node_id"
-            );
+            throw new IllegalArgumentException("Invalid sort field: " + input + ". Allowed values: workload_group, node_id");
         }
     }
 }
-

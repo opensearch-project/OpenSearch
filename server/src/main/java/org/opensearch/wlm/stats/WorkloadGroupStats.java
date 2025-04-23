@@ -142,7 +142,6 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             return resourceStats;
         }
 
-
         /**
          * static factory method to convert {@link WorkloadGroupState} into {@link WorkloadGroupStatsHolder}
          * @param workloadGroupState which needs to be converted
@@ -255,7 +254,6 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
         public long getRejections() {
             return rejections;
         }
-
 
         /**
          * static factory method to convert {@link ResourceTypeState} into {@link ResourceStats}
