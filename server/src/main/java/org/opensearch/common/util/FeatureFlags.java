@@ -114,7 +114,7 @@ public class FeatureFlags {
      * aggregations.
      */
     public static final String STAR_TREE_INDEX = FEATURE_FLAG_PREFIX + "composite_index.star_tree.enabled";
-    public static final Setting<Boolean> STAR_TREE_INDEX_SETTING = Setting.boolSetting(STAR_TREE_INDEX, true, Property.NodeScope);
+    public static final Setting<Boolean> STAR_TREE_INDEX_SETTING = Setting.boolSetting(STAR_TREE_INDEX, false, Property.NodeScope);
 
     /**
      * Gates the functionality of application based configuration templates.
