@@ -41,6 +41,7 @@ import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.ParseField;
@@ -202,16 +203,18 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         /**
          * The source of the failure, denotes which step has failure during the bulk processing, only used internally.
          */
-        @PublicApi(since = "3.0.0")
+        @InternalApi()
         public enum FailureSource {
-            UNKNOWN(0),
+            UNKNOWN((byte) 0),
             // Pipeline execution failure
-            PIPELINE(1);
+            PIPELINE((byte) 1),
+            VALIDATION((byte) 2),
+            WRITE_PROCESSING((byte) 3);
 
             private final byte sourceType;
 
-            FailureSource(int sourceType) {
-                this.sourceType = (byte) sourceType;
+            FailureSource(byte sourceType) {
+                this.sourceType = sourceType;
             }
 
             public byte getSourceType() {
@@ -222,6 +225,8 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
                 return switch (sourceType) {
                     case 0 -> UNKNOWN;
                     case 1 -> PIPELINE;
+                    case 2 -> VALIDATION;
+                    case 3 -> WRITE_PROCESSING;
                     default -> throw new IllegalArgumentException("Unknown failure source: [" + sourceType + "]");
                 };
             }

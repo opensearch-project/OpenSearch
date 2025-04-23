@@ -181,7 +181,8 @@ public class Retry {
                     // when executing pipeline failed with retryable exception, the pipeline needs to be executed again
                     if (bulkItemResponse.getFailure().getSource() == BulkItemResponse.Failure.FailureSource.PIPELINE
                         && docWriteRequest instanceof IndexRequest indexRequest) {
-                        // after the first execution, the pipeline was set to _none, so we need to reset it
+                        // Reset pipeline configuration for retry, after the first execution, the pipeline was set to _none, so we need to
+                        // reset it
                         // to the global pipeline if the global pipeline exists,
                         // if not, set to null to ensure the default pipeline can be resolved and set
                         // see org.opensearch.ingest.IngestService.resolvePipelines()
