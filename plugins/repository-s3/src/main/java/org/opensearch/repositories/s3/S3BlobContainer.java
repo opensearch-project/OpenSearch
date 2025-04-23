@@ -709,7 +709,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 () -> clientReference.get().completeMultipartUpload(completeRequest)
             );
 
-            // Validate final ETag
+
             if (completeResponse.eTag() != null) {
                 success = true;
                 etagListener.onResponse(completeResponse.eTag());
