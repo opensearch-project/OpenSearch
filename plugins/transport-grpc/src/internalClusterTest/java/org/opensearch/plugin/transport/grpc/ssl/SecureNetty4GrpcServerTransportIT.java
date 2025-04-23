@@ -20,7 +20,6 @@ import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,11 +28,11 @@ import java.util.Optional;
 
 import io.grpc.health.v1.HealthCheckResponse;
 
+import static org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport.GRPC_SECURE_TRANSPORT_SETTING_KEY;
 import static org.opensearch.plugin.transport.grpc.ssl.SecureSettingsHelpers.getServerClientAuthNone;
 import static org.opensearch.plugin.transport.grpc.ssl.SecureSettingsHelpers.getServerClientAuthOptional;
 import static org.opensearch.plugin.transport.grpc.ssl.SecureSettingsHelpers.getServerClientAuthRequired;
 import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
-import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.GRPC_SECURE_TRANSPORT_SETTING_KEY;
 
 public abstract class SecureNetty4GrpcServerTransportIT extends OpenSearchIntegTestCase {
 

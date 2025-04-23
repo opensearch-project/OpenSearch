@@ -552,7 +552,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
         if (valueType == ValueType.BITMAP) {
             if (values.size() == 1 && values.get(0) instanceof BytesArray) {
-                if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+                if (fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
                     return ((NumberFieldMapper.NumberFieldType) fieldType).bitmapQuery((BytesArray) values.get(0));
                 }
             }
@@ -622,7 +622,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             MappedFieldType fieldType = context.fieldMapper(this.fieldName);
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
-            } else if (fieldType instanceof ConstantFieldType) {
+            } else if (fieldType.unwrap() instanceof ConstantFieldType) {
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.

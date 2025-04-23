@@ -11,7 +11,6 @@ package org.opensearch.plugin.transport.grpc.ssl;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
-import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
