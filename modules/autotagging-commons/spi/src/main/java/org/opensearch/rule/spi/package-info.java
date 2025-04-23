@@ -5,8 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-
 /**
- * Package for the rest classes related to query groups in WorkloadManagementPlugin
+ * Contains extension points for framework plugin
  */
-package org.opensearch.plugin.wlm.rest;
+package org.opensearch.rule.spi;
