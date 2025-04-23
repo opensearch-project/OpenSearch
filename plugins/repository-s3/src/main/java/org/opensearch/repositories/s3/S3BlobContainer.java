@@ -645,7 +645,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             : input;
 
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            // Initiate multipart upload
             uploadId.set(
                 SocketAccess.doPrivileged(() -> clientReference.get().createMultipartUpload(createMultipartUploadRequest).uploadId())
             );
@@ -676,7 +675,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                         .uploadPart(uploadPartRequest, RequestBody.fromInputStream(requestInputStream, currentPartSize))
                 );
 
-                // Validate part-level ETag
                 String partETag = uploadResponse.eTag();
                 if (partETag == null) {
                     IOException exception = new IOException(
@@ -697,7 +695,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 throw exception;
             }
 
-            // Add ifMatch condition to the complete request
             CompleteMultipartUploadRequest completeRequest = CompleteMultipartUploadRequest.builder()
                 .bucket(bucketName)
                 .key(blobName)
