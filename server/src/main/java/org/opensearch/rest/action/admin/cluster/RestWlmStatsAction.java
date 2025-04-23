@@ -101,6 +101,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
         SortBy sortBy,
         SortOrder sortOrder
     ) {
+        boolean verbose = request.paramAsBoolean("v", false);
         return channel -> client.admin().cluster().wlmStats(wlmStatsRequest, new RestResponseListener<WlmStatsResponse>(channel) {
             @Override
             public RestResponse buildResponse(WlmStatsResponse response) throws Exception {
@@ -110,10 +111,9 @@ public class RestWlmStatsAction extends BaseRestHandler {
                     List<WlmStats> paginatedStats = paginationStrategy.getPaginatedStats();
                     PageToken nextPageToken = paginationStrategy.getResponseToken();
 
-                    Table paginatedTable = createTableWithHeaders(nextPageToken);
+                    Table paginatedTable = createTableWithHeaders(nextPageToken, verbose);
                     buildTable(paginatedTable, paginatedStats, paginationStrategy);
 
-                    // request.params().put("v", "true");
                     return RestTable.buildResponse(paginatedTable, channel);
                 } catch (OpenSearchParseException e) {
                     handlePaginationError(channel, nextToken, pageSize, sortBy, sortOrder, e);
@@ -175,22 +175,22 @@ public class RestWlmStatsAction extends BaseRestHandler {
         channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
     }
 
-    private Table createTableWithHeaders(PageToken pageToken) {
+    private Table createTableWithHeaders(PageToken pageToken, boolean verbose) {
         Table table = new Table(pageToken);
         table.startHeaders();
-        table.addCell("NODE_ID", "desc:Node ID");
+        table.addCell("NODE_ID", verbose ? "desc:Node ID" : "");
         table.addCell("|");
-        table.addCell("WORKLOAD_GROUP_ID", "desc:Workload Group");
+        table.addCell("WORKLOAD_GROUP_ID", verbose ? "desc:Workload Group" : "");
         table.addCell("|");
-        table.addCell("TOTAL_COMPLETIONS", "desc:Total Completed Queries");
+        table.addCell("TOTAL_COMPLETIONS", verbose ? "desc:Total Completed Queries" : "");
         table.addCell("|");
-        table.addCell("TOTAL_REJECTIONS", "desc:Total Rejected Queries");
+        table.addCell("TOTAL_REJECTIONS", verbose ? "desc:Total Rejected Queries" : "");
         table.addCell("|");
-        table.addCell("TOTAL_CANCELLATIONS", "desc:Total Canceled Queries");
+        table.addCell("TOTAL_CANCELLATIONS", verbose ? "desc:Total Canceled Queries" : "");
         table.addCell("|");
-        table.addCell("CPU_USAGE", "desc:CPU Usage");
+        table.addCell("CPU_USAGE", verbose ? "desc:CPU Usage" : "");
         table.addCell("|");
-        table.addCell("MEMORY_USAGE", "desc:Memory Usage");
+        table.addCell("MEMORY_USAGE", verbose ? "desc:Memory Usage" : "");
         table.endHeaders();
         return table;
     }

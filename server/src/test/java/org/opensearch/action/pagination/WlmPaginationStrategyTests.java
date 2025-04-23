@@ -45,25 +45,20 @@ public class WlmPaginationStrategyTests extends OpenSearchTestCase {
     }
 
     public void testValid() {
-        // Arrange
         int pageSize = 10;
         String nextToken = null;
         SortBy sortBy = SortBy.WORKLOAD_GROUP;
         SortOrder sortOrder = SortOrder.ASC;
 
-        // Mock response with 5 entries
         WlmStatsResponse response = mockResponse(5);  // Mocking a response with 5 entries
 
-        // Act
         WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
 
-        // Assert
         assertNotNull(paginationStrategy);
         assertEquals(5, paginationStrategy.getRequestedEntities().size());
     }
 
     public void testToken() {
-        // Arrange
         String nodeId = "node1";
         String workloadGroupId = "workloadGroup1";
         int workloadGroupCount = 5;
@@ -71,7 +66,6 @@ public class WlmPaginationStrategyTests extends OpenSearchTestCase {
         String sortOrder = SortOrder.ASC.name();
         String sortBy = SortBy.WORKLOAD_GROUP.name();
 
-        // Act
         String token = WlmPaginationStrategy.WlmStrategyToken.generateEncryptedToken(
             nodeId,
             workloadGroupId,
@@ -81,81 +75,64 @@ public class WlmPaginationStrategyTests extends OpenSearchTestCase {
             sortBy
         );
 
-        // Assert
         assertNotNull(token);
         assertFalse(token.isEmpty());
     }
 
     public void testEmpty() {
-        // Arrange
         int pageSize = 10;
         String nextToken = null;
         SortBy sortBy = SortBy.WORKLOAD_GROUP;
         SortOrder sortOrder = SortOrder.ASC;
 
-        // Mocking an empty WlmStatsResponse
         WlmStatsResponse response = mockResponse(0);
 
-        // Act
         WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
 
-        // Assert
         assertTrue(paginationStrategy.getRequestedEntities().isEmpty());
     }
 
     public void testInvalid() {
-        // Arrange
         int pageSize = 10;
         String nextToken = "invalid-token";
         SortBy sortBy = SortBy.WORKLOAD_GROUP;
         SortOrder sortOrder = SortOrder.ASC;
 
-        // Mock response with 5 entries
         WlmStatsResponse response = mockResponse(5);
 
-        // Act & Assert
         OpenSearchParseException thrown = assertThrows(OpenSearchParseException.class, () -> {
             new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
         });
 
-        // Update expected message to match the actual exception message
         assertEquals("Parameter [next_token] has been tainted and is incorrect. Please provide a valid [next_token].", thrown.getMessage());
     }
 
     public void testStart() {
-        // Arrange
         int pageSize = 3;
-        String nextToken = null;  // First page
+        String nextToken = null;
         SortBy sortBy = SortBy.WORKLOAD_GROUP;
         SortOrder sortOrder = SortOrder.ASC;
 
-        // Mock response with 5 stats entries
         WlmStatsResponse response = mockResponse(5);
 
-        // Act
         WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
 
-        // Assert
         assertNotNull(paginationStrategy.getRequestedEntities());
         assertEquals(pageSize, paginationStrategy.getRequestedEntities().size());
     }
 
     public void testPageLimit() {
-        // Arrange
         int pageSize = 10;
-        String nextToken = null;  // First page
+        String nextToken = null;
         SortBy sortBy = SortBy.WORKLOAD_GROUP;
         SortOrder sortOrder = SortOrder.ASC;
 
-        // Mock response with 5 stats entries
         WlmStatsResponse response = mockResponse(5);
 
-        // Act
         WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
 
-        // Assert
         assertNotNull(paginationStrategy.getRequestedEntities());
-        assertEquals(5, paginationStrategy.getRequestedEntities().size()); // Size should be 5 as we have only 5 entries
+        assertEquals(5, paginationStrategy.getRequestedEntities().size());
     }
 
     public void testSorting() {
