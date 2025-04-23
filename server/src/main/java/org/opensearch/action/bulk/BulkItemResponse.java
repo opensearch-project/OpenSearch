@@ -41,7 +41,6 @@ import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.ParseField;
@@ -201,9 +200,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         private final FailureSource source;
 
         /**
-         * The source of the failure, denotes which step has failure during the bulk processing, only used internally.
+         * The source of the failure, denotes which step has failure during the bulk processing.
          */
-        @InternalApi()
+        @PublicApi(since = "3.0.0")
         public enum FailureSource {
             UNKNOWN((byte) 0),
             // Pipeline execution failure
