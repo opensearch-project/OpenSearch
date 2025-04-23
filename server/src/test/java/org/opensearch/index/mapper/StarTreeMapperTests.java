@@ -8,6 +8,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.ClusterSettings;
@@ -25,6 +26,7 @@ import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.ReadDimension;
+import org.opensearch.index.compositeindex.datacube.UnsignedLongDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
@@ -41,6 +43,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.opensearch.index.compositeindex.CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
@@ -51,21 +54,23 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
  * Tests for {@link StarTreeMapper}.
  */
 public class StarTreeMapperTests extends MapperTestCase {
+    FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
 
     @Before
     public void setup() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
+        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
     }
 
     @After
     public void teardown() {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        ffLock.close();
     }
 
     @Override
     protected Settings getIndexSettings() {
         return Settings.builder()
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
             .put(SETTINGS)
             .build();
@@ -77,7 +82,7 @@ public class StarTreeMapperTests extends MapperTestCase {
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
-            assertEquals(2, starTreeFieldType.getDimensions().size());
+            assertEquals(3, starTreeFieldType.getDimensions().size());
             assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
             assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
             DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
@@ -89,6 +94,11 @@ public class StarTreeMapperTests extends MapperTestCase {
                 assertEquals(expectedTimeUnits.get(i).shortName(), dateDim.getIntervals().get(i).shortName());
             }
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
+            assertTrue(starTreeFieldType.getDimensions().get(1) instanceof NumericDimension);
+
+            assertEquals("unsignedLongDimension", starTreeFieldType.getDimensions().get(2).getField());
+            assertTrue(starTreeFieldType.getDimensions().get(2) instanceof UnsignedLongDimension);
+
             assertEquals(2, starTreeFieldType.getMetrics().size());
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
 
@@ -132,6 +142,7 @@ public class StarTreeMapperTests extends MapperTestCase {
         Settings settings = Settings.builder()
             .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "256mb")
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .put(COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "512mb")
             .build();
 
@@ -154,6 +165,11 @@ public class StarTreeMapperTests extends MapperTestCase {
                 assertEquals(new DateTimeUnitAdapter(expectedTimeUnits.get(i)), dateDim.getIntervals().get(i));
             }
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
+            assertTrue(starTreeFieldType.getDimensions().get(1) instanceof NumericDimension);
+
+            assertEquals("unsignedLongDimension", starTreeFieldType.getDimensions().get(2).getField());
+            assertTrue(starTreeFieldType.getDimensions().get(2) instanceof UnsignedLongDimension);
+
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
 
             // Assert AVG gets added when both of its base metrics is already present
@@ -162,7 +178,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals(100, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
             assertEquals(
-                new HashSet<>(Arrays.asList("@timestamp", "status")),
+                new HashSet<>(Arrays.asList("@timestamp", "status", "unsignedLongDimension")),
                 starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims()
             );
         }
@@ -548,6 +564,7 @@ public class StarTreeMapperTests extends MapperTestCase {
         DateDimension d1 = new DateDimension("name", d1CalendarIntervals, DateFieldMapper.Resolution.MILLISECONDS);
         NumericDimension n1 = new NumericDimension("numeric");
         NumericDimension n2 = new NumericDimension("name1");
+        UnsignedLongDimension n3 = new UnsignedLongDimension("name2");
 
         List<Metric> metrics = List.of(metric1);
         List<Dimension> dims = List.of(d1, n2);
@@ -560,6 +577,11 @@ public class StarTreeMapperTests extends MapperTestCase {
         StarTreeField field1 = new StarTreeField("starTree", dims, metrics, config);
         StarTreeField field2 = new StarTreeField("starTree", dims, metrics, config);
         assertEquals(field1, field2);
+
+        List<Dimension> dims1 = List.of(d1, n1, n2, n3);
+        StarTreeField field3 = new StarTreeField("starTree", dims1, metrics, config);
+        StarTreeField field4 = new StarTreeField("starTree", dims1, metrics, config);
+        assertEquals(field3, field4);
 
         dims = List.of(d1, n2, n1);
         field2 = new StarTreeField("starTree", dims, metrics, config);
@@ -677,6 +699,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startObject();
             b.field("name", dim);
             b.endObject();
+            b.startObject();
+            b.field("name", "unsignedLongDimension"); // UnsignedLongDimension
+            b.endObject();
             b.endArray();
             b.startArray("metrics");
             b.startObject();
@@ -701,6 +726,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.startObject("keyword1");
             b.field("type", "keyword");
+            b.endObject();
+            b.startObject("unsignedLongDimension");
+            b.field("type", "unsigned_long");
             b.endObject();
             b.endObject();
         });
@@ -768,6 +796,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             {
                 b.value("@timestamp");
                 b.value("status");
+                b.value("unsignedLongDimension");
             }
             b.endArray();
             b.startObject("date_dimension");
@@ -780,6 +809,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.startArray("ordered_dimensions");
             b.startObject();
             b.field("name", dim);
+            b.endObject();
+            b.startObject();
+            b.field("name", "unsignedLongDimension"); // UnsignedLongDimension
             b.endObject();
             b.endArray();
             b.startArray("metrics");
@@ -805,6 +837,9 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.startObject("keyword1");
             b.field("type", "keyword");
+            b.endObject();
+            b.startObject("unsignedLongDimension");
+            b.field("type", "unsigned_long");
             b.endObject();
             b.endObject();
         });

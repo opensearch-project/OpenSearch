@@ -109,12 +109,6 @@ public class ClientYamlTestClient implements Closeable {
         return clusterManagerVersion;
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerVersion()} */
-    @Deprecated
-    public Version getMasterVersion() {
-        return getClusterManagerVersion();
-    }
-
     /**
      * Calls an api with the provided parameters and body
      */

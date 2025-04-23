@@ -33,10 +33,10 @@
 package org.opensearch.action.admin.indices.readonly;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequestBuilder;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Builder for add index block request

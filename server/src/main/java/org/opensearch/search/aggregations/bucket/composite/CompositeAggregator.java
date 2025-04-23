@@ -94,7 +94,7 @@ import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.opensearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
-import static org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
+import static org.opensearch.search.aggregations.bucket.filterrewrite.AggregatorBridge.segmentMatchAll;
 
 /**
  * Main aggregator that aggregates docs from multiple aggregations
@@ -173,6 +173,9 @@ public final class CompositeAggregator extends BucketsAggregator {
 
             @Override
             protected boolean canOptimize() {
+                if (subAggregators.length > 0) {
+                    return false;
+                }
                 if (canOptimize(sourceConfigs)) {
                     this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
                     if (rawAfterKey != null) {
@@ -180,6 +183,14 @@ public final class CompositeAggregator extends BucketsAggregator {
                         this.afterKey = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
                             throw new IllegalArgumentException("now() is not supported in [after] key");
                         });
+                    }
+
+                    /**
+                     * The filter rewrite optimized path does not support bucket intervals which are not fixed.
+                     * For this reason we exclude non UTC timezones.
+                     */
+                    if (valuesSource.getRounding().isUTC() == false) {
+                        return false;
                     }
 
                     // bucketOrds is used for saving the date histogram results got from the optimization path
@@ -384,7 +395,7 @@ public final class CompositeAggregator extends BucketsAggregator {
      * optimization and null if index sort is not applicable.
      */
     private Sort buildIndexSortPrefix(LeafReaderContext context) throws IOException {
-        Sort indexSort = context.reader().getMetaData().getSort();
+        Sort indexSort = context.reader().getMetaData().sort();
         if (indexSort == null) {
             return null;
         }
@@ -556,10 +567,18 @@ public final class CompositeAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
-        if (optimized) throw new CollectionTerminatedException();
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        finishLeaf(); // May need to wrap up previous leaf if it could not be precomputed
+        return filterRewriteOptimizationContext.tryOptimize(
+            ctx,
+            this::incrementBucketDocCount,
+            segmentMatchAll(context, ctx),
+            collectableSubAggregators
+        );
+    }
 
+    @Override
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         finishLeaf();
 
         boolean fillDocIdSet = deferredCollectors != NO_OP_COLLECTOR;

@@ -59,6 +59,8 @@ import org.opensearch.script.ScriptException;
 import org.opensearch.script.TermsSetQueryScript;
 import org.opensearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -197,7 +199,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
                         };
                     }
                     // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
-                    return JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS, loader);
+                    return JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS);
                 } catch (ParseException e) {
                     throw convertToScriptException("compile error", scriptSource, scriptSource, e);
                 }
@@ -250,7 +252,12 @@ public class ExpressionScriptEngine implements ScriptEngine {
                             placeholder.setValue(((Number) value).doubleValue());
                         }
                     });
-                    return expr.evaluate(functionValuesArray);
+
+                    try {
+                        return expr.evaluate(functionValuesArray);
+                    } catch (final IOException ex) {
+                        throw new UncheckedIOException(ex);
+                    }
                 }
             };
         };
@@ -489,14 +496,14 @@ public class ExpressionScriptEngine implements ScriptEngine {
 
         IndexFieldData<?> fieldData = lookup.doc().getForField(fieldType);
         final DoubleValuesSource valueSource;
-        if (fieldType instanceof GeoPointFieldType) {
+        if (fieldType.unwrap() instanceof GeoPointFieldType) {
             // geo
             if (methodname == null) {
                 valueSource = GeoField.getVariable(fieldData, fieldname, variablename);
             } else {
                 valueSource = GeoField.getMethod(fieldData, fieldname, methodname);
             }
-        } else if (fieldType instanceof DateFieldMapper.DateFieldType) {
+        } else if (fieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
             if (dateAccessor) {
                 // date object
                 if (methodname == null) {

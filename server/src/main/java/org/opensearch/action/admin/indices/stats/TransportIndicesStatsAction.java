@@ -52,6 +52,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -141,16 +142,27 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         CommitStats commitStats;
         SeqNoStats seqNoStats;
         RetentionLeaseStats retentionLeaseStats;
+        PollingIngestStats pollingIngestStats;
         try {
             commitStats = indexShard.commitStats();
             seqNoStats = indexShard.seqNoStats();
             retentionLeaseStats = indexShard.getRetentionLeaseStats();
+            pollingIngestStats = indexShard.pollingIngestStats();
         } catch (final AlreadyClosedException e) {
             // shard is closed - no stats is fine
             commitStats = null;
             seqNoStats = null;
             retentionLeaseStats = null;
+            pollingIngestStats = null;
         }
-        return new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), commonStats, commitStats, seqNoStats, retentionLeaseStats);
+        return new ShardStats(
+            indexShard.routingEntry(),
+            indexShard.shardPath(),
+            commonStats,
+            commitStats,
+            seqNoStats,
+            retentionLeaseStats,
+            pollingIngestStats
+        );
     }
 }

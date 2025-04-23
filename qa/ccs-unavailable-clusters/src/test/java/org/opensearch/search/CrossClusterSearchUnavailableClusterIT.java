@@ -170,7 +170,7 @@ public class CrossClusterSearchUnavailableClusterIT extends OpenSearchRestTestCa
             {
                 SearchResponse response = restHighLevelClient.search(new SearchRequest("index"), RequestOptions.DEFAULT);
                 assertSame(SearchResponse.Clusters.EMPTY, response.getClusters());
-                assertEquals(10, response.getHits().getTotalHits().value);
+                assertEquals(10, response.getHits().getTotalHits().value());
                 assertEquals(10, response.getHits().getHits().length);
             }
             {
@@ -178,7 +178,7 @@ public class CrossClusterSearchUnavailableClusterIT extends OpenSearchRestTestCa
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(10, response.getHits().getTotalHits().value);
+                assertEquals(10, response.getHits().getTotalHits().value());
                 assertEquals(10, response.getHits().getHits().length);
             }
             {
@@ -186,7 +186,7 @@ public class CrossClusterSearchUnavailableClusterIT extends OpenSearchRestTestCa
                 assertEquals(1, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(0, response.getHits().getTotalHits().value);
+                assertEquals(0, response.getHits().getTotalHits().value());
             }
 
             {
@@ -195,12 +195,12 @@ public class CrossClusterSearchUnavailableClusterIT extends OpenSearchRestTestCa
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(2, response.getClusters().getSuccessful());
                 assertEquals(0, response.getClusters().getSkipped());
-                assertEquals(10, response.getHits().getTotalHits().value);
+                assertEquals(10, response.getHits().getTotalHits().value());
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
                 SearchResponse scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
                 assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
-                assertEquals(10, scrollResponse.getHits().getTotalHits().value);
+                assertEquals(10, scrollResponse.getHits().getTotalHits().value());
                 assertEquals(0, scrollResponse.getHits().getHits().length);
             }
 
@@ -213,7 +213,7 @@ public class CrossClusterSearchUnavailableClusterIT extends OpenSearchRestTestCa
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(10, response.getHits().getTotalHits().value);
+                assertEquals(10, response.getHits().getTotalHits().value());
                 assertEquals(10, response.getHits().getHits().length);
             }
             {
@@ -221,7 +221,7 @@ public class CrossClusterSearchUnavailableClusterIT extends OpenSearchRestTestCa
                 assertEquals(1, response.getClusters().getTotal());
                 assertEquals(0, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(0, response.getHits().getTotalHits().value);
+                assertEquals(0, response.getHits().getTotalHits().value());
             }
 
             {
@@ -230,12 +230,12 @@ public class CrossClusterSearchUnavailableClusterIT extends OpenSearchRestTestCa
                 assertEquals(2, response.getClusters().getTotal());
                 assertEquals(1, response.getClusters().getSuccessful());
                 assertEquals(1, response.getClusters().getSkipped());
-                assertEquals(10, response.getHits().getTotalHits().value);
+                assertEquals(10, response.getHits().getTotalHits().value());
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
                 SearchResponse scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
                 assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
-                assertEquals(10, scrollResponse.getHits().getTotalHits().value);
+                assertEquals(10, scrollResponse.getHits().getTotalHits().value());
                 assertEquals(0, scrollResponse.getHits().getHits().length);
             }
 

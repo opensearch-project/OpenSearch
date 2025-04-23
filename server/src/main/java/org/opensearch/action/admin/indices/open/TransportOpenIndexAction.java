@@ -125,7 +125,7 @@ public class TransportOpenIndexAction extends TransportClusterManagerNodeAction<
             return;
         }
         OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
-            .masterNodeTimeout(request.clusterManagerNodeTimeout())
+            .clusterManagerNodeTimeout(request.clusterManagerNodeTimeout())
             .indices(concreteIndices)
             .waitForActiveShards(request.waitForActiveShards());
 

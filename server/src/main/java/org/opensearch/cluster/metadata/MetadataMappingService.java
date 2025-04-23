@@ -366,7 +366,7 @@ public class MetadataMappingService {
         clusterService.submitStateUpdateTask(
             "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
             request,
-            ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
+            ClusterStateTaskConfig.build(Priority.HIGH, request.clusterManagerNodeTimeout()),
             putMappingExecutor,
             new AckedClusterStateTaskListener() {
 

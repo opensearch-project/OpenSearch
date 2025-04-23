@@ -66,10 +66,10 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.opensearch.client.Requests.indexRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.opensearch.transport.client.Requests.indexRequest;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2)
@@ -176,7 +176,7 @@ public class FetchSubPhasePluginIT extends ParameterizedStaticSettingsOpenSearch
                 hitField = new DocumentField(NAME, new ArrayList<>(1));
                 hitContext.hit().setDocumentField(NAME, hitField);
             }
-            Terms terms = hitContext.reader().getTermVector(hitContext.docId(), field);
+            Terms terms = hitContext.reader().termVectors().get(hitContext.docId(), field);
             if (terms != null) {
                 TermsEnum te = terms.iterator();
                 Map<String, Integer> tv = new HashMap<>();

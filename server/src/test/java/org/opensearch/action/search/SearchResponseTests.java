@@ -62,6 +62,7 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregationsTests;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
+import org.opensearch.search.pipeline.ProcessorExecutionDetail;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.profile.SearchProfileShardResultsTests;
 import org.opensearch.search.suggest.Suggest;
@@ -76,6 +77,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -176,7 +178,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 timedOut,
                 terminatedEarly,
                 numReducePhases,
-                searchExtBuilders
+                searchExtBuilders,
+                Collections.emptyList()
             );
         } else {
             internalSearchResponse = InternalSearchResponse.empty();
@@ -311,6 +314,26 @@ public class SearchResponseTests extends OpenSearchTestCase {
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         String dummyId = UUID.randomUUID().toString();
+        List<ProcessorExecutionDetail> processorResults = List.of(
+            new ProcessorExecutionDetail(
+                "processor1",
+                50,
+                List.of(1),
+                List.of(1),
+                ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+                null,
+                null
+            ),
+            new ProcessorExecutionDetail(
+                "processor2",
+                30,
+                List.of(3),
+                List.of(3),
+                ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+                null,
+                null
+            )
+        );
         {
             SearchResponse response = new SearchResponse(
                 new InternalSearchResponse(
@@ -321,7 +344,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
                     false,
                     null,
                     1,
-                    List.of(new DummySearchExtBuilder(dummyId))
+                    List.of(new DummySearchExtBuilder(dummyId)),
+                    processorResults
                 ),
                 null,
                 0,
@@ -354,6 +378,22 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 {
                     expectedString.append("{\"dummy\":\"" + dummyId + "\"}");
                 }
+                expectedString.append(",\"processor_results\":");
+                expectedString.append("[");
+                for (int i = 0; i < processorResults.size(); i++) {
+                    ProcessorExecutionDetail detail = processorResults.get(i);
+                    expectedString.append("{");
+                    expectedString.append("\"processor_name\":\"").append(detail.getProcessorName()).append("\",");
+                    expectedString.append("\"duration_millis\":").append(detail.getDurationMillis()).append(",");
+                    expectedString.append("\"status\":\"").append(detail.getStatus().toString().toLowerCase(Locale.ROOT)).append("\",");
+                    expectedString.append("\"input_data\":").append(detail.getInputData()).append(",");
+                    expectedString.append("\"output_data\":").append(detail.getOutputData());
+                    expectedString.append("}");
+                    if (i < processorResults.size() - 1) {
+                        expectedString.append(",");
+                    }
+                }
+                expectedString.append("]");
             }
             expectedString.append("}");
             assertEquals(expectedString.toString(), Strings.toString(MediaTypeRegistry.JSON, response));
@@ -434,8 +474,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
         if (searchResponse.getHits().getTotalHits() == null) {
             assertNull(deserialized.getHits().getTotalHits());
         } else {
-            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
-            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+            assertEquals(searchResponse.getHits().getTotalHits().value(), deserialized.getHits().getTotalHits().value());
+            assertEquals(searchResponse.getHits().getTotalHits().relation(), deserialized.getHits().getTotalHits().relation());
         }
         assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
         assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
@@ -452,8 +492,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
         if (searchResponse.getHits().getTotalHits() == null) {
             assertNull(deserialized.getHits().getTotalHits());
         } else {
-            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
-            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+            assertEquals(searchResponse.getHits().getTotalHits().value(), deserialized.getHits().getTotalHits().value());
+            assertEquals(searchResponse.getHits().getTotalHits().relation(), deserialized.getHits().getTotalHits().relation());
         }
         assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
         assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
@@ -474,8 +514,8 @@ public class SearchResponseTests extends OpenSearchTestCase {
         if (searchResponse.getHits().getTotalHits() == null) {
             assertNull(deserialized.getHits().getTotalHits());
         } else {
-            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
-            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+            assertEquals(searchResponse.getHits().getTotalHits().value(), deserialized.getHits().getTotalHits().value());
+            assertEquals(searchResponse.getHits().getTotalHits().relation(), deserialized.getHits().getTotalHits().relation());
         }
         assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
         assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());

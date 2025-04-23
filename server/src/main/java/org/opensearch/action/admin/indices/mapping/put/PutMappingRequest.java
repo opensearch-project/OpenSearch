@@ -37,8 +37,8 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -54,6 +54,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.transport.client.IndicesAdminClient;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -67,13 +69,13 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Puts mapping definition into one or more indices. Best created with
- * {@link org.opensearch.client.Requests#putMappingRequest(String...)}.
+ * {@link Requests#putMappingRequest(String...)}.
  * <p>
  * If the mappings already exists, the new mappings will be merged with the new one. If there are elements
  * that can't be merged are detected, the request will be rejected.
  *
- * @see org.opensearch.client.Requests#putMappingRequest(String...)
- * @see org.opensearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
+ * @see Requests#putMappingRequest(String...)
+ * @see IndicesAdminClient#putMapping(PutMappingRequest)
  * @see AcknowledgedResponse
  *
  * @opensearch.api

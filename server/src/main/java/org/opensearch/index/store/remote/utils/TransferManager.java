@@ -67,6 +67,7 @@ public class TransferManager {
      * @param blobFetchRequest to fetch
      * @return future of IndexInput augmented with internal caching maintenance tasks
      */
+    @SuppressWarnings("removal")
     public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
         final Path key = blobFetchRequest.getFilePath();
         logger.trace("fetchBlob called for {}", key.toString());
@@ -106,7 +107,6 @@ public class TransferManager {
         }
     }
 
-    @SuppressWarnings("removal")
     private static FileCachedIndexInput createIndexInput(FileCache fileCache, StreamReader streamReader, BlobFetchRequest request) {
         try {
             // This local file cache is ref counted and may not strictly enforce configured capacity.
@@ -141,7 +141,7 @@ public class TransferManager {
                     }
                 }
             }
-            final IndexInput luceneIndexInput = request.getDirectory().openInput(request.getFileName(), IOContext.READ);
+            final IndexInput luceneIndexInput = request.getDirectory().openInput(request.getFileName(), IOContext.DEFAULT);
             return new FileCachedIndexInput(fileCache, request.getFilePath(), luceneIndexInput);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

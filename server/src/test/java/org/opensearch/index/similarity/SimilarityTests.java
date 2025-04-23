@@ -32,8 +32,8 @@
 
 package org.opensearch.index.similarity;
 
-import org.apache.lucene.misc.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.search.similarities.AfterEffectL;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.BasicModelG;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.DFISimilarity;
@@ -53,6 +53,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.lucene.similarity.LegacyBM25Similarity;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -72,7 +73,7 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
 
     public void testResolveDefaultSimilarities() {
         SimilarityService similarityService = createIndex("foo").similarityService();
-        assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(LegacyBM25Similarity.class));
+        assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(BM25Similarity.class));
         assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));
         assertThat(similarityService.getSimilarity("default"), equalTo(null));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> similarityService.getSimilarity("classic"));
@@ -83,7 +84,29 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
-    public void testResolveSimilaritiesFromMapping_classicIsForbidden() throws IOException {
+    public void testResolveLegacySimilarity() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.similarity.my_similarity.type", "LegacyBM25")
+            .put("index.similarity.my_similarity.k1", 1.2f)
+            .put("index.similarity.my_similarity.b", 0.75f)
+            .put("index.similarity.my_similarity.discount_overlaps", false)
+            .build();
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("dummy")
+            .field("type", "text")
+            .field("similarity", "my_similarity")
+            .endObject()
+            .endObject()
+            .endObject();
+
+        MapperService mapperService = createIndex("foo", settings, "type", mapping).mapperService();
+        assertThat(mapperService.fieldType("dummy").getTextSearchInfo().getSimilarity().get(), instanceOf(LegacyBM25Similarity.class));
+    }
+
+    public void testResolveSimilaritiesFromMapping_classicIsForbidden() {
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "classic")
             .put("index.similarity.my_similarity.discount_overlaps", false)
@@ -114,12 +137,9 @@ public class SimilarityTests extends OpenSearchSingleNodeTestCase {
             .put("index.similarity.my_similarity.discount_overlaps", false)
             .build();
         MapperService mapperService = createIndex("foo", indexSettings, "type", mapping).mapperService();
-        assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(), instanceOf(LegacyBM25Similarity.class));
+        assertThat(mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get(), instanceOf(BM25Similarity.class));
 
-        LegacyBM25Similarity similarity = (LegacyBM25Similarity) mapperService.fieldType("field1")
-            .getTextSearchInfo()
-            .getSimilarity()
-            .get();
+        BM25Similarity similarity = (BM25Similarity) mapperService.fieldType("field1").getTextSearchInfo().getSimilarity().get();
         assertThat(similarity.getK1(), equalTo(2.0f));
         assertThat(similarity.getB(), equalTo(0.5f));
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));

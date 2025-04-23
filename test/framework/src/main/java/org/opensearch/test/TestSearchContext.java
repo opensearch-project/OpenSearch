@@ -172,7 +172,7 @@ public class TestSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
         this.searcher = searcher;
-        this.concurrentSegmentSearchEnabled = searcher != null && (searcher.getExecutor() != null);
+        this.concurrentSegmentSearchEnabled = searcher != null; /* executor is always set */
         this.maxSliceCount = randomIntBetween(0, 2);
         this.scrollContext = scrollContext;
     }

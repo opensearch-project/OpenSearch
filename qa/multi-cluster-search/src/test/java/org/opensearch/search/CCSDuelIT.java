@@ -444,7 +444,7 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
         searchRequest.source(sourceBuilder);
         duelSearch(searchRequest, response -> {
             assertHits(response, 30);
-            if (response.getHits().getTotalHits().value > 30) {
+            if (response.getHits().getTotalHits().value() > 30) {
                 assertEquals(3, response.getHits().getHits()[0].getSortValues().length);
             }
         });
@@ -670,7 +670,7 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
         searchRequest.source(sourceBuilder);
         duelSearch(searchRequest, response -> {
             assertMultiClusterSearchResponse(response);
-            assertThat(response.getHits().getTotalHits().value, greaterThan(0L));
+            assertThat(response.getHits().getTotalHits().value(), greaterThan(0L));
             assertNull(response.getAggregations());
             assertNull(response.getSuggest());
             assertThat(response.getHits().getHits().length, greaterThan(0));
@@ -798,11 +798,11 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
 
     private static void assertHits(SearchResponse response, int from) {
         assertMultiClusterSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, greaterThan(0L));
+        assertThat(response.getHits().getTotalHits().value(), greaterThan(0L));
         assertEquals(0, response.getFailedShards());
         assertNull(response.getAggregations());
         assertNull(response.getSuggest());
-        if (response.getHits().getTotalHits().value > from) {
+        if (response.getHits().getTotalHits().value() > from) {
             assertThat(response.getHits().getHits().length, greaterThan(0));
         } else {
             assertThat(response.getHits().getHits().length, equalTo(0));
@@ -811,7 +811,7 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
 
     private static void assertAggs(SearchResponse response) {
         assertMultiClusterSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, greaterThan(0L));
+        assertThat(response.getHits().getTotalHits().value(), greaterThan(0L));
         assertEquals(0, response.getHits().getHits().length);
         assertNull(response.getSuggest());
         assertNotNull(response.getAggregations());

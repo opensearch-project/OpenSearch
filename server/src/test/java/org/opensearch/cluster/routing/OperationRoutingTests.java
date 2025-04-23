@@ -45,7 +45,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -72,6 +71,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DAT
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -1058,9 +1058,9 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         }
     }
 
+    @LockFeatureFlag(WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
     @SuppressForbidden(reason = "feature flag overrides")
     public void testPartialIndexPrimaryDefault() throws Exception {
-        System.setProperty(FeatureFlags.TIERED_REMOTE_INDEX, "true");
         final int numIndices = 1;
         final int numShards = 2;
         final int numReplicas = 2;
@@ -1116,7 +1116,6 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         } finally {
             IOUtils.close(clusterService);
             terminate(threadPool);
-            System.setProperty(FeatureFlags.TIERED_REMOTE_INDEX, "false");
         }
     }
 
@@ -1132,7 +1131,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
 
         try {
             OperationRouting opRouting = new OperationRouting(
-                Settings.builder().put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, "true").build(),
+                Settings.builder().build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
 
@@ -1188,6 +1187,77 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                         assertTrue("Initializing shard should appear last", shardRouting.initializing());
                         assertFalse("Initializing shard should appear last", shardRouting.active());
                     }
+                }
+            }
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+        }
+    }
+
+    public void testSearchReplicaRoutingWhenSearchOnlyStrictSettingIsFalse() throws Exception {
+        final int numShards = 1;
+        final int numReplicas = 2;
+        final int numSearchReplicas = 2;
+        final String indexName = "test";
+        final String[] indexNames = new String[] { indexName };
+
+        ClusterService clusterService = null;
+        ThreadPool threadPool = null;
+
+        try {
+            OperationRouting opRouting = new OperationRouting(
+                Settings.builder().build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            opRouting.setStrictSearchOnlyShardRouting(false);
+
+            ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+                indexNames,
+                numShards,
+                numReplicas,
+                numSearchReplicas
+            );
+            IndexShardRoutingTable indexShardRoutingTable = state.getRoutingTable().index(indexName).getShards().get(0);
+            ShardId shardId = indexShardRoutingTable.searchOnlyReplicas().get(0).shardId();
+
+            threadPool = new TestThreadPool("testSearchReplicaDefaultRouting");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+            // add a search replica in initializing state:
+            DiscoveryNode node = new DiscoveryNode(
+                "node_initializing",
+                OpenSearchTestCase.buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES),
+                Version.CURRENT
+            );
+
+            IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+                .settings(Settings.builder().put(state.metadata().index(indexName).getSettings()).build())
+                .numberOfSearchReplicas(3)
+                .numberOfReplicas(2)
+                .build();
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(indexMetadata, false).generateClusterUuidIfNeeded();
+            IndexRoutingTable.Builder indexShardRoutingBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+            indexShardRoutingBuilder.addIndexShard(indexShardRoutingTable);
+            indexShardRoutingBuilder.addShard(
+                TestShardRouting.newShardRouting(shardId, node.getId(), null, false, true, ShardRoutingState.INITIALIZING, null)
+            );
+            state = ClusterState.builder(state)
+                .routingTable(RoutingTable.builder().add(indexShardRoutingBuilder).build())
+                .metadata(metadataBuilder.build())
+                .build();
+
+            GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, null);
+            assertThat("one group per shard", groupIterator.size(), equalTo(numShards));
+            for (ShardIterator shardIterator : groupIterator) {
+                assertEquals("We should have all 6 shards returned", shardIterator.size(), 6);
+                for (ShardRouting shardRouting : shardIterator) {
+                    assertTrue(
+                        "Any shard can exist with when cluster.routing.search_replica.strict is set as false",
+                        shardRouting.isSearchOnly() || shardRouting.primary() || shardRouting.isSearchOnly() == false
+                    );
                 }
             }
         } finally {

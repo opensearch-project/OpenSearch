@@ -464,6 +464,6 @@ public abstract class AbstractTermVectorsTestCase extends ParameterizedStaticSet
 
         ScoreDoc[] scoreDocs = search.scoreDocs;
         assertEquals(1, scoreDocs.length);
-        return directoryReader.getTermVectors(scoreDocs[0].doc);
+        return directoryReader.termVectors().get(scoreDocs[0].doc);
     }
 }

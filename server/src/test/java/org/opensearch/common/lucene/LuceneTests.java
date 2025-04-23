@@ -72,7 +72,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
@@ -107,6 +106,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LuceneTests extends OpenSearchTestCase {
     private static final NamedWriteableRegistry EMPTY_REGISTRY = new NamedWriteableRegistry(Collections.emptyList());
+
+    public static final String OLDER_VERSION_INDEX_ZIP_RELATIVE_PATH = "/indices/bwc/os-1.3.0/testIndex-os-1.3.0.zip";
 
     public void testCleanIndex() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
@@ -204,10 +205,10 @@ public class LuceneTests extends OpenSearchTestCase {
         assertEquals(3, open.maxDoc());
 
         IndexSearcher s = new IndexSearcher(open);
-        assertEquals(s.search(new TermQuery(new Term("id", "1")), 1).totalHits.value, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "2")), 1).totalHits.value, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "3")), 1).totalHits.value, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits.value, 0);
+        assertEquals(s.search(new TermQuery(new Term("id", "1")), 1).totalHits.value(), 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "2")), 1).totalHits.value(), 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "3")), 1).totalHits.value(), 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits.value(), 0);
 
         for (String file : dir.listAll()) {
             assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2"));
@@ -330,13 +331,12 @@ public class LuceneTests extends OpenSearchTestCase {
 
     /**
      * Tests whether old segments are readable and queryable based on the data documented
-     * in the README <a href="file:../../../../../resources/indices/bwc/es-6.3.0/README.md">here</a>.
+     * in the README <a href="file:../../../../../resources/indices/bwc/os-1.3.0/README.md">here</a>.
      */
     public void testReadSegmentInfosExtendedCompatibility() throws IOException {
-        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
-        final Version minVersion = LegacyESVersion.V_6_0_0;
+        final Version minVersion = LegacyESVersion.V_7_2_0;
         Path tmp = createTempDir();
-        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        TestUtil.unzip(getClass().getResourceAsStream(OLDER_VERSION_INDEX_ZIP_RELATIVE_PATH), tmp);
         try (MockDirectoryWrapper dir = newMockFSDirectory(tmp)) {
             // The standard API will throw an exception
             expectThrows(IndexFormatTooOldException.class, () -> Lucene.readSegmentInfos(dir));
@@ -467,11 +467,6 @@ public class LuceneTests extends OpenSearchTestCase {
                 }
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     return new ScorerSupplier() {
 
@@ -524,18 +519,6 @@ public class LuceneTests extends OpenSearchTestCase {
                 }
             }
         }
-    }
-
-    /**
-     * Test that the "unmap hack" is detected as supported by lucene.
-     * This works around the following bug: https://bugs.openjdk.java.net/browse/JDK-4724038
-     * <p>
-     * While not guaranteed, current status is "Critical Internal API": http://openjdk.java.net/jeps/260
-     * Additionally this checks we did not screw up the security logic around the hack.
-     */
-    public void testMMapHackSupported() throws Exception {
-        // add assume's here if needed for certain platforms, but we should know if it does not work.
-        assertTrue("MMapDirectory does not support unmapping: " + MMapDirectory.UNMAP_NOT_SUPPORTED_REASON, MMapDirectory.UNMAP_SUPPORTED);
     }
 
     public void testWrapAllDocsLive() throws Exception {

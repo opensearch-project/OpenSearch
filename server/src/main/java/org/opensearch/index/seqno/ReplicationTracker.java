@@ -1254,8 +1254,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     // skip any shard that is a relocating primary or search only replica (not tracked by primary)
     private boolean shouldSkipReplicationTimer(String allocationId) {
-        Optional<ShardRouting> shardRouting = routingTable.shards()
+        Optional<ShardRouting> shardRouting = routingTable.assignedShards()
             .stream()
+            .filter(routing -> Objects.nonNull(routing.allocationId()))
             .filter(routing -> routing.allocationId().getId().equals(allocationId))
             .findAny();
         return shardRouting.isPresent() && (shardRouting.get().primary() || shardRouting.get().isSearchOnly());
@@ -1306,7 +1307,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
                     && shouldSkipReplicationTimer(e.getKey()) == false
                     && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
-                    && cps.checkpointTimers.containsKey(latestReplicationCheckpoint)) {
+                    && cps.checkpointTimers.containsKey(latestReplicationCheckpoint)
+                    && cps.checkpointTimers.get(latestReplicationCheckpoint).startTime() == 0) {
                     cps.checkpointTimers.get(latestReplicationCheckpoint).start();
                 }
             });
@@ -1584,22 +1586,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
         // For other case which is local translog, return true as the requests are replicated to all shards in the replication group.
         return true;
-    }
-
-    /**
-     * Notifies the tracker of the current allocation IDs in the cluster state.
-     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the cluster-manager
-     * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
-     * @param routingTable                the shard routing table
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #updateFromClusterManager(long, Set, IndexShardRoutingTable)}
-     */
-    @Deprecated
-    public synchronized void updateFromMaster(
-        final long applyingClusterStateVersion,
-        final Set<String> inSyncAllocationIds,
-        final IndexShardRoutingTable routingTable
-    ) {
-        updateFromClusterManager(applyingClusterStateVersion, inSyncAllocationIds, routingTable);
     }
 
     /**

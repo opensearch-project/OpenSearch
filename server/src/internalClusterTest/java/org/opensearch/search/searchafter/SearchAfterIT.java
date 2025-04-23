@@ -244,7 +244,7 @@ public class SearchAfterIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             .setQuery(matchAllQuery())
             .searchAfter(new Object[] { 0, null })
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), Matchers.equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
         assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field1"), Matchers.equalTo(100));
         assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field2"), Matchers.equalTo("toto"));

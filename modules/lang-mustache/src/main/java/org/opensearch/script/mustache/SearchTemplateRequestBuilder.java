@@ -34,8 +34,8 @@ package org.opensearch.script.mustache;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.script.ScriptType;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.util.Map;
 

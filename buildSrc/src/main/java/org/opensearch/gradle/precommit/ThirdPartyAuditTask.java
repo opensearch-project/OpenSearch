@@ -94,7 +94,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         CliMain.EXIT_VIOLATION,
         CliMain.EXIT_UNSUPPORTED_JDK
     );
-    private static final String JDK_JAR_HELL_MAIN_CLASS = "org.opensearch.bootstrap.JdkJarHellCheck";
+    private static final String JDK_JAR_HELL_MAIN_CLASS = "org.opensearch.common.bootstrap.JdkJarHellCheck";
 
     private Set<String> missingClassExcludes = new TreeSet<>();
 

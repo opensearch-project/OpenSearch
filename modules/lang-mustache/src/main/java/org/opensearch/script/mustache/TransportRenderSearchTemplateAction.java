@@ -9,11 +9,11 @@
 package org.opensearch.script.mustache;
 
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.script.ScriptService;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 public class TransportRenderSearchTemplateAction extends TransportSearchTemplateAction {
 

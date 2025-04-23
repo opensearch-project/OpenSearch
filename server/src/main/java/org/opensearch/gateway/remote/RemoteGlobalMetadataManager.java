@@ -242,7 +242,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                             key,
                             clusterUUID,
                             compressor,
-                            namedWriteableRegistry
+                            namedWriteableRegistry,
+                            clusterMetadataManifest.getOpensearchVersion()
                         );
                         builder.putCustom(key, (Custom) getStore(remoteCustomMetadata).read(remoteCustomMetadata));
                     } catch (IOException e) {

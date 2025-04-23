@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.cluster.allocation;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Builder for requests to explain the allocation of a shard in the cluster

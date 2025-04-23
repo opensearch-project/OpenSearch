@@ -55,6 +55,7 @@ plugins {
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
   id "com.diffplug.spotless" version "6.25.0" apply false
+  id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
@@ -69,13 +70,6 @@ apply from: 'gradle/fips.gradle'
 apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
-
-// Disable unconditional publishing of build scans
-develocity {
-  buildScan {
-    publishing.onlyIf { false }
-  }
-}
 
 // common maven publishing configuration
 allprojects {
@@ -433,11 +427,12 @@ gradle.projectsEvaluated {
 
     project.tasks.withType(Test) { task ->
       if (task != null) {
-        if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
-          task.jvmArgs += ["-Djava.security.manager=allow"]
-        }
-        if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
-          task.jvmArgs += ["--add-modules=jdk.incubator.vector"]
+        task.jvmArgs += ["--add-modules=jdk.incubator.vector"]
+
+        // Add Java Agent for security sandboxing
+        if (!(project.path in [':build-tools', ":libs:agent-sm:bootstrap", ":libs:agent-sm:agent"])) {
+          dependsOn(project(':libs:agent-sm:agent').prepareAgent)
+          jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
         }
       }
     }
@@ -474,8 +469,9 @@ gradle.projectsEvaluated {
 
 // test retry configuration
 subprojects {
+  apply plugin: "org.gradle.test-retry"
   tasks.withType(Test).configureEach {
-    develocity.testRetry {
+    retry {
       if (BuildParams.isCi()) {
         maxRetries = 3
         maxFailures = 10
@@ -721,7 +717,7 @@ subprojects {
 reporting {
   reports {
     testAggregateTestReport(AggregateTestReport) {
-      testType = TestSuiteType.UNIT_TEST
+      testSuiteName = "test"
     }
   }
 }

@@ -34,6 +34,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -93,11 +94,12 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termsQuery(List<?> values, QueryShardContext context) {
         failIfNotIndexed();
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
+        BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder(values.size());
+        for (int i = 0; i < values.size(); i++) {
+            BytesRef elem = indexedValueForSearch(values.get(i));
+            bytesCollector.accept(elem);
         }
-        return new TermInSetQuery(name(), bytesRefs);
+        return new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), bytesCollector.get());
     }
 
 }

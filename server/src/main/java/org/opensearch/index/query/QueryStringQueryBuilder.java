@@ -940,7 +940,13 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryParser.setFuzziness(fuzziness);
         queryParser.setFuzzyPrefixLength(fuzzyPrefixLength);
         queryParser.setFuzzyMaxExpansions(fuzzyMaxExpansions);
-        queryParser.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(this.fuzzyRewrite, LoggingDeprecationHandler.INSTANCE));
+        queryParser.setFuzzyRewriteMethod(
+            QueryParsers.parseRewriteMethod(
+                this.fuzzyRewrite,
+                FuzzyQuery.defaultRewriteMethod(fuzzyMaxExpansions),
+                LoggingDeprecationHandler.INSTANCE
+            )
+        );
         queryParser.setMultiTermRewriteMethod(QueryParsers.parseRewriteMethod(this.rewrite, LoggingDeprecationHandler.INSTANCE));
         queryParser.setTimeZone(timeZone);
         queryParser.setDeterminizeWorkLimit(maxDeterminizedStates);

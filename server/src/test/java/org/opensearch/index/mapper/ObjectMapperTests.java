@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -542,6 +543,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
 
         Settings settings = Settings.builder()
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
             .build();
 
@@ -554,23 +556,20 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             ex.getMessage()
         );
 
-        final Settings starTreeEnabledSettings = Settings.builder().put(STAR_TREE_INDEX, "true").build();
-        FeatureFlags.initializeFeatureFlags(starTreeEnabledSettings);
+        FeatureFlags.TestUtils.with(STAR_TREE_INDEX, () -> {
+            DocumentMapper documentMapper = createIndex("test", settings).mapperService()
+                .documentMapperParser()
+                .parse("tweet", new CompressedXContent(mapping));
 
-        DocumentMapper documentMapper = createIndex("test", settings).mapperService()
-            .documentMapperParser()
-            .parse("tweet", new CompressedXContent(mapping));
-
-        Mapper mapper = documentMapper.root().getMapper("startree");
-        assertTrue(mapper instanceof StarTreeMapper);
-        StarTreeMapper starTreeMapper = (StarTreeMapper) mapper;
-        assertEquals("star_tree", starTreeMapper.fieldType().typeName());
-        // Check that field in properties was parsed correctly as well
-        mapper = documentMapper.root().getMapper("@timestamp");
-        assertNotNull(mapper);
-        assertEquals("date", mapper.typeName());
-
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+            Mapper mapper = documentMapper.root().getMapper("startree");
+            assertTrue(mapper instanceof StarTreeMapper);
+            StarTreeMapper starTreeMapper = (StarTreeMapper) mapper;
+            assertEquals("star_tree", starTreeMapper.fieldType().typeName());
+            // Check that field in properties was parsed correctly as well
+            mapper = documentMapper.root().getMapper("@timestamp");
+            assertNotNull(mapper);
+            assertEquals("date", mapper.typeName());
+        });
     }
 
     public void testNestedIsParent() throws Exception {

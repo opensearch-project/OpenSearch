@@ -39,15 +39,15 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.network.IfConfig;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.util.FileSystemUtils;
-import org.opensearch.mockito.plugin.PriviledgedMockMaker;
+import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.plugins.PluginInfo;
-import org.opensearch.secure_sm.SecureSM;
 import org.junit.Assert;
 
 import java.io.InputStream;
@@ -86,7 +86,19 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
  */
 @SuppressWarnings("removal")
 public class BootstrapForTesting {
-
+    private static final String[] TEST_RUNNER_PACKAGES = new String[] {
+        // gradle worker
+        "worker\\.org\\.gradle\\.process\\.internal\\.worker\\.GradleWorkerMain*",
+        // surefire test runner
+        "org\\.apache\\.maven\\.surefire\\.booter\\..*",
+        // junit4 test runner
+        "com\\.carrotsearch\\.ant\\.tasks\\.junit4\\.slave\\..*",
+        // eclipse test runner
+        "org\\.eclipse.jdt\\.internal\\.junit\\.runner\\..*",
+        // intellij test runner (before IDEA version 2019.3)
+        "com\\.intellij\\.rt\\.execution\\.junit\\..*",
+        // intellij test runner (since IDEA version 2019.3)
+        "com\\.intellij\\.rt\\.junit\\..*" };
     // TODO: can we share more code with the non-test side here
     // without making things complex???
 
@@ -159,7 +171,6 @@ public class BootstrapForTesting {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
                     addClassCodebase(codebases, "plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
                     addClassCodebase(codebases, "opensearch-nio", "org.opensearch.nio.ChannelFactory");
-                    addClassCodebase(codebases, "opensearch-secure-sm", "org.opensearch.secure_sm.SecureSM");
                     addClassCodebase(codebases, "opensearch-rest-client", "org.opensearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
@@ -167,7 +178,7 @@ public class BootstrapForTesting {
                 final Optional<Policy> testPolicy = Optional.ofNullable(Bootstrap.class.getResource("test.policy"))
                     .map(policy -> Security.readPolicy(policy, codebases));
                 final Policy opensearchPolicy = new OpenSearchPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
-                Policy.setPolicy(new Policy() {
+                AgentPolicy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
                         // implements union
@@ -175,10 +186,15 @@ public class BootstrapForTesting {
                             || testFramework.implies(domain, permission)
                             || testPolicy.map(policy -> policy.implies(domain, permission)).orElse(false /* no policy */);
                     }
-                });
-                // Create access control context for mocking
-                PriviledgedMockMaker.createAccessControlContext();
-                System.setSecurityManager(SecureSM.createTestSecureSM(getTrustedHosts()));
+                },
+                    getTrustedHosts(),
+                    Set.of("jimfs"), /* mock file system */
+                    new AgentPolicy.AnyCanExit(TEST_RUNNER_PACKAGES)
+                );
+
+                if (!AgentAttach.agentIsAttached()) {
+                    throw new RuntimeException("the security agent is not attached");
+                }
                 Security.selfTest();
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.

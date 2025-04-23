@@ -91,10 +91,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
                 MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED,
+                IndexMetadata.SETTING_INDEX_CREATION_DATE,
+                IndexMetadata.INDEX_UUID_SETTING,
+                IndexMetadata.SETTING_INDEX_HISTORY_UUID,
                 IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
                 IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
+                IndexMetadata.INDEX_AUTO_EXPAND_SEARCH_REPLICAS_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
@@ -105,10 +109,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_BLOCKS_METADATA_SETTING,
                 IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING,
                 IndexMetadata.INDEX_PRIORITY_SETTING,
+                IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING,
                 IndexMetadata.INDEX_DATA_PATH_SETTING,
                 IndexMetadata.INDEX_FORMAT_SETTING,
                 IndexMetadata.INDEX_HIDDEN_SETTING,
                 IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
+                IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -162,6 +168,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_SLICES_PER_PIT,
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
+                ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING,
                 IndexSettings.INDEX_GC_DELETES_SETTING,
                 IndexSettings.INDEX_SOFT_DELETES_SETTING,
                 IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING,
@@ -256,6 +263,19 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_CONTEXT_CREATED_VERSION,
                 IndexSettings.INDEX_CONTEXT_CURRENT_VERSION,
 
+                // Settings for ingestion source
+                IndexMetadata.INGESTION_SOURCE_TYPE_SETTING,
+                IndexMetadata.INGESTION_SOURCE_POINTER_INIT_RESET_SETTING,
+                IndexMetadata.INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING,
+                IndexMetadata.INGESTION_SOURCE_PARAMS_SETTING,
+                IndexMetadata.INGESTION_SOURCE_ERROR_STRATEGY_SETTING,
+                IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE,
+                IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT,
+                IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING,
+
+                // Settings for search replica
+                IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();
@@ -279,10 +299,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
      */
     public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
-        FeatureFlags.TIERED_REMOTE_INDEX,
-        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING, IndexModule.INDEX_TIERING_STATE),
-        FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL,
-        List.of(IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING)
+        FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG,
+        // TODO: Create a separate feature flag for hot tiering index state.
+        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING, IndexModule.INDEX_TIERING_STATE, IndexModule.IS_WARM_INDEX_SETTING)
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
@@ -310,9 +329,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     @Override
     public boolean isPrivateSetting(String key) {
         switch (key) {
-            case IndexMetadata.SETTING_CREATION_DATE:
-            case IndexMetadata.SETTING_INDEX_UUID:
-            case IndexMetadata.SETTING_HISTORY_UUID:
             case IndexMetadata.SETTING_VERSION_UPGRADED:
             case IndexMetadata.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyProvider.INDEX_MERGE_ENABLED:

@@ -35,13 +35,11 @@ package org.opensearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
@@ -52,6 +50,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -70,7 +69,8 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.query.support.QueryParsers;
+import org.opensearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.opensearch.lucene.queries.ExtendedCommonTermsQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -300,7 +300,8 @@ public class MatchQuery {
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(fieldName, value.toString());
             if (type == Type.BOOLEAN_PREFIX
-                && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
+                && (fieldType.unwrap() instanceof TextFieldMapper.TextFieldType
+                    || fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
             } else {
                 return builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
@@ -359,10 +360,10 @@ public class MatchQuery {
     private Query boolToExtendedCommonTermsQuery(BooleanQuery bq, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency) {
         ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency);
         for (BooleanClause clause : bq.clauses()) {
-            if ((clause.getQuery() instanceof TermQuery) == false) {
+            if ((clause.query() instanceof TermQuery) == false) {
                 return bq;
             }
-            query.add(((TermQuery) clause.getQuery()).getTerm());
+            query.add(((TermQuery) clause.query()).getTerm());
         }
         return query;
     }
@@ -600,13 +601,15 @@ public class MatchQuery {
         protected Query newTermQuery(Term term, float boost) {
             Supplier<Query> querySupplier;
             if (fuzziness != null) {
-                querySupplier = () -> {
-                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions, context);
-                    if (query instanceof FuzzyQuery) {
-                        QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
-                    }
-                    return query;
-                };
+                querySupplier = () -> fieldType.fuzzyQuery(
+                    term.text(),
+                    fuzziness,
+                    fuzzyPrefixLength,
+                    maxExpansions,
+                    transpositions,
+                    fuzzyRewriteMethod,
+                    context
+                );
             } else {
                 querySupplier = () -> fieldType.termQuery(term.bytes(), context);
             }
@@ -829,7 +832,7 @@ public class MatchQuery {
             List<SpanQuery> clauses = new ArrayList<>();
             int[] articulationPoints = graph.articulationPoints();
             int lastState = 0;
-            int maxClauseCount = BooleanQuery.getMaxClauseCount();
+            int maxClauseCount = IndexSearcher.getMaxClauseCount();
             for (int i = 0; i <= articulationPoints.length; i++) {
                 int start = lastState;
                 int end = -1;
@@ -847,7 +850,7 @@ public class MatchQuery {
                         SpanQuery q = createSpanQuery(ts, field, usePrefix);
                         if (q != null) {
                             if (queries.size() >= maxClauseCount) {
-                                throw new BooleanQuery.TooManyClauses();
+                                throw new IndexSearcher.TooManyClauses();
                             }
                             queries.add(q);
                         }
@@ -861,14 +864,14 @@ public class MatchQuery {
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
                     if (terms.length >= maxClauseCount) {
-                        throw new BooleanQuery.TooManyClauses();
+                        throw new IndexSearcher.TooManyClauses();
                     }
                     queryPos = newSpanQuery(terms, usePrefix);
                 }
 
                 if (queryPos != null) {
                     if (clauses.size() >= maxClauseCount) {
-                        throw new BooleanQuery.TooManyClauses();
+                        throw new IndexSearcher.TooManyClauses();
                     }
                     clauses.add(queryPos);
                 }
@@ -885,7 +888,7 @@ public class MatchQuery {
 
         private void checkForPositions(String field) {
             if (fieldType.getTextSearchInfo().hasPositions() == false) {
-                if (fieldType instanceof MatchOnlyTextFieldMapper.MatchOnlyTextFieldType) {
+                if (fieldType.unwrap() instanceof MatchOnlyTextFieldMapper.MatchOnlyTextFieldType) {
                     return;
                 }
                 throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");

@@ -40,19 +40,20 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.IndexMetric;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest.Metric;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.client.Client;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.gateway.GatewayService;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -89,7 +90,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     public void testNodeCounts() {
         int total = 1;
         internalCluster().startNode();
-        Map<String, Integer> expectedCounts = getExpectedCounts(1, 1, 1, 1, 1, 0, 0);
+        Map<String, Integer> expectedCounts = getExpectedCounts(1, 1, 1, 1, 1, 0, 0, 0);
         int numNodes = randomIntBetween(1, 5);
 
         ClusterStatsResponse response = client().admin()
@@ -158,7 +159,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNode(settings);
         waitForNodes(total);
 
-        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 0, 0, 0);
+        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 0, 0, 0, 0);
 
         Client client = client();
         ClusterStatsResponse response = client.admin()
@@ -383,7 +384,9 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     public void testClusterStatusWhenStateNotRecovered() throws Exception {
-        internalCluster().startClusterManagerOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build()
+        );
         ClusterStatsResponse response = client().admin()
             .cluster()
             .prepareClusterStats()
@@ -391,11 +394,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
-        if (randomBoolean()) {
-            internalCluster().startClusterManagerOnlyNode();
-        } else {
-            internalCluster().startDataOnlyNode();
-        }
+        internalCluster().startDataOnlyNodes(2);
+
         // wait for the cluster status to settle
         ensureGreen();
         response = client().admin().cluster().prepareClusterStats().useAggregatedNodeLevelResponses(randomBoolean()).get();
@@ -484,7 +484,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(legacyMasterSettings);
         waitForNodes(total);
 
-        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0);
+        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0, 0);
 
         Client client = client();
         ClusterStatsResponse clusterStatsResponse = client.admin()
@@ -518,7 +518,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(clusterManagerNodeRoleSettings);
         waitForNodes(total);
 
-        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0);
+        Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0, 0);
 
         Client client = client();
         ClusterStatsResponse clusterStatsResponse = client.admin()
@@ -546,7 +546,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(legacySeedDataNodeSettings);
         waitForNodes(total);
 
-        Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0);
+        Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0, 0);
 
         Client client = client();
         ClusterStatsResponse clusterStatsResponse = client.admin()
@@ -577,7 +577,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(legacyDataNodeSettings);
         waitForNodes(total);
 
-        Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0);
+        Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0, 0);
 
         Client client = client();
         ClusterStatsResponse clusterStatsResponse = client.admin()
@@ -590,6 +590,29 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Set<Set<String>> expectedNodesRoles = Set.of(
             Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName()),
             Set.of(DiscoveryNodeRole.DATA_ROLE.roleName(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName())
+        );
+        assertEquals(expectedNodesRoles, Set.of(getNodeRoles(client, 0), getNodeRoles(client, 1)));
+    }
+
+    public void testNodeRolesWithSearchNode() throws ExecutionException, InterruptedException {
+        int total = 2;
+        internalCluster().startClusterManagerOnlyNodes(1);
+        internalCluster().startSearchOnlyNode();
+        waitForNodes(total);
+
+        Map<String, Integer> expectedRoleCounts = getExpectedCounts(0, 1, 1, 0, 0, 0, 1, 0);
+
+        Client client = client();
+        ClusterStatsResponse clusterStatsResponse = client.admin()
+            .cluster()
+            .prepareClusterStats()
+            .useAggregatedNodeLevelResponses(randomBoolean())
+            .get();
+        assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedRoleCounts);
+
+        Set<Set<String>> expectedNodesRoles = Set.of(
+            Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName()),
+            Set.of(DiscoveryNodeRole.SEARCH_ROLE.roleName())
         );
         assertEquals(expectedNodesRoles, Set.of(getNodeRoles(client, 0), getNodeRoles(client, 1)));
     }
@@ -887,6 +910,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         int clusterManagerRoleCount,
         int ingestRoleCount,
         int remoteClusterClientRoleCount,
+        int warmRoleCount,
         int searchRoleCount,
         int coordinatingOnlyCount
     ) {
@@ -896,6 +920,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         expectedCounts.put(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), clusterManagerRoleCount);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), ingestRoleCount);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), remoteClusterClientRoleCount);
+        expectedCounts.put(DiscoveryNodeRole.WARM_ROLE.roleName(), warmRoleCount);
         expectedCounts.put(DiscoveryNodeRole.SEARCH_ROLE.roleName(), searchRoleCount);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, coordinatingOnlyCount);
         return expectedCounts;

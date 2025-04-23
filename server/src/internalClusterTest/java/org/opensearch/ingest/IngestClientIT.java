@@ -50,9 +50,8 @@ import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.ingest.SimulateDocumentBaseResult;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.update.UpdateRequest;
-import org.opensearch.client.Requests;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -60,6 +59,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.transport.client.Requests;
 import org.hamcrest.MatcherAssert;
 
 import java.util.Arrays;
@@ -162,14 +162,6 @@ public class IngestClientIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     }
 
     public void testBulkWithIngestFailures() throws Exception {
-        runBulkTestWithRandomDocs(false);
-    }
-
-    public void testBulkWithIngestFailuresWithBatchSize() throws Exception {
-        runBulkTestWithRandomDocs(true);
-    }
-
-    private void runBulkTestWithRandomDocs(boolean shouldSetBatchSize) throws Exception {
         createIndex("index");
 
         BytesReference source = BytesReference.bytes(
@@ -188,9 +180,6 @@ public class IngestClientIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();
-        if (shouldSetBatchSize) {
-            bulkRequest.batchSize(scaledRandomIntBetween(2, numRequests));
-        }
         for (int i = 0; i < numRequests; i++) {
             IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i)).setPipeline("_id");
             indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", i % 2 == 0);
@@ -244,7 +233,6 @@ public class IngestClientIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.batchSize(3);
         bulkRequest.add(
             new IndexRequest("index").id("_fail").setPipeline("_id").source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", true)
         );

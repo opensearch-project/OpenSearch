@@ -33,6 +33,7 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.internal.ReaderContext;
@@ -73,7 +74,7 @@ public interface SearchOperationListener {
 
     /**
      * Executed before the slice execution in
-     * {@link org.opensearch.search.internal.ContextIndexSearcher#search(List, org.apache.lucene.search.Weight, org.apache.lucene.search.Collector)}.
+     * {@link org.opensearch.search.internal.ContextIndexSearcher#search(IndexSearcher.LeafReaderContextPartition[], org.apache.lucene.search.Weight, org.apache.lucene.search.Collector)}.
      * This will be called once per slice in concurrent search and only once in non-concurrent search.
      * @param searchContext the current search context
      */
@@ -81,7 +82,7 @@ public interface SearchOperationListener {
 
     /**
      * Executed if the slice execution in
-     * {@link org.opensearch.search.internal.ContextIndexSearcher#search(List, org.apache.lucene.search.Weight, org.apache.lucene.search.Collector)} failed.
+     * {@link org.opensearch.search.internal.ContextIndexSearcher#search(IndexSearcher.LeafReaderContextPartition[], org.apache.lucene.search.Weight, org.apache.lucene.search.Collector)} failed.
      * This will be called once per slice in concurrent search and only once in non-concurrent search.
      * @param searchContext the current search context
      */
@@ -89,7 +90,7 @@ public interface SearchOperationListener {
 
     /**
      * Executed after the slice execution in
-     * {@link org.opensearch.search.internal.ContextIndexSearcher#search(List, org.apache.lucene.search.Weight, org.apache.lucene.search.Collector)} successfully finished.
+     * {@link org.opensearch.search.internal.ContextIndexSearcher#search(IndexSearcher.LeafReaderContextPartition[], org.apache.lucene.search.Weight, org.apache.lucene.search.Collector)} successfully finished.
      * This will be called once per slice in concurrent search and only once in non-concurrent search.
      * Note: this is not invoked if the slice execution failed.*
      * @param searchContext the current search context

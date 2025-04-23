@@ -31,9 +31,9 @@
 
 package org.opensearch.rest;
 
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.common.Strings;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.Objects;
 

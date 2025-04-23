@@ -51,8 +51,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
-import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
-import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -60,6 +58,8 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
+import org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.opensearch.lucene.search.uhighlight.Snippet;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.URLEncoder;
@@ -67,8 +67,8 @@ import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.Locale;
 
+import static org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
 
@@ -121,7 +121,7 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
         }
 
         TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-        assertThat(topDocs.totalHits.value, equalTo(1L));
+        assertThat(topDocs.totalHits.value(), equalTo(1L));
         String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
         CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
             searcher,

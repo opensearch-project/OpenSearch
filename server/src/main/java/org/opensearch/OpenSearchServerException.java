@@ -8,6 +8,8 @@
 
 package org.opensearch;
 
+import org.opensearch.transport.client.transport.NoNodeAvailableException;
+
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.OpenSearchException.UNKNOWN_VERSION_ADDED;
@@ -654,12 +656,7 @@ public final class OpenSearchServerException {
         );
         // 93 used to be for IndexWarmerMissingException
         registerExceptionHandle(
-            new OpenSearchExceptionHandle(
-                org.opensearch.client.transport.NoNodeAvailableException.class,
-                org.opensearch.client.transport.NoNodeAvailableException::new,
-                94,
-                UNKNOWN_VERSION_ADDED
-            )
+            new OpenSearchExceptionHandle(NoNodeAvailableException.class, NoNodeAvailableException::new, 94, UNKNOWN_VERSION_ADDED)
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
@@ -1224,6 +1221,14 @@ public final class OpenSearchServerException {
                 org.opensearch.cluster.block.IndexCreateBlockException.class,
                 org.opensearch.cluster.block.IndexCreateBlockException::new,
                 CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 1,
+                V_3_0_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.index.engine.IngestionEngineException.class,
+                org.opensearch.index.engine.IngestionEngineException::new,
+                176,
                 V_3_0_0
             )
         );

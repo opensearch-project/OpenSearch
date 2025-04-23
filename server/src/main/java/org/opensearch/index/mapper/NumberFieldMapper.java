@@ -69,6 +69,8 @@ import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.query.BitmapDocValuesQuery;
 import org.opensearch.search.query.BitmapIndexQuery;
@@ -91,7 +93,7 @@ import java.util.function.Supplier;
 import org.roaringbitmap.RoaringBitmap;
 
 /**
- * A {@link FieldMapper} for numeric types: byte, short, int, long, float and double.
+ * A {@link FieldMapper} for numeric types: byte, short, int, long, float, double and unsigned long.
  *
  * @opensearch.internal
  */
@@ -175,13 +177,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Optional<DimensionType> getSupportedDataCubeDimensionType() {
-
-            // unsigned long is not supported as dimension for star tree
-            if (type.numericType.equals(NumericType.UNSIGNED_LONG)) {
-                return Optional.empty();
-            }
-
-            return Optional.of(DimensionType.NUMERIC);
+            return type.numericType.equals(NumericType.UNSIGNED_LONG)
+                ? Optional.of(DimensionType.UNSIGNED_LONG)
+                : Optional.of(DimensionType.NUMERIC);
         }
 
         @Override
@@ -1062,23 +1060,34 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 QueryShardContext context
             ) {
                 return longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
-                    if (isSearchable && hasDocValues) {
-                        Query query = LongPoint.newRangeQuery(field, l, u);
-                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                        query = new IndexOrDocValuesQuery(query, dvQuery);
-                        if (context.indexSortedOnField(field)) {
-                            query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
+                    Query dvQuery = hasDocValues ? SortedNumericDocValuesField.newSlowRangeQuery(field, l, u) : null;
+                    if (isSearchable) {
+                        Query pointRangeQuery = LongPoint.newRangeQuery(field, l, u);
+                        Query query;
+                        if (dvQuery != null) {
+                            query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
+                            if (context.indexSortedOnField(field)) {
+                                query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
+                            }
+                        } else {
+                            query = pointRangeQuery;
                         }
-                        return query;
+                        return new ApproximateScoreQuery(
+                            query,
+                            new ApproximatePointRangeQuery(
+                                field,
+                                LongPoint.pack(new long[] { l }).bytes,
+                                LongPoint.pack(new long[] { u }).bytes,
+                                new long[] { l }.length,
+                                ApproximatePointRangeQuery.LONG_FORMAT
+                            )
+                        );
+
                     }
-                    if (hasDocValues) {
-                        Query query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                        if (context.indexSortedOnField(field)) {
-                            query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
-                        }
-                        return query;
+                    if (context.indexSortedOnField(field)) {
+                        dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, dvQuery);
                     }
-                    return LongPoint.newRangeQuery(field, l, u);
+                    return dvQuery;
 
                 });
             }
@@ -1309,7 +1318,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         /**
          * Returns -1, 0, or 1 if the value is lower than, equal to, or greater than 0
          */
-        static double signum(Object value) {
+        public static double signum(Object value) {
             if (value instanceof Number) {
                 double doubleValue = ((Number) value).doubleValue();
                 return Math.signum(doubleValue);

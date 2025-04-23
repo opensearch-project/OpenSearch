@@ -551,6 +551,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     protected volatile int bufferSize;
 
+    private volatile boolean closed;
+
     /**
      * Constructs new BlobStoreRepository
      * @param repositoryMetadata   The metadata for this repository including name and settings
@@ -630,6 +632,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         if (store != null) {
             try {
+                closed = true;
                 store.close();
             } catch (Exception t) {
                 logger.warn("cannot close blob store", t);
@@ -643,6 +646,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         String source,
         Consumer<Exception> onFailure
     ) {
+        if (this.closed) {
+            onFailure.accept(new RepositoryException(metadata.name(), "the repository has been changed, try again"));
+            return;
+        }
         final RepositoryMetadata repositoryMetadataStart = metadata;
         getRepositoryData(ActionListener.wrap(repositoryData -> {
             final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
@@ -4650,7 +4657,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) throws IOException {
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
         final String file = fileInfo.physicalName();
-        try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READ, fileInfo.metadata())) {
+        try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.DEFAULT, fileInfo.metadata())) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);
 

@@ -1,0 +1,18 @@
+{
+  "create_workload_group_context": {
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_wlm/workload_group",
+          "methods": ["PUT", "POST"],
+          "parts": {}
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The WorkloadGroup schema"
+    }
+  }
+}

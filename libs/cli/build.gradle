@@ -33,11 +33,11 @@ apply plugin: 'opensearch.publish'
 dependencies {
   api 'net.sf.jopt-simple:jopt-simple:5.0.4'
   api project(':libs:opensearch-common')
-}
 
-test.enabled = false
-// Since CLI does not depend on :server, it cannot run the jarHell task
-jarHell.enabled = false
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.opensearch', module: 'opensearch-cli'
+  }
+}
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'

@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.DimensionDataType;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
@@ -131,9 +133,20 @@ public class StarTreeMetadataWriter {
         metaOut.writeVInt(starTreeField.getDimensionNames().size());
 
         // dimensions
-        for (int i = 0; i < starTreeField.getDimensionNames().size(); i++) {
-            metaOut.writeString(starTreeField.getDimensionNames().get(i));
-            metaOut.writeByte(docValuesByte(starTreeField.getDimensionDocValueTypes().get(i)));
+        List<Dimension> dimensionsOrder = starTreeField.getDimensionsOrder();
+        int docDimensionIndex = 0;
+        for (Dimension currentDimension : dimensionsOrder) {
+            int numSubDimensions = currentDimension.getNumSubDimensions();
+
+            // Process each sub-dimension
+            while (numSubDimensions > 0) {
+                metaOut.writeString(starTreeField.getDimensionNames().get(docDimensionIndex));
+                metaOut.writeByte(docValuesByte(starTreeField.getDimensionDocValueTypes().get(docDimensionIndex)));
+                metaOut.writeByte(dimensionDataTypeByte(currentDimension.getDimensionDataType()));
+
+                numSubDimensions--;
+                docDimensionIndex++;
+            }
         }
 
         // number of metrics
@@ -172,6 +185,17 @@ public class StarTreeMetadataWriter {
         // star-tree data file length
         metaOut.writeVLong(dataFileLength);
 
+    }
+
+    private static byte dimensionDataTypeByte(DimensionDataType dimensionDataType) {
+        switch (dimensionDataType) {
+            case LONG:
+                return 0;
+            case UNSIGNED_LONG:
+                return 1;
+            default:
+                throw new AssertionError("unhandled dimensionDataType: " + dimensionDataType);
+        }
     }
 
     private static byte docValuesByte(DocValuesType type) {

@@ -53,10 +53,9 @@ import org.opensearch.action.admin.indices.settings.put.TransportUpdateSettingsA
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
-import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
-import org.opensearch.action.support.clustermanager.TransportMasterNodeActionUtils;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeActionUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
@@ -97,6 +96,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -104,6 +104,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
@@ -195,6 +196,8 @@ public class ClusterStateChanges {
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(SETTINGS);
         Transport transport = mock(Transport.class); // it's not used
+
+        MappingTransformerRegistry mappingTransformerRegistry = new MappingTransformerRegistry(List.of(), xContentRegistry);
 
         // mocks
         clusterService = mock(ClusterService.class);
@@ -372,7 +375,8 @@ public class ClusterStateChanges {
             threadPool,
             createIndexService,
             actionFilters,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            mappingTransformerRegistry
         );
 
         repositoriesService = new RepositoriesService(
@@ -443,12 +447,6 @@ public class ClusterStateChanges {
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #joinNodesAndBecomeClusterManager(ClusterState, List)} */
-    @Deprecated
-    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
-        return joinNodesAndBecomeClusterManager(clusterState, nodes);
-    }
-
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
         return runTasks(
             nodeRemovalExecutor,
@@ -513,11 +511,21 @@ public class ClusterStateChanges {
     ) {
         return executeClusterStateUpdateTask(clusterState, () -> {
             try {
-                TransportMasterNodeActionUtils.runClusterManagerOperation(
+                TransportClusterManagerNodeActionUtils.runClusterManagerOperation(
                     masterNodeAction,
                     request,
                     clusterState,
-                    new PlainActionFuture<>()
+                    new ActionListener<Response>() {
+                        @Override
+                        public void onResponse(Response response) {
+
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            throw new RuntimeException(e.getMessage(), e);
+                        }
+                    }
                 );
             } catch (Exception e) {
                 throw new RuntimeException(e);

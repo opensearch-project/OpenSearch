@@ -26,6 +26,11 @@ public class SortedNumericStarTreeValuesIterator extends StarTreeValuesIterator 
         super(docIdSetIterator);
     }
 
+    @Override
+    public long value() throws IOException {
+        return nextValue();
+    }
+
     public long nextValue() throws IOException {
         return ((SortedNumericDocValues) docIdSetIterator).nextValue();
     }

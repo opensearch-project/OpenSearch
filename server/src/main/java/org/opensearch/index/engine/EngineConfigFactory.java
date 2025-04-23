@@ -10,6 +10,7 @@ package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.QueryCache;
@@ -25,6 +26,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
+import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
@@ -154,7 +156,9 @@ public class EngineConfigFactory {
         boolean isReadOnlyReplica,
         BooleanSupplier startedPrimarySupplier,
         TranslogFactory translogFactory,
-        Comparator<LeafReader> leafSorter
+        Comparator<LeafReader> leafSorter,
+        Supplier<DocumentMapperForType> documentMapperForTypeSupplier,
+        IndexWriter.IndexReaderWarmer indexReaderWarmer
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
@@ -188,6 +192,8 @@ public class EngineConfigFactory {
             .startedPrimarySupplier(startedPrimarySupplier)
             .translogFactory(translogFactory)
             .leafSorter(leafSorter)
+            .documentMapperForTypeSupplier(documentMapperForTypeSupplier)
+            .indexReaderWarmer(indexReaderWarmer)
             .build();
     }
 

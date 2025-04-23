@@ -225,6 +225,7 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         // https://github.com/apache/lucene/pull/12915
         .put("japanesehiraganauppercase", Void.class)
         .put("japanesekatakanauppercase", Void.class)
+        .put("romaniannormalization", Void.class)
         .immutableMap();
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String, Class<?>>()

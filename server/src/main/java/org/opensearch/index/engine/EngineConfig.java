@@ -33,6 +33,7 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.QueryCache;
@@ -53,6 +54,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
+import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
@@ -110,6 +112,7 @@ public final class EngineConfig {
     private final boolean isReadOnlyReplica;
     private final BooleanSupplier startedPrimarySupplier;
     private final Comparator<LeafReader> leafSorter;
+    private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -246,6 +249,8 @@ public final class EngineConfig {
 
     private final TranslogFactory translogFactory;
 
+    private final IndexWriter.IndexReaderWarmer indexReaderWarmer;
+
     /**
      * Creates a new {@link org.opensearch.index.engine.EngineConfig}
      */
@@ -296,6 +301,8 @@ public final class EngineConfig {
         this.startedPrimarySupplier = builder.startedPrimarySupplier;
         this.translogFactory = builder.translogFactory;
         this.leafSorter = builder.leafSorter;
+        this.documentMapperForTypeSupplier = builder.documentMapperForTypeSupplier;
+        this.indexReaderWarmer = builder.indexReaderWarmer;
     }
 
     /**
@@ -521,6 +528,14 @@ public final class EngineConfig {
     }
 
     /**
+     * Returns the underlying indexReaderWarmer
+     * @return the indexReaderWarmer
+     */
+    public IndexWriter.IndexReaderWarmer getIndexReaderWarmer() {
+        return indexReaderWarmer;
+    }
+
+    /**
      * A supplier supplies tombstone documents which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
      *
@@ -542,6 +557,10 @@ public final class EngineConfig {
 
     public TombstoneDocSupplier getTombstoneDocSupplier() {
         return tombstoneDocSupplier;
+    }
+
+    public Supplier<DocumentMapperForType> getDocumentMapperForTypeSupplier() {
+        return documentMapperForTypeSupplier;
     }
 
     public TranslogDeletionPolicyFactory getCustomTranslogDeletionPolicyFactory() {
@@ -589,7 +608,9 @@ public final class EngineConfig {
         private boolean isReadOnlyReplica;
         private BooleanSupplier startedPrimarySupplier;
         private TranslogFactory translogFactory = new InternalTranslogFactory();
+        private Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
         Comparator<LeafReader> leafSorter;
+        private IndexWriter.IndexReaderWarmer indexReaderWarmer;
 
         public Builder shardId(ShardId shardId) {
             this.shardId = shardId;
@@ -701,6 +722,11 @@ public final class EngineConfig {
             return this;
         }
 
+        public Builder documentMapperForTypeSupplier(Supplier<DocumentMapperForType> documentMapperForTypeSupplier) {
+            this.documentMapperForTypeSupplier = documentMapperForTypeSupplier;
+            return this;
+        }
+
         public Builder translogDeletionPolicyFactory(TranslogDeletionPolicyFactory translogDeletionPolicyFactory) {
             this.translogDeletionPolicyFactory = translogDeletionPolicyFactory;
             return this;
@@ -723,6 +749,11 @@ public final class EngineConfig {
 
         public Builder leafSorter(Comparator<LeafReader> leafSorter) {
             this.leafSorter = leafSorter;
+            return this;
+        }
+
+        public Builder indexReaderWarmer(IndexWriter.IndexReaderWarmer indexReaderWarmer) {
+            this.indexReaderWarmer = indexReaderWarmer;
             return this;
         }
 

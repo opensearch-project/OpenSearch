@@ -99,7 +99,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
 
         testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), parentToChild -> {
-            assertEquals(0, parentToChild.getDocCount());
+            assertEquals(0L, parentToChild.getDocCount());
             assertEquals(
                 Double.POSITIVE_INFINITY,
                 ((InternalMin) parentToChild.getAggregations().get("in_child")).getValue(),
@@ -134,7 +134,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         });
 
         for (String parent : expectedParentChildRelations.keySet()) {
-            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(parent)), indexSearcher, child -> {
+            testCase(new TermInSetQuery(IdFieldMapper.NAME, Collections.singleton(Uid.encodeId(parent))), indexSearcher, child -> {
                 assertEquals((long) expectedParentChildRelations.get(parent).v1(), child.getDocCount());
                 assertEquals(
                     expectedParentChildRelations.get(parent).v2(),

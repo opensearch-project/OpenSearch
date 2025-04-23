@@ -37,6 +37,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -167,6 +168,22 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     }
 
     /**
+     * Creates a deep copy of this SearchHits instance.
+     *
+     * @return a deep copy of the current SearchHits object
+     * @throws IOException if an I/O exception occurs during serialization or deserialization
+     */
+    public SearchHits deepCopy() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            this.writeTo(out);
+
+            try (StreamInput in = out.bytes().streamInput()) {
+                return new SearchHits(in);
+            }
+        }
+    }
+
+    /**
      * Return the hit as the provided position.
      */
     public SearchHit getAt(int position) {
@@ -219,12 +236,12 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         builder.startObject(Fields.HITS);
         boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
         if (totalHitAsInt) {
-            long total = totalHits == null ? -1 : totalHits.value;
+            long total = totalHits == null ? -1 : totalHits.value();
             builder.field(Fields.TOTAL, total);
         } else if (totalHits != null) {
             builder.startObject(Fields.TOTAL);
-            builder.field("value", totalHits.value);
-            builder.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
+            builder.field("value", totalHits.value());
+            builder.field("relation", totalHits.relation() == Relation.EQUAL_TO ? "eq" : "gte");
             builder.endObject();
         }
         if (Float.isNaN(maxScore)) {

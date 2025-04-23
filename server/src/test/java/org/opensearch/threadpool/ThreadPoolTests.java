@@ -196,4 +196,12 @@ public class ThreadPoolTests extends OpenSearchTestCase {
             terminate(threadPool);
         }
     }
+
+    public void testOneEighthAllocatedProcessors() {
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(1), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(4), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(8), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(32), equalTo(4));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(128), equalTo(16));
+    }
 }

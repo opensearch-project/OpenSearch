@@ -92,7 +92,6 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.boostingQuery;
@@ -121,6 +120,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNotHighlighted;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.opensearch.test.hamcrest.RegexMatcher.matches;
+import static org.opensearch.transport.client.Requests.searchRequest;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -3200,7 +3200,7 @@ public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIn
             )
             .get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(search.getHits().getAt(0).getHighlightFields().get("text").fragments().length, equalTo(1));
     }
 
@@ -3244,7 +3244,7 @@ public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIn
             .setSource(new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().highlighterType("plain").field("jd")))
             .get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value(), equalTo(1L));
     }
 
     public void testKeywordFieldHighlighting() throws IOException, InterruptedException {
@@ -3268,7 +3268,7 @@ public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIn
             )
             .get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(
             search.getHits().getAt(0).getHighlightFields().get("keyword_field").getFragments()[0].string(),
             equalTo("<em>some text</em>")
@@ -3432,7 +3432,7 @@ public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIn
                 .get();
 
             assertSearchResponse(r1);
-            assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(r1.getHits().getTotalHits().value(), equalTo(1L));
             assertHighlight(r1, 0, "field", 0, 1, equalTo("<x>hello</x> world"));
         }
     }

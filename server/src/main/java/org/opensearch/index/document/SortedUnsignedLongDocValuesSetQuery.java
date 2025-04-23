@@ -22,9 +22,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.LongHashSet;
+import org.opensearch.lucene.util.UnsignedLongHashSet;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -39,12 +40,12 @@ import java.util.Objects;
 public abstract class SortedUnsignedLongDocValuesSetQuery extends Query {
 
     private final String field;
-    private final LongHashSet numbers;
+    private final UnsignedLongHashSet numbers;
 
     SortedUnsignedLongDocValuesSetQuery(String field, BigInteger[] numbers) {
         this.field = Objects.requireNonNull(field);
         Arrays.sort(numbers);
-        this.numbers = new LongHashSet(Arrays.stream(numbers).mapToLong(n -> n.longValue()).toArray());
+        this.numbers = new UnsignedLongHashSet(Arrays.stream(numbers).mapToLong(n -> n.longValue()).toArray());
     }
 
     @Override
@@ -93,7 +94,7 @@ public abstract class SortedUnsignedLongDocValuesSetQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 SortedNumericDocValues values = getValues(context.reader(), field);
                 if (values == null) {
                     return null;
@@ -139,7 +140,8 @@ public abstract class SortedUnsignedLongDocValuesSetQuery extends Query {
                         }
                     };
                 }
-                return new ConstantScoreScorer(this, score(), scoreMode, iterator);
+                final Scorer scorer = new ConstantScoreScorer(score(), scoreMode, iterator);
+                return new DefaultScorerSupplier(scorer);
             }
         };
     }

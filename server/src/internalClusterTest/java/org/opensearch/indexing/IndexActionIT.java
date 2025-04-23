@@ -95,9 +95,9 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                 try {
                     logger.debug("running search with all types");
                     SearchResponse response = client().prepareSearch("test").get();
-                    if (response.getHits().getTotalHits().value != numOfDocs) {
+                    if (response.getHits().getTotalHits().value() != numOfDocs) {
                         final String message = "Count is "
-                            + response.getHits().getTotalHits().value
+                            + response.getHits().getTotalHits().value()
                             + " but "
                             + numOfDocs
                             + " was expected. "
@@ -114,9 +114,9 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                 try {
                     logger.debug("running search with a specific type");
                     SearchResponse response = client().prepareSearch("test").get();
-                    if (response.getHits().getTotalHits().value != numOfDocs) {
+                    if (response.getHits().getTotalHits().value() != numOfDocs) {
                         final String message = "Count is "
-                            + response.getHits().getTotalHits().value
+                            + response.getHits().getTotalHits().value()
                             + " but "
                             + numOfDocs
                             + " was expected. "

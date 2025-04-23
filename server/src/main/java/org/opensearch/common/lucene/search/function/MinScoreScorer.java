@@ -53,7 +53,7 @@ final class MinScoreScorer extends Scorer {
     private float curScore;
 
     MinScoreScorer(Weight weight, Scorer scorer, float minScore) {
-        super(weight);
+        super();
         this.in = scorer;
         this.minScore = minScore;
     }

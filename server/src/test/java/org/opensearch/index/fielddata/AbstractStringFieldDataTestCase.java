@@ -45,6 +45,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -283,10 +284,10 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             randomBoolean() ? numDocs : randomIntBetween(10, numDocs),
             new Sort(sortField)
         );
-        assertEquals(numDocs, topDocs.totalHits.value);
+        assertEquals(numDocs, topDocs.totalHits.value());
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
-            final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
+            final String docValue = searcher.storedFields().document(topDocs.scoreDocs[i].doc).get("value");
             final BytesRef value = new BytesRef(docValue == null ? missingValue : docValue);
             if (reverse) {
                 assertTrue(previousValue.compareTo(value) >= 0);
@@ -342,15 +343,15 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             new Sort(sortField)
         );
         // As of Lucene 9.0.0, totalHits may be a lower bound
-        if (topDocs.totalHits.relation == TotalHits.Relation.EQUAL_TO) {
-            assertEquals(numDocs, topDocs.totalHits.value);
+        if (topDocs.totalHits.relation() == TotalHits.Relation.EQUAL_TO) {
+            assertEquals(numDocs, topDocs.totalHits.value());
         } else {
-            assertTrue(1000 <= topDocs.totalHits.value);
-            assertTrue(numDocs >= topDocs.totalHits.value);
+            assertTrue(1000 <= topDocs.totalHits.value());
+            assertTrue(numDocs >= topDocs.totalHits.value());
         }
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
-            final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
+            final String docValue = searcher.storedFields().document(topDocs.scoreDocs[i].doc).get("value");
             if (first && docValue == null) {
                 assertNull(previousValue);
             } else if (!first && docValue != null) {
@@ -449,7 +450,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             assertTrue("expected " + docID + " to be a parent", parents.get(docID));
             BytesRef cmpValue = null;
             for (int child = parents.prevSetBit(docID - 1) + 1; child < docID; ++child) {
-                String[] sVals = searcher.doc(child).getValues("text");
+                String[] sVals = searcher.storedFields().document(child).getValues("text");
                 final BytesRef[] vals;
                 if (sVals.length == 0) {
                     vals = new BytesRef[0];
@@ -505,14 +506,14 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(ord, equalTo(5L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("04"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
+        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
         assertFalse(values.advanceExact(1));
         assertTrue(values.advanceExact(2));
         ord = values.nextOrd();
         assertThat(ord, equalTo(4L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("03"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
+        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
 
         // Second segment
         leaf = topLevelReader.leaves().get(1);
@@ -529,7 +530,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(ord, equalTo(7L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("06"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
+        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
         assertTrue(values.advanceExact(1));
         ord = values.nextOrd();
         assertThat(ord, equalTo(7L));
@@ -541,7 +542,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(ord, equalTo(9L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("08"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
+        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
         assertFalse(values.advanceExact(2));
         assertTrue(values.advanceExact(3));
         ord = values.nextOrd();
@@ -554,7 +555,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(ord, equalTo(11L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("10"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
+        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
 
         // Third segment
         leaf = topLevelReader.leaves().get(2);
@@ -571,7 +572,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(ord, equalTo(2L));
         assertThat(values.lookupOrd(ord).utf8ToString(), equalTo("!10"));
         ord = values.nextOrd();
-        assertThat(ord, equalTo(SortedSetDocValues.NO_MORE_ORDS));
+        assertThat(ord, equalTo((long) DocIdSetIterator.NO_MORE_DOCS));
     }
 
     public void testTermsEnum() throws Exception {

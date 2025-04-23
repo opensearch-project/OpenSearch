@@ -38,7 +38,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.update.UpdateResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.search.SearchHit;
@@ -48,6 +47,7 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.metrics.TopHits;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.transport.client.Requests;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -149,7 +149,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             logger.info("bucket={}", bucket.getKey());
             Children childrenBucket = bucket.getAggregations().get("to_comment");
             TopHits topHits = childrenBucket.getAggregations().get("top_comments");
-            logger.info("total_hits={}", topHits.getHits().getTotalHits().value);
+            logger.info("total_hits={}", topHits.getHits().getTotalHits().value());
             for (SearchHit searchHit : topHits.getHits()) {
                 logger.info("hit= {} {}", searchHit.getSortValues()[0], searchHit.getId());
             }
@@ -163,7 +163,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(2L));
         TopHits topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(topHits.getHits().getTotalHits().value(), equalTo(2L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("e"));
         assertThat(topHits.getHits().getAt(1).getId(), equalTo("f"));
 
@@ -175,7 +175,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(topHits.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("f"));
 
         categoryBucket = categoryTerms.getBucketByKey("c");
@@ -186,7 +186,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(topHits.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("f"));
     }
 

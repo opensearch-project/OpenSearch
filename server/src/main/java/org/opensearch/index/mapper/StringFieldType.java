@@ -86,30 +86,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        QueryShardContext context
-    ) {
-        if (context.allowExpensiveQueries() == false) {
-            throw new OpenSearchException(
-                "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
-            );
-        }
-        failIfNotIndexed();
-        return new FuzzyQuery(
-            new Term(name(), indexedValueForSearch(value)),
-            fuzziness.asDistance(BytesRefs.toString(value)),
-            prefixLength,
-            maxExpansions,
-            transpositions
-        );
-    }
-
-    @Override
-    public Query fuzzyQuery(
-        Object value,
-        Fuzziness fuzziness,
-        int prefixLength,
-        int maxExpansions,
-        boolean transpositions,
         MultiTermQuery.RewriteMethod method,
         QueryShardContext context
     ) {
@@ -144,7 +120,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
         failIfNotIndexed();
         if (method == null) {
-            method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+            method = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
         }
         if (caseInsensitive) {
             return AutomatonQueries.caseInsensitivePrefixQuery((new Term(name(), indexedValueForSearch(value))), method);
@@ -228,7 +204,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             return AutomatonQueries.caseInsensitiveWildcardQuery(term, method);
         }
         if (method == null) {
-            method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+            method = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
         }
         return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
     }
@@ -249,7 +225,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
         failIfNotIndexed();
         if (method == null) {
-            method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+            method = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
         }
         return new RegexpQuery(
             new Term(name(), indexedValueForSearch(value)),

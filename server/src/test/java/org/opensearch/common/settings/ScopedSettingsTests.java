@@ -789,6 +789,30 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         assertTrue(settings.isFinalSetting("foo.group.key"));
     }
 
+    public void testIsUnmodifiableOnRestore() {
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    Setting.intSetting("foo.int", 1, Property.UnmodifiableOnRestore, Property.IndexScope, Property.NodeScope),
+                    Setting.groupSetting("foo.group.", Property.UnmodifiableOnRestore, Property.IndexScope, Property.NodeScope),
+                    Setting.groupSetting("foo.list.", Property.UnmodifiableOnRestore, Property.IndexScope, Property.NodeScope),
+                    Setting.intSetting("foo.int.baz", 1, Property.IndexScope, Property.NodeScope)
+                )
+            )
+        );
+
+        assertFalse(settings.isUnmodifiableOnRestoreSetting("foo.int.baz"));
+        assertTrue(settings.isUnmodifiableOnRestoreSetting("foo.int"));
+
+        assertFalse(settings.isUnmodifiableOnRestoreSetting("foo.list"));
+        assertTrue(settings.isUnmodifiableOnRestoreSetting("foo.list.0.key"));
+        assertTrue(settings.isUnmodifiableOnRestoreSetting("foo.list.key"));
+
+        assertFalse(settings.isUnmodifiableOnRestoreSetting("foo.group"));
+        assertTrue(settings.isUnmodifiableOnRestoreSetting("foo.group.key"));
+    }
+
     public void testDiff() throws IOException {
         Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
         Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
@@ -970,7 +994,10 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
             SettingsException.class,
             () -> settings.validate(Settings.builder().put("index.numbe_of_replica", "1").build(), false)
         );
-        assertEquals(e.getMessage(), "unknown setting [index.numbe_of_replica] did you mean [index.number_of_replicas]?");
+        assertEquals(
+            e.getMessage(),
+            "unknown setting [index.numbe_of_replica] did you mean any of [index.number_of_replicas, index.number_of_search_replicas]?"
+        );
     }
 
     public void testValidate() {

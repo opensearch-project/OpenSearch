@@ -13,6 +13,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.comparators.NumericComparator;
+import org.apache.lucene.util.BitUtil;
 
 import java.io.IOException;
 
@@ -50,6 +51,16 @@ public class HalfFloatComparator extends NumericComparator<Float> {
     @Override
     public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
         return new HalfFloatLeafComparator(context);
+    }
+
+    @Override
+    protected long missingValueAsComparableLong() {
+        return HalfFloatPoint.halfFloatToSortableShort(missingValue);
+    }
+
+    @Override
+    protected long sortableBytesToLong(byte[] bytes) {
+        return sortableBytesToShort(bytes, 0);
     }
 
     /** Leaf comparator for {@link HalfFloatComparator} that provides skipping functionality */
@@ -90,23 +101,22 @@ public class HalfFloatComparator extends NumericComparator<Float> {
         }
 
         @Override
-        protected int compareMissingValueWithBottomValue() {
-            return Float.compare(missingValue, bottom);
+        protected long bottomAsComparableLong() {
+            return HalfFloatPoint.halfFloatToSortableShort(bottom);
         }
 
         @Override
-        protected int compareMissingValueWithTopValue() {
-            return Float.compare(missingValue, topValue);
+        protected long topAsComparableLong() {
+            return HalfFloatPoint.halfFloatToSortableShort(topValue);
         }
+    }
 
-        @Override
-        protected void encodeBottom(byte[] packedValue) {
-            HalfFloatPoint.encodeDimension(bottom, packedValue, 0);
-        }
-
-        @Override
-        protected void encodeTop(byte[] packedValue) {
-            HalfFloatPoint.encodeDimension(topValue, packedValue, 0);
-        }
+    /**
+     * Copy of HalfFloatPoint::sortableBytesToShort since it is not exposed
+     */
+    private static short sortableBytesToShort(byte[] encoded, int offset) {
+        short x = (short) BitUtil.VH_BE_SHORT.get(encoded, offset);
+        // Re-flip the sign bit to restore the original value:
+        return (short) (x ^ 0x8000);
     }
 }

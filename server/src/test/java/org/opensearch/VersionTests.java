@@ -290,9 +290,9 @@ public class VersionTests extends OpenSearchTestCase {
     }
 
     public void testIsAlpha() {
-        assertTrue(new Version(1000001, org.apache.lucene.util.Version.LUCENE_8_8_2).isAlpha());
-        assertFalse(new Version(1000026, org.apache.lucene.util.Version.LUCENE_8_8_2).isAlpha());
-        assertTrue(new Version(1000026, org.apache.lucene.util.Version.LUCENE_8_8_2).isBeta());
+        assertTrue(new Version(1000001, org.apache.lucene.util.Version.LUCENE_9_12_0).isAlpha());
+        assertFalse(new Version(1000026, org.apache.lucene.util.Version.LUCENE_9_12_0).isAlpha());
+        assertTrue(new Version(1000026, org.apache.lucene.util.Version.LUCENE_9_12_0).isBeta());
         assertTrue(Version.fromString("2.0.0-alpha14").isAlpha());
         assertEquals(2000014 ^ MASK, Version.fromString("2.0.0-alpha14").id);
         assertTrue(Version.fromId(5000015 ^ MASK).isAlpha());

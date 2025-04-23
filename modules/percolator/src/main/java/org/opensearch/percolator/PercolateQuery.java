@@ -134,7 +134,7 @@ final class PercolateQuery extends Query implements Accountable {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext leafReaderContext) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext leafReaderContext) throws IOException {
                 final Scorer approximation = candidateMatchesWeight.scorer(leafReaderContext);
                 if (approximation == null) {
                     return null;
@@ -142,7 +142,7 @@ final class PercolateQuery extends Query implements Accountable {
 
                 final CheckedFunction<Integer, Query, IOException> percolatorQueries = queryStore.getQueries(leafReaderContext);
                 if (scoreMode.needsScores()) {
-                    return new BaseScorer(this, approximation) {
+                    return new DefaultScorerSupplier(new BaseScorer(this, approximation) {
 
                         float score;
 
@@ -171,11 +171,11 @@ final class PercolateQuery extends Query implements Accountable {
                         public float score() throws IOException {
                             return score;
                         }
-                    };
+                    });
                 } else {
                     ScorerSupplier verifiedDocsScorer = verifiedMatchesWeight.scorerSupplier(leafReaderContext);
                     Bits verifiedDocsBits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), verifiedDocsScorer);
-                    return new BaseScorer(this, approximation) {
+                    return new DefaultScorerSupplier(new BaseScorer(this, approximation) {
 
                         @Override
                         public float score() throws IOException {
@@ -200,7 +200,7 @@ final class PercolateQuery extends Query implements Accountable {
                             }
                             return Lucene.exists(percolatorIndexSearcher, query);
                         }
-                    };
+                    });
                 }
             }
 
@@ -290,7 +290,7 @@ final class PercolateQuery extends Query implements Accountable {
         final Scorer approximation;
 
         BaseScorer(Weight weight, Scorer approximation) {
-            super(weight);
+            super();
             this.approximation = approximation;
         }
 

@@ -103,7 +103,7 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         if (mappedFieldType == null) {
             throw new MapperException("prefilter_field[" + derivedField.getPrefilterField() + "] is not defined in the index mappings");
         }
-        if (!(mappedFieldType instanceof TextFieldMapper.TextFieldType)) {
+        if (!(mappedFieldType.unwrap() instanceof TextFieldMapper.TextFieldType)) {
             throw new MapperException(
                 "prefilter_field["
                     + derivedField.getPrefilterField()
@@ -235,34 +235,6 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-    }
-
-    @Override
-    public Query fuzzyQuery(
-        Object value,
-        Fuzziness fuzziness,
-        int prefixLength,
-        int maxExpansions,
-        boolean transpositions,
-        QueryShardContext context
-    ) {
-        Query query = typeFieldMapper.mappedFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
-        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
-            query,
-            () -> valueFetcher(context, context.lookup(), null),
-            context.lookup(),
-            getIndexAnalyzer(),
-            indexableFieldGenerator,
-            derivedField.getIgnoreMalformed()
-        );
-        return Optional.ofNullable(getPrefilterFieldType(context))
-            .map(
-                prefilterFieldType -> createConjuctionQuery(
-                    prefilterFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context),
-                    derivedFieldQuery
-                )
-            )
-            .orElse(derivedFieldQuery);
     }
 
     @Override

@@ -34,6 +34,7 @@ package org.opensearch.index.fieldvisitor;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.mapper.IdFieldMapper;
@@ -66,17 +67,29 @@ public class FieldsVisitor extends StoredFieldVisitor {
     private final boolean loadSource;
     private final String sourceFieldName;
     private final Set<String> requiredFields;
+    private final String[] sourceIncludes;
+    private final String[] sourceExcludes;
     protected BytesReference source;
     protected String id;
     protected Map<String, List<Object>> fieldsValues;
 
     public FieldsVisitor(boolean loadSource) {
-        this(loadSource, SourceFieldMapper.NAME);
+        this(loadSource, SourceFieldMapper.NAME, null, null);
+    }
+
+    public FieldsVisitor(boolean loadSource, String[] includes, String[] excludes) {
+        this(loadSource, SourceFieldMapper.NAME, includes, excludes);
     }
 
     public FieldsVisitor(boolean loadSource, String sourceFieldName) {
+        this(loadSource, sourceFieldName, null, null);
+    }
+
+    public FieldsVisitor(boolean loadSource, String sourceFieldName, String[] includes, String[] excludes) {
         this.loadSource = loadSource;
         this.sourceFieldName = sourceFieldName;
+        this.sourceIncludes = includes != null ? includes : Strings.EMPTY_ARRAY;
+        this.sourceExcludes = excludes != null ? excludes : Strings.EMPTY_ARRAY;
         requiredFields = new HashSet<>();
         reset();
     }
@@ -160,6 +173,22 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
     public BytesReference source() {
         return source;
+    }
+
+    /**
+     * Returns the array containing the source fields to include
+     * @return String[] sourceIncludes
+     */
+    public String[] includes() {
+        return sourceIncludes;
+    }
+
+    /**
+     * Returns the array containing the source fields to exclude
+     * @return String[] sourceExcludes
+     */
+    public String[] excludes() {
+        return sourceExcludes;
     }
 
     public String id() {

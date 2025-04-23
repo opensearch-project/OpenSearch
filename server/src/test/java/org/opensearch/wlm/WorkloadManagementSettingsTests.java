@@ -20,8 +20,8 @@ import static org.opensearch.wlm.WorkloadManagementSettings.NODE_MEMORY_REJECTIO
 public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
 
     /**
-     * Tests the invalid value for {@code wlm.query_group.node.memory_rejection_threshold}
-     * When the value is set more than {@code wlm.query_group.node.memory_cancellation_threshold} accidentally during
+     * Tests the invalid value for {@code wlm.workload_group.node.memory_rejection_threshold}
+     * When the value is set more than {@code wlm.workload_group.node.memory_cancellation_threshold} accidentally during
      * new feature development. This test is to ensure that {@link WorkloadManagementSettings} holds the
      * invariant {@code nodeLevelRejectionThreshold < nodeLevelCancellationThreshold}
      */
@@ -36,8 +36,8 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the invalid value for {@code wlm.query_group.node.cpu_rejection_threshold}
-     * When the value is set more than {@code wlm.query_group.node.cpu_cancellation_threshold} accidentally during
+     * Tests the invalid value for {@code wlm.workload_group.node.cpu_rejection_threshold}
+     * When the value is set more than {@code wlm.workload_group.node.cpu_cancellation_threshold} accidentally during
      * new feature development. This test is to ensure that {@link WorkloadManagementSettings} holds the
      * invariant {@code nodeLevelRejectionThreshold < nodeLevelCancellationThreshold}
      */
@@ -52,7 +52,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the valid value for {@code wlm.query_group.node.cpu_rejection_threshold}
+     * Tests the valid value for {@code wlm.workload_group.node.cpu_rejection_threshold}
      * Using setNodeLevelCpuRejectionThreshold function
      */
     public void testValidNodeLevelCpuRejectionThresholdCase1() {
@@ -64,7 +64,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the valid value for {@code wlm.query_group.node.cpu_rejection_threshold}
+     * Tests the valid value for {@code wlm.workload_group.node.cpu_rejection_threshold}
      */
     public void testValidNodeLevelCpuRejectionThresholdCase2() {
         Settings settings = Settings.builder().put(NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME, 0.79).build();
@@ -74,7 +74,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the invalid value for {@code wlm.query_group.node.cpu_rejection_threshold}
+     * Tests the invalid value for {@code wlm.workload_group.node.cpu_rejection_threshold}
      * When the value is set more than {@literal 0.9}
      */
     public void testInvalidNodeLevelCpuRejectionThresholdCase1() {
@@ -85,8 +85,8 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the invalid value for {@code wlm.query_group.node.cpu_rejection_threshold}
-     * When the value is set more than {@code wlm.query_group.node.cpu_cancellation_threshold}
+     * Tests the invalid value for {@code wlm.workload_group.node.cpu_rejection_threshold}
+     * When the value is set more than {@code wlm.workload_group.node.cpu_cancellation_threshold}
      */
     public void testInvalidNodeLevelCpuRejectionThresholdCase2() {
         Settings settings = Settings.builder()
@@ -99,7 +99,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the valid value for {@code wlm.query_group.node.cpu_cancellation_threshold}
+     * Tests the valid value for {@code wlm.workload_group.node.cpu_cancellation_threshold}
      */
     public void testValidNodeLevelCpuCancellationThresholdCase1() {
         Settings settings = Settings.builder().put(NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME, 0.8).build();
@@ -109,7 +109,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the valid value for {@code wlm.query_group.node.cpu_cancellation_threshold}
+     * Tests the valid value for {@code wlm.workload_group.node.cpu_cancellation_threshold}
      * Using setNodeLevelCpuCancellationThreshold function
      */
     public void testValidNodeLevelCpuCancellationThresholdCase2() {
@@ -121,7 +121,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the invalid value for {@code wlm.query_group.node.cpu_cancellation_threshold}
+     * Tests the invalid value for {@code wlm.workload_group.node.cpu_cancellation_threshold}
      * When the value is set more than {@literal 0.95}
      */
     public void testInvalidNodeLevelCpuCancellationThresholdCase1() {
@@ -132,8 +132,8 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the invalid value for {@code wlm.query_group.node.cpu_cancellation_threshold}
-     * When the value is set less than {@code wlm.query_group.node.cpu_rejection_threshold}
+     * Tests the invalid value for {@code wlm.workload_group.node.cpu_cancellation_threshold}
+     * When the value is set less than {@code wlm.workload_group.node.cpu_rejection_threshold}
      */
     public void testInvalidNodeLevelCpuCancellationThresholdCase2() {
         Settings settings = Settings.builder()
@@ -146,7 +146,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the valid value for {@code wlm.query_group.node.memory_cancellation_threshold}
+     * Tests the valid value for {@code wlm.workload_group.node.memory_cancellation_threshold}
      */
     public void testValidNodeLevelMemoryCancellationThresholdCase1() {
         Settings settings = Settings.builder().put(NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME, 0.8).build();
@@ -156,7 +156,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the valid value for {@code wlm.query_group.node.memory_cancellation_threshold}
+     * Tests the valid value for {@code wlm.workload_group.node.memory_cancellation_threshold}
      * Using setNodeLevelMemoryCancellationThreshold function
      */
     public void testValidNodeLevelMemoryCancellationThresholdCase2() {
@@ -168,7 +168,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the invalid value for {@code wlm.query_group.node.memory_cancellation_threshold}
+     * Tests the invalid value for {@code wlm.workload_group.node.memory_cancellation_threshold}
      * When the value is set more than {@literal 0.95}
      */
     public void testInvalidNodeLevelMemoryCancellationThresholdCase1() {
@@ -179,8 +179,8 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the invalid value for {@code wlm.query_group.node.memory_cancellation_threshold}
-     * When the value is set less than {@code wlm.query_group.node.memory_rejection_threshold}
+     * Tests the invalid value for {@code wlm.workload_group.node.memory_cancellation_threshold}
+     * When the value is set less than {@code wlm.workload_group.node.memory_rejection_threshold}
      */
     public void testInvalidNodeLevelMemoryCancellationThresholdCase2() {
         Settings settings = Settings.builder()
@@ -193,7 +193,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the valid value for {@code wlm.query_group.node.memory_rejection_threshold}
+     * Tests the valid value for {@code wlm.workload_group.node.memory_rejection_threshold}
      */
     public void testValidNodeLevelMemoryRejectionThresholdCase1() {
         Settings settings = Settings.builder().put(NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME, 0.79).build();
@@ -203,7 +203,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the valid value for {@code wlm.query_group.node.memory_rejection_threshold}
+     * Tests the valid value for {@code wlm.workload_group.node.memory_rejection_threshold}
      * Using setNodeLevelMemoryRejectionThreshold function
      */
     public void testValidNodeLevelMemoryRejectionThresholdCase2() {
@@ -215,7 +215,7 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the invalid value for {@code wlm.query_group.node.memory_rejection_threshold}
+     * Tests the invalid value for {@code wlm.workload_group.node.memory_rejection_threshold}
      * When the value is set more than {@literal 0.9}
      */
     public void testInvalidNodeLevelMemoryRejectionThresholdCase1() {
@@ -226,8 +226,8 @@ public class WorkloadManagementSettingsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests the invalid value for {@code wlm.query_group.node.memory_rejection_threshold}
-     * When the value is set more than {@code wlm.query_group.node.memory_cancellation_threshold}
+     * Tests the invalid value for {@code wlm.workload_group.node.memory_rejection_threshold}
+     * When the value is set more than {@code wlm.workload_group.node.memory_cancellation_threshold}
      */
     public void testInvalidNodeLevelMemoryRejectionThresholdCase2() {
         Settings settings = Settings.builder()

@@ -20,11 +20,19 @@ import java.util.Set;
 public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
     static String prefixAnchored(String val) {
-        return (char) 0 + val;
+        String ret = (char) 0 + val;
+        if (ret.length() < WildcardFieldMapper.NGRAM_SIZE) {
+            ret = prefixAnchored(ret);
+        }
+        return ret;
     }
 
     static String suffixAnchored(String val) {
-        return val + (char) 0;
+        String ret = val + (char) 0;
+        if (ret.length() < WildcardFieldMapper.NGRAM_SIZE) {
+            ret = suffixAnchored(ret);
+        }
+        return ret;
     }
 
     public void testTermQuery() {
@@ -104,13 +112,14 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
             ft.wildcardQuery("\\**\\*", null, null)
         );
 
-        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\*"), ft.wildcardQuery("\\*", null, null));
-
-        expectedTerms.remove(suffixAnchored("*"));
+        expectedTerms.add(prefixAnchored("*" + (char) 0));
         builder = new BooleanQuery.Builder();
         for (String term : expectedTerms) {
             builder.add(new TermQuery(new Term("field", term)), BooleanClause.Occur.FILTER);
         }
+        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\*"), ft.wildcardQuery("\\*", null, null));
+        builder = new BooleanQuery.Builder();
+        builder.add(new TermQuery(new Term("field", prefixAnchored("*"))), BooleanClause.Occur.FILTER);
         assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "\\**"), ft.wildcardQuery("\\**", null, null));
     }
 
@@ -119,7 +128,6 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
         Set<String> expectedTerms = new HashSet<>();
         expectedTerms.add(prefixAnchored("a"));
-        expectedTerms.add("cd");
         expectedTerms.add("efg");
         expectedTerms.add(suffixAnchored("h"));
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -153,27 +161,27 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("foo_apple_foo"));
         assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("foo_apply_foo"));
 
-        pattern = "ab(zz|cd|ef.*)(hi|jk)";
+        pattern = "abc(zzz|def|ghi.*)(jkl|mno)";
         builder = new BooleanQuery.Builder();
-        builder.add(new TermQuery(new Term("field", "ab")), BooleanClause.Occur.FILTER);
+        builder.add(new TermQuery(new Term("field", "abc")), BooleanClause.Occur.FILTER);
         builder.add(
-            new BooleanQuery.Builder().add(new TermQuery(new Term("field", "zz")), BooleanClause.Occur.SHOULD)
-                .add(new TermQuery(new Term("field", "cd")), BooleanClause.Occur.SHOULD)
-                .add(new TermQuery(new Term("field", "ef")), BooleanClause.Occur.SHOULD)
+            new BooleanQuery.Builder().add(new TermQuery(new Term("field", "zzz")), BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term("field", "def")), BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term("field", "ghi")), BooleanClause.Occur.SHOULD)
                 .build(),
             BooleanClause.Occur.FILTER
         );
         builder.add(
-            new BooleanQuery.Builder().add(new TermQuery(new Term("field", "hi")), BooleanClause.Occur.SHOULD)
-                .add(new TermQuery(new Term("field", "jk")), BooleanClause.Occur.SHOULD)
+            new BooleanQuery.Builder().add(new TermQuery(new Term("field", "jkl")), BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term("field", "mno")), BooleanClause.Occur.SHOULD)
                 .build(),
             BooleanClause.Occur.FILTER
         );
         actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
         assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", builder.build(), "/" + pattern + "/"), actual);
         actualMatchingQuery = (WildcardFieldMapper.WildcardMatchingQuery) actual;
-        assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("abcdjk"));
-        assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("abefqwertyhi"));
+        assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("abcdefmno"));
+        assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("abcghiqwertyjkl"));
     }
 
     public void testWildcardMatchAll() {

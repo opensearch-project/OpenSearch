@@ -32,7 +32,6 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.FixedBitSet;
@@ -44,7 +43,6 @@ import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
@@ -53,22 +51,25 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getStarTreeFilteredValues;
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeQueryHelper.getSupportedStarTree;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getStarTreeFilteredValues;
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * Aggregate all docs into an average
  *
  * @opensearch.internal
  */
-class AvgAggregator extends NumericMetricsAggregator.SingleValue {
+class AvgAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
 
     final ValuesSource.Numeric valuesSource;
 
@@ -102,18 +103,29 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (valuesSource == null) {
+            return false;
+        }
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
+        if (supportedStarTree != null) {
+            if (parent != null && subAggregators.length == 0) {
+                // If this a child aggregator, then the parent will trigger star-tree pre-computation.
+                // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
+                return true;
+            }
+            precomputeLeafUsingStarTree(ctx, supportedStarTree);
+            return true;
+        }
+        return false;
+    }
+
+    @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context);
-        if (supportedStarTree != null) {
-            return getStarTreeLeafCollector(ctx, sub, supportedStarTree);
-        }
-        return getDefaultLeafCollector(ctx, sub);
-    }
 
-    private LeafBucketCollector getDefaultLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
@@ -147,8 +159,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         };
     }
 
-    public LeafBucketCollector getStarTreeLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, CompositeIndexFieldInfo starTree)
-        throws IOException {
+    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
         assert starTreeValues != null;
 
@@ -164,7 +175,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             MetricStat.VALUE_COUNT.getTypeName()
         );
 
-        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), 0);
+        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), compensations.get(0));
         SortedNumericStarTreeValuesIterator sumValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
             .getMetricValuesIterator(sumMetricName);
         SortedNumericStarTreeValuesIterator countValueIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
@@ -192,12 +203,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         }
 
         sums.set(0, kahanSummation.value());
-        return new LeafBucketCollectorBase(sub, valuesSource.doubleValues(ctx)) {
-            @Override
-            public void collect(int doc, long bucket) {
-                throw new CollectionTerminatedException();
-            }
-        };
+        compensations.set(0, kahanSummation.delta());
     }
 
     @Override
@@ -226,4 +232,47 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         Releasables.close(counts, sums, compensations);
     }
 
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
+    ) throws IOException {
+        assert parentCollector != null;
+        return new StarTreeBucketCollector(parentCollector) {
+            String sumMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
+                MetricStat.SUM.getTypeName()
+            );
+            String valueCountMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
+                MetricStat.VALUE_COUNT.getTypeName()
+            );
+            SortedNumericStarTreeValuesIterator sumMetricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getMetricValuesIterator(sumMetricName);
+            SortedNumericStarTreeValuesIterator valueCountMetricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getMetricValuesIterator(valueCountMetricName);
+
+            final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
+            @Override
+            public void collectStarTreeEntry(int starTreeEntryBit, long bucket) throws IOException {
+                counts = context.bigArrays().grow(counts, bucket + 1);
+                sums = context.bigArrays().grow(sums, bucket + 1);
+                compensations = context.bigArrays().grow(compensations, bucket + 1);
+                // Advance the valuesIterator to the current bit
+                if (!sumMetricValuesIterator.advanceExact(starTreeEntryBit)
+                    || !valueCountMetricValuesIterator.advanceExact(starTreeEntryBit)) {
+                    return; // Skip if no entries for this document
+                }
+                kahanSummation.reset(sums.get(bucket), compensations.get(bucket));
+                kahanSummation.add(NumericUtils.sortableLongToDouble(sumMetricValuesIterator.nextValue()));
+
+                sums.set(bucket, kahanSummation.value());
+                compensations.set(bucket, kahanSummation.delta());
+                counts.increment(bucket, valueCountMetricValuesIterator.nextValue());
+            }
+        };
+    }
 }

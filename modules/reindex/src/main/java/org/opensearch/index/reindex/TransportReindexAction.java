@@ -35,7 +35,6 @@ package org.opensearch.index.reindex;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -49,6 +48,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
 
 import java.util.List;
 import java.util.Optional;
@@ -57,18 +57,9 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
-    static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.listSetting(
-        "reindex.remote.whitelist",
-        emptyList(),
-        Function.identity(),
-        Property.NodeScope,
-        Property.Deprecated
-    );
-    // The setting below is going to replace the above.
-    // To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
     public static final Setting<List<String>> REMOTE_CLUSTER_ALLOWLIST = Setting.listSetting(
         "reindex.remote.allowlist",
-        REMOTE_CLUSTER_WHITELIST,
+        emptyList(),
         Function.identity(),
         Property.NodeScope
     );

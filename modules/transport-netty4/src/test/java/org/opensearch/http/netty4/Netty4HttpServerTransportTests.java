@@ -393,7 +393,10 @@ public class Netty4HttpServerTransportTests extends OpenSearchTestCase {
 
             try (Netty4HttpClient client = Netty4HttpClient.http()) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
-                request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
+                // ZSTD is not supported at the moment by NettyAllocator (needs direct buffers),
+                // and Brotly is not on classpath.
+                final String contentEncoding = randomFrom("deflate", "gzip", "snappy", "br", "zstd");
+                request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, contentEncoding);
                 long numOfHugeAllocations = getHugeAllocationCount();
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
                 try {

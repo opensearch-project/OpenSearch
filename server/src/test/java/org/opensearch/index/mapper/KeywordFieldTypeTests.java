@@ -43,11 +43,11 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
@@ -115,7 +115,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         expected = AutomatonQueries.createAutomatonQuery(
             term,
-            AutomatonQueries.toCaseInsensitiveString("foo", Integer.MAX_VALUE),
+            AutomatonQueries.toCaseInsensitiveString("foo"),
             MultiTermQuery.DOC_VALUES_REWRITE
         );
         assertEquals(expected, ft.termQueryCaseInsensitive("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
@@ -130,10 +130,16 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        assertEquals(
+            new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))),
+            ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+        );
 
         ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+        assertEquals(
+            new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))),
+            ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
+        );
 
         ft = new KeywordFieldType("field", false, true, Collections.emptyMap());
         Query expected = SortedSetDocValuesField.newSlowRangeQuery("field", new BytesRef("foo"), new BytesRef("foo"), true, true);
@@ -148,6 +154,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
             e.getMessage()
         );
+        // backwards compatible enaled with useSimilarity=true
+        ft = new KeywordFieldType("field", true, false, true, Collections.emptyMap());
+        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
     }
 
     public void testTermQueryWithNormalizer() {
@@ -165,7 +175,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             }
         };
         MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
-        assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("fOo BaR", null));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo bar"))), ft.termQuery("fOo BaR", null));
     }
 
     public void testTermsQuery() {
@@ -198,16 +208,37 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testTermsSortedQuery() {
+        String[] seedStrings = generateRandomStringArray(10, 10, false, true);
+        List<BytesRef> bytesRefList = Arrays.stream(seedStrings).map(BytesRef::new).toList();
+        List<String> sortedStrings = bytesRefList.stream().sorted().map(BytesRef::utf8ToString).toList();
+
+        MappedFieldType ft = new KeywordFieldType("field");
+        Query expected = new IndexOrDocValuesQuery(
+            new TermInSetQuery("field", bytesRefList),
+            new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", bytesRefList)
+        );
+        assertEquals(expected, ft.termsQuery(sortedStrings, MOCK_QSC_ENABLE_INDEX_DOC_VALUES));
+
+        MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        Query expectedIndex = new TermInSetQuery("field", bytesRefList);
+        assertEquals(expectedIndex, onlyIndexed.termsQuery(sortedStrings, null));
+
+        MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        Query expectedDocValues = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", bytesRefList);
+        assertEquals(expectedDocValues, onlyDocValues.termsQuery(sortedStrings, null));
+    }
+
     public void testExistsQuery() {
         {
             KeywordFieldType ft = new KeywordFieldType("field");
-            assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery(null));
         }
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
             KeywordFieldType ft = new KeywordFieldType("field", fieldType);
-            assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
+            assertEquals(new FieldExistsQuery("field"), ft.existsQuery(null));
         }
         {
             KeywordFieldType ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
@@ -311,9 +342,12 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, null, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
         );
 
-        Query indexExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true);
+        Query indexExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
         MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
-        assertEquals(indexExpected, onlyIndexed.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
+        assertEquals(
+            indexExpected,
+            onlyIndexed.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC)
+        );
 
         Query dvExpected = new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true, MultiTermQuery.DOC_VALUES_REWRITE);
         MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
@@ -334,7 +368,15 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         OpenSearchException ee = expectThrows(
             OpenSearchException.class,
-            () -> ft.fuzzyQuery("foo", Fuzziness.AUTO, randomInt(10) + 1, randomInt(10) + 1, randomBoolean(), MOCK_QSC_DISALLOW_EXPENSIVE)
+            () -> ft.fuzzyQuery(
+                "foo",
+                Fuzziness.AUTO,
+                randomInt(10) + 1,
+                randomInt(10) + 1,
+                randomBoolean(),
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                MOCK_QSC_DISALLOW_EXPENSIVE
+            )
         );
         assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
@@ -382,9 +424,9 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testNormalizeQueries() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", new BytesRef("FOO")))), ft.termQuery("FOO", null));
         ft = new KeywordFieldType("field", Lucene.STANDARD_ANALYZER);
-        assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", new BytesRef("foo")))), ft.termQuery("FOO", null));
     }
 
     public void testFetchSourceValue() throws IOException {

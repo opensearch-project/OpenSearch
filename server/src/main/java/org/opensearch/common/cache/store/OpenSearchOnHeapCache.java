@@ -29,7 +29,6 @@ import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.List;
@@ -182,7 +181,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
             Map<String, Setting<?>> settingList = OpenSearchOnHeapCacheSettings.getSettingListForCacheType(cacheType);
             Settings settings = config.getSettings();
-            boolean statsTrackingEnabled = statsTrackingEnabled(config.getSettings(), config.getStatsTrackingEnabled());
+            boolean statsTrackingEnabled = config.getStatsTrackingEnabled();
             ICacheBuilder<K, V> builder = new Builder<K, V>().setDimensionNames(config.getDimensionNames())
                 .setStatsTrackingEnabled(statsTrackingEnabled)
                 .setExpireAfterAccess(((TimeValue) settingList.get(EXPIRE_AFTER_ACCESS_KEY).get(settings)))
@@ -197,7 +196,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
                 /*
                 Use the cache config value if present.
                 This can be passed down from the TieredSpilloverCache when creating individual segments,
-                but is not passed in from the IRC if pluggable caching is on.
+                but is not passed in from the IRC if a store name setting is present.
                  */
                 builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
             } else {
@@ -209,7 +208,7 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
                 builder.setNumberOfSegments(-1); // By default it will use 256 segments.
             }
 
-            if (!CacheService.pluggableCachingEnabled(cacheType, settings)) {
+            if (!CacheService.storeNamePresent(cacheType, settings)) {
                 // For backward compatibility as the user intent is to use older settings.
                 builder.setMaximumWeightInBytes(config.getMaxSizeInBytes());
                 builder.setExpireAfterAccess(config.getExpireAfterAccess());
@@ -222,11 +221,6 @@ public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListene
         @Override
         public String getCacheName() {
             return NAME;
-        }
-
-        private boolean statsTrackingEnabled(Settings settings, boolean statsTrackingEnabledConfig) {
-            // Don't track stats when pluggable caching is off, or when explicitly set to false in the CacheConfig
-            return FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings) && statsTrackingEnabledConfig;
         }
     }
 

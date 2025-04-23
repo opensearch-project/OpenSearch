@@ -105,7 +105,7 @@ public class SimpleNestedExplainIT extends OpenSearchIntegTestCase {
             .setExplain(true)
             .get();
         assertNoFailures(nonConSearchResp);
-        assertThat(nonConSearchResp.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(nonConSearchResp.getHits().getTotalHits().value(), equalTo(1L));
         Explanation nonConSearchExplain = nonConSearchResp.getHits().getHits()[0].getExplanation();
         assertThat(nonConSearchExplain.getValue(), equalTo(nonConSearchResp.getHits().getHits()[0].getScore()));
 
@@ -121,7 +121,7 @@ public class SimpleNestedExplainIT extends OpenSearchIntegTestCase {
             .setExplain(true)
             .get();
         assertNoFailures(conSearchResp);
-        assertThat(conSearchResp.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(conSearchResp.getHits().getTotalHits().value(), equalTo(1L));
         Explanation conSearchExplain = conSearchResp.getHits().getHits()[0].getExplanation();
         assertThat(conSearchExplain.getValue(), equalTo(conSearchResp.getHits().getHits()[0].getScore()));
 

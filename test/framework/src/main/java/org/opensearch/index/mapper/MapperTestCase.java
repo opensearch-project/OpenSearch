@@ -37,9 +37,8 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.CheckedConsumer;
@@ -113,14 +112,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
         if (fieldType.hasDocValues()) {
-            assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
-            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
+            assertThat(query, instanceOf(FieldExistsQuery.class));
+            FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
             assertEquals("field", fieldExistsQuery.getField());
             assertDocValuesField(fields, "field");
             assertNoFieldNamesField(fields);
         } else if (fieldType.getTextSearchInfo().hasNorms()) {
-            assertThat(query, instanceOf(NormsFieldExistsQuery.class));
-            NormsFieldExistsQuery normsFieldExistsQuery = (NormsFieldExistsQuery) query;
+            assertThat(query, instanceOf(FieldExistsQuery.class));
+            FieldExistsQuery normsFieldExistsQuery = (FieldExistsQuery) query;
             assertEquals("field", normsFieldExistsQuery.getField());
             assertHasNorms(fields, "field");
             assertNoDocValuesField(fields, "field");

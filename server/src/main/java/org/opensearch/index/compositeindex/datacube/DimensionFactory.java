@@ -45,6 +45,8 @@ public class DimensionFactory {
                 return parseAndCreateDateDimension(name, dimensionMap, c);
             case NumericDimension.NUMERIC:
                 return new NumericDimension(name);
+            case UnsignedLongDimension.UNSIGNED_LONG:
+                return new UnsignedLongDimension(name);
             case ORDINAL:
                 return new OrdinalDimension(name);
             case IP:
@@ -72,6 +74,8 @@ public class DimensionFactory {
                 return parseAndCreateDateDimension(name, dimensionMap, c);
             case NUMERIC:
                 return new NumericDimension(name);
+            case UNSIGNED_LONG:
+                return new UnsignedLongDimension(name);
             case ORDINAL:
                 return new OrdinalDimension(name);
             case IP:

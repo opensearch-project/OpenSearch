@@ -39,7 +39,6 @@ import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -47,9 +46,9 @@ import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.time.DateMathParser;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryStringQueryBuilder;
+import org.opensearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
@@ -57,11 +56,9 @@ import org.opensearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.net.InetAddress;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.apache.lucene.document.LongPoint.pack;
-import static org.junit.Assume.assumeThat;
 
 public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
@@ -185,11 +182,6 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
             parser.parse(upperBoundExact, () -> 0).toEpochMilli()
         );
-        assumeThat(
-            "Using Approximate Range Query as default",
-            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
-            is(true)
-        );
         assertEquals(
             new ApproximateScoreQuery(
                 new IndexOrDocValuesQuery(
@@ -204,13 +196,9 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
                     DATE_FIELD_NAME,
                     pack(new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }).bytes,
                     pack(new long[] { parser.parse(upperBoundExact, () -> 0).toEpochMilli() }).bytes,
-                    new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                }
+                    new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }.length,
+                    ApproximatePointRangeQuery.LONG_FORMAT
+                )
             ),
             queryOnDateField
         );

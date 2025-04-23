@@ -38,7 +38,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.threadpool.ThreadPool;
@@ -104,7 +104,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore;
 
     private static final VersionedCodecStreamWrapper<RemoteSegmentMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
-        new RemoteSegmentMetadataHandler(),
+        new RemoteSegmentMetadataHandlerFactory(),
+        RemoteSegmentMetadata.VERSION_ONE,
         RemoteSegmentMetadata.CURRENT_VERSION,
         RemoteSegmentMetadata.METADATA_CODEC
     );
@@ -494,6 +495,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Opens a stream for reading an existing file and returns {@link RemoteIndexInput} enclosing the stream.
      *
      * @param name the name of an existing file.
+     * @param context desired {@link IOContext} context
      * @throws IOException         in case of I/O error
      * @throws NoSuchFileException if the file does not exist either in cache or remote segment store
      */
@@ -503,6 +505,28 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         long fileLength = fileLength(name);
         if (remoteFilename != null) {
             return remoteDataDirectory.openInput(remoteFilename, fileLength, context);
+        } else {
+            throw new NoSuchFileException(name);
+        }
+    }
+
+    /**
+     * Opens a stream for reading one block from the existing file and returns {@link RemoteIndexInput} enclosing
+     * the block stream.
+     * @param name the name of an existing file.
+     * @param position block start position
+     * @param length block length
+     * @param context desired {@link IOContext} context
+     * @return the {@link RemoteIndexInput} enclosing the block stream
+     * @throws IOException in case of I/O error
+     * @throws NoSuchFileException if the file does not exist
+     */
+
+    public IndexInput openBlockInput(String name, long position, long length, IOContext context) throws IOException {
+        String remoteFilename = getExistingRemoteFilename(name);
+        long fileLength = fileLength(name);
+        if (remoteFilename != null) {
+            return remoteDataDirectory.openBlockInput(remoteFilename, position, length, fileLength, context);
         } else {
             throw new NoSuchFileException(name);
         }
@@ -1038,7 +1062,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return delete();
     }
 
-    private boolean delete() {
+    public boolean delete() {
         try {
             remoteDataDirectory.delete();
             remoteMetadataDirectory.delete();

@@ -57,22 +57,26 @@ public class StarTreeDocValuesFormatTests extends AbstractStarTreeDVFormatTests 
         conf.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
         Document doc = new Document();
+        doc.add(new SortedNumericDocValuesField("unsignedLongDimension", 10));
         doc.add(new SortedNumericDocValuesField("sndv", 1));
         doc.add(new SortedNumericDocValuesField("dv1", 1));
         doc.add(new SortedNumericDocValuesField("field1", -1));
         iw.addDocument(doc);
         doc = new Document();
+        doc.add(new SortedNumericDocValuesField("unsignedLongDimension", 10));
         doc.add(new SortedNumericDocValuesField("sndv", 1));
         doc.add(new SortedNumericDocValuesField("dv1", 1));
         doc.add(new SortedNumericDocValuesField("field1", -1));
         iw.addDocument(doc);
         doc = new Document();
         iw.forceMerge(1);
+        doc.add(new SortedNumericDocValuesField("unsignedLongDimension", -20));
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedNumericDocValuesField("dv1", 2));
         doc.add(new SortedNumericDocValuesField("field1", -2));
         iw.addDocument(doc);
         doc = new Document();
+        doc.add(new SortedNumericDocValuesField("unsignedLongDimension", -20));
         doc.add(new SortedNumericDocValuesField("sndv", 2));
         doc.add(new SortedNumericDocValuesField("dv1", 2));
         doc.add(new SortedNumericDocValuesField("field1", -2));
@@ -86,35 +90,35 @@ public class StarTreeDocValuesFormatTests extends AbstractStarTreeDVFormatTests 
 
         // Segment documents
         /**
-         * sndv dv field
-         * [1,  1,   -1]
-         * [1,  1,   -1]
-         * [2,  2,   -2]
-         * [2,  2,   -2]
+         * unsignedLongDimension sndv dv field
+         * [10, 1,  1, -1]
+         * [10, 1,  1, -1]
+         * [-20, 2,  2, -2]
+         * [-20, 2,  2, -2]
          */
-        // Star tree docuements
+        // Star tree documents
         /**
-         * sndv dv | [ sum, value_count, min, max[field]] , [ sum, value_count, min, max[sndv]], doc_count
-         * [1, 1] | [-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0]
-         * [2, 2] | [-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0]
-         * [null, 1] | [-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0]
-         * [null, 2] | [-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0]
+         * unsignedLongDimension sndv dv | [ sum, value_count, min, max[field]] , [ sum, value_count, min, max[sndv]], doc_count
+         * [10, 1, 1] | [-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0]
+         * [-20, 2, 2] | [-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0]
+         * [null, 1, 1] | [-2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0]
+         * [null, 2, 2] | [-4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0]
          */
         StarTreeDocument[] expectedStarTreeDocuments = new StarTreeDocument[4];
         expectedStarTreeDocuments[0] = new StarTreeDocument(
-            new Long[] { 1L, 1L },
+            new Long[] { 10L, 1L, 1L },
             new Double[] { -2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0 }
         );
         expectedStarTreeDocuments[1] = new StarTreeDocument(
-            new Long[] { 2L, 2L },
+            new Long[] { -20L, 2L, 2L },
             new Double[] { -4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0 }
         );
         expectedStarTreeDocuments[2] = new StarTreeDocument(
-            new Long[] { null, 1L },
+            new Long[] { null, 1L, 1L },
             new Double[] { -2.0, 2.0, -1.0, -1.0, 2.0, 2.0, 1.0, 1.0, 2.0 }
         );
         expectedStarTreeDocuments[3] = new StarTreeDocument(
-            new Long[] { null, 2L },
+            new Long[] { null, 2L, 2L },
             new Double[] { -4.0, 2.0, -2.0, -2.0, 4.0, 2.0, 2.0, 2.0, 2.0 }
         );
 
@@ -264,6 +268,9 @@ public class StarTreeDocValuesFormatTests extends AbstractStarTreeDVFormatTests 
             b.field("max_leaf_docs", 1);
             b.startArray("ordered_dimensions");
             b.startObject();
+            b.field("name", "unsignedLongDimension"); // UnsignedLongDimension
+            b.endObject();
+            b.startObject();
             b.field("name", "sndv");
             b.endObject();
             b.startObject();
@@ -304,6 +311,9 @@ public class StarTreeDocValuesFormatTests extends AbstractStarTreeDVFormatTests 
             b.endObject();
             b.startObject("field1");
             b.field("type", "integer");
+            b.endObject();
+            b.startObject("unsignedLongDimension");
+            b.field("type", "unsigned_long");
             b.endObject();
             b.endObject();
         });

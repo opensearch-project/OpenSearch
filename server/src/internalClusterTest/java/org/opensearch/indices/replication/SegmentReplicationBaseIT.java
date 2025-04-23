@@ -49,8 +49,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
-import static org.opensearch.test.OpenSearchIntegTestCase.client;
-import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
@@ -118,7 +116,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         assertBusy(() -> {
             for (String node : nodes) {
                 final SearchResponse response = client(node).prepareSearch(indexName).setSize(0).setPreference("_only_local").get();
-                final long hits = response.getHits().getTotalHits().value;
+                final long hits = response.getHits().getTotalHits().value();
                 if (hits < docCount) {
                     fail("Expected search hits on node: " + node + " to be at least " + docCount + " but was: " + hits);
                 }

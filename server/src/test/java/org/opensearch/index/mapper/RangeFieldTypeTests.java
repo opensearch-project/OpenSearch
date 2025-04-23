@@ -38,7 +38,6 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -57,6 +56,7 @@ import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
+import org.opensearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
@@ -286,11 +286,6 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType = new DateFieldType("field", DateFieldMapper.Resolution.MILLISECONDS, formatter);
         final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
-        assumeThat(
-            "Using Approximate Range Query as default",
-            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
-            is(true)
-        );
         assertEquals(
             "field:[1465975790000 TO 1466062190999]",
             ((IndexOrDocValuesQuery) ((ApproximateScoreQuery) queryOnDateField).getOriginalQuery()).getIndexQuery().toString()

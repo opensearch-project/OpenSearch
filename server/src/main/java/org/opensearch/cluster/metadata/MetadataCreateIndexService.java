@@ -155,6 +155,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findContextTemplateName;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
@@ -229,6 +230,10 @@ public class MetadataCreateIndexService {
         remoteStoreCustomMetadataResolver = isRemoteDataAttributePresent(settings)
             ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
             : null;
+    }
+
+    public IndexScopedSettings getIndexScopedSettings() {
+        return indexScopedSettings;
     }
 
     /**
@@ -1051,9 +1056,6 @@ public class MetadataCreateIndexService {
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
         updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
-        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
-            updateSearchOnlyReplicas(request.settings(), indexSettingsBuilder);
-        }
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -1090,18 +1092,19 @@ public class MetadataCreateIndexService {
         validateRefreshIntervalSettings(request.settings(), clusterSettings);
         validateTranslogFlushIntervalSettingsForCompositeIndex(request.settings(), clusterSettings);
         validateTranslogDurabilitySettings(request.settings(), clusterSettings, settings);
+        validateSearchOnlyReplicasSettings(indexSettings);
+        validateIndexTotalPrimaryShardsPerNodeSetting(indexSettings);
         return indexSettings;
     }
 
-    private static void updateSearchOnlyReplicas(Settings requestSettings, Settings.Builder builder) {
-        if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(builder) && builder.get(SETTING_NUMBER_OF_SEARCH_REPLICAS) != null) {
-            if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings) > 0
-                && Boolean.parseBoolean(builder.get(SETTING_REMOTE_STORE_ENABLED)) == false) {
+    private static void validateSearchOnlyReplicasSettings(Settings indexSettings) {
+        if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(indexSettings) && indexSettings.get(SETTING_NUMBER_OF_SEARCH_REPLICAS) != null) {
+            if (INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(indexSettings) > 0
+                && Boolean.parseBoolean(indexSettings.get(SETTING_REMOTE_STORE_ENABLED)) == false) {
                 throw new IllegalArgumentException(
                     "To set " + SETTING_NUMBER_OF_SEARCH_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
                 );
             }
-            builder.put(SETTING_NUMBER_OF_SEARCH_REPLICAS, INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(requestSettings));
         }
     }
 
@@ -1495,11 +1498,16 @@ public class MetadataCreateIndexService {
                 IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
                 DEFAULT_REPLICA_COUNT_SETTING.get(this.clusterService.state().metadata().settings())
             );
+            int searchReplicaCount = settings.getAsInt(SETTING_NUMBER_OF_SEARCH_REPLICAS, 0);
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
-            Optional<String> error = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
-            if (error.isPresent()) {
-                validationErrors.add(error.get());
-            }
+
+            Optional<String> replicaValidationError = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
+            replicaValidationError.ifPresent(validationErrors::add);
+            Optional<String> searchReplicaValidationError = awarenessReplicaBalance.validate(
+                searchReplicaCount,
+                AutoExpandSearchReplicas.SETTING.get(settings)
+            );
+            searchReplicaValidationError.ifPresent(validationErrors::add);
         }
         return validationErrors;
     }
@@ -1837,6 +1845,29 @@ public class MetadataCreateIndexService {
                     + "]: cannot be smaller than cluster.minimum.index.refresh_interval ["
                     + clusterMinimumRefreshInterval
                     + "]"
+            );
+        }
+    }
+
+    /**
+     * Validates the {@code index.routing.allocation.total_primary_shards_per_node} setting during index creation.
+     * Ensures this setting is only specified for remote store enabled clusters.
+     */
+    // TODO : Update this check for SegRep to DocRep migration on need basis
+    public static void validateIndexTotalPrimaryShardsPerNodeSetting(Settings indexSettings) {
+        // Get the setting value
+        int indexPrimaryShardsPerNode = INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings);
+
+        // If default value (-1), no validation needed
+        if (indexPrimaryShardsPerNode == -1) {
+            return;
+        }
+
+        // Check if remote store is enabled
+        boolean isRemoteStoreEnabled = IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings);
+        if (!isRemoteStoreEnabled) {
+            throw new IllegalArgumentException(
+                "Setting [" + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() + "] can only be used with remote store enabled clusters"
             );
         }
     }

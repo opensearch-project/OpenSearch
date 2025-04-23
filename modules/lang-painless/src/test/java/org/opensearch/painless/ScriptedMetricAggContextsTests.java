@@ -111,11 +111,6 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
 
         Scorable scorer = new Scorable() {
             @Override
-            public int docID() {
-                return 0;
-            }
-
-            @Override
             public float score() {
                 return 0.5f;
             }

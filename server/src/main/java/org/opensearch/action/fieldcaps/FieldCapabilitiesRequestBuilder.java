@@ -33,9 +33,9 @@
 package org.opensearch.action.fieldcaps;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport request builder for retrieving field capabilities

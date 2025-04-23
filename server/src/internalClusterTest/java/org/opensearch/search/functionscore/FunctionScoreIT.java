@@ -62,7 +62,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
-import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
@@ -72,6 +71,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.opensearch.transport.client.Requests.searchRequest;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -212,9 +212,9 @@ public class FunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegT
             searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)))
         ).actionGet();
         if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), is(0L));
         } else {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), is(1L));
         }
 
         searchResponse = client().search(
@@ -230,9 +230,9 @@ public class FunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegT
             )
         ).actionGet();
         if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), is(0L));
         } else {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), is(1L));
         }
     }
 
@@ -276,9 +276,9 @@ public class FunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegT
 
     protected void assertMinScoreSearchResponses(int numDocs, SearchResponse searchResponse, int numMatchingDocs) {
         assertSearchResponse(searchResponse);
-        assertThat((int) searchResponse.getHits().getTotalHits().value, is(numMatchingDocs));
+        assertThat((int) searchResponse.getHits().getTotalHits().value(), is(numMatchingDocs));
         int pos = 0;
-        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits().value; hitId--) {
+        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits().value(); hitId--) {
             assertThat(searchResponse.getHits().getAt(pos).getId(), equalTo(Integer.toString(hitId)));
             pos++;
         }
@@ -294,7 +294,7 @@ public class FunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegT
         SearchResponse termQuery = client().search(searchRequest().source(searchSource().explain(true).query(termQuery("text", "text"))))
             .get();
         assertSearchResponse(termQuery);
-        assertThat(termQuery.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(termQuery.getHits().getTotalHits().value(), equalTo(1L));
         float termQueryScore = termQuery.getHits().getAt(0).getScore();
 
         for (CombineFunction combineFunction : CombineFunction.values()) {
@@ -309,7 +309,7 @@ public class FunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegT
             )
         ).get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
 
         response = client().search(
@@ -319,6 +319,6 @@ public class FunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegT
         ).get();
 
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
     }
 }

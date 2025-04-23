@@ -34,7 +34,6 @@ package org.opensearch.search;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -438,7 +437,6 @@ public class SearchModuleTests extends OpenSearchTestCase {
         QueryPhase queryPhase = searchModule.getQueryPhase();
         assertTrue(queryPhase.getQueryPhaseSearcher() instanceof QueryPhaseSearcherWrapper);
         assertTrue(queryPhase.getQueryPhaseSearcher().aggregationProcessor(searchContext) instanceof ConcurrentAggregationProcessor);
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
     public void testPluginQueryPhaseSearcher() {
@@ -454,7 +452,6 @@ public class SearchModuleTests extends OpenSearchTestCase {
         TestSearchContext searchContext = new TestSearchContext(null);
         assertEquals(queryPhaseSearcher, queryPhase.getQueryPhaseSearcher());
         assertTrue(queryPhaseSearcher.aggregationProcessor(searchContext) instanceof DefaultAggregationProcessor);
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
     public void testMultiplePluginRegisterQueryPhaseSearcher() {
@@ -608,7 +605,8 @@ public class SearchModuleTests extends OpenSearchTestCase {
         "terms_set",
         "wildcard",
         "wrapper",
-        "distance_feature" };
+        "distance_feature",
+        "template" };
 
     // add here deprecated queries to make sure we log a deprecation warnings when they are used
     private static final String[] DEPRECATED_QUERIES = new String[] { "common", "field_masking_span" };

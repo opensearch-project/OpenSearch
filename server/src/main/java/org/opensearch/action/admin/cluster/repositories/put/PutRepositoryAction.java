@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.repositories.put;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 
 /**
  * Register repository action

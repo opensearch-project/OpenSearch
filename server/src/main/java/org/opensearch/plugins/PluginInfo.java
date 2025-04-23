@@ -36,8 +36,8 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
 
 import org.opensearch.Version;
-import org.opensearch.bootstrap.JarHell;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.xcontent.json.JsonXContentParser;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;

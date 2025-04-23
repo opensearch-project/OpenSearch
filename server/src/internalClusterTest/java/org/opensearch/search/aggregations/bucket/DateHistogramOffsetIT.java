@@ -122,7 +122,7 @@ public class DateHistogramOffsetIT extends ParameterizedStaticSettingsOpenSearch
             )
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(5L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -142,7 +142,7 @@ public class DateHistogramOffsetIT extends ParameterizedStaticSettingsOpenSearch
             )
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(5L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -170,7 +170,7 @@ public class DateHistogramOffsetIT extends ParameterizedStaticSettingsOpenSearch
             )
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(24L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(24L));
 
         Histogram histo = response.getAggregations().get("date_histo");
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();

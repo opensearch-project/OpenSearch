@@ -210,7 +210,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertTrue(((ConstantScoreQuery) actual).getQuery() instanceof BooleanQuery);
         BooleanQuery bq = (BooleanQuery) ((ConstantScoreQuery) actual).getQuery();
         assertEquals(2, bq.clauses().size());
-        assertTrue(bq.clauses().stream().allMatch(c -> c.getOccur() == Occur.SHOULD));
+        assertTrue(bq.clauses().stream().allMatch(c -> c.occur() == Occur.SHOULD));
     }
 
     public void testDvOnlyTermsQuery() {

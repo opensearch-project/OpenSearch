@@ -52,6 +52,11 @@ public class CustomFieldsVisitor extends FieldsVisitor {
         this.fields = fields;
     }
 
+    public CustomFieldsVisitor(Set<String> fields, boolean loadSource, String[] includes, String[] excludes) {
+        super(loadSource, includes, excludes);
+        this.fields = fields;
+    }
+
     @Override
     public Status needsField(FieldInfo fieldInfo) {
         if (super.needsField(fieldInfo) == Status.YES) {

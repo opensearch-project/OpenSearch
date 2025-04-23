@@ -41,9 +41,11 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -158,7 +160,7 @@ public class StoredNumericValuesTests extends OpenSearchSingleNodeTestCase {
             "field11"
         );
         CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
-        searcher.doc(0, fieldsVisitor);
+        searcher.storedFields().document(0, fieldsVisitor);
 
         fieldsVisitor.postProcess(mapperService::fieldType);
         assertThat(fieldsVisitor.fields().size(), equalTo(11));
@@ -199,5 +201,37 @@ public class StoredNumericValuesTests extends OpenSearchSingleNodeTestCase {
 
         reader.close();
         writer.close();
+    }
+
+    public void testFieldsVisitorValidateIncludesExcludes() throws Exception {
+        Set<String> fieldNames = Sets.newHashSet(
+            "field1",
+            "field2",
+            "field3",
+            "field4",
+            "field5",
+            "field6",
+            "field7",
+            "field8",
+            "field9",
+            "field10",
+            "field11"
+        );
+        String[] includes = { "field1", "field2", "field3" };
+        String[] excludes = { "field7", "field8" };
+
+        CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false, includes, excludes);
+
+        assertArrayEquals(fieldsVisitor.includes(), includes);
+        assertArrayEquals(fieldsVisitor.excludes(), excludes);
+
+        FieldsVisitor fieldsVisitor1 = new FieldsVisitor(false, includes, excludes);
+        assertArrayEquals(fieldsVisitor1.includes(), includes);
+        assertArrayEquals(fieldsVisitor1.excludes(), excludes);
+
+        FieldsVisitor fieldsVisitor2 = new FieldsVisitor(false);
+        assertArrayEquals(fieldsVisitor2.includes(), Strings.EMPTY_ARRAY);
+        assertArrayEquals(fieldsVisitor2.excludes(), Strings.EMPTY_ARRAY);
+
     }
 }

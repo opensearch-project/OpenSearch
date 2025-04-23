@@ -167,7 +167,7 @@ public class SearchIpFieldTermsIT extends OpenSearchSingleNodeTestCase {
         SearchResponse result = client().prepareSearch(indexName).setQuery(boolQueryBuilder.must(ipTerms)
         // .filter(QueryBuilders.termsQuery("dummy_filter", "a", "b"))
         ).get();
-        long hitsFound = Objects.requireNonNull(result.getHits().getTotalHits()).value;
+        long hitsFound = Objects.requireNonNull(result.getHits().getTotalHits()).value();
         MatcherAssert.assertThat(field, hitsFound, equalTo(expectedMatches));
     }
 

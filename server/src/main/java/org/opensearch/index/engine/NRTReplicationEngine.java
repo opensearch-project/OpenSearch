@@ -67,7 +67,7 @@ public class NRTReplicationEngine extends Engine {
 
     private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
 
-    private static final int SI_COUNTER_INCREMENT = 10;
+    private static final int SI_COUNTER_INCREMENT = 100000;
 
     public NRTReplicationEngine(EngineConfig engineConfig) {
         super(engineConfig);
@@ -368,6 +368,11 @@ public class NRTReplicationEngine extends Engine {
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
+        // Skip flushing for indices with partial locality (warm indices)
+        // For these indices, we don't need to commit as we will sync from the remote store on re-open
+        if (engineConfig.getIndexSettings().isWarmIndex()) {
+            return;
+        }
         // readLock is held here to wait/block any concurrent close that acquires the writeLock.
         try (final ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
@@ -442,7 +447,9 @@ public class NRTReplicationEngine extends Engine {
                     latestSegmentInfos.changed();
                 }
                 try {
-                    commitSegmentInfos(latestSegmentInfos);
+                    if (engineConfig.getIndexSettings().isWarmIndex() == false) {
+                        commitSegmentInfos(latestSegmentInfos);
+                    }
                 } catch (IOException e) {
                     // mark the store corrupted unless we are closing as result of engine failure.
                     // in this case Engine#failShard will handle store corruption.

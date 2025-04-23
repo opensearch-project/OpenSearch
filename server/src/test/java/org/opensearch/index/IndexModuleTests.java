@@ -263,9 +263,13 @@ public class IndexModuleTests extends OpenSearchTestCase {
             new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool, ""),
             translogFactorySupplier,
             () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
+            () -> Boolean.FALSE,
+            () -> Boolean.FALSE,
             DefaultRecoverySettings.INSTANCE,
             DefaultRemoteStoreSettings.INSTANCE,
-            s -> {}
+            s -> {},
+            null,
+            () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE
         );
     }
 

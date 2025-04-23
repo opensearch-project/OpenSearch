@@ -221,7 +221,7 @@ public class FetchPhase {
         }
     }
 
-    private FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
+    protected FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
@@ -230,7 +230,11 @@ public class FetchPhase {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
             boolean loadSource = sourceRequired(context);
-            return new FieldsVisitor(loadSource);
+            return new FieldsVisitor(
+                loadSource,
+                context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
+                context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
+            );
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
             return null;
@@ -262,9 +266,18 @@ public class FetchPhase {
             boolean loadSource = sourceRequired(context);
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
-                return new FieldsVisitor(loadSource);
+                return new FieldsVisitor(
+                    loadSource,
+                    context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
+                    context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
+                );
             } else {
-                return new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource);
+                return new CustomFieldsVisitor(
+                    storedToRequestedFields.keySet(),
+                    loadSource,
+                    context.hasFetchSourceContext() ? context.fetchSourceContext().includes() : null,
+                    context.hasFetchSourceContext() ? context.fetchSourceContext().excludes() : null
+                );
             }
         }
     }

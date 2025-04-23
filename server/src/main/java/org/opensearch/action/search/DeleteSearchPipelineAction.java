@@ -9,7 +9,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 
 /**
  * Action type to delete a search pipeline

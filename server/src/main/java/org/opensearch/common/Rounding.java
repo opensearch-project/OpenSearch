@@ -270,6 +270,10 @@ public abstract class Rounding implements Writeable {
 
     public abstract byte id();
 
+    public DateTimeUnit unit() {
+        return null;
+    }
+
     /**
      * A strategy for rounding milliseconds since epoch.
      *
@@ -517,6 +521,11 @@ public abstract class Rounding implements Writeable {
             return ID;
         }
 
+        @Override
+        public DateTimeUnit unit() {
+            return unit;
+        }
+
         private LocalDateTime truncateLocalDateTime(LocalDateTime localDateTime) {
             switch (unit) {
                 case SECOND_OF_MINUTE:
@@ -657,6 +666,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public String toString() {
             return "Rounding[" + unit + " in " + timeZone + "]";
+        }
+
+        @Override
+        public boolean isUTC() {
+            return "Z".equals(timeZone.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
         }
 
         private abstract class TimeUnitPreparedRounding extends PreparedRounding {
@@ -1036,6 +1050,11 @@ public abstract class Rounding implements Writeable {
             return "Rounding[" + interval + " in " + timeZone + "]";
         }
 
+        @Override
+        public boolean isUTC() {
+            return "Z".equals(timeZone.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
+        }
+
         private long roundKey(long value, long interval) {
             if (value < 0) {
                 return (value - interval + 1) / interval;
@@ -1355,6 +1374,11 @@ public abstract class Rounding implements Writeable {
         public String toString() {
             return delegate + " offset by " + offset;
         }
+
+        @Override
+        public boolean isUTC() {
+            return delegate.isUTC();
+        }
     }
 
     public static Rounding read(StreamInput in) throws IOException {
@@ -1382,16 +1406,8 @@ public abstract class Rounding implements Writeable {
 
         if (rounding instanceof TimeUnitRounding) {
             interval = (((TimeUnitRounding) rounding).unit).extraLocalOffsetLookup();
-            if (!isUTCTimeZone(((TimeUnitRounding) rounding).timeZone)) {
-                // Fast filter aggregation cannot be used if it needs time zone rounding
-                return OptionalLong.empty();
-            }
         } else if (rounding instanceof TimeIntervalRounding) {
             interval = ((TimeIntervalRounding) rounding).interval;
-            if (!isUTCTimeZone(((TimeIntervalRounding) rounding).timeZone)) {
-                // Fast filter aggregation cannot be used if it needs time zone rounding
-                return OptionalLong.empty();
-            }
         } else {
             return OptionalLong.empty();
         }
@@ -1403,7 +1419,5 @@ public abstract class Rounding implements Writeable {
      * Helper function for checking if the time zone requested for date histogram
      * aggregation is utc or not
      */
-    private static boolean isUTCTimeZone(final ZoneId zoneId) {
-        return "Z".equals(zoneId.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
-    }
+    public abstract boolean isUTC();
 }

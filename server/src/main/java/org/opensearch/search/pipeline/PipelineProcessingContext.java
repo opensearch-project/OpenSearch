@@ -8,7 +8,10 @@
 
 package org.opensearch.search.pipeline;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -16,6 +19,7 @@ import java.util.Map;
  */
 public class PipelineProcessingContext {
     private final Map<String, Object> attributes = new HashMap<>();
+    private final List<ProcessorExecutionDetail> processorExecutionDetails = new ArrayList<>();
 
     /**
      * Set a generic attribute in the state for this request. Overwrites any existing value.
@@ -34,5 +38,27 @@ public class PipelineProcessingContext {
      */
     public Object getAttribute(String name) {
         return attributes.get(name);
+    }
+
+    /**
+     * Add a ProcessorExecutionDetail to the list of execution details.
+     *
+     * @param detail the ProcessorExecutionDetail to add
+     */
+    public void addProcessorExecutionDetail(ProcessorExecutionDetail detail) {
+        processorExecutionDetails.add(detail);
+    }
+
+    /**
+     * Get all ProcessorExecutionDetails recorded in this context.
+     *
+     * @return a list of ProcessorExecutionDetails
+     */
+    public List<ProcessorExecutionDetail> getProcessorExecutionDetails() {
+        return Collections.unmodifiableList(processorExecutionDetails);
+    }
+
+    public Map<String, Object> getAttributes() {
+        return attributes;
     }
 }

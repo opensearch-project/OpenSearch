@@ -58,6 +58,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
+
 /**
  * NoOpEngine is an engine implementation that does nothing but the bare minimum
  * required in order to have an engine. All attempts to do something (search,
@@ -158,21 +160,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
      */
     public TranslogManager translogManager() {
         try {
-            return new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, new Translog.Snapshot() {
-                @Override
-                public void close() {}
-
-                @Override
-                public int totalOperations() {
-                    return 0;
-                }
-
-                @Override
-                public Translog.Operation next() {
-                    return null;
-                }
-
-            }) {
+            return new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, EMPTY_TRANSLOG_SNAPSHOT) {
                 /**
                  * This implementation will trim existing translog files using a {@link TranslogDeletionPolicy}
                  * that retains nothing but the last translog generation from safe commit.

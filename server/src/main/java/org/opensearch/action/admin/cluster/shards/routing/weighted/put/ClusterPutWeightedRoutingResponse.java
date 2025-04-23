@@ -8,7 +8,7 @@
 
 package org.opensearch.action.admin.cluster.shards.routing.weighted.put;
 
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 

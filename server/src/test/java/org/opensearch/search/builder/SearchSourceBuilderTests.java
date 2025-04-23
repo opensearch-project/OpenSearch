@@ -47,10 +47,10 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.query.BaseQueryRewriteContext;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.RandomQueryBuilder;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.script.Script;
@@ -703,6 +703,30 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testVerbosePipeline() throws IOException {
+        {
+            String restContent = "{ \"verbose_pipeline\": true }";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertTrue(searchSourceBuilder.verbosePipeline());
+            }
+        }
+        {
+            String restContent = "{ \"verbose_pipeline\": false }";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertFalse(searchSourceBuilder.verbosePipeline());
+            }
+        }
+        {
+            String restContent = "{ \"query\": { \"match_all\": {} } }";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertFalse(searchSourceBuilder.verbosePipeline());
+            }
+        }
+    }
+
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser));
@@ -713,7 +737,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     private SearchSourceBuilder rewrite(SearchSourceBuilder searchSourceBuilder) throws IOException {
         return Rewriteable.rewrite(
             searchSourceBuilder,
-            new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, Long.valueOf(1)::longValue)
+            new BaseQueryRewriteContext(xContentRegistry(), writableRegistry(), null, Long.valueOf(1)::longValue)
         );
     }
 }

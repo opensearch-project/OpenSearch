@@ -43,6 +43,7 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.AggregationPath;
@@ -127,6 +128,26 @@ public abstract class BucketsAggregator extends AggregatorBase {
             multiBucketConsumer.accept(0);
         }
         subCollector.collect(doc, bucketOrd);
+    }
+
+    /**
+     * Utility method to collect doc count in the given bucket (identified by the bucket ordinal)
+     * After collecting doc count, invoke collectStarTreeEntry() for sub-collectors to update their relevant buckets
+     */
+    public final void collectStarTreeBucket(StarTreeBucketCollector collector, long docCount, long bucketOrd, int entryBit)
+        throws IOException {
+        if (bucketOrd < 0) {
+            bucketOrd = -1 - bucketOrd;
+        } else {
+            grow(bucketOrd + 1);
+        }
+
+        if (docCounts.increment(bucketOrd, docCount) == docCount) {
+            multiBucketConsumer.accept(0);
+        }
+        for (StarTreeBucketCollector subCollector : collector.getSubCollectors()) {
+            subCollector.collectStarTreeEntry(entryBit, bucketOrd);
+        }
     }
 
     /**

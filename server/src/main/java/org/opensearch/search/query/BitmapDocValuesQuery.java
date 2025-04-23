@@ -20,6 +20,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
@@ -61,7 +62,7 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         return new ConstantScoreWeight(this, boost) {
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), field);
                 final NumericDocValues singleton = DocValues.unwrapSingleton(values);
                 final TwoPhaseIterator iterator;
@@ -102,7 +103,8 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
                         }
                     };
                 }
-                return new ConstantScoreScorer(this, score(), scoreMode, iterator);
+                final Scorer scorer = new ConstantScoreScorer(score(), scoreMode, iterator);
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override

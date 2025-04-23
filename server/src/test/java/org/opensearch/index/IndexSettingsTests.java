@@ -42,12 +42,10 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.search.pipeline.SearchPipelineService;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
@@ -60,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
@@ -607,8 +606,11 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertEquals(actual, settings.getGenerationThresholdSize());
     }
 
+    /**
+     * Test private setting validation for private settings defined in {@link IndexScopedSettings#isPrivateSetting(String)}
+     */
     public void testPrivateSettingsValidation() {
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, System.currentTimeMillis()).build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.V_EMPTY).build();
         final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
 
         {
@@ -617,7 +619,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
                 SettingsException.class,
                 () -> indexScopedSettings.validate(settings, randomBoolean())
             );
-            assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
+            assertThat(e, hasToString(containsString("unknown setting [index.version.upgraded]")));
         }
 
         {
@@ -626,7 +628,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
                 SettingsException.class,
                 () -> indexScopedSettings.validate(settings, randomBoolean(), false, randomBoolean())
             );
-            assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
+            assertThat(e, hasToString(containsString("unknown setting [index.version.upgraded]")));
         }
 
         // nothing should happen since we are ignoring private settings
@@ -994,9 +996,9 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
     }
 
+    @LockFeatureFlag(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
     public void testExtendedCompatibilityVersionForRemoteSnapshot() throws Exception {
-        FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY);
         IndexMetadata metadata = newIndexMeta(
             "index",
             Settings.builder()

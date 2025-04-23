@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -142,7 +143,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
-                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
+                return LongField.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
             }
         },
         NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
@@ -168,7 +169,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
-                return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
+                return LongField.newDistanceFeatureQuery(field, boost, origin, pivot.getNanos());
             }
         };
 
@@ -485,23 +486,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                     } else {
                         query = pointRangeQuery;
                     }
-                    if (FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY_SETTING)) {
-                        return new ApproximateScoreQuery(
-                            query,
-                            new ApproximatePointRangeQuery(
-                                name(),
-                                pack(new long[] { l }).bytes,
-                                pack(new long[] { u }).bytes,
-                                new long[] { l }.length
-                            ) {
-                                @Override
-                                protected String toString(int dimension, byte[] value) {
-                                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                                }
-                            }
-                        );
-                    }
-                    return query;
+                    return new ApproximateScoreQuery(
+                        query,
+                        new ApproximatePointRangeQuery(
+                            name(),
+                            pack(new long[] { l }).bytes,
+                            pack(new long[] { u }).bytes,
+                            new long[] { l }.length,
+                            ApproximatePointRangeQuery.LONG_FORMAT
+                        )
+                    );
                 }
 
                 // Not searchable. Must have doc values.

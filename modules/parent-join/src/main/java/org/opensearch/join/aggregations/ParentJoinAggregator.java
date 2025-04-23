@@ -120,7 +120,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
             public void collect(int docId, long owningBucketOrd) throws IOException {
                 if (parentDocs.get(docId) && globalOrdinals.advanceExact(docId)) {
                     int globalOrdinal = (int) globalOrdinals.nextOrd();
-                    assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
+                    assert globalOrdinal != -1 && globalOrdinals.docValueCount() == 1;
                     collectionStrategy.add(owningBucketOrd, globalOrdinal);
                 }
             }
@@ -151,15 +151,10 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 public float score() {
                     return 1f;
                 }
-
-                @Override
-                public int docID() {
-                    return childDocsIter.docID();
-                }
             });
 
             final Bits liveDocs = ctx.reader().getLiveDocs();
-            for (int docId = childDocsIter.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = childDocsIter.nextDoc()) {
+            for (int docId = childDocsIter.nextDoc(); docId != SortedSetDocValues.NO_MORE_DOCS; docId = childDocsIter.nextDoc()) {
                 if (liveDocs != null && liveDocs.get(docId) == false) {
                     continue;
                 }
@@ -167,7 +162,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                     continue;
                 }
                 int globalOrdinal = (int) globalOrdinals.nextOrd();
-                assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
+                assert globalOrdinal != -1 && globalOrdinals.docValueCount() == 1;
                 /*
                  * Check if we contain every ordinal. It's almost certainly be
                  * faster to replay all the matching ordinals and filter them down

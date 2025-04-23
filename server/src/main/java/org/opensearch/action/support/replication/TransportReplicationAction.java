@@ -44,7 +44,6 @@ import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.action.support.replication.ReplicationOperation.Replicas;
-import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.action.shard.ShardStateAction;
@@ -92,6 +91,7 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.transport.NoNodeAvailableException;
 
 import java.io.IOException;
 import java.util.Map;
@@ -249,7 +249,7 @@ public abstract class TransportReplicationAction<
         this.transportReplicaAction = actionName + REPLICA_ACTION_SUFFIX;
 
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
-        this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
+        this.retryTimeout = getRetryTimeoutSetting().get(settings);
         this.forceExecutionOnPrimary = forceExecutionOnPrimary;
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
@@ -273,7 +273,11 @@ public abstract class TransportReplicationAction<
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_INITIAL_RETRY_BACKOFF_BOUND, (v) -> initialRetryBackoffBound = v);
-        clusterSettings.addSettingsUpdateConsumer(REPLICATION_RETRY_TIMEOUT, (v) -> retryTimeout = v);
+        clusterSettings.addSettingsUpdateConsumer(getRetryTimeoutSetting(), (v) -> retryTimeout = v);
+    }
+
+    protected Setting<TimeValue> getRetryTimeoutSetting() {
+        return REPLICATION_RETRY_TIMEOUT;
     }
 
     /**

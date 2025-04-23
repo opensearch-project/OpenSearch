@@ -43,7 +43,6 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
-import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.TimeoutClusterStateListener;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -306,15 +305,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      */
     public void addLocalNodeClusterManagerListener(LocalNodeClusterManagerListener listener) {
         addListener(listener);
-    }
-
-    /**
-     * Add a listener for on/off local node cluster-manager events
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #addLocalNodeClusterManagerListener}
-     */
-    @Deprecated
-    public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
-        addLocalNodeClusterManagerListener(listener);
     }
 
     /**

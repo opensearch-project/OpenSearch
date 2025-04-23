@@ -27,12 +27,20 @@ public class Lucene90DocValuesConsumerWrapper implements Closeable {
 
     public Lucene90DocValuesConsumerWrapper(
         SegmentWriteState state,
+        int skipIndexIntervalSize,
         String dataCodec,
         String dataExtension,
         String metaCodec,
         String metaExtension
     ) throws IOException {
-        lucene90DocValuesConsumer = new Lucene90DocValuesConsumer(state, dataCodec, dataExtension, metaCodec, metaExtension);
+        lucene90DocValuesConsumer = new Lucene90DocValuesConsumer(
+            state,
+            skipIndexIntervalSize,
+            dataCodec,
+            dataExtension,
+            metaCodec,
+            metaExtension
+        );
     }
 
     public Lucene90DocValuesConsumer getLucene90DocValuesConsumer() {

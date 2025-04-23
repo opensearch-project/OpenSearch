@@ -134,7 +134,7 @@ public class KeyStoreWrapper implements SecureSettings {
     private static final String KEYSTORE_FILENAME = "opensearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
-    static final int FORMAT_VERSION = 4;
+    public static final int FORMAT_VERSION = 4;
 
     /** The oldest metadata format version that can be read. */
     private static final int MIN_FORMAT_VERSION = 1;
@@ -449,7 +449,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     private void decryptLegacyEntries() throws GeneralSecurityException, IOException {
         // v1 and v2 keystores never had passwords actually used, so we always use an empty password
-        KeyStore keystore = KeyStore.getInstance("PKCS12");
+        KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
         Map<String, EntryType> settingTypes = new HashMap<>();
         ByteArrayInputStream inputBytes = new ByteArrayInputStream(dataBytes);
         try (DataInputStream input = new DataInputStream(inputBytes)) {
@@ -488,7 +488,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
         // fill in the entries now that we know all the types to expect
         this.entries.set(new HashMap<>());
-        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBE");
+        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBE", "SunJCE");
         KeyStore.PasswordProtection password = new KeyStore.PasswordProtection("".toCharArray());
 
         for (Map.Entry<String, EntryType> settingEntry : settingTypes.entrySet()) {
@@ -527,7 +527,7 @@ public class KeyStoreWrapper implements SecureSettings {
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
         // write to tmp file first, then overwrite
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
-        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, tmpFile, IOContext.DEFAULT)) {
+        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, tmpFile, IOContext.READONCE)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
             output.writeByte(password.length == 0 ? (byte) 0 : (byte) 1);
 
@@ -631,7 +631,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * Set a string setting.
      */
-    synchronized void setString(String setting, char[] value) {
+    public synchronized void setString(String setting, char[] value) {
         ensureOpen();
         validateSettingName(setting);
 
@@ -646,7 +646,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * Set a file setting.
      */
-    synchronized void setFile(String setting, byte[] bytes) {
+    public synchronized void setFile(String setting, byte[] bytes) {
         ensureOpen();
         validateSettingName(setting);
 
@@ -659,7 +659,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * Remove the given setting from the keystore.
      */
-    void remove(String setting) {
+    public void remove(String setting) {
         ensureOpen();
         Entry oldEntry = entries.get().remove(setting);
         if (oldEntry != null) {

@@ -49,8 +49,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.ClusterManagerServiceTests;
 import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
-import org.opensearch.cluster.service.MasterServiceTests;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -549,9 +549,11 @@ public class NodeJoinTests extends OpenSearchTestCase {
             )
         );
 
-        assertTrue(MasterServiceTests.discoveryState(clusterManagerService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
-            return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
-        }));
+        assertTrue(
+            ClusterManagerServiceTests.discoveryState(clusterManagerService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
+                return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
+            })
+        );
     }
 
     private ClusterState buildStateWithVotingConfigExclusion(
@@ -777,7 +779,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             throw new RuntimeException(e);
         }
 
-        assertTrue(MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster());
+        assertTrue(ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedClusterManager());
         for (DiscoveryNode successfulNode : successfulNodes) {
             assertTrue(successfulNode + " joined cluster", clusterStateHasNode(successfulNode));
             assertFalse(successfulNode + " voted for cluster-manager", coordinator.missingJoinVoteFrom(successfulNode));
@@ -861,11 +863,11 @@ public class NodeJoinTests extends OpenSearchTestCase {
     }
 
     private boolean isLocalNodeElectedMaster() {
-        return MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster();
+        return ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedClusterManager();
     }
 
     private boolean clusterStateHasNode(DiscoveryNode node) {
-        return node.equals(MasterServiceTests.discoveryState(clusterManagerService).nodes().get(node.getId()));
+        return node.equals(ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().get(node.getId()));
     }
 
     private static ClusterState initialStateWithDecommissionedAttribute(

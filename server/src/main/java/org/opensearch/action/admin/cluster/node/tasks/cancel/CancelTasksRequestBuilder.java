@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.cluster.node.tasks.cancel;
 
 import org.opensearch.action.support.tasks.TasksRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Builder for the request to cancel tasks running on the specified nodes

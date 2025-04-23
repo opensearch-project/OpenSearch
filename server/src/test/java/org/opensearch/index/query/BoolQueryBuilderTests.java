@@ -42,6 +42,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.approximate.ApproximateMatchAllQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -93,7 +95,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     @Override
     protected void doAssertLuceneQuery(BoolQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (!queryBuilder.hasClauses()) {
-            assertThat(query, instanceOf(MatchAllDocsQuery.class));
+            assertThat(query, instanceOf(ApproximateScoreQuery.class));
+            assertThat(((ApproximateScoreQuery) query).getOriginalQuery(), instanceOf(MatchAllDocsQuery.class));
         } else {
             List<BooleanClause> clauses = new ArrayList<>();
             clauses.addAll(getBooleanClauses(queryBuilder.must(), BooleanClause.Occur.MUST, context));
@@ -102,7 +105,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             clauses.addAll(getBooleanClauses(queryBuilder.filter(), BooleanClause.Occur.FILTER, context));
 
             if (clauses.isEmpty()) {
-                assertThat(query, instanceOf(MatchAllDocsQuery.class));
+                assertThat(query, instanceOf(ApproximateScoreQuery.class));
+                assertThat(((ApproximateScoreQuery) query).getOriginalQuery(), instanceOf(MatchAllDocsQuery.class));
             } else if (query instanceof MatchNoDocsQuery == false) {
                 assertThat(query, instanceOf(BooleanQuery.class));
                 BooleanQuery booleanQuery = (BooleanQuery) query;
@@ -178,7 +182,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         BoolQueryBuilder booleanQuery = new BoolQueryBuilder();
         expectThrows(IllegalArgumentException.class, () -> booleanQuery.must(null));
         expectThrows(IllegalArgumentException.class, () -> booleanQuery.mustNot(null));
-        expectThrows(IllegalArgumentException.class, () -> booleanQuery.filter(null));
         expectThrows(IllegalArgumentException.class, () -> booleanQuery.should(null));
     }
 
@@ -201,15 +204,18 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
         assertThat(booleanQuery.clauses().size(), equalTo(1));
         BooleanClause booleanClause = booleanQuery.clauses().get(0);
-        assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.FILTER));
-        assertThat(booleanClause.getQuery(), instanceOf(BooleanQuery.class));
-        BooleanQuery innerBooleanQuery = (BooleanQuery) booleanClause.getQuery();
+        assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.FILTER));
+        assertThat(booleanClause.query(), instanceOf(BooleanQuery.class));
+        BooleanQuery innerBooleanQuery = (BooleanQuery) booleanClause.query();
         // we didn't set minimum should match initially, there are no should clauses so it should be 0
         assertThat(innerBooleanQuery.getMinimumNumberShouldMatch(), equalTo(0));
         assertThat(innerBooleanQuery.clauses().size(), equalTo(1));
         BooleanClause innerBooleanClause = innerBooleanQuery.clauses().get(0);
-        assertThat(innerBooleanClause.getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(innerBooleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
+        assertThat(innerBooleanClause.occur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(innerBooleanClause.query(), instanceOf(ApproximateScoreQuery.class));
+        ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) innerBooleanClause.query();
+        assertThat(approxQuery.getOriginalQuery(), instanceOf(MatchAllDocsQuery.class));
+        assertThat(approxQuery.getApproximationQuery(), instanceOf(ApproximateMatchAllQuery.class));
     }
 
     public void testMinShouldMatchBiggerThanNumberOfShouldClauses() throws Exception {
@@ -324,6 +330,23 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         String query = "{\"bool\" : {\"filter\" : null } }";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertTrue(builder.filter().isEmpty());
+    }
+
+    /**
+     * Check if a filter can be applied to the BoolQuery
+     * @throws IOException
+     */
+    public void testFilter() throws IOException {
+        // Test for non null filter
+        String query = "{\"bool\" : {\"filter\" : null } }";
+        QueryBuilder filter = QueryBuilders.matchAllQuery();
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertFalse(builder.filter(filter).filter().isEmpty());
+        assertEquals(builder.filter(filter).filter().get(0), filter);
+
+        // Test for null filter case
+        builder = (BoolQueryBuilder) parseQuery(query);
+        assertTrue(builder.filter(null).filter().isEmpty());
     }
 
     /**

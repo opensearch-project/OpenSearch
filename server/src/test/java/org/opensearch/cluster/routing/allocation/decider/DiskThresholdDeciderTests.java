@@ -335,12 +335,12 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .routingTable(initialRoutingTable)
             .build();
 
-        Set<DiscoveryNodeRole> defaultWithSearchRole = new HashSet<>(CLUSTER_MANAGER_DATA_ROLES);
-        defaultWithSearchRole.add(DiscoveryNodeRole.SEARCH_ROLE);
+        Set<DiscoveryNodeRole> defaultWithWarmRole = new HashSet<>(CLUSTER_MANAGER_DATA_ROLES);
+        defaultWithWarmRole.add(DiscoveryNodeRole.WARM_ROLE);
 
         logger.info("--> adding two nodes");
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1", defaultWithSearchRole)).add(newNode("node2", defaultWithSearchRole)))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1", defaultWithWarmRole)).add(newNode("node2", defaultWithWarmRole)))
             .build();
         clusterState = strategy.reroute(clusterState, "reroute");
         logShardStates(clusterState);
@@ -401,8 +401,8 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
 
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
 
-        Set<DiscoveryNodeRole> defaultWithSearchRole = new HashSet<>(CLUSTER_MANAGER_DATA_ROLES);
-        defaultWithSearchRole.add(DiscoveryNodeRole.SEARCH_ROLE);
+        Set<DiscoveryNodeRole> defaultWithWarmRole = new HashSet<>(CLUSTER_MANAGER_DATA_ROLES);
+        defaultWithWarmRole.add(DiscoveryNodeRole.WARM_ROLE);
 
         DiskThresholdDecider diskThresholdDecider = makeDecider(diskSettings);
         Metadata metadata = Metadata.builder()
@@ -415,14 +415,14 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             "node1",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            defaultWithSearchRole,
+            defaultWithWarmRole,
             Version.CURRENT
         );
         DiscoveryNode discoveryNode2 = new DiscoveryNode(
             "node2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            defaultWithSearchRole,
+            defaultWithWarmRole,
             Version.CURRENT
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build();

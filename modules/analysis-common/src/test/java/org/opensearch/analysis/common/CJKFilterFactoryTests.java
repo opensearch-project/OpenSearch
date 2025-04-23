@@ -34,10 +34,10 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.junit.Before;

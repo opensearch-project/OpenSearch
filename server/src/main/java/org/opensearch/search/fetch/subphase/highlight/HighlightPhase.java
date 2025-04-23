@@ -37,6 +37,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.search.fetch.FetchContext;
@@ -152,7 +153,8 @@ public class HighlightPhase implements FetchSubPhase {
                     continue;
                 }
 
-                // We should prevent highlighting if a field is anything but a text or keyword field.
+                // We should prevent highlighting if a field is anything but a text, match_only_text
+                // or keyword field.
                 // However, someone might implement a custom field type that has text and still want to
                 // highlight on that. We cannot know in advance if the highlighter will be able to
                 // highlight such a field and so we do the following:
@@ -162,7 +164,8 @@ public class HighlightPhase implements FetchSubPhase {
                 // what they were doing and try to highlight anyway.
                 if (fieldNameContainsWildcards) {
                     if (fieldType.typeName().equals(TextFieldMapper.CONTENT_TYPE) == false
-                        && fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false) {
+                        && fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false
+                        && fieldType.typeName().equals(MatchOnlyTextFieldMapper.CONTENT_TYPE) == false) {
                         continue;
                     }
                     if (highlighter.canHighlight(fieldType) == false) {

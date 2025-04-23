@@ -39,7 +39,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -242,8 +242,8 @@ public class LongValuesSource extends SingleDimensionValuesSource<Long> {
         } else if (query instanceof PointRangeQuery) {
             PointRangeQuery pointQuery = (PointRangeQuery) query;
             return fieldName.equals(pointQuery.getField());
-        } else if (query instanceof DocValuesFieldExistsQuery) {
-            DocValuesFieldExistsQuery existsQuery = (DocValuesFieldExistsQuery) query;
+        } else if (query instanceof FieldExistsQuery) {
+            FieldExistsQuery existsQuery = (FieldExistsQuery) query;
             return fieldName.equals(existsQuery.getField());
         } else {
             return false;
@@ -267,7 +267,7 @@ public class LongValuesSource extends SingleDimensionValuesSource<Long> {
             upperPoint = null;
         }
 
-        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+        if (fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
             NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) fieldType;
             final ToLongFunction<byte[]> toBucketFunction;
 
@@ -286,7 +286,7 @@ public class LongValuesSource extends SingleDimensionValuesSource<Long> {
                     return null;
             }
             return new PointsSortedDocsProducer(fieldType.name(), toBucketFunction, lowerPoint, upperPoint);
-        } else if (fieldType instanceof DateFieldMapper.DateFieldType) {
+        } else if (fieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
             ToLongFunction<byte[]> decode = ((DateFieldMapper.DateFieldType) fieldType).resolution()::parsePointAsMillis;
             ToLongFunction<byte[]> toBucketFunction = value -> rounding.applyAsLong(decode.applyAsLong(value));
             return new PointsSortedDocsProducer(fieldType.name(), toBucketFunction, lowerPoint, upperPoint);

@@ -303,7 +303,7 @@ public class RandomScoreFunctionIT extends ParameterizedStaticSettingsOpenSearch
             .setExplain(true)
             .get();
         assertNoFailures(resp);
-        assertEquals(1, resp.getHits().getTotalHits().value);
+        assertEquals(1, resp.getHits().getTotalHits().value());
         SearchHit firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getExplanation().toString(), containsString("" + seed));
     }
@@ -330,7 +330,7 @@ public class RandomScoreFunctionIT extends ParameterizedStaticSettingsOpenSearch
             .setExplain(true)
             .get();
         assertNoFailures(resp);
-        assertEquals(1, resp.getHits().getTotalHits().value);
+        assertEquals(1, resp.getHits().getTotalHits().value());
         SearchHit firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getExplanation().getDetails(), arrayWithSize(2));
         // "description": "*:* (_name: query1)"
@@ -348,11 +348,11 @@ public class RandomScoreFunctionIT extends ParameterizedStaticSettingsOpenSearch
             .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(1234).setField(SeqNoFieldMapper.NAME)))
             .get();
         assertNoFailures(resp);
-        assertEquals(0, resp.getHits().getTotalHits().value);
+        assertEquals(0, resp.getHits().getTotalHits().value());
 
         resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery(), randomFunction())).get();
         assertNoFailures(resp);
-        assertEquals(0, resp.getHits().getTotalHits().value);
+        assertEquals(0, resp.getHits().getTotalHits().value());
     }
 
     public void testScoreRange() throws Exception {

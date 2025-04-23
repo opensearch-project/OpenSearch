@@ -33,9 +33,9 @@
 package org.opensearch.action.admin.cluster.snapshots.get;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Get snapshots request builder

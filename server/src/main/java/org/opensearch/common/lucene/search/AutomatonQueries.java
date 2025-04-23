@@ -38,7 +38,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 
 import java.util.ArrayList;
@@ -57,12 +56,12 @@ public class AutomatonQueries {
         List<Automaton> list = new ArrayList<>();
         Iterator<Integer> iter = s.codePoints().iterator();
         while (iter.hasNext()) {
-            list.add(toCaseInsensitiveChar(iter.next(), Integer.MAX_VALUE));
+            list.add(toCaseInsensitiveChar(iter.next()));
         }
         list.add(Automata.makeAnyString());
 
         Automaton a = Operations.concatenate(list);
-        a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+        assert a.isDeterministic();
         return a;
     }
 
@@ -85,24 +84,24 @@ public class AutomatonQueries {
      */
     public static AutomatonQuery caseInsensitiveTermQuery(Term term) {
         BytesRef prefix = term.bytes();
-        return new AutomatonQuery(term, toCaseInsensitiveString(prefix, Integer.MAX_VALUE));
+        return new AutomatonQuery(term, toCaseInsensitiveString(prefix));
     }
 
     /**
-     * Build an automaton matching a wildcard pattern, ASCII case insensitive, if the method is null, then will use {@link  MultiTermQuery#CONSTANT_SCORE_REWRITE}.
+     * Build an automaton matching a wildcard pattern, ASCII case insensitive, if the method is null, then will use {@link  MultiTermQuery#CONSTANT_SCORE_BLENDED_REWRITE}.
      */
     public static AutomatonQuery caseInsensitiveWildcardQuery(Term wildcardquery, MultiTermQuery.RewriteMethod method) {
-        return createAutomatonQuery(wildcardquery, toCaseInsensitiveWildcardAutomaton(wildcardquery, Integer.MAX_VALUE), method);
+        return createAutomatonQuery(wildcardquery, toCaseInsensitiveWildcardAutomaton(wildcardquery), method);
     }
 
     /**
-     * Build an automaton matching a given pattern with rewrite method, if the rewrite method is null, then will use {@link  MultiTermQuery#CONSTANT_SCORE_REWRITE}.
+     * Build an automaton matching a given pattern with rewrite method, if the rewrite method is null, then will use {@link  MultiTermQuery#CONSTANT_SCORE_BLENDED_REWRITE}.
      */
     public static AutomatonQuery createAutomatonQuery(Term term, Automaton automaton, MultiTermQuery.RewriteMethod method) {
         if (method == null) {
-            method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+            method = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
         }
-        return new AutomatonQuery(term, automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
+        return new AutomatonQuery(term, automaton, false, method);
     }
 
     /**
@@ -124,7 +123,7 @@ public class AutomatonQueries {
      * Convert Lucene wildcard syntax into an automaton.
      */
     @SuppressWarnings("fallthrough")
-    public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery, int maxDeterminizedStates) {
+    public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery) {
         List<Automaton> automata = new ArrayList<>();
 
         String wildcardText = wildcardquery.text();
@@ -148,7 +147,7 @@ public class AutomatonQueries {
                         break;
                     } // else fallthru, lenient parsing with a trailing \
                 default:
-                    automata.add(toCaseInsensitiveChar(c, maxDeterminizedStates));
+                    automata.add(toCaseInsensitiveChar(c));
             }
             i += length;
         }
@@ -156,24 +155,20 @@ public class AutomatonQueries {
         return Operations.concatenate(automata);
     }
 
-    protected static Automaton toCaseInsensitiveString(BytesRef br, int maxDeterminizedStates) {
-        return toCaseInsensitiveString(br.utf8ToString(), maxDeterminizedStates);
+    protected static Automaton toCaseInsensitiveString(BytesRef br) {
+        return toCaseInsensitiveString(br.utf8ToString());
     }
 
-    public static Automaton toCaseInsensitiveString(String s, int maxDeterminizedStates) {
+    public static Automaton toCaseInsensitiveString(String s) {
         List<Automaton> list = new ArrayList<>();
         Iterator<Integer> iter = s.codePoints().iterator();
         while (iter.hasNext()) {
-            list.add(toCaseInsensitiveChar(iter.next(), maxDeterminizedStates));
+            list.add(toCaseInsensitiveChar(iter.next()));
         }
-
-        Automaton a = Operations.concatenate(list);
-        a = MinimizationOperations.minimize(a, maxDeterminizedStates);
-        return a;
-
+        return Operations.concatenate(list);
     }
 
-    public static Automaton toCaseInsensitiveChar(int codepoint, int maxDeterminizedStates) {
+    public static Automaton toCaseInsensitiveChar(int codepoint) {
         Automaton case1 = Automata.makeChar(codepoint);
         // For now we only work with ASCII characters
         if (codepoint > 128) {
@@ -183,7 +178,6 @@ public class AutomatonQueries {
         Automaton result;
         if (altCase != codepoint) {
             result = Operations.union(case1, Automata.makeChar(altCase));
-            result = MinimizationOperations.minimize(result, maxDeterminizedStates);
         } else {
             result = case1;
         }

@@ -63,7 +63,7 @@ public enum RegexpFlag {
     /**
      * Enables complement expression of the form: {@code ~&lt;expression&gt;}
      */
-    COMPLEMENT(RegExp.COMPLEMENT),
+    COMPLEMENT(RegExp.DEPRECATED_COMPLEMENT),
 
     /**
      * Enables empty language expression: {@code #}

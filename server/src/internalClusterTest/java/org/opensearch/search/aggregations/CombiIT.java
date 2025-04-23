@@ -162,7 +162,7 @@ public class CombiIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase 
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), Matchers.equalTo(0L));
         Histogram values = searchResponse.getAggregations().get("values");
         assertThat(values, notNullValue());
         assertThat(values.getBuckets().isEmpty(), is(true));

@@ -41,6 +41,7 @@ import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -305,11 +306,16 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             for (Query disjunct : maxQuery.getDisjuncts()) {
                 assertThat(
                     disjunct,
-                    either(instanceOf(TermQuery.class)).or(instanceOf(BoostQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
+                    either(instanceOf(TermQuery.class)).or(instanceOf(BoostQuery.class))
+                        .or(instanceOf(MatchNoDocsQuery.class))
+                        .or(instanceOf(ConstantScoreQuery.class))
                 );
                 Query termQuery = disjunct;
                 if (disjunct instanceof BoostQuery) {
                     termQuery = ((BoostQuery) disjunct).getQuery();
+                }
+                if (termQuery instanceof ConstantScoreQuery) {
+                    termQuery = ((ConstantScoreQuery) termQuery).getQuery();
                 }
                 if (termQuery instanceof TermQuery) {
                     TermQuery inner = (TermQuery) termQuery;
@@ -330,6 +336,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             );
             if (query instanceof DisjunctionMaxQuery) {
                 for (Query disjunct : (DisjunctionMaxQuery) query) {
+                    if (disjunct instanceof ConstantScoreQuery constantScoreQuery) {
+                        disjunct = constantScoreQuery.getQuery();
+                    }
                     assertThat(disjunct, either(instanceOf(TermQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
                 }
             }
@@ -344,7 +353,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     private static int shouldClauses(BooleanQuery query) {
         int result = 0;
         for (BooleanClause c : query.clauses()) {
-            if (c.getOccur() == BooleanClause.Occur.SHOULD) {
+            if (c.occur() == BooleanClause.Occur.SHOULD) {
                 result++;
             }
         }
@@ -452,9 +461,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     public void testExpandedTerms() throws Exception {
         // Prefix
         Query query = new SimpleQueryStringBuilder("aBc*").field(TEXT_FIELD_NAME).analyzer("whitespace").toQuery(createShardContext());
-        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "aBc"), MultiTermQuery.CONSTANT_SCORE_REWRITE), query);
+        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "aBc"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE), query);
         query = new SimpleQueryStringBuilder("aBc*").field(TEXT_FIELD_NAME).analyzer("standard").toQuery(createShardContext());
-        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "abc"), MultiTermQuery.CONSTANT_SCORE_REWRITE), query);
+        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "abc"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE), query);
 
         // Fuzzy
         query = new SimpleQueryStringBuilder("aBc~1").field(TEXT_FIELD_NAME).analyzer("whitespace").toQuery(createShardContext());
@@ -624,7 +633,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             createShardContext()
         );
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), parser.parse("bar"));
-        assertEquals(new TermQuery(new Term(KEYWORD_FIELD_NAME, "bar")), parser.parse("\"bar\""));
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "bar"))), parser.parse("\"bar\""));
 
         // Now check what happens if the quote field does not exist
         settings.quoteFieldSuffix(".quote");
@@ -670,7 +679,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             Query expected = new DisjunctionMaxQuery(
                 Arrays.asList(
                     new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
+                    new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello"))), 5.0f)
                 ),
                 1.0f
             );
@@ -703,7 +712,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .fuzzyMaxExpansions(5)
             .fuzzyTranspositions(false)
             .toQuery(createShardContext());
-        FuzzyQuery expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "text"), 2, 2, 5, false);
+        FuzzyQuery expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "text"), 2, 2, 5, false, FuzzyQuery.defaultRewriteMethod(5));
         assertEquals(expected, query);
     }
 
@@ -718,7 +727,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "failed query, caused by Can only use prefix queries on keyword and text fields - not on [mapped_date] which is of type [date]"
             )
         );
-        expectedQueries.add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "t"), MultiTermQuery.CONSTANT_SCORE_REWRITE));
+        expectedQueries.add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "t"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE));
         DisjunctionMaxQuery expected = new DisjunctionMaxQuery(expectedQueries, 1.0f);
         assertEquals(expected, query);
     }
@@ -736,14 +745,20 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .toQuery(createShardContext());
         expected = new BooleanQuery.Builder().add(
             new DisjunctionMaxQuery(
-                Arrays.asList(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "quick"))),
+                Arrays.asList(
+                    new TermQuery(new Term(TEXT_FIELD_NAME, "quick")),
+                    new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "quick")))
+                ),
                 1.0f
             ),
             BooleanClause.Occur.SHOULD
         )
             .add(
                 new DisjunctionMaxQuery(
-                    Arrays.asList(new TermQuery(new Term(TEXT_FIELD_NAME, "fox")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "fox"))),
+                    Arrays.asList(
+                        new TermQuery(new Term(TEXT_FIELD_NAME, "fox")),
+                        new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "fox")))
+                    ),
                     1.0f
                 ),
                 BooleanClause.Occur.SHOULD
@@ -771,7 +786,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     public void testWithPrefixStopWords() throws Exception {
         Query query = new SimpleQueryStringBuilder("the* quick fox").field(TEXT_FIELD_NAME).analyzer("stop").toQuery(createShardContext());
         BooleanQuery expected = new BooleanQuery.Builder().add(
-            new PrefixQuery(new Term(TEXT_FIELD_NAME, "the"), MultiTermQuery.CONSTANT_SCORE_REWRITE),
+            new PrefixQuery(new Term(TEXT_FIELD_NAME, "the"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE),
             BooleanClause.Occur.SHOULD
         )
             .add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
@@ -834,7 +849,10 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(9, noMatchNoDocsQueries);
         assertThat(
             disjunctionMaxQuery.getDisjuncts(),
-            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "hello")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
+            hasItems(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
+                new ConstantScoreQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
+            )
         );
     }
 

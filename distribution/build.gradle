@@ -302,7 +302,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           it.version = VersionProperties.getBundledJre(platform, architecture)
           it.vendor = VersionProperties.bundledJdkVendor
           it.architecture = architecture
-       }
+        }
       }
     }
   }
@@ -353,6 +353,18 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('tools/upgrade-cli') {
           from(configurations.libsUpgradeCli)
+        }
+      }
+    }
+
+    agentFiles = {
+      copySpec {
+        from(project(':libs:agent-sm:agent').prepareAgent) {
+          include '**/*.jar'
+          exclude '**/*-javadoc.jar'
+          exclude '**/*-sources.jar'
+          // strip the version since jvm.options is using agent without version
+          rename("opensearch-agent-${project.version}.jar", "opensearch-agent.jar")
         }
       }
     }
@@ -481,7 +493,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
       }
     }
-    
+
     jreFiles = { Project project, String platform, String architecture ->
       return copySpec {
         /*

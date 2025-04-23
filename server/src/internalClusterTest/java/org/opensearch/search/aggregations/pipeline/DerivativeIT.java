@@ -441,7 +441,7 @@ public class DerivativeIT extends ParameterizedDynamicSettingsOpenSearchIntegTes
             .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).subAggregation(derivative("deriv", "_count")))
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(numDocsEmptyIdx));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
@@ -472,7 +472,7 @@ public class DerivativeIT extends ParameterizedDynamicSettingsOpenSearchIntegTes
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx_rnd));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(numDocsEmptyIdx_rnd));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
@@ -502,7 +502,7 @@ public class DerivativeIT extends ParameterizedDynamicSettingsOpenSearchIntegTes
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(numDocsEmptyIdx));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
@@ -533,7 +533,7 @@ public class DerivativeIT extends ParameterizedDynamicSettingsOpenSearchIntegTes
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(numDocsEmptyIdx));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
@@ -576,7 +576,7 @@ public class DerivativeIT extends ParameterizedDynamicSettingsOpenSearchIntegTes
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(numDocsEmptyIdx));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
@@ -617,7 +617,7 @@ public class DerivativeIT extends ParameterizedDynamicSettingsOpenSearchIntegTes
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx_rnd));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(numDocsEmptyIdx_rnd));
 
         Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());

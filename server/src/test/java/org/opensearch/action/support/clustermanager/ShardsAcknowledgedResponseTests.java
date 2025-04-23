@@ -32,7 +32,6 @@
 package org.opensearch.action.support.clustermanager;
 
 import org.opensearch.Version;
-import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;

@@ -38,7 +38,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -295,30 +295,6 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         return clusterManagerName;
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerFromFinalizingSnapshotOnIndexFile(String)} */
-    @Deprecated
-    public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
-        return blockClusterManagerFromFinalizingSnapshotOnIndexFile(repositoryName);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerOnWriteIndexFile(String)} */
-    @Deprecated
-    public static String blockMasterOnWriteIndexFile(final String repositoryName) {
-        return blockClusterManagerOnWriteIndexFile(repositoryName);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerFromDeletingIndexNFile(String)} */
-    @Deprecated
-    public static void blockMasterFromDeletingIndexNFile(String repositoryName) {
-        blockClusterManagerFromDeletingIndexNFile(repositoryName);
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #blockClusterManagerFromFinalizingSnapshotOnSnapFile(String)} */
-    @Deprecated
-    public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
-        return blockClusterManagerFromFinalizingSnapshotOnSnapFile(repositoryName);
-    }
-
     public static String blockNodeWithIndex(final String repositoryName, final String indexName) {
         for (String node : internalCluster().nodesInclude(indexName)) {
             ((MockRepository) internalCluster().getInstance(RepositoriesService.class, node).repository(repositoryName)).blockOnDataFiles(
@@ -566,7 +542,7 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     protected long getCountForIndex(String indexName) {
         return client().search(
             new SearchRequest(new SearchRequest(indexName).source(new SearchSourceBuilder().size(0).trackTotalHits(true)))
-        ).actionGet().getHits().getTotalHits().value;
+        ).actionGet().getHits().getTotalHits().value();
     }
 
     protected void assertDocCount(String index, long count) {
@@ -782,11 +758,5 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
                 }
             }
         });
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #awaitClusterManagerFinishRepoOperations()} */
-    @Deprecated
-    protected void awaitMasterFinishRepoOperations() throws Exception {
-        awaitClusterManagerFinishRepoOperations();
     }
 }

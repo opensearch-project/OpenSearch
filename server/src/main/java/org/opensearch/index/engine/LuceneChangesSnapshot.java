@@ -46,6 +46,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.Queries;
@@ -122,7 +123,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.indexSearcher.setQueryCache(null);
         this.parallelArray = new ParallelArray(this.searchBatchSize);
         final TopDocs topDocs = searchOperations(null, accurateCount);
-        this.totalHits = Math.toIntExact(topDocs.totalHits.value);
+        this.totalHits = Math.toIntExact(topDocs.totalHits.value());
         this.scoreDocs = topDocs.scoreDocs;
         fillParallelArray(scoreDocs, parallelArray);
     }
@@ -263,12 +264,13 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private TopDocs searchOperations(FieldDoc after, boolean accurate) throws IOException {
         final Query rangeQuery = operationsRangeQuery(Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo);
         final Sort sortedBySeqNo = new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG));
-        final TopFieldCollector topFieldCollector = TopFieldCollector.create(
+        final TopFieldCollector topFieldCollector = new TopFieldCollectorManager(
             sortedBySeqNo,
             searchBatchSize,
             after,
-            accurate ? Integer.MAX_VALUE : 0
-        );
+            accurate ? Integer.MAX_VALUE : 0,
+            false
+        ).newCollector();
         indexSearcher.search(rangeQuery, topFieldCollector);
         return topFieldCollector.topDocs();
     }

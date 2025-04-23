@@ -33,7 +33,7 @@
 package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 
 /**
  * Transport action to put a new pipeline

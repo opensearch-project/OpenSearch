@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchIdleIT extends OpenSearchSingleNodeTestCase {
 
     public void testAutomaticRefreshSearch() throws InterruptedException {
-        runTestAutomaticRefresh(numDocs -> client().prepareSearch("test").get().getHits().getTotalHits().value);
+        runTestAutomaticRefresh(numDocs -> client().prepareSearch("test").get().getHits().getTotalHits().value());
     }
 
     public void testAutomaticRefreshGet() throws InterruptedException {
