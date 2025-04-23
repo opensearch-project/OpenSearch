@@ -61,7 +61,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api "io.netty:netty-all:${versions.netty}"
-  api 'com.google.code.gson:gson:2.12.1'
+  api 'com.google.code.gson:gson:2.13.0'
   api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"

@@ -148,7 +148,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         final MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
-        } else if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType) {
+        } else if (fieldType.unwrap() instanceof GeoPointFieldMapper.GeoPointFieldType) {
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
