@@ -33,7 +33,6 @@
 package org.opensearch.node;
 
 import org.opensearch.Version;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.MockInternalClusterInfoService;
 import org.opensearch.cluster.node.DiscoveryNode;
