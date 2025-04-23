@@ -34,9 +34,15 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -56,7 +62,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-public class PrunePostingsMergePolicyTests extends OpenSearchTestCase {
+public class PrunePostingsAndKnnMergePolicyTests extends OpenSearchTestCase {
 
     public void testPrune() throws IOException {
         try (Directory dir = newDirectory()) {
@@ -65,7 +71,7 @@ public class PrunePostingsMergePolicyTests extends OpenSearchTestCase {
             MergePolicy mp = new SoftDeletesRetentionMergePolicy(
                 "_soft_deletes",
                 MatchAllDocsQuery::new,
-                new PrunePostingsMergePolicy(newLogMergePolicy(), "id")
+                new PrunePostingsAndKnnMergePolicy(newLogMergePolicy(), "id")
             );
             iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
             boolean sorted = randomBoolean();
@@ -175,6 +181,105 @@ public class PrunePostingsMergePolicyTests extends OpenSearchTestCase {
                 }
             }
 
+        }
+    }
+
+    public void testPruneBinaryDocValues() throws IOException {
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setSoftDeletesField("_soft_deletes");
+            MergePolicy mp = new SoftDeletesRetentionMergePolicy(
+                "_soft_deletes",
+                MatchAllDocsQuery::new,
+                new PrunePostingsAndKnnMergePolicy(newLogMergePolicy(), "id")
+            );
+            iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
+            boolean sorted = randomBoolean();
+            if (sorted) {
+                iwc.setIndexSort(new Sort(new SortField("sort", SortField.Type.INT)));
+            }
+            int numUniqueDocs = randomIntBetween(1, 100);
+            int numDocs = randomIntBetween(numUniqueDocs, numUniqueDocs * 5);
+
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < numDocs; i++) {
+                    if (rarely()) {
+                        writer.flush();
+                    }
+                    if (rarely()) {
+                        writer.forceMerge(1, false);
+                    }
+                    int id = i % numUniqueDocs;
+                    Document doc = new Document();
+                    doc.add(new StringField("id", "" + id, Field.Store.NO));
+                    doc.add(newTextField("text", "the quick brown fox", Field.Store.YES));
+                    doc.add(new NumericDocValuesField("sort", i));
+                    doc.add(new KNNDocValuesFiled("binary", new BytesRef("binary docvalues")));
+                    doc.add(new KnnFloatVectorField("knnVector", new float[] { randomFloat(), randomFloat() }));
+                    writer.softUpdateDocument(new Term("id", "" + id), doc, new NumericDocValuesField("_soft_deletes", 1));
+                    if (i == 0) {
+                        // make sure we have at least 2 segments to ensure we do an actual merge to kick out all postings for
+                        // soft deletes
+                        writer.flush();
+                    }
+                }
+
+                writer.forceMerge(1);
+                try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    LeafReader leafReader = reader.leaves().get(0).reader();
+                    assertEquals(numDocs, leafReader.maxDoc());
+                    Terms id = leafReader.terms("id");
+                    TermsEnum iterator = id.iterator();
+                    for (int i = 0; i < numUniqueDocs; i++) {
+                        assertTrue(iterator.seekExact(new BytesRef("" + i)));
+                        assertEquals(1, iterator.docFreq());
+                    }
+                    iterator = leafReader.terms("text").iterator();
+                    assertTrue(iterator.seekExact(new BytesRef("quick")));
+                    assertEquals(leafReader.maxDoc(), iterator.docFreq());
+                    int numValues = 0;
+                    NumericDocValues sort = leafReader.getNumericDocValues("sort");
+                    while (sort.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        if (sorted) {
+                            assertEquals(sort.docID(), sort.longValue());
+                        } else {
+                            assertTrue(sort.longValue() >= 0);
+                            assertTrue(sort.longValue() < numDocs);
+                        }
+                        numValues++;
+                    }
+                    assertEquals(numValues, numDocs);
+
+                    int numBinary = 0;
+                    BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues("binary");
+                    while (binaryDocValues.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        numBinary++;
+                    }
+                    assertEquals(numBinary, numUniqueDocs);
+
+                    int numVectors = 0;
+                    FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues("knnVector");
+                    assertEquals(floatVectorValues.size(), numDocs);
+                }
+            }
+
+        }
+    }
+
+    public class KNNDocValuesFiled extends Field {
+        public static final FieldType TYPE = new FieldType();
+
+        public KNNDocValuesFiled(String name, BytesRef value) {
+            super(name, TYPE);
+            this.fieldsData = value;
+        }
+
+        static {
+            TYPE.setTokenized(false);
+            TYPE.setIndexOptions(IndexOptions.NONE);
+            TYPE.setDocValuesType(DocValuesType.BINARY);
+            TYPE.putAttribute("knn_field", "true");
+            TYPE.freeze();
         }
     }
 }

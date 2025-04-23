@@ -2346,7 +2346,7 @@ public class InternalEngine extends Engine {
             new SoftDeletesRetentionMergePolicy(
                 Lucene.SOFT_DELETES_FIELD,
                 softDeletesPolicy::getRetentionQuery,
-                new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
+                new PrunePostingsAndKnnMergePolicy(mergePolicy, IdFieldMapper.NAME)
             )
         );
         boolean shuffleForcedMerge = Booleans.parseBoolean(System.getProperty("opensearch.shuffle_forced_merge", Boolean.TRUE.toString()));
