@@ -52,5 +52,4 @@ public class XContentRuleParserTests extends OpenSearchTestCase {
         Exception exception = assertThrows(RuntimeException.class, () -> sut.parse(INVALID_JSON));
         assertTrue(exception.getMessage().contains("mock_attribute_three is not a valid attribute within the mock_feature_type feature."));
     }
-
 }

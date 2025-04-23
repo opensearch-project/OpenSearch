@@ -28,14 +28,14 @@ public class TransportGetRuleActionTests extends OpenSearchTestCase {
     public void testExecute() {
         RulePersistenceServiceRegistry rulePersistenceServiceRegistry = mock(RulePersistenceServiceRegistry.class);
         TransportService transportService = mock(TransportService.class);
-        ActionFilters actiionFilters = mock(ActionFilters.class);
+        ActionFilters actionFilters = mock(ActionFilters.class);
         RulePersistenceService rulePersistenceService = mock(RulePersistenceService.class);
         GetRuleRequest getRuleRequest = mock(GetRuleRequest.class);
         when(getRuleRequest.getFeatureType()).thenReturn(null);
 
         when(rulePersistenceServiceRegistry.getRulePersistenceService(any())).thenReturn(rulePersistenceService);
         doNothing().when(rulePersistenceService).getRule(any(), any());
-        sut = new TransportGetRuleAction(transportService, actiionFilters, rulePersistenceServiceRegistry);
+        sut = new TransportGetRuleAction(transportService, actionFilters, rulePersistenceServiceRegistry);
         sut.doExecute(null, getRuleRequest, null);
         verify(rulePersistenceService, times(1)).getRule(any(), any());
     }

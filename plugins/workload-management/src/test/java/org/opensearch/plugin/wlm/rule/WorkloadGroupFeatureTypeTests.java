@@ -16,12 +16,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Map;
 
 public class WorkloadGroupFeatureTypeTests extends OpenSearchTestCase {
-    private WorkloadGroupFeatureType featureType;
-
-    public void setUp() throws Exception {
-        super.setUp();
-        featureType = WorkloadGroupFeatureType.INSTANCE;
-    }
+    WorkloadGroupFeatureType featureType = WorkloadGroupFeatureType.INSTANCE;
 
     public void testGetName_returnsCorrectName() {
         assertEquals("workload_group", featureType.getName());
