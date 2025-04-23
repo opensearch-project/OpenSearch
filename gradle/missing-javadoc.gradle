@@ -157,7 +157,6 @@ configure([
   project(":test:fixtures:azure-fixture"),
   project(":test:fixtures:gcs-fixture"),
   project(":test:fixtures:hdfs-fixture"),
-  project(":test:fixtures:old-elasticsearch"),
   project(":test:fixtures:s3-fixture"),
   project(":test:framework"),
   project(":test:logger-usage")
