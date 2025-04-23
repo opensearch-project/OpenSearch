@@ -177,7 +177,7 @@ public class LagDetectorTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasks();
         assertThat(failedNodes, contains(node2));
         assertEquals(
-            Double.valueOf(2),
+            Double.valueOf(1),
             metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node2")))
         );
     }
@@ -194,7 +194,7 @@ public class LagDetectorTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasks();
         assertThat(failedNodes, contains(node1));
         assertEquals(
-            Double.valueOf(2),
+            Double.valueOf(1),
             metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
         );
     }
@@ -236,7 +236,7 @@ public class LagDetectorTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasks();
         assertThat(failedNodes, contains(node1));
         assertEquals(
-            Double.valueOf(3), // 1+2 occurrence
+            Double.valueOf(2),
             metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
         );
     }
@@ -277,6 +277,10 @@ public class LagDetectorTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));
         failedNodes.clear();
+        assertEquals(
+            Double.valueOf(1),
+            metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
+        );
 
         lagDetector.startLagDetector(5);
         lagDetector.clearTrackedNodes();
@@ -288,6 +292,10 @@ public class LagDetectorTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));
         failedNodes.clear(); // ... but later lag detectors still work
+        assertEquals(
+            Double.valueOf(2),
+            metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
+        );
 
         lagDetector.setTrackedNodes(Collections.singletonList(node2));
         lagDetector.setAppliedVersion(node2, 7);

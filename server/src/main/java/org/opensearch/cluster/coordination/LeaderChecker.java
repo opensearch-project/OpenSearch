@@ -72,8 +72,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.opensearch.cluster.ClusterManagerMetrics.NODE_ID_TAG;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.opensearch.telemetry.tracing.AttributeNames.NODE_ID;
 
 /**
  * The LeaderChecker is responsible for allowing followers to check that the currently elected leader is still connected and healthy. We are
@@ -362,7 +362,7 @@ public class LeaderChecker {
                 clusterManagerMetrics.incrementCounter(
                     clusterManagerMetrics.nodeLeaderCheckFailureCounter,
                     1.0,
-                    Optional.ofNullable(Tags.create().addTag(NODE_ID, leader.getId()))
+                    Optional.ofNullable(Tags.create().addTag(NODE_ID_TAG, leader.getId()))
                 );
                 transportService.getThreadPool().generic().execute(new Runnable() {
                     @Override

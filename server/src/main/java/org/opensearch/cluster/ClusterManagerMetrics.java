@@ -23,6 +23,7 @@ import java.util.Optional;
  */
 public final class ClusterManagerMetrics {
 
+    public static final String NODE_ID_TAG = "node_id";
     private static final String LATENCY_METRIC_UNIT_MS = "ms";
     private static final String COUNTER_METRICS_UNIT = "1";
 
@@ -39,6 +40,8 @@ public final class ClusterManagerMetrics {
     public final Counter asyncFetchFailureCounter;
     public final Counter asyncFetchSuccessCounter;
     public final Counter lagCounter;
+    public final Counter nodeLeftCounter;
+    public final Counter fsHealthFailCounter;
 
     public ClusterManagerMetrics(MetricsRegistry metricsRegistry) {
         clusterStateAppliersHistogram = metricsRegistry.createHistogram(
@@ -96,9 +99,11 @@ public final class ClusterManagerMetrics {
             "Counter for number of successful async fetches",
             COUNTER_METRICS_UNIT
         );
-        lagCounter = metricsRegistry.createCounter(
-            "lag.count",
-            "Counter for difference between current version and latest version",
+        lagCounter = metricsRegistry.createCounter("lag.count", "Counter for lag in the node version", COUNTER_METRICS_UNIT);
+        nodeLeftCounter = metricsRegistry.createCounter("node.left.count", "Counter for node left operation", COUNTER_METRICS_UNIT);
+        fsHealthFailCounter = metricsRegistry.createCounter(
+            "fsHealth.failure.count",
+            "Counter for number of times FS health check has failed",
             COUNTER_METRICS_UNIT
         );
     }

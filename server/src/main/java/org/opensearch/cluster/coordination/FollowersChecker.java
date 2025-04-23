@@ -72,9 +72,12 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+import static org.opensearch.cluster.ClusterManagerMetrics.NODE_ID_TAG;
+import static org.opensearch.cluster.coordination.Coordinator.NODE_LEFT_REASON_DISCONNECTED;
+import static org.opensearch.cluster.coordination.Coordinator.NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL;
+import static org.opensearch.cluster.coordination.Coordinator.NODE_LEFT_REASON_HEALTHCHECK_FAIL;
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.opensearch.telemetry.tracing.AttributeNames.NODE_ID;
 
 /**
  * The FollowersChecker is responsible for allowing a leader to check that its followers are still connected and healthy. On deciding that a
@@ -401,13 +404,13 @@ public class FollowersChecker {
                         final String reason;
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                             logger.info(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
-                            reason = "disconnected";
+                            reason = NODE_LEFT_REASON_DISCONNECTED;
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
                             logger.info(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
-                            reason = "health check failed";
+                            reason = NODE_LEFT_REASON_HEALTHCHECK_FAIL;
                         } else if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
                             logger.info(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
-                            reason = "followers check retry count exceeded";
+                            reason = NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL;
                         } else {
                             logger.info(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();
@@ -430,7 +433,7 @@ public class FollowersChecker {
             clusterManagerMetrics.incrementCounter(
                 clusterManagerMetrics.nodeFollowerChecksFailureCounter,
                 1.0,
-                Optional.ofNullable(Tags.create().addTag(NODE_ID, discoveryNode.getId()))
+                Optional.ofNullable(Tags.create().addTag(NODE_ID_TAG, discoveryNode.getId()))
             );
             transportService.getThreadPool().generic().execute(new Runnable() {
                 @Override
