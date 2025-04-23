@@ -602,7 +602,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
-     * ".sig" to the URL. It is expected that the plugin is signed with the OpenSearch signing key with ID C2EE2AF6542C03B4.
+     * ".sig" to the URL. It is expected that the plugin is signed with the OpenSearch Release signing key with ID 4E9275EE6BA2427F for 3.0.0 or above.
      *
      * @param zip       the path to the downloaded plugin ZIP
      * @param urlString the URL source of the downloade plugin ZIP
@@ -663,7 +663,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * @return the public key ID
      */
     String getPublicKeyId() {
-        return "C2EE2AF6542C03B4";
+        return "4E9275EE6BA2427F";
     }
 
     /**
