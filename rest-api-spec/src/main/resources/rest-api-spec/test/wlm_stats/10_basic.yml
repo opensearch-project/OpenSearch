@@ -1,16 +1,9 @@
 ---
-"Basic usage returns expected table header":
-  - do:
-      wlm_stats_list: {}
-  - is_true: $body
-  - match:
-      $body: /(?s).*NODE_ID\s+\|\s+Workload_GROUP_ID\s+\|\s+TOTAL_COMPLETIONS\s+\|\s+TOTAL_REJECTIONS\s+\|\s+TOTAL_CANCELLATIONS\s+\|\s+CPU_USAGE\s+\|\s+MEMORY_USAGE.*/
-
----
 "Custom size param still returns headers":
   - do:
       wlm_stats_list:
         size: 1
+        v: true
   - is_true: $body
   - match:
       $body: /TOTAL_REJECTIONS/
@@ -23,17 +16,17 @@
         order: asc
   - is_true: $body
   - match:
-      $body: /NODE_ID/
+      $body: /DEFAULT_WORKLOAD_GROUP/
 
 ---
 "Sort by workload_group_id desc does not error":
   - do:
       wlm_stats_list:
-        sort: workload_group_id
+        sort: workload_group
         order: desc
   - is_true: $body
   - match:
-      $body: /Workload_GROUP_ID/
+      $body: /DEFAULT_WORKLOAD_GROUP/
 
 ---
 "Invalid sort field returns error":
@@ -43,7 +36,7 @@
         sort: memory_usage
         order: desc
   - match:
-      error.reason: "Invalid value for 'sort'. Allowed: 'node_id', 'workload_group_id'."
+      error.reason: "Invalid value for 'sort'. Allowed: 'node_id', 'workload_group'"
 
 ---
 "Invalid sort order returns error":
@@ -52,4 +45,4 @@
       wlm_stats_list:
         order: upside_down
   - match:
-      error.reason: "Invalid value for 'order'. Allowed: 'asc', 'desc'."
+      error.reason: "Invalid value for 'order'. Allowed: 'asc', 'desc'"

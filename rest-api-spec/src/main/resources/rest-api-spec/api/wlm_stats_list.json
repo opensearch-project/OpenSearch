@@ -33,6 +33,11 @@
         "type": "string",
         "required": false,
         "description": "Sort order (asc or desc)"
+      },
+      "v": {
+        "type": "boolean",
+        "required": false,
+        "description": "Whether to include headers"
       }
     }
   }
