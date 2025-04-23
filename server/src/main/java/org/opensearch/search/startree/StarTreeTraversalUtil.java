@@ -21,6 +21,7 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.Sort
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.MatchAllFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
@@ -90,6 +91,17 @@ public class StarTreeTraversalUtil {
 
             // Clear the temporary bit set before reuse
             tempBitSet.clear(0, starTreeResult.maxMatchedDoc + 1);
+
+            // Skip filtering if a MatchAllFilter is present for this dimension, since it implies all values match and no further filtering
+            // is needed
+            boolean isMatchAllFilterPresent = false;
+            for (DimensionFilter dimensionFilter : dimensionFilters) {
+                if (dimensionFilter instanceof MatchAllFilter) {
+                    isMatchAllFilterPresent = true;
+                    break;
+                }
+            }
+            if (isMatchAllFilterPresent) continue;
 
             if (bitSet.length() > 0) {
                 // Iterate over the current set of matched document IDs

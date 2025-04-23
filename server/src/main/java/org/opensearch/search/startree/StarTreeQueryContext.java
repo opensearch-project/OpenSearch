@@ -107,23 +107,7 @@ public class StarTreeQueryContext {
     public boolean consolidateAllFilters(SearchContext context) {
         // Validate the fields and metrics required by aggregations are supported in star tree
         for (AggregatorFactory aggregatorFactory : context.aggregations().factories().getFactories()) {
-            // first check for aggregation is a metric aggregation
-            if (validateStarTreeMetricSupport(compositeMappedFieldType, aggregatorFactory)) {
-                continue;
-            }
-
-            // if not a metric aggregation, check for applicable date histogram shape
-            if (validateDateHistogramSupport(compositeMappedFieldType, aggregatorFactory)) {
-                continue;
-            }
-
-            // validation for terms aggregation
-            if (validateKeywordTermsAggregationSupport(compositeMappedFieldType, aggregatorFactory)) {
-                continue;
-            }
-
-            // validation for range aggregation
-            if (validateRangeAggregationSupport(compositeMappedFieldType, aggregatorFactory)) {
+            if (validateNestedAggregationStructure(compositeMappedFieldType, aggregatorFactory)) {
                 continue;
             }
             // invalid query shape
@@ -181,12 +165,6 @@ public class StarTreeQueryContext {
             return false;
         }
 
-        // Validate all sub-factories
-        for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
-            if (!validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory)) {
-                return false;
-            }
-        }
         return true;
     }
 
@@ -208,12 +186,6 @@ public class StarTreeQueryContext {
             return false;
         }
 
-        // Validate all sub-factories
-        for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
-            if (!validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory)) {
-                return false;
-            }
-        }
         return true;
     }
 
@@ -270,12 +242,45 @@ public class StarTreeQueryContext {
             return false;
         }
 
-        // Validate all sub-factories
-        for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
-            if (!validateStarTreeMetricSupport(compositeIndexFieldInfo, subFactory)) {
+        return true;
+    }
+
+    private static boolean validateNestedAggregationStructure(
+        CompositeDataCubeFieldType compositeIndexFieldInfo,
+        AggregatorFactory aggregatorFactory
+    ) {
+        boolean isValid;
+
+        switch (aggregatorFactory) {
+            case TermsAggregatorFactory termsAggregatorFactory -> isValid = validateKeywordTermsAggregationSupport(
+                compositeIndexFieldInfo,
+                termsAggregatorFactory
+            );
+            case DateHistogramAggregatorFactory dateHistogramAggregatorFactory -> isValid = validateDateHistogramSupport(
+                compositeIndexFieldInfo,
+                dateHistogramAggregatorFactory
+            );
+            case RangeAggregatorFactory rangeAggregatorFactory -> isValid = validateRangeAggregationSupport(
+                compositeIndexFieldInfo,
+                rangeAggregatorFactory
+            );
+            case MetricAggregatorFactory metricAggregatorFactory -> {
+                isValid = validateStarTreeMetricSupport(compositeIndexFieldInfo, metricAggregatorFactory);
+                return isValid && metricAggregatorFactory.getSubFactories().getFactories().length == 0;
+            }
+            case null, default -> {
                 return false;
             }
         }
+
+        if (!isValid) return false;
+
+        for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
+            if (!validateNestedAggregationStructure(compositeIndexFieldInfo, subFactory)) {
+                return false;
+            }
+        }
+
         return true;
     }
 
