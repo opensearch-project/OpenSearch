@@ -1595,6 +1595,145 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         // Verify resources were properly closed
         verify(clientReference).close();
     }
+    /**
+     * Tests conditional multipart upload with various configuration combinations
+     */
+    public void testExecuteMultipartUploadIfEtagMatchesWithMetadataAndSSE() throws IOException {
+        // Setup test parameters
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String inputETag = randomAlphaOfLengthBetween(8, 32);
+        final String finalETag = randomAlphaOfLengthBetween(8, 32); // Added distinct final ETag
+        final String uploadId = randomAlphaOfLengthBetween(10, 20);
+
+        // Create metadata map
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+
+        final BlobPath blobPath = new BlobPath();
+
+        // Setup for a minimal viable multipart upload
+        final long partSize = ByteSizeUnit.MB.toBytes(5);
+        final long blobSize = partSize * 2; // Two parts
+
+        // Mock S3BlobStore with various configurations enabled
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+
+        // Setup random configurations
+        final boolean serverSideEncryption = true; // Force enabled to test this case
+        when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
+
+        final StorageClass storageClass = randomFrom(StorageClass.values());
+        when(blobStore.getStorageClass()).thenReturn(storageClass);
+
+        final ObjectCannedACL cannedAccessControlList = randomFrom(ObjectCannedACL.values());
+        when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
+
+        final boolean isUploadRetryEnabled = randomBoolean();
+        when(blobStore.isUploadRetryEnabled()).thenReturn(isUploadRetryEnabled);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        // Mock S3 client and capture requests
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        // Setup argument captors
+        final ArgumentCaptor<CreateMultipartUploadRequest> createRequestCaptor =
+            ArgumentCaptor.forClass(CreateMultipartUploadRequest.class);
+        final ArgumentCaptor<UploadPartRequest> uploadPartRequestCaptor =
+            ArgumentCaptor.forClass(UploadPartRequest.class);
+        final ArgumentCaptor<RequestBody> requestBodyCaptor =
+            ArgumentCaptor.forClass(RequestBody.class);
+        final ArgumentCaptor<CompleteMultipartUploadRequest> completeRequestCaptor =
+            ArgumentCaptor.forClass(CompleteMultipartUploadRequest.class);
+
+        // Mock responses
+        when(client.createMultipartUpload(createRequestCaptor.capture()))
+            .thenReturn(CreateMultipartUploadResponse.builder().uploadId(uploadId).build());
+
+        // Generate part ETags
+        final List<String> partETags = List.of("etag-part-1", "etag-part-2");
+
+        // Mock part upload responses
+        when(client.uploadPart(uploadPartRequestCaptor.capture(), requestBodyCaptor.capture()))
+            .thenAnswer(invocation -> {
+                UploadPartRequest request = (UploadPartRequest) invocation.getArguments()[0];
+                int partNumber = request.partNumber();
+                return UploadPartResponse.builder().eTag(partETags.get(partNumber - 1)).build();
+            });
+
+        // Mock complete response with final ETag
+        when(client.completeMultipartUpload(completeRequestCaptor.capture()))
+            .thenReturn(CompleteMultipartUploadResponse.builder().eTag(finalETag).build());
+
+        // Create listener
+        @SuppressWarnings("unchecked")
+        ActionListener<String> etagListener = mock(ActionListener.class);
+
+        // Execute the multipart upload
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int)blobSize]);
+        blobContainer.executeMultipartUploadIfEtagMatches(
+            blobStore, blobName, inputStream, blobSize, metadata, inputETag, etagListener
+        );
+
+        // Verify the create multipart request parameters including all configurations
+        final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
+        assertEquals(bucketName, createRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, createRequest.key());
+        assertEquals(storageClass, createRequest.storageClass());
+        assertEquals(cannedAccessControlList, createRequest.acl());
+        assertEquals(metadata, createRequest.metadata());
+
+        // Verify server-side encryption is set
+        assertEquals(ServerSideEncryption.AES256, createRequest.serverSideEncryption());
+
+        // Verify upload part requests
+        List<UploadPartRequest> partRequests = uploadPartRequestCaptor.getAllValues();
+        assertEquals(2, partRequests.size()); // We expect exactly 2 parts
+
+        // Verify both parts
+        for (int i = 0; i < 2; i++) {
+            UploadPartRequest partRequest = partRequests.get(i);
+            assertEquals(bucketName, partRequest.bucket());
+            assertEquals(blobPath.buildAsString() + blobName, partRequest.key());
+            assertEquals(uploadId, partRequest.uploadId());
+            assertEquals(Integer.valueOf(i + 1), partRequest.partNumber());
+            assertEquals(partSize, partRequest.contentLength().longValue());
+
+            if (i == 0) {
+                RequestBody body = requestBodyCaptor.getAllValues().get(i);
+                try (InputStream is = body.contentStreamProvider().newStream()) {
+                    assertNotNull(is);
+                    assertTrue("Content stream should be available", is.available() > 0);
+                }
+            }
+        }
+
+        // Verify complete request
+        CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
+        assertEquals(bucketName, completeRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, completeRequest.key());
+        assertEquals(uploadId, completeRequest.uploadId());
+
+        // Verify ifMatch is on complete request - NOT create request
+        assertEquals(inputETag, completeRequest.ifMatch());
+
+        // Verify listener was called with exact final ETag
+        verify(etagListener).onResponse(finalETag);
+        verify(etagListener, never()).onFailure(any());
+
+        // Verify resources were properly closed
+        verify(clientReference).close();
+
+    }
 
     public void testInitCannedACL() {
         String[] aclList = new String[] {
