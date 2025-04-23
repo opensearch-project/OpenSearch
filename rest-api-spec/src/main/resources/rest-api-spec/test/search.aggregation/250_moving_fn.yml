@@ -1,9 +1,6 @@
 ---
 "Bad window":
 
-  - skip:
-      version: " - 7.1.99"
-      reason:  "calendar_interval added in 7.2"
 
   - do:
       catch: /\[window\] must be a positive, non-zero integer\./
@@ -30,8 +27,7 @@
 "Bad window deprecated interval":
 
   - skip:
-      version: " - 7.1.99"
-      reason:  "interval deprecation added in 7.2"
+
       features: "allowed_warnings"
 
   - do:

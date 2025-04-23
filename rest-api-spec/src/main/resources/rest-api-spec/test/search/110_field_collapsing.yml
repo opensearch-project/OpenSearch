@@ -161,9 +161,6 @@ setup:
 
 ---
 "field collapsing, inner_hits, and fields":
-  - skip:
-      version: " - 7.9.99"
-      reason: the fields option was added in 7.10
   - do:
       search:
         rest_total_hits_as_int: true
@@ -424,9 +421,7 @@ setup:
 
 ---
 "field collapsing on a field alias":
-  - skip:
-      version: " - 7.5.1"
-      reason: the bug fix was introduced in 7.5.2
+
   - do:
       indices.create:
         index:  alias-test

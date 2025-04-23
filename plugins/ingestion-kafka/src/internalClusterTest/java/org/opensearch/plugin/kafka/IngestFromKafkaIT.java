@@ -69,8 +69,8 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
             assertNotNull(stats);
-            assertThat(stats.getMessageProcessorStats().getTotalProcessedCount(), is(2L));
-            assertThat(stats.getConsumerStats().getTotalPolledCount(), is(2L));
+            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(2L));
+            assertThat(stats.getConsumerStats().totalPolledCount(), is(2L));
         });
     }
 
@@ -198,6 +198,33 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(1L));
             return 30 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
+        });
+    }
+
+    public void testMultiThreadedWrites() throws Exception {
+        // create index with 5 writer threads
+        createIndexWithDefaultSettings(indexName, 1, 0, 5);
+        ensureGreen(indexName);
+
+        // Step 1: Produce messages
+        for (int i = 0; i < 1000; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        waitForState(() -> {
+            SearchResponse searchableDocsResponse = client().prepareSearch(indexName).setSize(2000).setPreference("_only_local").get();
+            return searchableDocsResponse.getHits().getTotalHits().value() == 1000;
+        });
+
+        // Step 2: Produce an update message and validate
+        for (int i = 0; i < 1000; i++) {
+            produceData(Integer.toString(i), "name" + i, "30");
+        }
+
+        waitForState(() -> {
+            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            return response.getHits().getTotalHits().value() == 1000;
         });
     }
 }

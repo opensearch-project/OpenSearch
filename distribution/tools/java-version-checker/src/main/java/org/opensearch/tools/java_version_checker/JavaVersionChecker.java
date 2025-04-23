@@ -37,14 +37,14 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * Simple program that checks if the runtime Java version is at least 11
+ * Simple program that checks if the runtime Java version is at least 21
  */
 final class JavaVersionChecker {
 
     private JavaVersionChecker() {}
 
     /**
-     * The main entry point. The exit code is 0 if the Java version is at least 11, otherwise the exit code is 1.
+     * The main entry point. The exit code is 0 if the Java version is at least 21, otherwise the exit code is 1.
      *
      * @param args the args to the program which are rejected if not empty
      */
@@ -53,10 +53,10 @@ final class JavaVersionChecker {
         if (args.length != 0) {
             throw new IllegalArgumentException("expected zero arguments but was " + Arrays.toString(args));
         }
-        if (Runtime.version().compareTo(Version.parse("11")) < 0) {
+        if (Runtime.version().compareTo(Version.parse("21")) < 0) {
             final String message = String.format(
                 Locale.ROOT,
-                "OpenSearch requires Java 11; your Java version from [%s] does not meet this requirement",
+                "OpenSearch requires Java 21; your Java version from [%s] does not meet this requirement",
                 System.getProperty("java.home")
             );
             errPrintln(message);

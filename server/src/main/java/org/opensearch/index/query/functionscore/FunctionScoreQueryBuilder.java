@@ -711,7 +711,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     public void visit(QueryBuilderVisitor visitor) {
         visitor.accept(this);
         if (query != null) {
-            visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(query);
+            query.visit(visitor.getChildVisitor(BooleanClause.Occur.MUST));
         }
     }
 }

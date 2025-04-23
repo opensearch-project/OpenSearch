@@ -16,14 +16,9 @@ import org.opensearch.action.DocWriteRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.common.util.RequestUtils;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.VersionType;
@@ -37,6 +32,7 @@ import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.mapper.VersionFieldMapper;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
@@ -50,21 +46,23 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  *  A class to process messages from the ingestion stream. It extracts the payload from the message and creates an
  *  engine operation.
  */
-public class MessageProcessorRunnable implements Runnable {
+public class MessageProcessorRunnable implements Runnable, Closeable {
     private static final Logger logger = LogManager.getLogger(MessageProcessorRunnable.class);
     private static final String ID = "_id";
     private static final String OP_TYPE = "_op_type";
     private static final String SOURCE = "_source";
     private static final int WAIT_BEFORE_RETRY_DURATION_MS = 5000;
 
-    private volatile IngestionErrorStrategy errorStrategy;
-    private final BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
+    private final BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
     private final MessageProcessor messageProcessor;
-    private final CounterMetric stats = new CounterMetric();
+    private final CounterMetric processedCounter = new CounterMetric();
+    private final CounterMetric skippedCounter = new CounterMetric();
 
-    // tracks the most recent pointer that is being processed
+    // currentShardPointer tracks the most recent pointer that is being processed
     @Nullable
     private volatile IngestionShardPointer currentShardPointer;
+    private volatile boolean closed = false;
+    private volatile IngestionErrorStrategy errorStrategy;
 
     /**
      * Constructor.
@@ -73,7 +71,7 @@ public class MessageProcessorRunnable implements Runnable {
      * @param engine the ingestion engine
      */
     public MessageProcessorRunnable(
-        BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
+        BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
         IngestionEngine engine,
         IngestionErrorStrategy errorStrategy
     ) {
@@ -86,7 +84,7 @@ public class MessageProcessorRunnable implements Runnable {
      * @param messageProcessor the message processor
      */
     MessageProcessorRunnable(
-        BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
+        BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
         MessageProcessor messageProcessor,
         IngestionErrorStrategy errorStrategy
     ) {
@@ -119,14 +117,12 @@ public class MessageProcessorRunnable implements Runnable {
          * Process the message and create an engine operation. It also records the offset in the document as (1) a point
          * field used for range search, (2) a stored field for retrieval.
          *
-         * @param message the message to process
-         * @param pointer the pointer to the message
+         * @param shardUpdateMessage contains the message to process
+         * @param skippedCounter the counter for skipped messages
          */
-        protected void process(Message message, IngestionShardPointer pointer) {
-            byte[] payload = (byte[]) message.getPayload();
-
+        protected void process(ShardUpdateMessage shardUpdateMessage, CounterMetric skippedCounter) {
             try {
-                Engine.Operation operation = getOperation(payload, pointer);
+                Engine.Operation operation = getOperation(shardUpdateMessage, skippedCounter);
                 switch (operation.operationType()) {
                     case INDEX:
                         engine.indexInternal((Engine.Index) operation);
@@ -140,35 +136,39 @@ public class MessageProcessorRunnable implements Runnable {
                         throw new IllegalArgumentException("Invalid operation: " + operation);
                 }
             } catch (IOException e) {
-                logger.error("Failed to process operation from message {} at pointer {}: {}", message, pointer, e);
+                logger.error(
+                    "Failed to process operation from message {} at pointer {}: {}",
+                    shardUpdateMessage.originalMessage(),
+                    shardUpdateMessage.pointer().asString(),
+                    e
+                );
                 throw new RuntimeException(e);
             }
         }
 
         /**
          * Visible for testing. Get the engine operation from the message.
-         * @param payload the payload of the message
-         * @param pointer the pointer to the message
+         * @param shardUpdateMessage an update message containing payload and pointer for the update
+         * @param skippedCounter the counter for skipped messages
          * @return the engine operation
          */
-        protected Engine.Operation getOperation(byte[] payload, IngestionShardPointer pointer) throws IOException {
-            Map<String, Object> payloadMap = getParsedPayloadMap(payload);
+        protected Engine.Operation getOperation(ShardUpdateMessage shardUpdateMessage, CounterMetric skippedCounter) throws IOException {
+            Map<String, Object> payloadMap = shardUpdateMessage.parsedPayloadMap();
+            IngestionShardPointer pointer = shardUpdateMessage.pointer();
 
             if (payloadMap.containsKey(OP_TYPE) && !(payloadMap.get(OP_TYPE) instanceof String)) {
-                // TODO: add metric
+                skippedCounter.inc();
                 logger.error("_op_type field is of type {} but not string, skipping the message", payloadMap.get(OP_TYPE).getClass());
                 return null;
             }
 
-            String id = (String) payloadMap.get(ID);
-            long autoGeneratedIdTimestamp = UNSET_AUTO_GENERATED_TIMESTAMP;
-            if (Strings.isNullOrEmpty(id)) {
-                // auto generate ID for the message
-                id = RequestUtils.generateID();
-                payloadMap.put(ID, id);
-                autoGeneratedIdTimestamp = System.currentTimeMillis();
+            if (payloadMap.containsKey(ID) == false) {
+                // TODO: add metric
+                logger.error("ID field is missing, skipping the message");
+                return null;
             }
 
+            String id = (String) payloadMap.get(ID);
             String opTypeString = (String) payloadMap.getOrDefault(OP_TYPE, "index");
             DocWriteRequest.OpType opType = DocWriteRequest.OpType.fromString(opTypeString);
 
@@ -185,12 +185,12 @@ public class MessageProcessorRunnable implements Runnable {
             switch (opType) {
                 case INDEX:
                     if (!payloadMap.containsKey(SOURCE)) {
-                        // TODO: add metric
+                        skippedCounter.inc();
                         logger.error("missing _source field, skipping the message");
                         return null;
                     }
                     if (!(payloadMap.get(SOURCE) instanceof Map)) {
-                        // TODO: add metric
+                        skippedCounter.inc();
                         logger.error("_source field does not contain a map, skipping the message");
                         return null;
                     }
@@ -214,14 +214,14 @@ public class MessageProcessorRunnable implements Runnable {
                         documentVersionType,
                         Engine.Operation.Origin.PRIMARY,
                         System.nanoTime(),
-                        autoGeneratedIdTimestamp,
+                        shardUpdateMessage.autoGeneratedIdTimestamp(),
                         false,
                         UNASSIGNED_SEQ_NO,
                         0
                     );
                     break;
                 case DELETE:
-                    if (autoGeneratedIdTimestamp != UNSET_AUTO_GENERATED_TIMESTAMP) {
+                    if (shardUpdateMessage.autoGeneratedIdTimestamp() != UNSET_AUTO_GENERATED_TIMESTAMP) {
                         logger.info("Delete operation without ID received, and will be dropped.");
                         operation = new Engine.NoOp(
                             0,
@@ -252,12 +252,6 @@ public class MessageProcessorRunnable implements Runnable {
 
             return operation;
         }
-
-        private Map<String, Object> getParsedPayloadMap(byte[] payload) {
-            BytesReference payloadBR = new BytesArray(payload);
-            Map<String, Object> payloadMap = XContentHelper.convertToMap(payloadBR, false, MediaTypeRegistry.xContentType(payloadBR)).v2();
-            return payloadMap;
-        }
     }
 
     private static BytesReference convertToBytes(Object object) throws IOException {
@@ -265,7 +259,7 @@ public class MessageProcessorRunnable implements Runnable {
         return BytesReference.bytes(XContentFactory.jsonBuilder().map((Map) object));
     }
 
-    BlockingQueue<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> getBlockingQueue() {
+    BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> getBlockingQueue() {
         return blockingQueue;
     }
 
@@ -275,34 +269,34 @@ public class MessageProcessorRunnable implements Runnable {
      */
     @Override
     public void run() {
-        IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message> readResult = null;
+        ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message> shardUpdateMessage = null;
 
-        while (!(Thread.currentThread().isInterrupted())) {
+        while (Thread.currentThread().isInterrupted() == false && closed == false) {
             try {
-                if (readResult == null) {
-                    readResult = blockingQueue.poll(1000, TimeUnit.MILLISECONDS);
+                if (shardUpdateMessage == null) {
+                    shardUpdateMessage = blockingQueue.poll(1000, TimeUnit.MILLISECONDS);
                 }
             } catch (InterruptedException e) {
                 // TODO: add metric
                 logger.debug("MessageProcessorRunnable poll interruptedException", e);
                 Thread.currentThread().interrupt(); // Restore interrupt status
             }
-            if (readResult != null) {
+            if (shardUpdateMessage != null) {
                 try {
-                    stats.inc();
-                    currentShardPointer = readResult.getPointer();
-                    messageProcessor.process(readResult.getMessage(), readResult.getPointer());
-                    readResult = null;
+                    processedCounter.inc();
+                    currentShardPointer = shardUpdateMessage.pointer();
+                    messageProcessor.process(shardUpdateMessage, skippedCounter);
+                    shardUpdateMessage = null;
                 } catch (VersionConflictEngineException e) {
                     // Messages with version conflicts will be dropped. This should not have any impact to data
                     // correctness as pull-based ingestion does not support partial updates.
                     // TODO: add metric
-                    logger.debug("Dropping message due to version conflict. ShardPointer: " + readResult.getPointer().asString(), e);
-                    readResult = null;
+                    logger.debug("Dropping message due to version conflict. ShardPointer: " + shardUpdateMessage.pointer().asString(), e);
+                    shardUpdateMessage = null;
                 } catch (Exception e) {
                     errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.PROCESSING);
                     if (errorStrategy.shouldIgnoreError(e, IngestionErrorStrategy.ErrorStage.PROCESSING)) {
-                        readResult = null;
+                        shardUpdateMessage = null;
                     } else {
                         waitBeforeRetry();
                     }
@@ -320,8 +314,12 @@ public class MessageProcessorRunnable implements Runnable {
         }
     }
 
-    public CounterMetric getStats() {
-        return stats;
+    public CounterMetric getProcessedCounter() {
+        return processedCounter;
+    }
+
+    public CounterMetric getSkippedCounter() {
+        return skippedCounter;
     }
 
     public IngestionErrorStrategy getErrorStrategy() {
@@ -335,5 +333,13 @@ public class MessageProcessorRunnable implements Runnable {
     @Nullable
     public IngestionShardPointer getCurrentShardPointer() {
         return currentShardPointer;
+    }
+
+    /**
+     * Closes and stops the message processor.
+     */
+    @Override
+    public void close() {
+        closed = true;
     }
 }
