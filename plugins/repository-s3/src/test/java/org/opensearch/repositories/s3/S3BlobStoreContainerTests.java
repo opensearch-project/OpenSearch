@@ -99,6 +99,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -796,9 +797,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         // Execute the method being tested and EXPECT the IOException
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
 
-        IOException ioException = expectThrows(IOException.class, () -> {
-            blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
-        });
+        IOException ioException = expectThrows(
+            IOException.class,
+            () -> blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener)
+        );
 
         // Verify IOException details
         assertEquals("Unable to upload object [" + blobName + "] due to ETag mismatch", ioException.getMessage());
@@ -872,9 +874,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         ByteArrayInputStream input = new ByteArrayInputStream(new byte[blobSize]);
 
         // Modified section: Use expectThrows to handle the exception
-        IOException exception = expectThrows(IOException.class, () -> {
-            blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, input, blobSize, null, etag, listener);
-        });
+        IOException exception = expectThrows(
+            IOException.class,
+            () -> blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, input, blobSize, null, etag, listener)
+        );
 
         // Verify the exception matches expected format
         String expectedErrorMessage = "S3 error during upload [" + blobName + "]: Access Denied";
@@ -1017,9 +1020,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
 
         // Use expectThrows to handle the expected exception
-        IOException exception = expectThrows(IOException.class, () -> {
-            blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener);
-        });
+        IOException exception = expectThrows(
+            IOException.class,
+            () -> blobContainer.executeSingleUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, eTag, etagListener)
+        );
 
         // Verify the thrown exception
         assertEquals("S3 upload failed for [" + blobName + "]", exception.getMessage());
@@ -1836,8 +1840,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         byte[] reassembledContent = new byte[(int) blobSize];
         int offset = 0;
-        for (int i = 0; i < capturedPartContents.size(); i++) {
-            byte[] partContent = capturedPartContents.get(i);
+        for (byte[] partContent : capturedPartContents) {
             System.arraycopy(partContent, 0, reassembledContent, offset, partContent.length);
             offset += partContent.length;
         }
@@ -2064,6 +2067,109 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                 fail("Should not fail with size validation error: " + e);
             }
         }
+    }
+
+    /**
+     * Tests handling of 412 Precondition Failed errors when ETag doesn't match
+     */
+    public void testExecuteMultipartUploadIfEtagMatchesPreconditionFailed() {
+        // Setup test parameters
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+
+        final BlobPath blobPath = new BlobPath();
+        final long partSize = ByteSizeUnit.MB.toBytes(5); // 5MB
+        final long blobSize = partSize * 2; // Two parts for simplicity
+
+        // Mock S3BlobStore
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        // Mock S3 client
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        // Create 412 Precondition Failed exception
+        S3Exception preconditionFailedException = (S3Exception) S3Exception.builder()
+            .message("Precondition Failed")
+            .statusCode(412)
+            .build();
+
+        // Setup success for initial upload stages
+        final String uploadId = randomAlphaOfLengthBetween(10, 20);
+        when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+        );
+
+        // Mock part uploads - make them succeed
+        when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenReturn(
+            UploadPartResponse.builder().eTag("part-etag").build()
+        );
+
+        // Fail on complete with 412 - THIS is where the ETag check happens
+        when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenThrow(preconditionFailedException);
+
+        // Setup for abort verification
+        ArgumentCaptor<AbortMultipartUploadRequest> abortCaptor = ArgumentCaptor.forClass(AbortMultipartUploadRequest.class);
+        doNothing().when(client).abortMultipartUpload(abortCaptor.capture());
+
+        // Capture exception with AtomicReference
+        final AtomicReference<Exception> capturedException = new AtomicReference<>();
+        ActionListener<String> etagListener = ActionListener.wrap(
+            r -> fail("Should have failed with precondition failure"),
+            capturedException::set
+        );
+
+        // Execute the multipart upload - use expectThrows to capture IOException
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
+
+        IOException ioException = expectThrows(
+            IOException.class,
+            () -> blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, eTag, etagListener)
+        );
+
+        // Verify IOException message
+        assertEquals("Unable to upload object [" + blobName + "] due to ETag mismatch", ioException.getMessage());
+        assertEquals(preconditionFailedException, ioException.getCause());
+
+        // Verify the listener exception
+        Exception exception = capturedException.get();
+        assertNotNull("Expected an exception to be captured", exception);
+
+        // Verify exception type
+        assertTrue("Exception should be an OpenSearchException", exception instanceof OpenSearchException);
+        OpenSearchException osException = (OpenSearchException) exception;
+
+        // Verify OpenSearchException message
+        assertEquals("stale_primary_shard", osException.getMessage());
+
+        // Verify cause is preserved
+        Throwable cause = osException.getCause();
+        assertNotNull("Should have a cause", cause);
+        assertTrue("Cause should be an S3Exception", cause instanceof S3Exception);
+        S3Exception s3Cause = (S3Exception) cause;
+        assertEquals(412, s3Cause.statusCode());
+
+        // Verify S3 client was used correctly - complete flow until error
+        verify(client).createMultipartUpload(any(CreateMultipartUploadRequest.class));
+        verify(client).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
+
+        // Verify abort was called to clean up the failed upload
+        verify(client).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+
+        // Verify resources were properly closed
+        verify(clientReference).close();
     }
 
     public void testInitCannedACL() {
