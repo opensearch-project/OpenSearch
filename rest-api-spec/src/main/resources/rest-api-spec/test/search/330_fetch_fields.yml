@@ -1,8 +1,3 @@
-setup:
-  - skip:
-      version: " - 7.9.99"
-      reason: "the 'fields' parameter was added in 7.10"
-
 ---
 "Test basic field retrieval":
   - do:
@@ -262,9 +257,6 @@ setup:
 
 ---
 "Test token count":
-  - skip:
-      version: " - 7.9.99"
-      reason: "support for token_count was instroduced in 7.10"
   - do:
       indices.create:
         index:  test

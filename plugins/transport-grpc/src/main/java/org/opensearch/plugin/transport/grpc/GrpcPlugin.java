@@ -20,6 +20,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugin.transport.grpc.services.DocumentServiceImpl;
 import org.opensearch.plugin.transport.grpc.services.SearchServiceImpl;
+import org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
@@ -28,7 +29,6 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
-import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
@@ -42,12 +42,16 @@ import io.grpc.BindableService;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_HOST;
+import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_KEEPALIVE_TIMEOUT;
+import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS;
+import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONNECTION_AGE;
+import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_MAX_CONNECTION_IDLE;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PORT;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_HOST;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT;
-import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.GRPC_SECURE_TRANSPORT_SETTING_KEY;
-import static org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT;
+import static org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport.GRPC_SECURE_TRANSPORT_SETTING_KEY;
+import static org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT;
 
 /**
  * Main class for the gRPC plugin.
@@ -145,12 +149,16 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin {
     public List<Setting<?>> getSettings() {
         return List.of(
             SETTING_GRPC_PORT,
+            SETTING_GRPC_PUBLISH_PORT,
             SETTING_GRPC_SECURE_PORT,
             SETTING_GRPC_HOST,
             SETTING_GRPC_PUBLISH_HOST,
             SETTING_GRPC_BIND_HOST,
             SETTING_GRPC_WORKER_COUNT,
-            SETTING_GRPC_PUBLISH_PORT
+            SETTING_GRPC_MAX_CONCURRENT_CONNECTION_CALLS,
+            SETTING_GRPC_MAX_CONNECTION_AGE,
+            SETTING_GRPC_MAX_CONNECTION_IDLE,
+            SETTING_GRPC_KEEPALIVE_TIMEOUT
         );
     }
 

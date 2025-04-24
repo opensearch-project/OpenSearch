@@ -658,7 +658,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
                 return extractNumericMinAndMax(reader, sortField, fieldType, sortBuilder);
             case STRING:
             case STRING_VAL:
-                if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                if (fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType) {
                     Terms terms = MultiTerms.getTerms(reader, fieldType.name());
                     if (terms == null) {
                         return null;
@@ -680,7 +680,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
         if (PointValues.size(reader, fieldName) == 0) {
             return null;
         }
-        if (fieldType instanceof NumberFieldType) {
+        if (fieldType.unwrap() instanceof NumberFieldType) {
             NumberFieldType numberFieldType = (NumberFieldType) fieldType;
             Number minPoint = numberFieldType.parsePoint(PointValues.getMinPackedValue(reader, fieldName));
             Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(reader, fieldName));
@@ -701,7 +701,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
                 default:
                     return null;
             }
-        } else if (fieldType instanceof DateFieldType) {
+        } else if (fieldType.unwrap() instanceof DateFieldType) {
             DateFieldType dateFieldType = (DateFieldType) fieldType;
             Function<byte[], Long> dateConverter = createDateConverter(sortBuilder, dateFieldType);
             Long min = dateConverter.apply(PointValues.getMinPackedValue(reader, fieldName));

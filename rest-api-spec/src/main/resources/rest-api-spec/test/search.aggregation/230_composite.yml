@@ -243,8 +243,6 @@ setup:
 ---
 "Composite aggregation with format":
   - skip:
-      version: " - 7.1.99"
-      reason:  calendar_interval introduced in 7.2.0
       features: allowed_warnings
 
   - do:
@@ -308,9 +306,6 @@ setup:
 
 ---
 "Composite aggregation with format and calendar_interval":
-  - skip:
-      version: " - 7.1.99"
-      reason:  calendar_interval introduced in 7.2.0
 
   - do:
       search:
@@ -369,9 +364,7 @@ setup:
 
 ---
 "Composite aggregation with date_histogram offset":
-  - skip:
-      version: " - 7.5.99"
-      reason:  offset introduced in 7.6.0
+
 
   - do:
       search:
@@ -639,9 +632,6 @@ setup:
 
 ---
 "Composite aggregation with unmapped field":
-  - skip:
-      version: " - 7.1.99"
-      reason:  starting in 7.2 the composite aggregation handles unmapped fields as keywords
 
   - do:
       search:
@@ -720,9 +710,6 @@ setup:
 
 ---
 "Missing source":
-  - skip:
-      version: " - 7.1.99"
-      reason:  null/empty sources disallowed in 7.2
 
   - do:
         catch: /Composite \[sources\] cannot be null or empty/
@@ -749,9 +736,6 @@ setup:
 
 ---
 "Duplicate sources":
-  - skip:
-      version: " - 7.1.99"
-      reason:  duplicate names disallowed in 7.2
 
   - do:
         catch: /Composite source names must be unique, found duplicates[:] \[keyword\]/
@@ -781,9 +765,7 @@ setup:
 
 ---
 "Mixed ip and unmapped fields":
-  - skip:
-      version: " - 7.5.99"
-      reason: This will fail against 7.x until the fix is backported there
+
   # It is important that the index *without* the ip field be sorted *before*
   # the index *with* the ip field because that has caused bugs in the past.
   - do:
@@ -827,9 +809,7 @@ setup:
 
 ---
 "date_histogram with time_zone":
-  - skip:
-      version: " - 7.6.0"
-      reason: Fixed in 7.6.0
+
   - do:
       index:
         index:   test
@@ -895,9 +875,7 @@ setup:
 
 ---
 "date_histogram on date_nanos":
-  - skip:
-      version: " - 7.6.99"
-      reason: Fixed in 7.7.0
+
   - do:
         indices.create:
           index: test_nanos
@@ -996,9 +974,7 @@ setup:
 
 ---
 "Terms source from part of sorted":
-  - skip:
-      version: " - 7.6.99"
-      reason:  fixed in 7.7.0
+
 
   - do:
         indices.create:

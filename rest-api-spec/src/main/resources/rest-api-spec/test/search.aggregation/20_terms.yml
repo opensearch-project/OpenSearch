@@ -1016,9 +1016,7 @@ setup:
 
 ---
 "No field or script":
-  - skip:
-      version: " - 7.7.99"
-      reason:  "Exception was a deep, server exception before 7.8"
+
   - do:
       catch: /Required one of fields \[field, script\], but none were specified/
       search:
@@ -1028,9 +1026,7 @@ setup:
 
 ---
 "string profiler via global ordinals":
-  - skip:
-      version: " - 7.8.99"
-      reason: debug information added in 7.9.0
+
   - do:
       bulk:
         index: test_1
@@ -1137,9 +1133,7 @@ setup:
 
 ---
 "string profiler via map":
-  - skip:
-      version: " - 7.8.99"
-      reason: debug information added in 7.9.0
+
   - do:
       bulk:
         index: test_1
@@ -1186,9 +1180,7 @@ setup:
 
 ---
 "numeric profiler":
-  - skip:
-      version: " - 7.8.99"
-      reason: debug information added in 7.9.0
+
   - do:
       bulk:
         index: test_1

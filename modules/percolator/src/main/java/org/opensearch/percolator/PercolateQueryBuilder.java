@@ -508,7 +508,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             throw new QueryShardException(context, "field [" + field + "] does not exist");
         }
 
-        if (!(fieldType instanceof PercolatorFieldMapper.PercolatorFieldType)) {
+        if (!(fieldType.unwrap() instanceof PercolatorFieldMapper.PercolatorFieldType)) {
             throw new QueryShardException(
                 context,
                 "expected field [" + field + "] to be of type [percolator], but is of type [" + fieldType.typeName() + "]"

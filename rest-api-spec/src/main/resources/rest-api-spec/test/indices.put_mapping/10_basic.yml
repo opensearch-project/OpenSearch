@@ -112,9 +112,6 @@
 ---
 "Update per-field metadata":
 
-  - skip:
-      version:     " - 7.5.99"
-      reason:      "Per-field meta was introduced in 7.6"
 
   - do:
       indices.create:

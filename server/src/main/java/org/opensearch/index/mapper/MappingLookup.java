@@ -270,7 +270,8 @@ public final class MappingLookup implements Iterable<Mapper> {
      */
     public boolean containsTimeStampField() {
         MappedFieldType timeSeriesFieldType = this.fieldTypeLookup.get(DataStream.TIMESERIES_FIELDNAME);
-        return timeSeriesFieldType != null && timeSeriesFieldType instanceof DateFieldMapper.DateFieldType; // has to be Date field type
+        return timeSeriesFieldType != null && timeSeriesFieldType.unwrap() instanceof DateFieldMapper.DateFieldType; // has to be Date field
+                                                                                                                     // type
     }
 
     private static String parentObject(String field) {

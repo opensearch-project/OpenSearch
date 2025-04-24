@@ -21,7 +21,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Kunal Kotwani     | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
 | Varun Bansal      | [linuxpi](https://github.com/linuxpi)                   | Amazon      |
 | Marc Handalian    | [mch2](https://github.com/mch2)                         | Amazon      |
-| Michael Froh      | [msfroh](https://github.com/msfroh)                     | Amazon      |
+| Michael Froh      | [msfroh](https://github.com/msfroh)                     | Uber        |
 | Nick Knize        | [nknize](https://github.com/nknize)                     | Lucenia     |
 | Owais Kazi        | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
 | Pan Guixin        | [bugmakerrrrrr](https://github.com/bugmakerrrrrr)       | ByteDance   |

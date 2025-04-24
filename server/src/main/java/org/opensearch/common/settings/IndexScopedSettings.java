@@ -269,6 +269,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING,
                 IndexMetadata.INGESTION_SOURCE_PARAMS_SETTING,
                 IndexMetadata.INGESTION_SOURCE_ERROR_STRATEGY_SETTING,
+                IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE,
+                IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT,
+                IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING,
 
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,

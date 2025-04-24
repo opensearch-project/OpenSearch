@@ -164,6 +164,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             .setSettings(Settings.builder().put("ingestion_source.error_strategy", "drop"))
             .get();
         waitForState(() -> "drop".equalsIgnoreCase(getSettings(indexName, "index.ingestion_source.error_strategy")));
+        resumeIngestion(indexName);
         waitForSearchableDocs(2, Arrays.asList(node));
     }
 
@@ -248,8 +249,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         internalCluster().startDataOnlyNode();
-        createIndexWithDefaultSettings("index1", 5, 0);
-        createIndexWithDefaultSettings("index2", 5, 0);
+        createIndexWithDefaultSettings("index1", 5, 0, 1);
+        createIndexWithDefaultSettings("index2", 5, 0, 1);
         ensureGreen("index1");
         ensureGreen("index2");
 

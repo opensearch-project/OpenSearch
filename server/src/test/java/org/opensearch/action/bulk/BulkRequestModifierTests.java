@@ -89,6 +89,7 @@ public class BulkRequestModifierTests extends OpenSearchTestCase {
                 assertThat(item.getFailure().getIndex(), equalTo("_index"));
                 assertThat(item.getFailure().getId(), equalTo(String.valueOf(j)));
                 assertThat(item.getFailure().getMessage(), equalTo("java.lang.RuntimeException"));
+                assertThat(item.getFailure().getSource(), equalTo(BulkItemResponse.Failure.FailureSource.PIPELINE));
             } else {
                 assertThat(bulkResponse.getItems()[j], nullValue());
             }

@@ -652,9 +652,6 @@ setup:
 
 ---
 "Test before":
-  - skip:
-      version: " - 7.1.99"
-      reason: "Implemented in 7.2"
   - do:
       search:
         index: test
@@ -672,9 +669,6 @@ setup:
 
 ---
 "Test after":
-  - skip:
-      version: " - 7.1.99"
-      reason: "Implemented in 7.2"
   - do:
       search:
         index: test
@@ -693,9 +687,7 @@ setup:
 
 ---
 "Test prefix":
-  - skip:
-      version: " - 7.2.99"
-      reason: "Implemented in 7.3"
+
   - do:
       search:
         index: test
@@ -713,9 +705,7 @@ setup:
 
 ---
 "Test wildcard":
-  - skip:
-      version: " - 7.2.99"
-      reason: "Implemented in 7.3"
+
   - do:
       search:
         index: test
@@ -733,9 +723,7 @@ setup:
 
 ---
 "Test fuzzy match":
-  - skip:
-      version: " - 7.5.99"
-      reason: "Implemented in 7.6"
+
   - do:
       search:
         index: test

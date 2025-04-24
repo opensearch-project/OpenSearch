@@ -1,7 +1,5 @@
 setup:
-  - skip:
-      version: " - 7.1.99"
-      reason:  calendar_interval introduced in 7.2.0
+
 
   - do:
       indices.create:
@@ -36,9 +34,6 @@ setup:
 
 ---
 "date_histogram on range with hard bounds":
-  - skip:
-      version: " - 7.9.99"
-      reason:  hard_bounds introduced in 7.10.0
 
   - do:
       search:

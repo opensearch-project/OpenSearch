@@ -91,12 +91,13 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         RoutingPool targetPool = RoutingPool.getShardPool(shardRouting, allocation);
         RoutingPool currentNodePool = RoutingPool.getNodePool(allocation.routingNodes().node(shardRouting.currentNodeId()));
+
         if (RoutingPool.REMOTE_CAPABLE.equals(targetPool) && targetPool != currentNodePool) {
             logger.debug(
                 "Shard: [{}] has current pool: [{}], target pool: [{}]. Cannot remain on node: [{}]",
                 shardRouting.shortSummary(),
                 currentNodePool.name(),
-                RoutingPool.REMOTE_CAPABLE.name(),
+                targetPool.name(),
                 node.node()
             );
             return allocation.decision(
@@ -107,7 +108,25 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
                 currentNodePool,
                 targetPool
             );
-        }
+        } else if (RoutingPool.LOCAL_ONLY.equals(targetPool)
+            && targetPool != currentNodePool
+            && !node.node().getRoles().contains(DiscoveryNodeRole.DATA_ROLE)) {
+                logger.debug(
+                    "Shard: [{}] has target pool: [{}]. Cannot remain on node: [{}] without the [{}] node role",
+                    shardRouting,
+                    targetPool,
+                    node.node(),
+                    DiscoveryNodeRole.DATA_ROLE.roleName()
+                );
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "Routing pools are incompatible. Shard pool: [%s], node pool: [%s] without [%s] role",
+                    targetPool,
+                    currentNodePool,
+                    DiscoveryNodeRole.DATA_ROLE.roleName()
+                );
+            }
         return allocation.decision(
             Decision.YES,
             NAME,

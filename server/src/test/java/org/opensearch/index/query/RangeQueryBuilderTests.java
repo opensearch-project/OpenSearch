@@ -197,7 +197,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 final Long fromInMillis;
                 final Long toInMillis;
                 // we have to normalize the incoming value into milliseconds since it could be literally anything
-                if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+                if (mappedFieldType != null && mappedFieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
                     fromInMillis = queryBuilder.from() == null
                         ? null
                         : ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(

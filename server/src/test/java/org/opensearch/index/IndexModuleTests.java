@@ -264,6 +264,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             translogFactorySupplier,
             () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
             () -> Boolean.FALSE,
+            () -> Boolean.FALSE,
             DefaultRecoverySettings.INSTANCE,
             DefaultRemoteStoreSettings.INSTANCE,
             s -> {},

@@ -36,6 +36,10 @@ public class ApproximateMatchAllQuery extends ApproximateQuery {
         if (context.aggregations() != null) {
             return false;
         }
+        // Exclude approximation when "track_total_hits": true
+        if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+            return false;
+        }
 
         if (context.request() != null && context.request().source() != null && context.innerHits().getInnerHits().isEmpty()) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());

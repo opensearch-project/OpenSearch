@@ -219,8 +219,8 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         if (fieldType == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false
-            && fieldType instanceof NumberFieldMapper.NumberFieldType == false) {
+        if (fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType == false
+            && fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType == false) {
             throw new IllegalArgumentException("unknown type for collapse field `" + field + "`, only keywords and numbers are accepted");
         }
 

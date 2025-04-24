@@ -222,6 +222,14 @@ public abstract class AbstractAsyncBulkByScrollAction<
     protected abstract RequestWrapper<?> buildRequest(ScrollableHitSource.Hit doc);
 
     /**
+     * Build the {@link BulkRequest} for a new bulk operation.
+     * @return the new BulkRequest
+     */
+    protected BulkRequest buildBulkRequest() {
+        return new BulkRequest();
+    }
+
+    /**
      * Copies the metadata from a hit to the request.
      */
     protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
@@ -254,7 +262,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     private BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = buildBulkRequest();
         for (ScrollableHitSource.Hit doc : docs) {
             if (accept(doc)) {
                 RequestWrapper<?> request = scriptApplier.apply(copyMetadata(buildRequest(doc), doc), doc);

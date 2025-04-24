@@ -33,9 +33,6 @@ setup:
 
 ---
 "Clone a snapshot":
-  - skip:
-      version: " - 7.9.99"
-      reason: "Clone snapshot functionality was introduced in 7.10"
   - do:
       snapshot.clone:
         repository: test_repo_create_1

@@ -3,6 +3,7 @@ on:
   pull_request:
     branches-ignore:
       - main # This branch represents a to-be-released version of OpenSearch where breaking changes are allowed
+      - '3.0' # We must establish a baseline 3.0 release version before adding enforcement
 
 jobs:
   detect-breaking-change:
@@ -26,4 +27,3 @@ jobs:
       with:
         name: java-compatibility-report.html
         path: ${{ github.workspace }}/server/build/reports/java-compatibility/report.html
-  
