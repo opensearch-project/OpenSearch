@@ -126,6 +126,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -1733,6 +1734,336 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         // Verify resources were properly closed
         verify(clientReference).close();
 
+    }
+
+    /**
+     * Tests that actual content is properly transmitted during conditional multipart upload
+     */
+    public void testExecuteMultipartUploadIfEtagMatchesContentIntegrity() throws IOException {
+        // Setup test parameters
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String inputETag = randomAlphaOfLengthBetween(8, 32); // Input ETag for condition
+        final String finalETag = randomAlphaOfLengthBetween(8, 32); // Final ETag returned
+        final String uploadId = randomAlphaOfLengthBetween(10, 20);
+
+        final BlobPath blobPath = new BlobPath();
+
+        // Setup for multipart upload with known content
+        final int partCount = 3;
+        final long partSize = ByteSizeUnit.MB.toBytes(5); // 5MB
+        final long blobSize = partSize * partCount;
+
+        // Create verifiable content - use a pattern that's different for each part
+        final byte[] blobContent = new byte[(int) blobSize];
+        Random random = new Random(0); // Fixed seed for reproducibility
+        random.nextBytes(blobContent);
+
+        // Mock S3BlobStore
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+
+        // FIX 1: Replace mock StatsMetricPublisher with a real instance
+        final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
+
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        // Mock S3 client
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        // Setup argument captors with focus on request body
+        final ArgumentCaptor<CreateMultipartUploadRequest> createRequestCaptor = ArgumentCaptor.forClass(
+            CreateMultipartUploadRequest.class
+        );
+        final ArgumentCaptor<CompleteMultipartUploadRequest> completeRequestCaptor = ArgumentCaptor.forClass(
+            CompleteMultipartUploadRequest.class
+        );
+        final ArgumentCaptor<RequestBody> requestBodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
+
+        // Mock responses
+        when(client.createMultipartUpload(createRequestCaptor.capture())).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+        );
+
+        // Content verification will happen in this mock
+        final List<byte[]> capturedPartContents = new ArrayList<>();
+
+        when(client.uploadPart(any(UploadPartRequest.class), requestBodyCaptor.capture())).thenAnswer(invocation -> {
+            // Capture content from request body for later verification
+            RequestBody requestBody = requestBodyCaptor.getValue();
+            try (InputStream contentStream = requestBody.contentStreamProvider().newStream()) {
+                byte[] partContent = contentStream.readAllBytes();
+                capturedPartContents.add(partContent);
+            }
+            return UploadPartResponse.builder().eTag("etag-for-part").build();
+        });
+
+        // Add final ETag to complete response
+        when(client.completeMultipartUpload(completeRequestCaptor.capture())).thenReturn(
+            CompleteMultipartUploadResponse.builder().eTag(finalETag).build()
+        );
+
+        // Create listener
+        @SuppressWarnings("unchecked")
+        ActionListener<String> etagListener = mock(ActionListener.class);
+
+        // FIX 2: Handle exceptions properly - in this case we expect successful execution
+        // If we were expecting an exception, we would use expectThrows instead
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(blobContent);
+        blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, inputETag, etagListener);
+
+        // Verify key request parameters
+        final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
+        assertEquals(bucketName, createRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, createRequest.key());
+
+        final CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
+        assertEquals(inputETag, completeRequest.ifMatch());
+        assertEquals(bucketName, completeRequest.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, completeRequest.key());
+        assertEquals(uploadId, completeRequest.uploadId());
+
+        assertEquals(partCount, capturedPartContents.size());
+
+        byte[] reassembledContent = new byte[(int) blobSize];
+        int offset = 0;
+        for (int i = 0; i < capturedPartContents.size(); i++) {
+            byte[] partContent = capturedPartContents.get(i);
+            System.arraycopy(partContent, 0, reassembledContent, offset, partContent.length);
+            offset += partContent.length;
+        }
+
+        assertArrayEquals("Uploaded content should match original content", blobContent, reassembledContent);
+
+        verify(etagListener).onResponse(finalETag);
+        verify(etagListener, never()).onFailure(any());
+
+        verify(clientReference).close();
+    }
+
+    /**
+     * Tests that multipart uploads enforce minimum and maximum size boundaries
+     */
+    public void testExecuteMultipartUploadIfEtagMatchesSizeValidation() {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String inputETag = randomAlphaOfLengthBetween(8, 32);
+        final String finalETag = randomAlphaOfLengthBetween(8, 32);
+
+        // Use mocked listeners to verify interactions
+        @SuppressWarnings("unchecked")
+        ActionListener<String> invalidSizeListener = mock(ActionListener.class);
+
+        // Test case 1: Below minimum size (4.9MB)
+        {
+            final long tooSmallSize = ByteSizeUnit.MB.toBytes(5) - 1024; // Just below 5MB
+
+            final IllegalArgumentException tooSmallException = expectThrows(
+                IllegalArgumentException.class,
+                () -> blobContainer.executeMultipartUploadIfEtagMatches(
+                    blobStore,
+                    blobName,
+                    new ByteArrayInputStream(new byte[0]),
+                    tooSmallSize,
+                    null,
+                    inputETag,
+                    invalidSizeListener
+                )
+            );
+
+            assertTrue(tooSmallException.getMessage().contains("can't be smaller than"));
+            // Listener should never be called when validation fails immediately
+            verify(invalidSizeListener, never()).onResponse(any());
+            verify(invalidSizeListener, never()).onFailure(any());
+        }
+
+        // Test case 2: Above maximum size (5TB + 1 byte)
+        {
+            final long tooLargeSize = ByteSizeUnit.TB.toBytes(5) + 1;
+
+            final IllegalArgumentException tooLargeException = expectThrows(
+                IllegalArgumentException.class,
+                () -> blobContainer.executeMultipartUploadIfEtagMatches(
+                    blobStore,
+                    blobName,
+                    new ByteArrayInputStream(new byte[0]),
+                    tooLargeSize,
+                    null,
+                    inputETag,
+                    invalidSizeListener
+                )
+            );
+
+            assertTrue(tooLargeException.getMessage().contains("can't be larger than"));
+            verify(invalidSizeListener, never()).onResponse(any());
+            verify(invalidSizeListener, never()).onFailure(any());
+        }
+
+        // Setup mocks for valid size tests
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
+
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+        when(blobStore.bucket()).thenReturn("test-bucket");
+
+        // Configure buffer size to allow valid tests
+        when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(5));
+
+        // Add argument captors for request validation
+        ArgumentCaptor<CompleteMultipartUploadRequest> completeRequestCaptor = ArgumentCaptor.forClass(
+            CompleteMultipartUploadRequest.class
+        );
+
+        // Setup success responses
+        when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId("test-upload-id").build()
+        );
+
+        when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenReturn(
+            UploadPartResponse.builder().eTag("test-etag").build()
+        );
+
+        when(client.completeMultipartUpload(completeRequestCaptor.capture())).thenReturn(
+            CompleteMultipartUploadResponse.builder().eTag(finalETag).build()
+        );
+
+        // Test case 3: Exactly minimum size (5MB)
+        {
+            final long exactMinimumSize = ByteSizeUnit.MB.toBytes(5);
+            @SuppressWarnings("unchecked")
+            ActionListener<String> validSizeListener = mock(ActionListener.class);
+
+            // Use a stream that returns zeros but doesn't allocate full memory
+            InputStream zeroStream = new InputStream() {
+                long remaining = exactMinimumSize;
+
+                @Override
+                public int read() {
+                    if (remaining > 0) {
+                        remaining--;
+                        return 0;
+                    } else {
+                        return -1;
+                    }
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) {
+                    if (remaining <= 0) {
+                        return -1;
+                    }
+                    int toRead = (int) Math.min(len, remaining);
+                    Arrays.fill(b, off, off + toRead, (byte) 0);
+                    remaining -= toRead;
+                    return toRead;
+                }
+            };
+
+            try {
+                // This should not throw an exception
+                blobContainer.executeMultipartUploadIfEtagMatches(
+                    blobStore,
+                    blobName,
+                    zeroStream,
+                    exactMinimumSize,
+                    null,
+                    inputETag,
+                    validSizeListener
+                );
+
+                // Verify that listener was called with success
+                verify(validSizeListener).onResponse(finalETag);
+                verify(validSizeListener, never()).onFailure(any());
+
+                // Verify resources were closed
+                verify(clientReference).close();
+
+                // Verify if-match condition was applied properly
+                CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
+                assertEquals(inputETag, completeRequest.ifMatch());
+
+            } catch (IOException e) {
+                fail("Should not throw exception for exact minimum size: " + e);
+            }
+        }
+
+        // Reset for next test case
+        reset(clientReference);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        // Test case 4: Valid larger size
+        {
+            // Use a moderate size for test purposes (10MB)
+            final long testSize = ByteSizeUnit.MB.toBytes(10);
+            @SuppressWarnings("unchecked")
+            ActionListener<String> validSizeListener = mock(ActionListener.class);
+
+            // Use a stream that returns zeros without allocating full memory
+            InputStream zeroStream = new InputStream() {
+                long remaining = testSize;
+
+                @Override
+                public int read() {
+                    if (remaining > 0) {
+                        remaining--;
+                        return 0;
+                    } else {
+                        return -1;
+                    }
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) {
+                    if (remaining <= 0) {
+                        return -1;
+                    }
+                    int toRead = (int) Math.min(len, remaining);
+                    Arrays.fill(b, off, off + toRead, (byte) 0);
+                    remaining -= toRead;
+                    return toRead;
+                }
+            };
+
+            try {
+                blobContainer.executeMultipartUploadIfEtagMatches(
+                    blobStore,
+                    blobName,
+                    zeroStream,
+                    testSize,
+                    null,
+                    inputETag,
+                    validSizeListener
+                );
+
+                // Verify that listener was called with success
+                verify(validSizeListener).onResponse(finalETag);
+                verify(validSizeListener, never()).onFailure(any());
+
+                // Verify resources were closed
+                verify(clientReference).close();
+
+                // Verify if-match condition was applied properly
+                CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
+                assertEquals(inputETag, completeRequest.ifMatch());
+
+            } catch (IOException e) {
+                fail("Should not fail with size validation error: " + e);
+            }
+        }
     }
 
     public void testInitCannedACL() {
