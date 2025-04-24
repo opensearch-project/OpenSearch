@@ -94,8 +94,8 @@ import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_TARG
  */
 @PublicApi(since = "1.0.0")
 public final class IndexSettings {
-    private static final String DEFAULT_POLICY = "default";
-    private static final String MERGE_ON_FLUSH_MERGE_POLICY = "merge-on-flush";
+    public static final String DEFAULT_POLICY = "default";
+    public static final String MERGE_ON_FLUSH_MERGE_POLICY = "merge-on-flush";
 
     /**
      * Enum representing supported merge policies
@@ -648,7 +648,8 @@ public final class IndexSettings {
     public static final Setting<Boolean> INDEX_CHECK_PENDING_FLUSH_ENABLED = Setting.boolSetting(
         "index.check_pending_flush.enabled",
         true,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.Dynamic
     );
 
     public static final Setting<String> TIME_SERIES_INDEX_MERGE_POLICY = Setting.simpleString(
@@ -902,7 +903,7 @@ public final class IndexSettings {
     /**
      * Is flush check by write threads enabled or not
      */
-    private final boolean checkPendingFlushEnabled;
+    private volatile boolean checkPendingFlushEnabled;
     /**
      * Is fuzzy set enabled for doc id
      */
@@ -1200,6 +1201,11 @@ public final class IndexSettings {
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
             this::setRemoteStoreTranslogRepository
         );
+        scopedSettings.addSettingsUpdateConsumer(INDEX_CHECK_PENDING_FLUSH_ENABLED, this::setCheckPendingFlushEnabled);
+    }
+
+    public void setCheckPendingFlushEnabled(boolean checkPendingFlushEnabled) {
+        this.checkPendingFlushEnabled = checkPendingFlushEnabled;
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
