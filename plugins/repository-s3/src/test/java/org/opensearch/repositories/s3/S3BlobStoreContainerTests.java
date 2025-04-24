@@ -2120,9 +2120,9 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         // Fail on complete with 412 - THIS is where the ETag check happens
         when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenThrow(preconditionFailedException);
 
-        // Setup for abort verification
+        // Setup for abort verification - FIX: use thenReturn instead of doNothing()
         ArgumentCaptor<AbortMultipartUploadRequest> abortCaptor = ArgumentCaptor.forClass(AbortMultipartUploadRequest.class);
-        doNothing().when(client).abortMultipartUpload(abortCaptor.capture());
+        when(client.abortMultipartUpload(abortCaptor.capture())).thenReturn(AbortMultipartUploadResponse.builder().build());
 
         // Capture exception with AtomicReference
         final AtomicReference<Exception> capturedException = new AtomicReference<>();
@@ -2146,27 +2146,24 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         // Verify the listener exception
         Exception exception = capturedException.get();
         assertNotNull("Expected an exception to be captured", exception);
-
-        // Verify exception type
         assertTrue("Exception should be an OpenSearchException", exception instanceof OpenSearchException);
         OpenSearchException osException = (OpenSearchException) exception;
-
-        // Verify OpenSearchException message
         assertEquals("stale_primary_shard", osException.getMessage());
 
         // Verify cause is preserved
         Throwable cause = osException.getCause();
         assertNotNull("Should have a cause", cause);
         assertTrue("Cause should be an S3Exception", cause instanceof S3Exception);
-        S3Exception s3Cause = (S3Exception) cause;
-        assertEquals(412, s3Cause.statusCode());
+        assertEquals(412, ((S3Exception) cause).statusCode());
 
-        // Verify S3 client was used correctly - complete flow until error
+        // Verify multipart workflow and cleanup
         verify(client).createMultipartUpload(any(CreateMultipartUploadRequest.class));
         verify(client).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
-
-        // Verify abort was called to clean up the failed upload
         verify(client).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+
+        // Verify abort targeted the correct upload
+        AbortMultipartUploadRequest abortRequest = abortCaptor.getValue();
+        assertEquals(uploadId, abortRequest.uploadId());
 
         // Verify resources were properly closed
         verify(clientReference).close();
