@@ -822,14 +822,14 @@ public final class IndexModule {
 
     private static IndexStorePlugin.CompositeDirectoryFactory getCompositeDirectoryFactory(
         final IndexSettings indexSettings,
-        final Map<String, IndexStorePlugin.CompositeDirectoryFactory> indexStoreFactories
+        final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories
     ) {
         final String compositeStoreType = indexSettings.getValue(INDEX_COMPOSITE_STORE_TYPE_SETTING);
         final IndexStorePlugin.CompositeDirectoryFactory factory;
-        if (compositeStoreType.isEmpty() || indexStoreFactories.isEmpty()) {
+        if (compositeStoreType.isEmpty() || compositeDirectoryFactories.isEmpty()) {
             factory = DEFAULT_COMPOSITE_DIRECTORY_FACTORY;
         } else {
-            factory = indexStoreFactories.get(compositeStoreType);
+            factory = compositeDirectoryFactories.get(compositeStoreType);
             if (factory == null) {
                 throw new IllegalArgumentException("Unknown composite store type [" + compositeStoreType + "]");
             }
