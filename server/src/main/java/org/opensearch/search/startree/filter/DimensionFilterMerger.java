@@ -13,6 +13,10 @@ import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Utility class for merging different types of {@link DimensionFilter}
+ * Handles intersection operations between {@link ExactMatchDimFilter} and {@link RangeMatchDimFilter}
+ */
 public class DimensionFilterMerger {
 
     /**

@@ -26,6 +26,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Converts {@link BoolQueryBuilder} into {@link StarTreeFilter}
+ */
 public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
     @Override
     public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
