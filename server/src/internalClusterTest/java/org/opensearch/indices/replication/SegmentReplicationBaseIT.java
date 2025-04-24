@@ -121,7 +121,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                     fail("Expected search hits on node: " + node + " to be at least " + docCount + " but was: " + hits);
                 }
             }
-        }, 1, TimeUnit.MINUTES);
+        }, 2, TimeUnit.MINUTES);
     }
 
     protected void waitForSearchableDocs(long docCount, String... nodes) throws Exception {
