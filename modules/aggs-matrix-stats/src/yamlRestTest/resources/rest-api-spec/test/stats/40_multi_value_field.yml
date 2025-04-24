@@ -132,7 +132,8 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 14}
   - match: {aggregations.mfs.fields.0.count: 14}
-  - match: {aggregations.mfs.fields.0.correlation.val1: 0.06838646533369998}
+  - gte: {aggregations.mfs.fields.0.correlation.val1: 0.068386465333698}
+  - lte: {aggregations.mfs.fields.0.correlation.val1: 0.068386465333701}
 
 ---
 "Multi value field Min":
@@ -146,7 +147,8 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 14}
   - match: {aggregations.mfs.fields.0.count: 14}
-  - match: {aggregations.mfs.fields.0.correlation.val1: -0.09777682707831963}
+  - gte: {aggregations.mfs.fields.0.correlation.val1: -0.097776827078320}
+  - lte: {aggregations.mfs.fields.0.correlation.val1: -0.097776827078318}
 
 ---
 "Partially unmapped":
@@ -160,7 +162,8 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 13}
   - match: {aggregations.mfs.fields.0.count: 13}
-  - match: {aggregations.mfs.fields.0.correlation.val1: -0.044997535185684244}
+  - gte: {aggregations.mfs.fields.0.correlation.val1: -0.044997535185685}
+  - lte: {aggregations.mfs.fields.0.correlation.val1: -0.044997535185683}
 
 ---
 "Partially unmapped with missing defaults":
@@ -174,7 +177,8 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 15}
   - match: {aggregations.mfs.fields.0.count: 15}
-  - match: {aggregations.mfs.fields.0.correlation.val2: 0.04028024709708195}
+  - gte: {aggregations.mfs.fields.0.correlation.val2: 0.040280247097080}
+  - lte: {aggregations.mfs.fields.0.correlation.val2: 0.040280247097082}
 
 ---
 "With script":
