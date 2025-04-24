@@ -279,7 +279,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<String> CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE = Setting.simpleString(
         "search.concurrent_segment_search.mode",
-        CONCURRENT_SEGMENT_SEARCH_MODE_NONE,
+        CONCURRENT_SEGMENT_SEARCH_MODE_AUTO,
         value -> {
             switch (value) {
                 case CONCURRENT_SEGMENT_SEARCH_MODE_ALL:
@@ -297,18 +297,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     // settings to configure maximum slice created per search request using OS custom slice computation mechanism. Default lucene
     // mechanism will not be used if this setting is set with value > 0
-    public static final String CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY = "search.concurrent.max_slice_count";
-    public static final int CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE = 0;
+    public static final String CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY = "search.concurrent.max_slice_count";
+    public static final int CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE = computeDefaultSliceCount();
+    public static final int CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE = 0;
 
     // value == 0 means lucene slice computation will be used
     public static final Setting<Integer> CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING = Setting.intSetting(
-        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY,
-        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
-        CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE,
+        CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY,
+        CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE,
+        CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE,
         Property.Dynamic,
         Property.NodeScope
     );
-
     // value 0 means rewrite filters optimization in aggregations will be disabled
     @ExperimentalApi
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
@@ -1869,6 +1869,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         public MinAndMax<?> estimatedMinAndMax() {
             return estimatedMinAndMax;
         }
+    }
+
+    /**
+     * Computes the default maximum number of slices for concurrent segment search.
+     * <p>
+     * This value is dynamically calculated as:
+     * <pre>
+     *     min(availableProcessors / 2, 4)
+     * </pre>
+     * This ensures that:
+     * <ul>
+     *   <li>On small machines, it avoids over-threading.</li>
+     *   <li>On larger machines, it caps the concurrency to a reasonable level (4 slices).</li>
+     * </ul>
+     * This default is used when the user does not explicitly set the
+     * {@code search.concurrent.max_slice_count} cluster setting.
+     *
+     * @return the computed default slice count
+     */
+    private static int computeDefaultSliceCount() {
+        return Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
     }
 
     /**
