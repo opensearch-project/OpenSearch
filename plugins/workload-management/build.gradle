@@ -17,10 +17,11 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
   description = 'OpenSearch Workload Management Plugin.'
   classname = 'org.opensearch.plugin.wlm.WorkloadManagementPlugin'
-  extendedPlugins = ['rule-framework'] // Remove autotagging-commons since it's not a plugin
+  extendedPlugins = ['rule-framework']
 }
 
 dependencies {
   implementation project(':modules:autotagging-commons:common')
-  implementation project(':modules:autotagging-commons:spi')
+  compileOnly project(':modules:autotagging-commons:spi')
+  compileOnly project(':modules:autotagging-commons')
 }

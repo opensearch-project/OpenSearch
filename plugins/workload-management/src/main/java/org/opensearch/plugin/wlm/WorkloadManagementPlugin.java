@@ -79,6 +79,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     private final RulePersistenceServiceHolder rulePersistenceServiceHolder = new RulePersistenceServiceHolder();
 
     private AutoTaggingActionFilter autoTaggingActionFilter;
+
     /**
      * Default constructor
      */
@@ -105,7 +106,10 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE),
             new IndexBasedRuleQueryMapper()
         );
-        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(WorkloadGroupFeatureType.INSTANCE, DefaultAttributeValueStore::new);
+        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
+            WorkloadGroupFeatureType.INSTANCE,
+            DefaultAttributeValueStore::new
+        );
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
         return Collections.emptyList();
     }
