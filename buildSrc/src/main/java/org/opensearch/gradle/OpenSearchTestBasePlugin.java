@@ -166,7 +166,7 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 "java.security.properties",
                 project.getRootProject().getLayout().getProjectDirectory() + "/distribution/src/config/" + securityFile
             );
-
+            nonInputProperties.systemProperty("project.integTest.dir", project.getBuildDir().toPath().resolve("testclusters"));
             // don't track these as inputs since they contain absolute paths and break cache relocatability
             File gradleHome = project.getGradle().getGradleUserHomeDir();
             String gradleVersion = project.getGradle().getGradleVersion();
