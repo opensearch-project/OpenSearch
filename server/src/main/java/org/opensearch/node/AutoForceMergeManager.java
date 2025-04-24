@@ -279,12 +279,12 @@ public class AutoForceMergeManager {
         public ValidationResult validate() {
             initializeIfNeeded();
             if (!isRemoteStoreEnabled) {
-                logger.info("Node configuration doesn't meet requirements. Closing task.");
+                logger.info("Domain configuration is not meeting the criteria. Closing task.");
                 task.close();
                 return new ValidationResult(false);
             }
             if (!isOnlyDataNode) {
-                logger.info("Domain configuration is not meeting the criteria. Closing task.");
+                logger.info("Node configuration doesn't meet requirements. Closing task.");
                 task.close();
                 return new ValidationResult(false);
             }
