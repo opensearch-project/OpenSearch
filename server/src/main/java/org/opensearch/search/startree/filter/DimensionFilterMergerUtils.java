@@ -17,7 +17,7 @@ import java.util.List;
  * Utility class for merging different types of {@link DimensionFilter}
  * Handles intersection operations between {@link ExactMatchDimFilter} and {@link RangeMatchDimFilter}
  */
-public class DimensionFilterMerger {
+public class DimensionFilterMergerUtils {
 
     /**
      * Gets intersection of two DimensionFilters

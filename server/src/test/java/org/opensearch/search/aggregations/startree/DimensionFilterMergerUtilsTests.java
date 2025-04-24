@@ -11,7 +11,7 @@ package org.opensearch.search.aggregations.startree;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.startree.filter.DimensionFilter;
-import org.opensearch.search.startree.filter.DimensionFilterMerger;
+import org.opensearch.search.startree.filter.DimensionFilterMergerUtils;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
 import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
-public class DimensionFilterMergerTests extends OpenSearchTestCase {
+public class DimensionFilterMergerUtilsTests extends OpenSearchTestCase {
 
     private DimensionFilterMapper numericMapper;
     private DimensionFilterMapper keywordMapper;
@@ -97,7 +97,7 @@ public class DimensionFilterMergerTests extends OpenSearchTestCase {
         // incompatible types
         assertThrows(
             IllegalArgumentException.class,
-            () -> DimensionFilterMerger.intersect(
+            () -> DimensionFilterMergerUtils.intersect(
                 range("status", "200", "300", true, true),
                 range("status", 200, 300, true, true),
                 numericMapper
@@ -193,7 +193,7 @@ public class DimensionFilterMergerTests extends OpenSearchTestCase {
         // Cannot intersect different dimensions
         assertThrows(
             IllegalArgumentException.class,
-            () -> DimensionFilterMerger.intersect(range("status", 200, 300, true, true), range("port", 80, 443, true, true), numericMapper)
+            () -> DimensionFilterMergerUtils.intersect(range("status", 200, 300, true, true), range("port", 80, 443, true, true), numericMapper)
         );
     }
 
@@ -266,7 +266,7 @@ public class DimensionFilterMergerTests extends OpenSearchTestCase {
         RangeMatchDimFilter expected,
         DimensionFilterMapper mapper
     ) {
-        DimensionFilter result = DimensionFilterMerger.intersect(filter1, filter2, mapper);
+        DimensionFilter result = DimensionFilterMergerUtils.intersect(filter1, filter2, mapper);
         assertTrue(result instanceof RangeMatchDimFilter);
         RangeMatchDimFilter rangeResult = (RangeMatchDimFilter) result;
         assertEquals(expected.getLow(), rangeResult.getLow());
@@ -281,7 +281,7 @@ public class DimensionFilterMergerTests extends OpenSearchTestCase {
         ExactMatchDimFilter expected,
         DimensionFilterMapper mapper
     ) {
-        DimensionFilter result = DimensionFilterMerger.intersect(filter1, filter2, mapper);
+        DimensionFilter result = DimensionFilterMergerUtils.intersect(filter1, filter2, mapper);
         assertTrue(result instanceof ExactMatchDimFilter);
         ExactMatchDimFilter exactResult = (ExactMatchDimFilter) result;
         assertEquals(new HashSet<>(expected.getRawValues()), new HashSet<>(exactResult.getRawValues()));
@@ -293,13 +293,13 @@ public class DimensionFilterMergerTests extends OpenSearchTestCase {
         ExactMatchDimFilter expected,
         DimensionFilterMapper mapper
     ) {
-        DimensionFilter result = DimensionFilterMerger.intersect(range, exact, mapper);
+        DimensionFilter result = DimensionFilterMergerUtils.intersect(range, exact, mapper);
         assertTrue(result instanceof ExactMatchDimFilter);
         ExactMatchDimFilter exactResult = (ExactMatchDimFilter) result;
         assertEquals(new HashSet<>(expected.getRawValues()), new HashSet<>(exactResult.getRawValues()));
     }
 
     private void assertNoIntersection(DimensionFilter filter1, DimensionFilter filter2, DimensionFilterMapper mapper) {
-        assertNull(DimensionFilterMerger.intersect(filter1, filter2, mapper));
+        assertNull(DimensionFilterMergerUtils.intersect(filter1, filter2, mapper));
     }
 }

@@ -16,7 +16,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
-import org.opensearch.search.startree.filter.DimensionFilterMerger;
+import org.opensearch.search.startree.filter.DimensionFilterMergerUtils;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
@@ -121,7 +121,7 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
                         List<DimensionFilter> intersectedFilters = new ArrayList<>();
                         for (DimensionFilter shouldFilter : newFilters) {
                             for (DimensionFilter existingFilter : existingFilters) {
-                                DimensionFilter intersected = DimensionFilterMerger.intersect(existingFilter, shouldFilter, mapper);
+                                DimensionFilter intersected = DimensionFilterMergerUtils.intersect(existingFilter, shouldFilter, mapper);
                                 if (intersected != null) {
                                     intersectedFilters.add(intersected);
                                 }
@@ -135,7 +135,7 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
                         // Here's where we need the DimensionFilter merging logic
                         // For example: merging range with term, or range with range
                         // And a single dimension filter coming from should clause is as good as must clause
-                        DimensionFilter mergedFilter = DimensionFilterMerger.intersect(
+                        DimensionFilter mergedFilter = DimensionFilterMergerUtils.intersect(
                             existingFilters.getFirst(),
                             newFilters.getFirst(),
                             mapper
