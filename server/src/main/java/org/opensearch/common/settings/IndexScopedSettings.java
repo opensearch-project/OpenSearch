@@ -260,6 +260,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING,
                 StarTreeIndexSettings.STAR_TREE_MAX_BASE_METRICS_SETTING,
                 StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING,
+                StarTreeIndexSettings.IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING,
 
                 IndexSettings.INDEX_CONTEXT_CREATED_VERSION,
                 IndexSettings.INDEX_CONTEXT_CURRENT_VERSION,

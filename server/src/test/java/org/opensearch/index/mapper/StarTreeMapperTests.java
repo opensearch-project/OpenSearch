@@ -13,7 +13,6 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -32,8 +31,6 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfig
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +40,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
 import static org.opensearch.index.compositeindex.CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING;
@@ -54,17 +50,6 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
  * Tests for {@link StarTreeMapper}.
  */
 public class StarTreeMapperTests extends MapperTestCase {
-    FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
-
-    @Before
-    public void setup() {
-        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-    }
-
-    @After
-    public void teardown() {
-        ffLock.close();
-    }
 
     @Override
     protected Settings getIndexSettings() {
@@ -633,7 +618,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             () -> CompositeIndexValidator.validate(finalMapperService, compositeIndexSettings, finalMapperService.getIndexSettings())
         );
         assertEquals(
-            "star tree index cannot be created, enable it using [indices.composite_index.star_tree.enabled] setting",
+            "star tree index cannot be created, enable it using [indices.composite_index.star_tree.enabled] cluster setting or [index.search.star_tree_index.enabled] index setting",
             ex.getMessage()
         );
 

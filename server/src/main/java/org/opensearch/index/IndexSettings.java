@@ -930,7 +930,15 @@ public final class IndexSettings {
      */
     private volatile double docIdFuzzySetFalsePositiveProbability;
 
+    /**
+     * Denotes whether this is a composite index i.e star-tree index etc
+     */
     private final boolean isCompositeIndex;
+
+    /**
+     * Denotes whether search via star tree index is enabled for this index
+     */
+    private volatile boolean isStarTreeIndexEnabled;
 
     /**
      * Returns the default search fields for this index.
@@ -1096,6 +1104,7 @@ public final class IndexSettings {
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
         isCompositeIndex = scopedSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
+        isStarTreeIndexEnabled = scopedSettings.get(StarTreeIndexSettings.IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING);
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -1219,6 +1228,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
             this::setRemoteStoreTranslogRepository
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            StarTreeIndexSettings.IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING,
+            this::setStarTreeIndexEnabled
         );
     }
 
@@ -1788,6 +1801,14 @@ public final class IndexSettings {
      */
     public long getGcDeletesInMillis() {
         return gcDeletesInMillis;
+    }
+
+    public void setStarTreeIndexEnabled(boolean value) {
+        this.isStarTreeIndexEnabled = value;
+    }
+
+    public boolean getStarTreeIndexEnabled() {
+        return isStarTreeIndexEnabled;
     }
 
     /**

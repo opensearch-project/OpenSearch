@@ -107,7 +107,6 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for non-nested metric aggregations, with/without numeric term query
      */
-    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testQueryParsingForMetricAggregations() throws IOException {
         setStarTreeIndexSetting("true");
 
@@ -252,7 +251,6 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for date histogram aggregations, with/without numeric term query
      */
-    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testQueryParsingForDateHistogramAggregations() throws IOException {
         setStarTreeIndexSetting("true");
 
@@ -492,7 +490,6 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for date histogram aggregations on star-tree index when @timestamp field does not exist
      */
-    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testInvalidQueryParsingForDateHistogramAggregations() throws IOException {
         setStarTreeIndexSetting("true");
 

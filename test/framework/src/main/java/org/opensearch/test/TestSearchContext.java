@@ -713,6 +713,13 @@ public class TestSearchContext extends SearchContext {
             && sort.sort.getSort()[0].getReverse() == false;
     }
 
+    @Override
+    public boolean getStarTreeIndexEnabled() {
+        return indexService != null
+            && indexService.getIndexSettings().getStarTreeIndexEnabled();
+    }
+
+
     /**
      * Clean the query results by consuming all of it
      */
