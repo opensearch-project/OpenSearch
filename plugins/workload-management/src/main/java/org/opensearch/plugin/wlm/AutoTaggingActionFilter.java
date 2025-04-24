@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * This class is responsible to evaluate and assign the QUERY_GROUP_ID header in ThreadContext
+ * This class is responsible to evaluate and assign the WORKLOAD_GROUP_ID header in ThreadContext
  */
 public class AutoTaggingActionFilter implements ActionFilter {
     private static final int LARGE_NUMBER_TO_ENSURE_IT_IS_NOT_FIRST = Integer.MAX_VALUE;
@@ -59,10 +59,12 @@ public class AutoTaggingActionFilter implements ActionFilter {
         final boolean isValidRequest = request instanceof SearchRequest || request instanceof SearchScrollRequest;
 
         if (!isValidRequest) {
+            chain.proceed(task, action, request, listener);
             return;
         }
         Optional<String> label = ruleProcessingService.evaluateLabel(List.of(new IndicesExtractor((IndicesRequest) request)));
 
         label.ifPresent(s -> threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
+        chain.proceed(task, action, request, listener);
     }
 }
