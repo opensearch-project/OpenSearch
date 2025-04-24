@@ -1620,7 +1620,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         // Mock S3BlobStore with various configurations enabled
         final S3BlobStore blobStore = mock(S3BlobStore.class);
-        final StatsMetricPublisher metricPublisher = mock(StatsMetricPublisher.class);
+        final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
