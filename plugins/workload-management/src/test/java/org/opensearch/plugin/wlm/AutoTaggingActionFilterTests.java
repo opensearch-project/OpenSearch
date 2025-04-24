@@ -10,11 +10,11 @@ package org.opensearch.plugin.wlm;
 
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.autotagging.Attribute;
-import org.opensearch.autotagging.FeatureType;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.rule.InMemoryRuleProcessingService;
+import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
