@@ -1595,6 +1595,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         // Verify resources were properly closed
         verify(clientReference).close();
     }
+
     /**
      * Tests conditional multipart upload with various configuration combinations
      */
@@ -1646,43 +1647,42 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(clientReference.get()).thenReturn(client);
 
         // Setup argument captors
-        final ArgumentCaptor<CreateMultipartUploadRequest> createRequestCaptor =
-            ArgumentCaptor.forClass(CreateMultipartUploadRequest.class);
-        final ArgumentCaptor<UploadPartRequest> uploadPartRequestCaptor =
-            ArgumentCaptor.forClass(UploadPartRequest.class);
-        final ArgumentCaptor<RequestBody> requestBodyCaptor =
-            ArgumentCaptor.forClass(RequestBody.class);
-        final ArgumentCaptor<CompleteMultipartUploadRequest> completeRequestCaptor =
-            ArgumentCaptor.forClass(CompleteMultipartUploadRequest.class);
+        final ArgumentCaptor<CreateMultipartUploadRequest> createRequestCaptor = ArgumentCaptor.forClass(
+            CreateMultipartUploadRequest.class
+        );
+        final ArgumentCaptor<UploadPartRequest> uploadPartRequestCaptor = ArgumentCaptor.forClass(UploadPartRequest.class);
+        final ArgumentCaptor<RequestBody> requestBodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
+        final ArgumentCaptor<CompleteMultipartUploadRequest> completeRequestCaptor = ArgumentCaptor.forClass(
+            CompleteMultipartUploadRequest.class
+        );
 
         // Mock responses
-        when(client.createMultipartUpload(createRequestCaptor.capture()))
-            .thenReturn(CreateMultipartUploadResponse.builder().uploadId(uploadId).build());
+        when(client.createMultipartUpload(createRequestCaptor.capture())).thenReturn(
+            CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
+        );
 
         // Generate part ETags
         final List<String> partETags = List.of("etag-part-1", "etag-part-2");
 
         // Mock part upload responses
-        when(client.uploadPart(uploadPartRequestCaptor.capture(), requestBodyCaptor.capture()))
-            .thenAnswer(invocation -> {
-                UploadPartRequest request = (UploadPartRequest) invocation.getArguments()[0];
-                int partNumber = request.partNumber();
-                return UploadPartResponse.builder().eTag(partETags.get(partNumber - 1)).build();
-            });
+        when(client.uploadPart(uploadPartRequestCaptor.capture(), requestBodyCaptor.capture())).thenAnswer(invocation -> {
+            UploadPartRequest request = (UploadPartRequest) invocation.getArguments()[0];
+            int partNumber = request.partNumber();
+            return UploadPartResponse.builder().eTag(partETags.get(partNumber - 1)).build();
+        });
 
         // Mock complete response with final ETag
-        when(client.completeMultipartUpload(completeRequestCaptor.capture()))
-            .thenReturn(CompleteMultipartUploadResponse.builder().eTag(finalETag).build());
+        when(client.completeMultipartUpload(completeRequestCaptor.capture())).thenReturn(
+            CompleteMultipartUploadResponse.builder().eTag(finalETag).build()
+        );
 
         // Create listener
         @SuppressWarnings("unchecked")
         ActionListener<String> etagListener = mock(ActionListener.class);
 
         // Execute the multipart upload
-        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int)blobSize]);
-        blobContainer.executeMultipartUploadIfEtagMatches(
-            blobStore, blobName, inputStream, blobSize, metadata, inputETag, etagListener
-        );
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
+        blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, inputETag, etagListener);
 
         // Verify the create multipart request parameters including all configurations
         final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
