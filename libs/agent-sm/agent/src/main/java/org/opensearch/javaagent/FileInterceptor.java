@@ -111,7 +111,7 @@ public class FileInterceptor {
                                 }
                             }
                         } else {
-                            logger.warn("Unknown type: {} for args[1] for method name: {}", args[1].getClass(), method.getName());
+                            throw new SecurityException("Unsupported argument type: " + args[1].getClass().getName());
                         }
                     }
                 } else if (name.equals("copy") == true) {
