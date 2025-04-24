@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 - Change the default max header size from 8KB to 16KB. ([#18024](https://github.com/opensearch-project/OpenSearch/pull/18024))
 - Avoid invalid retries in multiple replicas when querying [#17370](https://github.com/opensearch-project/OpenSearch/pull/17370)
+* Enable concurrent_segment_search auto mode by default[#17978](https://github.com/opensearch-project/OpenSearch/pull/17978)
 - Skip approximation when `track_total_hits` is set to `true` [#18017](https://github.com/opensearch-project/OpenSearch/pull/18017)
 
 ### Dependencies
