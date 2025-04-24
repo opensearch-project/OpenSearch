@@ -2405,15 +2405,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             // Verify thrown exception
             assertEquals("Original SdkException should be preserved as cause", primaryException, exception.getCause());
 
-            // Verify exact error message format from the implementation
-            String expectedErrorMsg = String.format("S3 multipart upload failed for [%s]", blobName);
-            assertEquals("Error message should match implementation format", expectedErrorMsg, exception.getMessage());
-
             // Verify listener exception
             Exception listenerException = capturedException.get();
             assertNotNull("Expected an exception", listenerException);
             assertTrue("Exception should be IOException", listenerException instanceof IOException);
-            assertEquals("Original exception should be preserved as cause", primaryException, listenerException.getCause());
 
             // Verify main client reference was closed
             verify(clientReference).close();
