@@ -269,8 +269,7 @@ public class OperationRouting {
             }
 
             if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
-                && IndexModule.DataLocalityType.PARTIAL.name()
-                    .equals(indexMetadataForShard.getSettings().get(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey()))
+                && indexMetadataForShard.getSettings().getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false)
                 && (preference == null || preference.isEmpty())) {
                 preference = Preference.PRIMARY_FIRST.type();
             }
