@@ -324,7 +324,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     fields.add(new HalfFloatPoint(name, value.floatValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, HalfFloatPoint.halfFloatToSortableShort(value.floatValue())));
+                    fields.add(SortedNumericDocValuesField.indexedField(name, HalfFloatPoint.halfFloatToSortableShort(value.floatValue())));
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.floatValue()));
@@ -471,7 +471,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     fields.add(new FloatPoint(name, value.floatValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value.floatValue())));
+                    fields.add(SortedNumericDocValuesField.indexedField(name, NumericUtils.floatToSortableInt(value.floatValue())));
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.floatValue()));
@@ -597,7 +597,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     fields.add(new DoublePoint(name, value.doubleValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(value.doubleValue())));
+                    fields.add(SortedNumericDocValuesField.indexedField(name, NumericUtils.doubleToSortableLong(value.doubleValue())));
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.doubleValue()));
@@ -956,7 +956,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     fields.add(new IntPoint(name, value.intValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, value.intValue()));
+                    fields.add(SortedNumericDocValuesField.indexedField(name, value.intValue()));
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.intValue()));
@@ -1099,7 +1099,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     fields.add(new LongPoint(name, value.longValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, value.longValue()));
+                    fields.add(SortedNumericDocValuesField.indexedField(name, value.longValue()));
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.longValue()));
@@ -1221,7 +1221,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
 
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, v.longValue()));
+                    fields.add(SortedNumericDocValuesField.indexedField(name, v.longValue()));
                 }
 
                 if (stored) {

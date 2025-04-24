@@ -246,9 +246,9 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
             @Override
             public void add(Document doc, Long value, boolean multivalued) {
                 if (multivalued) {
-                    doc.add(new SortedNumericDocValuesField("field", value));
+                    doc.add(SortedNumericDocValuesField.indexedField("field", value));
                 } else {
-                    doc.add(new NumericDocValuesField("field", value));
+                    doc.add(NumericDocValuesField.indexedField("field", value));
                 }
             }
 
@@ -274,7 +274,7 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
             @Override
             public void add(Document doc, Integer value, boolean multivalued) {
                 if (multivalued) {
-                    doc.add(new SortedNumericDocValuesField("field", value));
+                    doc.add(SortedNumericDocValuesField.indexedField("field", value));
                 } else {
                     doc.add(new NumericDocValuesField("field", value));
                 }
@@ -302,7 +302,7 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
             @Override
             public void add(Document doc, Float value, boolean multivalued) {
                 if (multivalued) {
-                    doc.add(new SortedNumericDocValuesField("field", NumericUtils.floatToSortableInt(value)));
+                    doc.add(SortedNumericDocValuesField.indexedField("field", NumericUtils.floatToSortableInt(value)));
                 } else {
                     doc.add(new NumericDocValuesField("field", Float.floatToIntBits(value)));
                 }
@@ -330,7 +330,7 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
             @Override
             public void add(Document doc, Double value, boolean multivalued) {
                 if (multivalued) {
-                    doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
+                    doc.add(SortedNumericDocValuesField.indexedField("field", NumericUtils.doubleToSortableLong(value)));
                 } else {
                     doc.add(new NumericDocValuesField("field", Double.doubleToLongBits(value)));
                 }

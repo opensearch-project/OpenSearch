@@ -65,42 +65,42 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.DateFieldType, IOException> buildIndex = (iw, dft) -> {
             iw.addDocument(
                 List.of(
-                    new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
+                    SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
                     new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new SortedSetDocValuesField("k2", new BytesRef("a")),
-                    new SortedNumericDocValuesField("n", 1)
+                    SortedNumericDocValuesField.indexedField("n", 1)
                 )
             );
             iw.addDocument(
                 List.of(
-                    new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-03-01T00:00:00Z")),
+                    SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, dft.parse("2020-03-01T00:00:00Z")),
                     new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new SortedSetDocValuesField("k2", new BytesRef("a")),
-                    new SortedNumericDocValuesField("n", 2)
+                    SortedNumericDocValuesField.indexedField("n", 2)
                 )
             );
             iw.addDocument(
                 List.of(
-                    new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-02-01T00:00:00Z")),
+                    SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, dft.parse("2021-02-01T00:00:00Z")),
                     new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new SortedSetDocValuesField("k2", new BytesRef("a")),
-                    new SortedNumericDocValuesField("n", 3)
+                    SortedNumericDocValuesField.indexedField("n", 3)
                 )
             );
             iw.addDocument(
                 List.of(
-                    new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-03-01T00:00:00Z")),
+                    SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, dft.parse("2021-03-01T00:00:00Z")),
                     new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new SortedSetDocValuesField("k2", new BytesRef("b")),
-                    new SortedNumericDocValuesField("n", 4)
+                    SortedNumericDocValuesField.indexedField("n", 4)
                 )
             );
             iw.addDocument(
                 List.of(
-                    new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
+                    SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
                     new SortedSetDocValuesField("k1", new BytesRef("b")),
                     new SortedSetDocValuesField("k2", new BytesRef("b")),
-                    new SortedNumericDocValuesField("n", 5)
+                    SortedNumericDocValuesField.indexedField("n", 5)
                 )
             );
         };

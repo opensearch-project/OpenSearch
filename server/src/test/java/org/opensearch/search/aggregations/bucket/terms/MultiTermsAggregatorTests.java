@@ -183,7 +183,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(
                     asList(
                         new NumericDocValuesField(INT_FIELD, 1),
-                        new SortedNumericDocValuesField(LONG_FIELD, 1L),
+                        SortedNumericDocValuesField.indexedField(LONG_FIELD, 1L),
                         new FloatDocValuesField(FLOAT_FIELD, 1.0f),
                         new DoubleDocValuesField(DOUBLE_FIELD, 1.0d)
                     )
@@ -191,7 +191,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(
                     asList(
                         new NumericDocValuesField(INT_FIELD, 1),
-                        new SortedNumericDocValuesField(LONG_FIELD, 1L),
+                        SortedNumericDocValuesField.indexedField(LONG_FIELD, 1L),
                         new FloatDocValuesField(FLOAT_FIELD, 1.0f),
                         new DoubleDocValuesField(DOUBLE_FIELD, 1.0d)
                     )
@@ -199,7 +199,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(
                     asList(
                         new NumericDocValuesField(INT_FIELD, 2),
-                        new SortedNumericDocValuesField(LONG_FIELD, 2L),
+                        SortedNumericDocValuesField.indexedField(LONG_FIELD, 2L),
                         new FloatDocValuesField(FLOAT_FIELD, 2.0f),
                         new DoubleDocValuesField(DOUBLE_FIELD, 2.0d)
                     )
@@ -207,7 +207,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(
                     asList(
                         new NumericDocValuesField(INT_FIELD, 2),
-                        new SortedNumericDocValuesField(LONG_FIELD, 2L),
+                        SortedNumericDocValuesField.indexedField(LONG_FIELD, 2L),
                         new FloatDocValuesField(FLOAT_FIELD, 3.0f),
                         new DoubleDocValuesField(DOUBLE_FIELD, 3.0d)
                     )
@@ -215,7 +215,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(
                     asList(
                         new NumericDocValuesField(INT_FIELD, 2),
-                        new SortedNumericDocValuesField(LONG_FIELD, 2L),
+                        SortedNumericDocValuesField.indexedField(LONG_FIELD, 2L),
                         new FloatDocValuesField(FLOAT_FIELD, 3.0f),
                         new DoubleDocValuesField(DOUBLE_FIELD, 3.0d)
                     )
@@ -325,14 +325,14 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 asList(
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")),
-                    new SortedNumericDocValuesField(INT_FIELD, 1)
+                    SortedNumericDocValuesField.indexedField(INT_FIELD, 1)
                 )
             );
             iw.addDocument(
                 asList(
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
-                    new SortedNumericDocValuesField(INT_FIELD, 1),
-                    new SortedNumericDocValuesField(INT_FIELD, 3)
+                    SortedNumericDocValuesField.indexedField(INT_FIELD, 1),
+                    SortedNumericDocValuesField.indexedField(INT_FIELD, 3)
                 )
             );
         }, h -> {
@@ -349,16 +349,16 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 asList(
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")),
-                    new SortedNumericDocValuesField(INT_FIELD, 1),
-                    new SortedNumericDocValuesField(INT_FIELD, 2)
+                    SortedNumericDocValuesField.indexedField(INT_FIELD, 1),
+                    SortedNumericDocValuesField.indexedField(INT_FIELD, 2)
                 )
             );
             iw.addDocument(
                 asList(
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("c")),
-                    new SortedNumericDocValuesField(INT_FIELD, 1),
-                    new SortedNumericDocValuesField(INT_FIELD, 3)
+                    SortedNumericDocValuesField.indexedField(INT_FIELD, 1),
+                    SortedNumericDocValuesField.indexedField(INT_FIELD, 3)
                 )
             );
         }, h -> {
@@ -588,31 +588,31 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             iw -> {
                 iw.addDocument(
                     asList(
-                        new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
+                        SortedNumericDocValuesField.indexedField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
                         new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                     )
                 );
                 iw.addDocument(
                     asList(
-                        new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
+                        SortedNumericDocValuesField.indexedField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
                         new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("b"))
                     )
                 );
                 iw.addDocument(
                     asList(
-                        new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-22")),
+                        SortedNumericDocValuesField.indexedField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-22")),
                         new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                     )
                 );
                 iw.addDocument(
                     asList(
-                        new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
+                        SortedNumericDocValuesField.indexedField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
                         new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                     )
                 );
                 iw.addDocument(
                     asList(
-                        new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-21")),
+                        SortedNumericDocValuesField.indexedField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-21")),
                         new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("c"))
                     )
                 );
@@ -642,31 +642,31 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             iw -> {
                 iw.addDocument(
                     asList(
-                        new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
+                        SortedNumericDocValuesField.indexedField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
                         new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                     )
                 );
                 iw.addDocument(
                     asList(
-                        new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
+                        SortedNumericDocValuesField.indexedField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
                         new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("b"))
                     )
                 );
                 iw.addDocument(
                     asList(
-                        new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-22")),
+                        SortedNumericDocValuesField.indexedField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-22")),
                         new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                     )
                 );
                 iw.addDocument(
                     asList(
-                        new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
+                        SortedNumericDocValuesField.indexedField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-23")),
                         new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                     )
                 );
                 iw.addDocument(
                     asList(
-                        new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-21")),
+                        SortedNumericDocValuesField.indexedField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-03-21")),
                         new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("c"))
                     )
                 );
