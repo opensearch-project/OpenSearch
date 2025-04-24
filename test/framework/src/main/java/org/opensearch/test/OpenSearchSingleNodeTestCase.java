@@ -257,7 +257,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true)
             // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
             // when tests are run with concurrent segment search enabled
-            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2)
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY, 2)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .put(featureFlagSettings);
 
