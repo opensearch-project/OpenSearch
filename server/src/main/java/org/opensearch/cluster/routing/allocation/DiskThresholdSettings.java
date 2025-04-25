@@ -60,6 +60,11 @@ public class DiskThresholdSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE = Setting.boolSetting(
+        "cluster.routing.allocation.disk.watermark.enable_for_single_data_node",
+        false,
+        Setting.Property.NodeScope
+    );
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.disk.watermark.low",
         "85%",
