@@ -178,11 +178,74 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     }
 
     /**
+     * Writes a blob using the provided input stream, blob size, and an eTag for conditional PUT operations.
+     *
+     * @param blobName            The name of the blob.
+     * @param inputStream         The input stream containing the blob data.
+     * @param blobSize            The size of the blob in bytes.
+     * @param failIfAlreadyExists Flag indicating whether to fail if the blob already exists.
+     * @param eTag                The expected ETag to use for conditional PUT operations.
+     * @param etagListener        Listener to receive callbacks related to the ETag.
+     * @throws IOException If an I/O error occurs during the operation.
+     */
+    @Override
+    public void writeBlobIfVerified(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        String eTag,
+        ActionListener<String> etagListener
+    ) throws IOException {
+        writeBlobWithMetadataIfVerified(blobName, inputStream, blobSize, failIfAlreadyExists, null, eTag, etagListener);
+    }
+
+    /**
      * This implementation ignores the failIfAlreadyExists flag as the S3 API has no way to enforce this due to its weak consistency model.
      */
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, null);
+    }
+
+    /**
+     * Writes a blob along with its metadata and using an eTag for conditional PUT operations.
+     *
+     * @param blobName            The name of the blob.
+     * @param inputStream         The input stream containing the blob data.
+     * @param blobSize            The size of the blob in bytes.
+     * @param failIfAlreadyExists Flag indicating whether to fail if the blob already exists.
+     * @param metadata            Optional: Metadata associated with the blob.
+     * @param eTag                The expected ETag to use for conditional PUT operations.
+     * @param etagListener        Listener to receive callbacks related to the ETag.
+     * @throws IOException        If an I/O error occurs during the operation.
+     */
+    @ExperimentalApi
+    @Override
+    public void writeBlobWithMetadataIfVerified(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        String eTag,
+        ActionListener<String> etagListener
+    ) throws IOException {
+
+        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
+        SocketAccess.doPrivilegedIOException(() -> {
+            try {
+                if (blobSize <= getLargeBlobThresholdInBytes()) {
+                    executeSingleUploadIfEtagMatches(blobStore, buildKey(blobName), inputStream, blobSize, metadata, eTag, etagListener);
+                } else {
+                    executeMultipartUploadIfEtagMatches(blobStore, buildKey(blobName), inputStream, blobSize, metadata, eTag, etagListener);
+                }
+            } catch (Exception e) {
+                etagListener.onFailure(e);
+                throw e;
+            }
+            return null;
+        });
     }
 
     /**
