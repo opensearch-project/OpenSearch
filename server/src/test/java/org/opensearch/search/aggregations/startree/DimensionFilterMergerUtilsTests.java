@@ -193,7 +193,11 @@ public class DimensionFilterMergerUtilsTests extends OpenSearchTestCase {
         // Cannot intersect different dimensions
         assertThrows(
             IllegalArgumentException.class,
-            () -> DimensionFilterMergerUtils.intersect(range("status", 200, 300, true, true), range("port", 80, 443, true, true), numericMapper)
+            () -> DimensionFilterMergerUtils.intersect(
+                range("status", 200, 300, true, true),
+                range("port", 80, 443, true, true),
+                numericMapper
+            )
         );
     }
 
