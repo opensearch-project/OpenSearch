@@ -35,6 +35,7 @@ import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.io.SdkDigestInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.utils.internal.Base16;
@@ -97,6 +98,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -741,8 +743,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             latch.countDown();
         });
 
-        // Create the exact S3Exception that would trigger our code path
-        S3Exception preconditionFailedException = S3Exception.builder()
+        S3Exception preconditionFailedException = (S3Exception) S3Exception.builder()
             .statusCode(412)
             .message("The condition specified using HTTP conditional header(s) evaluated to false")
             .awsErrorDetails(
