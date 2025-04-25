@@ -36,6 +36,7 @@ import software.amazon.awssdk.core.io.SdkDigestInputStream;
 import software.amazon.awssdk.utils.internal.Base16;
 
 import org.apache.http.HttpStatus;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;
@@ -286,12 +287,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     public void testWriteBlobWithMetadataIfVerifiedAndETagRetries() throws Exception {
-        final Map<String, String> metadata = Map.of(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10)
-        );
+        // Randomly decide if we should use metadata or null
+        final Map<String, String> metadata = randomBoolean()
+            ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10))
+            : null;
+
         final String expectedETag = "\"" + randomAlphaOfLength(32) + "\"";
         final AtomicReference<String> returnedETag = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -320,13 +320,21 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             if ("PUT".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery() == null) {
                 List<String> ifMatchHeaders = exchange.getRequestHeaders().get("If-Match");
                 assertNotNull("If-Match header should be present", ifMatchHeaders);
-                assertEquals("If-Match header value", expectedETag, ifMatchHeaders.get(0));
+                assertEquals("If-Match header value", expectedETag, ifMatchHeaders.getFirst());
 
                 if (metadata != null) {
                     for (Map.Entry<String, String> entry : metadata.entrySet()) {
                         List<String> values = exchange.getRequestHeaders().get("x-amz-meta-" + entry.getKey());
                         assertNotNull("Metadata header missing: " + entry.getKey(), values);
-                        assertEquals("Metadata value incorrect", entry.getValue(), values.get(0));
+                        assertEquals("Metadata value incorrect", entry.getValue(), values.getFirst());
+                    }
+                } else {
+                    // Verify no x-amz-meta headers are present when metadata is null
+                    for (String header : exchange.getRequestHeaders().keySet()) {
+                        assertFalse(
+                            "No metadata headers should be present when metadata is null",
+                            header.toLowerCase(Locale.ROOT).startsWith("x-amz-meta-")
+                        );
                     }
                 }
 
@@ -382,7 +390,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     public void testWriteBlobWithMetadataIfVerifiedAndETagReadTimeouts() {
-        final Map<String, String> metadata = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        // Randomly decide if we should use metadata or null
+        final Map<String, String> metadata = randomBoolean() ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null;
+
         final String eTag = "\"" + randomAlphaOfLength(32) + "\"";
         final byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 128));
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
@@ -401,7 +411,24 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             // Validate If-Match header
             List<String> ifMatchHeaders = exchange.getRequestHeaders().get("If-Match");
             assertNotNull("If-Match header should be present", ifMatchHeaders);
-            assertEquals("If-Match header value", eTag, ifMatchHeaders.get(0));
+            assertEquals("If-Match header value", eTag, ifMatchHeaders.getFirst());
+
+            // Validate metadata headers if metadata is not null
+            if (metadata != null) {
+                for (Map.Entry<String, String> entry : metadata.entrySet()) {
+                    List<String> values = exchange.getRequestHeaders().get("x-amz-meta-" + entry.getKey());
+                    assertNotNull("Metadata header missing: " + entry.getKey(), values);
+                    assertEquals("Metadata value incorrect", entry.getValue(), values.getFirst());
+                }
+            } else {
+                // Verify no x-amz-meta headers are present when metadata is null
+                for (String header : exchange.getRequestHeaders().keySet()) {
+                    assertFalse(
+                        "No metadata headers should be present when metadata is null",
+                        header.toLowerCase(Locale.ROOT).startsWith("x-amz-meta-")
+                    );
+                }
+            }
 
             // Simulate timeout by partially reading or not responding
             if (randomBoolean()) {
@@ -417,7 +444,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         // Execute with expectThrows to capture direct exception
         Exception directException = expectThrows(IOException.class, () -> {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-
                 if (metadata != null) {
                     blobContainer.writeBlobWithMetadataIfVerified(
                         "write_blob_etag_timeout",
@@ -466,7 +492,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     public void testWriteLargeBlobWithMetadataAndETag() throws Exception {
-        final Map<String, String> metadata = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        // Randomly decide if we should use metadata or null
+        final Map<String, String> metadata = randomBoolean() ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null;
+
         final String expectedETag = "\"" + randomAlphaOfLength(32) + "\"";
         final AtomicReference<String> returnedETag = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -519,6 +547,14 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         List<String> values = exchange.getRequestHeaders().get("x-amz-meta-" + entry.getKey());
                         assertNotNull("Metadata header missing: " + entry.getKey(), values);
                         assertEquals("Metadata value incorrect", entry.getValue(), values.get(0));
+                    }
+                } else {
+                    // Verify no x-amz-meta headers are present when metadata is null
+                    for (String header : exchange.getRequestHeaders().keySet()) {
+                        assertFalse(
+                            "No metadata headers should be present when metadata is null",
+                            header.toLowerCase(Locale.ROOT).startsWith("x-amz-meta-")
+                        );
                     }
                 }
 
@@ -621,7 +657,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     public void testWriteBlobWithMetadataIfVerifiedAndETagMismatch() throws Exception {
-        final Map<String, String> metadata = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        // Randomly decide if we should use metadata or null
+        final Map<String, String> metadata = randomBoolean() ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null;
+
         final String eTag = "\"" + randomAlphaOfLength(32) + "\"";
         final AtomicReference<Exception> listenerException = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -646,6 +684,14 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         assertNotNull("Metadata header missing: " + entry.getKey(), values);
                         assertEquals("Metadata value incorrect", entry.getValue(), values.get(0));
                     }
+                } else {
+                    // Verify no x-amz-meta headers are present when metadata is null
+                    for (String header : exchange.getRequestHeaders().keySet()) {
+                        assertFalse(
+                            "No metadata headers should be present when metadata is null",
+                            header.toLowerCase(Locale.ROOT).startsWith("x-amz-meta-")
+                        );
+                    }
                 }
 
                 Streams.readFully(exchange.getRequestBody());
@@ -659,7 +705,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
 
             try (InputStream stream = new ByteArrayInputStream(bytes)) {
-
                 if (metadata != null) {
                     blobContainer.writeBlobWithMetadataIfVerified(
                         "write_blob_metadata_etag_mismatch",
@@ -682,7 +727,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 );
             }
 
-            // Verify the listener received the specialized OpenSearchException
             assertTrue("Listener was not called within timeout", latch.await(5, TimeUnit.SECONDS));
             assertNotNull("Exception should not be null", listenerException.get());
             assertTrue("Should receive OpenSearchException", listenerException.get() instanceof OpenSearchException);
