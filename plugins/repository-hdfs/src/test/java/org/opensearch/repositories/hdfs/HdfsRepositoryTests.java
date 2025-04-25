@@ -33,6 +33,7 @@ package org.opensearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
@@ -78,5 +79,23 @@ public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
         } else {
             assertThat(response.result().blobs(), equalTo(0L));
         }
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testCleanup() throws Exception {
+        super.testCleanup();
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testCreateSnapshot() {
+        super.testCreateSnapshot();
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testListChildren() throws Exception {
+        super.testListChildren();
     }
 }
