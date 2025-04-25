@@ -27,3 +27,7 @@ dependencies {
   testImplementation project(':modules:autotagging-commons')
   testImplementation project(':modules:autotagging-commons:common')
 }
+
+testClusters.all {
+  testDistribution = 'archive'
+}
