@@ -8,20 +8,21 @@
 
 package org.opensearch.rule.action;
 
-import org.opensearch.autotagging.Rule;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.rule.CreateRuleResponse;
+import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Map;
 
+import static org.opensearch.rule.action.GetRuleRequestTests.assertEqualRules;
+import static org.opensearch.rule.action.GetRuleResponseTests.ruleOne;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
-import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRules;
-import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
 import static org.mockito.Mockito.mock;
 
 public class CreateRuleResponseTests extends OpenSearchTestCase {

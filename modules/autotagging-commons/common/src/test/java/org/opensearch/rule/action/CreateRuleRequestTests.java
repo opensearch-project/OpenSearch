@@ -10,12 +10,13 @@ package org.opensearch.rule.action;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.rule.CreateRuleRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRule;
-import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
+import static org.opensearch.rule.action.GetRuleRequestTests.assertEqualRule;
+import static org.opensearch.rule.action.GetRuleRequestTests.ruleOne;
 
 public class CreateRuleRequestTests extends OpenSearchTestCase {
 

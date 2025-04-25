@@ -6,13 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule.action;
+package org.opensearch.rule;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.autotagging.Rule;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.rule.autotagging.Rule;
 
 import java.io.IOException;
 
@@ -50,7 +50,14 @@ public class CreateRuleRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        try {
+            rule.getFeatureType().getFeatureValueValidator().validate(rule.getFeatureValue());
+            return null;
+        } catch (Exception e) {
+            ActionRequestValidationException validationException = new ActionRequestValidationException();
+            validationException.addValidationError(e.getMessage());
+            return validationException;
+        }
     }
 
     @Override

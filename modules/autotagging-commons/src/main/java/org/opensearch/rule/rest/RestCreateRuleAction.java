@@ -8,66 +8,58 @@
 
 package org.opensearch.rule.rest;
 
-import org.opensearch.action.ActionType;
-import org.opensearch.autotagging.FeatureType;
-import org.opensearch.autotagging.Rule.Builder;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
-import org.opensearch.rule.action.CreateRuleRequest;
-import org.opensearch.rule.action.CreateRuleResponse;
+import org.opensearch.rule.CreateRuleRequest;
+import org.opensearch.rule.CreateRuleResponse;
+import org.opensearch.rule.action.CreateRuleAction;
+import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.autotagging.Rule.Builder;
 import org.opensearch.transport.client.node.NodeClient;
 import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.opensearch.rest.RestRequest.Method.POST;
+import static org.opensearch.rest.RestRequest.Method.PUT;
+import static org.opensearch.rule.rest.RestGetRuleAction.FEATURE_TYPE;
+
 /**
  * Rest action to create a Rule
  * @opensearch.experimental
  */
 public class RestCreateRuleAction extends BaseRestHandler {
-    private final String name;
-    private final List<Route> routes;
-    private final FeatureType featureType;
-    private final ActionType<CreateRuleResponse> createRuleAction;
-
     /**
      * constructor for RestUpdateRuleAction
-     * @param name - RestUpdateRuleAction name
-     * @param routes the list of REST routes this action handles
-     * @param featureType the feature type associated with the rule
-     * @param createRuleAction the action to execute for updating a rule
      */
-    public RestCreateRuleAction(String name, List<Route> routes, FeatureType featureType, ActionType<CreateRuleResponse> createRuleAction) {
-        this.name = name;
-        this.routes = routes;
-        this.featureType = featureType;
-        this.createRuleAction = createRuleAction;
-    }
+    public RestCreateRuleAction() {}
 
     @Override
     public String getName() {
-        return name;
+        return "create_rule";
     }
 
     @Override
     public List<Route> routes() {
-        return routes;
+        return List.of(new RestHandler.Route(POST, "_rules/{featureType}/"), new RestHandler.Route(PUT, "_rules/{featureType}/"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        final FeatureType featureType = FeatureType.from(request.param(FEATURE_TYPE));
         try (XContentParser parser = request.contentParser()) {
             Builder builder = Builder.fromXContent(parser, featureType);
             CreateRuleRequest createRuleRequest = new CreateRuleRequest(builder.updatedAt(Instant.now().toString()).build());
-            return channel -> client.execute(createRuleAction, createRuleRequest, createRuleResponse(channel));
+            return channel -> client.execute(CreateRuleAction.INSTANCE, createRuleRequest, createRuleResponse(channel));
         }
     }
 

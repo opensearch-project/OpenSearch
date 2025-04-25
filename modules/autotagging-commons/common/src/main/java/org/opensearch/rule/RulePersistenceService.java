@@ -18,6 +18,13 @@ import org.opensearch.core.action.ActionListener;
 public interface RulePersistenceService {
 
     /**
+     * Create rules based on the provided request.
+     * @param request The request containing the details for creating the rule.
+     * @param listener The listener that will handle the response or failure.
+     */
+    void createRule(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener);
+
+    /**
      * Get rules based on the provided request.
      * @param request The request containing the details for retrieving the rule.
      * @param listener The listener that will handle the response or failure.

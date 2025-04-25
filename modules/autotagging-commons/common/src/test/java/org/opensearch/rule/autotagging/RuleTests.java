@@ -92,7 +92,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         public TestFeatureType() {}
 
         static {
-            INSTANCE.registerFeatureType();
+            AutoTaggingRegistry.registerFeatureType(INSTANCE);
         }
 
         @Override
@@ -116,8 +116,8 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         }
 
         @Override
-        public void registerFeatureType() {
-            AutoTaggingRegistry.registerFeatureType(INSTANCE);
+        public FeatureValueValidator getFeatureValueValidator() {
+            return null;
         }
     }
 
