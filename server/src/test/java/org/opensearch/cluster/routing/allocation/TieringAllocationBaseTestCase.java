@@ -15,7 +15,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
 
-import static org.opensearch.index.IndexModule.INDEX_STORE_LOCALITY_SETTING;
 import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
 
 @SuppressForbidden(reason = "feature flag overrides")
@@ -24,8 +23,9 @@ public abstract class TieringAllocationBaseTestCase extends RemoteShardsBalancer
     public ClusterState updateIndexMetadataForTiering(
         ClusterState clusterState,
         int localIndices,
+        int remoteIndices,
         String tieringState,
-        String dataLocality
+        boolean isWarmIndex
     ) {
         Metadata.Builder mb = Metadata.builder(clusterState.metadata());
         for (int i = 0; i < localIndices; i++) {
@@ -38,8 +38,21 @@ public abstract class TieringAllocationBaseTestCase extends RemoteShardsBalancer
                             .put(settings)
                             .put(settings)
                             .put(INDEX_TIERING_STATE.getKey(), tieringState)
-                            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
-                            .put(INDEX_STORE_LOCALITY_SETTING.getKey(), dataLocality)
+                            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), isWarmIndex)
+                    )
+            );
+        }
+        for (int i = 0; i < remoteIndices; i++) {
+            IndexMetadata indexMetadata = clusterState.metadata().index(getIndexName(i, true));
+            Settings settings = indexMetadata.getSettings();
+            mb.put(
+                IndexMetadata.builder(indexMetadata)
+                    .settings(
+                        Settings.builder()
+                            .put(settings)
+                            .put(settings)
+                            .put(INDEX_TIERING_STATE.getKey(), tieringState)
+                            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), isWarmIndex)
                     )
             );
         }

@@ -42,7 +42,6 @@ import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -61,6 +60,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_INDEX;
 
 /**
  * Deletes indices.
@@ -84,7 +85,7 @@ public class MetadataDeleteIndexService {
         this.allocationService = allocationService;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        deleteIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_INDEX_KEY, true);
+        deleteIndexTaskKey = clusterService.registerClusterManagerTask(DELETE_INDEX, true);
 
     }
 

@@ -52,10 +52,10 @@ import static org.apache.lucene.index.IndexFileNames.SEGMENTS;
 @ExperimentalApi
 public class CompositeDirectory extends FilterDirectory {
     private static final Logger logger = LogManager.getLogger(CompositeDirectory.class);
-    private final FSDirectory localDirectory;
-    private final RemoteSegmentStoreDirectory remoteDirectory;
-    private final FileCache fileCache;
-    private final TransferManager transferManager;
+    protected final FSDirectory localDirectory;
+    protected final RemoteSegmentStoreDirectory remoteDirectory;
+    protected final FileCache fileCache;
+    protected final TransferManager transferManager;
 
     /**
      * Constructor to initialise the composite directory
@@ -96,7 +96,7 @@ public class CompositeDirectory extends FilterDirectory {
      * @return A list of file names, including the original file (if present) and all its block files.
      * @throws IOException in case of I/O error while listing files.
      */
-    private List<String> listBlockFiles(String fileName) throws IOException {
+    protected List<String> listBlockFiles(String fileName) throws IOException {
         return Stream.of(listLocalFiles())
             .filter(file -> file.equals(fileName) || file.startsWith(fileName + FileTypeUtils.BLOCK_FILE_IDENTIFIER))
             .collect(Collectors.toList());
@@ -383,7 +383,7 @@ public class CompositeDirectory extends FilterDirectory {
         return remoteFiles;
     }
 
-    private void cacheFile(String name) throws IOException {
+    protected void cacheFile(String name) throws IOException {
         Path filePath = getFilePath(name);
         // put will increase the refCount for the path, making sure it is not evicted, will decrease the ref after it is uploaded to Remote
         // so that it can be evicted after that
