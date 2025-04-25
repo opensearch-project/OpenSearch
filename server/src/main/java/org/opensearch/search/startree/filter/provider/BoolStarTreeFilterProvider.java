@@ -25,11 +25,19 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Converts {@link BoolQueryBuilder} into {@link StarTreeFilter}
  */
 public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
+
+    private static final Set<Class<? extends QueryBuilder>> SUPPORTED_NON_BOOL_QUERIES = Set.of(
+        TermQueryBuilder.class,
+        TermsQueryBuilder.class,
+        RangeQueryBuilder.class
+    );
+
     @Override
     public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
         throws IOException {
@@ -62,7 +70,7 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
         CompositeDataCubeFieldType compositeFieldType
     ) throws IOException {
         // Only allow other supported QueryBuilders
-        if (!(query instanceof TermQueryBuilder) && !(query instanceof TermsQueryBuilder) && !(query instanceof RangeQueryBuilder)) {
+        if (SUPPORTED_NON_BOOL_QUERIES.contains(query.getClass()) == false) {
             return null;
         }
         // Process individual clause
