@@ -172,6 +172,7 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases, "plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
                     addClassCodebase(codebases, "opensearch-nio", "org.opensearch.nio.ChannelFactory");
                     addClassCodebase(codebases, "opensearch-rest-client", "org.opensearch.client.RestClient");
+                    addClassCodebase(codebases, "opensearch-ssl-config", "org.opensearch.common.ssl.SslKeyConfig");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 // Allow modules to define own test policy in ad-hoc fashion (if needed) that is not really applicable to other modules
