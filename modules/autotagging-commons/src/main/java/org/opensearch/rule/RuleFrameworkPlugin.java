@@ -22,9 +22,12 @@ import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rule.action.CreateRuleAction;
 import org.opensearch.rule.action.GetRuleAction;
+import org.opensearch.rule.action.TransportCreateRuleAction;
 import org.opensearch.rule.action.TransportGetRuleAction;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+import org.opensearch.rule.rest.RestCreateRuleAction;
 import org.opensearch.rule.rest.RestGetRuleAction;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
 
@@ -35,6 +38,8 @@ import java.util.function.Supplier;
 
 /**
  * This plugin provides the central APIs which can provide CRUD support to all consumers of Rule framework
+ * Plugins that define custom rule logic must implement {@link RuleFrameworkExtension}, which ensures
+ * their feature types and persistence services are automatically registered and available to the Rule Framework.
  */
 public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
 
@@ -50,7 +55,10 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         // We are consuming the extensions at this place to ensure that the RulePersistenceService is initialised
         ruleFrameworkExtensions.forEach(this::consumeFrameworkExtension);
-        return List.of(new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class));
+        return List.of(
+            new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class),
+            new ActionPlugin.ActionHandler<>(CreateRuleAction.INSTANCE, TransportCreateRuleAction.class)
+        );
     }
 
     @Override
@@ -63,7 +71,7 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestGetRuleAction());
+        return List.of(new RestGetRuleAction(), new RestCreateRuleAction());
     }
 
     @Override
