@@ -6,20 +6,20 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule.action;
+package org.opensearch.rule;
 
-import org.opensearch.autotagging.Rule;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.rule.autotagging.Rule;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.autotagging.Rule._ID_STRING;
+import static org.opensearch.rule.autotagging.Rule._ID_STRING;
 
 /**
  * Response for the create API for Rule

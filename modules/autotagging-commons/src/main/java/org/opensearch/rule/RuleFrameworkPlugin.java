@@ -28,6 +28,12 @@ import org.opensearch.rule.action.TransportDeleteRuleAction;
 import org.opensearch.rule.action.TransportGetRuleAction;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.rest.RestDeleteRuleAction;
+import org.opensearch.rule.action.CreateRuleAction;
+import org.opensearch.rule.action.GetRuleAction;
+import org.opensearch.rule.action.TransportCreateRuleAction;
+import org.opensearch.rule.action.TransportGetRuleAction;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+import org.opensearch.rule.rest.RestCreateRuleAction;
 import org.opensearch.rule.rest.RestGetRuleAction;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
 
@@ -38,6 +44,8 @@ import java.util.function.Supplier;
 
 /**
  * This plugin provides the central APIs which can provide CRUD support to all consumers of Rule framework
+ * Plugins that define custom rule logic must implement {@link RuleFrameworkExtension}, which ensures
+ * their feature types and persistence services are automatically registered and available to the Rule Framework.
  */
 public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
 
@@ -55,7 +63,8 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
         ruleFrameworkExtensions.forEach(this::consumeFrameworkExtension);
         return List.of(
             new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class),
-            new ActionPlugin.ActionHandler<>(DeleteRuleAction.INSTANCE, TransportDeleteRuleAction.class)
+            new ActionPlugin.ActionHandler<>(DeleteRuleAction.INSTANCE, TransportDeleteRuleAction.class),
+            new ActionPlugin.ActionHandler<>(CreateRuleAction.INSTANCE, TransportCreateRuleAction.class)
         );
     }
 
@@ -69,7 +78,7 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestGetRuleAction(), new RestDeleteRuleAction());
+        return List.of(new RestGetRuleAction(), new RestDeleteRuleAction(), new RestCreateRuleAction());
     }
 
     @Override
