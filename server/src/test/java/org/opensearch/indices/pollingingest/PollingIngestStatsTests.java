@@ -33,6 +33,8 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
             + stats.getMessageProcessorStats().totalSkippedCount()
             + "},\"consumer_stats\":{\"total_polled_count\":"
             + stats.getConsumerStats().totalPolledCount()
+            + ",\"lag_in_millis\":"
+            + stats.getConsumerStats().lagInMillis()
             + "}}}";
 
         assertEquals(expected, builder.toString());
@@ -56,6 +58,7 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
             .setTotalProcessedCount(randomNonNegativeLong())
             .setTotalSkippedCount(randomNonNegativeLong())
             .setTotalPolledCount(randomNonNegativeLong())
+            .setLagInMillis(randomNonNegativeLong())
             .build();
     }
 }

@@ -440,11 +440,16 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         if (context.aggregations() != null) {
             return false;
         }
+        // Exclude approximation when "track_total_hits": true
+        if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+            return false;
+        }
+
         // size 0 could be set for caching
         if (context.from() + context.size() == 0) {
             this.setSize(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
         } else {
-            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()));
+            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo() + 1));
         }
         if (context.request() != null && context.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
@@ -463,6 +468,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 }
                 this.setSortOrder(primarySortField.order());
             }
+            return context.request().source().terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER;
         }
         return true;
     }

@@ -135,6 +135,11 @@ public class FakeIngestionSource {
         }
 
         @Override
+        public Long getTimestamp() {
+            return System.currentTimeMillis();
+        }
+
+        @Override
         public String toString() {
             return new String(payload, StandardCharsets.UTF_8);
         }

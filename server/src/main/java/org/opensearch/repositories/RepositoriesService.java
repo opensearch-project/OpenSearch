@@ -55,7 +55,6 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
@@ -87,6 +86,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_REPOSITORY;
+import static org.opensearch.cluster.service.ClusterManagerTask.PUT_REPOSITORY;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SHALLOW_SNAPSHOT_V2;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
@@ -157,8 +158,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             threadPool::relativeTimeInMillis
         );
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        putRepositoryTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_REPOSITORY_KEY, true);
-        deleteRepositoryTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_REPOSITORY_KEY, true);
+        putRepositoryTaskKey = clusterService.registerClusterManagerTask(PUT_REPOSITORY, true);
+        deleteRepositoryTaskKey = clusterService.registerClusterManagerTask(DELETE_REPOSITORY, true);
     }
 
     /**
