@@ -37,16 +37,16 @@ public class HybridAggregationProcessor implements AggregationProcessor {
     public void preProcess(SearchContext context) {
         delegateAggsProcessor.preProcess(context);
 
-        if (isHybridQuery(context.query(), context)) {
-            // adding collector manager for hybrid query
-            CollectorManager collectorManager;
-            try {
-                collectorManager = HybridCollectorManager.createHybridCollectorManager(context);
-            } catch (IOException exception) {
-                throw new AggregationInitializationException("could not initialize hybrid aggregation processor", exception);
-            }
-            context.queryCollectorManagers().put(HybridCollectorManager.class, collectorManager);
-        }
+        // if (isHybridQuery(context.query(), context)) {
+        // // adding collector manager for hybrid query
+        // CollectorManager collectorManager;
+        // try {
+        // collectorManager = HybridCollectorManager.createHybridCollectorManager(context);
+        // } catch (IOException exception) {
+        // throw new AggregationInitializationException("could not initialize hybrid aggregation processor", exception);
+        // }
+        // context.queryCollectorManagers().put(HybridCollectorManager.class, collectorManager);
+        // }
     }
 
     @Override

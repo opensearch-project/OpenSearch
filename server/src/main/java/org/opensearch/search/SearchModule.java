@@ -261,6 +261,7 @@ import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.opensearch.search.query.HybridQueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QueryPhaseSearcher;
+import org.opensearch.search.query.QueryPhaseSearcherWrapper;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -1273,7 +1274,7 @@ public class SearchModule {
         }
 
         if (searcher == null) {
-            searcher = new HybridQueryPhaseSearcher();
+            searcher = new QueryPhaseSearcherWrapper();
         }
         return searcher;
     }

@@ -17,8 +17,6 @@ import org.apache.lucene.search.Query;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.search.NestedHelper;
-import org.opensearch.search.aggregations.AggregationProcessor;
-import org.opensearch.search.aggregations.HybridAggregationProcessor;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 
@@ -56,10 +54,10 @@ public class HybridQueryPhaseSearcher extends QueryPhaseSearcherWrapper {
             return super.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
         } else {
             Query hybridQuery = extractHybridQuery(searchContext, query);
-            QueryPhaseSearcher queryPhaseSearcher = getQueryPhaseSearcher(searchContext);
-            queryPhaseSearcher.searchWith(searchContext, searcher, hybridQuery, collectors, hasFilterCollector, hasTimeout);
+            // QueryPhaseSearcher queryPhaseSearcher = getQueryPhaseSearcher(searchContext);
+            return super.searchWith(searchContext, searcher, hybridQuery, collectors, hasFilterCollector, hasTimeout);
             // we decide on rescore later in collector manager
-            return false;
+            // return false;
         }
     }
 
@@ -154,11 +152,11 @@ public class HybridQueryPhaseSearcher extends QueryPhaseSearcherWrapper {
         return MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.get(indexSettings).intValue();
     }
 
-    @Override
-    public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
-        AggregationProcessor coreAggProcessor = super.aggregationProcessor(searchContext);
-        return new HybridAggregationProcessor(coreAggProcessor);
-    }
+    // @Override
+    // public AggregationProcessor aggregationProcessor(SearchContext searchContext) {
+    // AggregationProcessor coreAggProcessor = super.aggregationProcessor(searchContext);
+    // return new HybridAggregationProcessor(coreAggProcessor);
+    // }
 
     /**
      * Class that inherits ConcurrentQueryPhaseSearcher implementation but calls its search with only

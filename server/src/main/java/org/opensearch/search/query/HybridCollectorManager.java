@@ -46,7 +46,7 @@ import static org.apache.lucene.search.TotalHits.Relation;
  * Collector manager based on HybridTopScoreDocCollector that allows users to parallelize counting the number of hits.
  * In most cases it will be wrapped in MultiCollectorManager.
  */
-public abstract class HybridCollectorManager implements CollectorManager<Collector, ReduceableSearchResult> {
+public class HybridCollectorManager implements CollectorManager<Collector, ReduceableSearchResult> {
     private static final Logger logger = LogManager.getLogger(HybridCollectorManager.class);
 
     private final int numHits;
