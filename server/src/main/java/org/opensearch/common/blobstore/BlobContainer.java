@@ -141,11 +141,11 @@ public interface BlobContainer {
      *          this value is used in writing the blob to the repository.
      * @param   failIfAlreadyExists
      *          whether to throw a FileAlreadyExistsException if the given blob already exists
-     * @param verificationTag         Required identifier for conditional upload. The write will only succeed
+     * @param   verificationTag         Required identifier for conditional upload. The write will only succeed
      *                                if this matches the remote store’s current identifier.
-     * @param verificationTagListener Listener to receive the new identifier on success, or to be notified of failure.
+     * @param   verificationTagListener Listener to receive the new identifier on success, or to be notified of failure.
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
-     * @throws IOException if the input stream could not be read, the upload fails (including identifier mismatches), or the target blob
+     * @throws  IOException if the input stream could not be read, the upload fails (including identifier mismatches), or the target blob
      *                     could not be written to
      */
     default void writeBlobIfVerified(
@@ -195,11 +195,16 @@ public interface BlobContainer {
      * @param   blobSize
      *          The size of the blob to be written, in bytes.  It is implementation dependent whether
      *          this value is used in writing the blob to the repository.
-     * @param   verificationTag         Required identifier for conditional upload. The write will only succeed
-     *                                if this matches the remote store’s current identifier.
-     * @param   verificationTagListener Listener to receive the new identifier on success, or to be notified of failure.
+     * @param   failIfAlreadyExists
+     *          whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @param   verificationTag
+     *          Required identifier for conditional upload. The write will only succeed
+     *          if this matches the remote store’s current identifier.
+     * @param   verificationTagListener
+     *          Listener to receive the new identifier on success, or to be notified of failure.
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
-     * @throws  IOException if the upload fails, including identifier mismatches, invalid metadata, or I/O errors
+     * @throws  IOException if the input stream could not be read, the upload fails (including identifier mismatches), or the target blob
+     *                     could not be written to
      */
     @ExperimentalApi
     default void writeBlobWithMetadataIfVerified(
