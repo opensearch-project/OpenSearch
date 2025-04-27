@@ -178,15 +178,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     }
 
     /**
-     * Writes a blob using the provided input stream, blob size, and an eTag for conditional PUT operations.
-     *
-     * @param blobName            The name of the blob.
-     * @param inputStream         The input stream containing the blob data.
-     * @param blobSize            The size of the blob in bytes.
-     * @param failIfAlreadyExists Flag indicating whether to fail if the blob already exists.
-     * @param eTag                The expected ETag to use for conditional PUT operations.
-     * @param etagListener        Listener to receive callbacks related to the ETag.
-     * @throws IOException If an I/O error occurs during the operation.
+     * Writes a blob with an eTag for conditional PUT operations
      */
     @Override
     public void writeBlobIfVerified(
@@ -255,16 +247,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     }
 
     /**
-     * Writes a blob along with its metadata and using an eTag for conditional PUT operations.
-     *
-     * @param blobName            The name of the blob.
-     * @param inputStream         The input stream containing the blob data.
-     * @param blobSize            The size of the blob in bytes.
-     * @param failIfAlreadyExists Flag indicating whether to fail if the blob already exists.
-     * @param metadata            Optional: Metadata associated with the blob.
-     * @param eTag                The expected ETag to use for conditional PUT operations.
-     * @param etagListener        Listener to receive callbacks related to the ETag.
-     * @throws IOException        If an I/O error occurs during the operation.
+     * Writes a blob along with its metadata and using an eTag for conditional PUT operations
      */
     @ExperimentalApi
     @Override
