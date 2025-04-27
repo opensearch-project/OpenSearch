@@ -208,6 +208,52 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, null);
     }
 
+    private void internalWriteBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        @Nullable String expectedETag,
+        @Nullable ActionListener<String> etagListener
+    ) throws IOException {
+
+        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
+
+        SocketAccess.doPrivilegedIOException(() -> {
+            if (blobSize <= getLargeBlobThresholdInBytes()) {
+                if (expectedETag != null && etagListener != null) {
+                    executeSingleUploadIfEtagMatches(
+                        blobStore,
+                        buildKey(blobName),
+                        inputStream,
+                        blobSize,
+                        metadata,
+                        expectedETag,
+                        etagListener
+                    );
+                } else {
+                    executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
+                }
+            } else {
+                if (expectedETag != null && etagListener != null) {
+                    executeMultipartUploadIfEtagMatches(
+                        blobStore,
+                        buildKey(blobName),
+                        inputStream,
+                        blobSize,
+                        metadata,
+                        expectedETag,
+                        etagListener
+                    );
+                } else {
+                    executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
+                }
+            }
+            return null;
+        });
+    }
+
     /**
      * Writes a blob along with its metadata and using an eTag for conditional PUT operations.
      *
@@ -231,21 +277,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         String eTag,
         ActionListener<String> etagListener
     ) throws IOException {
-
-        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
-        SocketAccess.doPrivilegedIOException(() -> {
-            try {
-                if (blobSize <= getLargeBlobThresholdInBytes()) {
-                    executeSingleUploadIfEtagMatches(blobStore, buildKey(blobName), inputStream, blobSize, metadata, eTag, etagListener);
-                } else {
-                    executeMultipartUploadIfEtagMatches(blobStore, buildKey(blobName), inputStream, blobSize, metadata, eTag, etagListener);
-                }
-            } catch (Exception e) {
-                etagListener.onFailure(e);
-                throw e;
-            }
-            return null;
-        });
+        internalWriteBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, eTag, etagListener);
     }
 
     /**
@@ -260,15 +292,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         boolean failIfAlreadyExists,
         @Nullable Map<String, String> metadata
     ) throws IOException {
-        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
-        SocketAccess.doPrivilegedIOException(() -> {
-            if (blobSize <= getLargeBlobThresholdInBytes()) {
-                executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
-            } else {
-                executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
-            }
-            return null;
-        });
+        internalWriteBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, null, null);
     }
 
     @Override
