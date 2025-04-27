@@ -297,7 +297,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     public void testWriteBlobWithMetadataIfVerifiedAndETagRetries() throws Exception {
-        // Randomly decide if we should use metadata or null
         final Map<String, String> metadata = randomBoolean()
             ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10))
             : null;
@@ -325,19 +324,16 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final int maxRetries = randomInt(5);
         final CountDown countDown = new CountDown(maxRetries + 1);
 
-        // Define blob name consistently to avoid path mismatch
         final String blobName = "write_blob_etag_retries";
         final String contextPath = "/bucket/" + blobName;
 
         final byte[] bytes = randomBlobContent();
         httpServer.createContext(contextPath, exchange -> {
-            // Rest of handler code unchanged
             if ("PUT".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery() == null) {
                 List<String> ifMatchHeaders = exchange.getRequestHeaders().get("If-Match");
                 assertNotNull("If-Match header should be present", ifMatchHeaders);
                 assertEquals("If-Match header value", expectedETag, ifMatchHeaders.getFirst());
 
-                // Metadata validation (unchanged)
                 if (metadata != null) {
                     for (Map.Entry<String, String> entry : metadata.entrySet()) {
                         List<String> values = exchange.getRequestHeaders().get("x-amz-meta-" + entry.getKey());
@@ -345,7 +341,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         assertEquals("Metadata value incorrect", entry.getValue(), values.getFirst());
                     }
                 } else {
-                    // Verify no x-amz-meta headers are present when metadata is null
                     for (String header : exchange.getRequestHeaders().keySet()) {
                         assertFalse(
                             "No metadata headers should be present when metadata is null",
@@ -391,7 +386,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             try (InputStream stream = new ByteArrayInputStream(bytes)) {
                 if (metadata != null) {
                     blobContainer.writeBlobWithMetadataIfVerified(
-                        blobName,  // Using the consistent blob name
+                        blobName,
                         stream,
                         bytes.length,
                         false,
@@ -405,13 +400,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
             assertThat(countDown.isCountedDown(), is(true));
         } finally {
-            // Clean up HTTP context to avoid resource leaks
             httpServer.removeContext(contextPath);
         }
     }
 
     public void testWriteBlobWithMetadataIfVerifiedAndETagReadTimeouts() {
-        // Randomly decide if we should use metadata or null
         final Map<String, String> metadata = randomBoolean() ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null;
 
         final String eTag = "\"" + randomAlphaOfLength(32) + "\"";
@@ -419,7 +412,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
         final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null);
 
-        // Listener setup with verification
         final CountDownLatch listenerLatch = new CountDownLatch(1);
         final AtomicReference<Exception> listenerException = new AtomicReference<>();
         final ActionListener<String> eTagListener = ActionListener.wrap(s -> fail("Should not succeed with timeout"), e -> {
@@ -427,19 +419,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             listenerLatch.countDown();
         });
 
-        // IMPORTANT: Fix path mismatch - use the same string in both places
         final String blobName = "write_blob_etag_timeout";
         final String contextPath = "/bucket/" + blobName;
 
-        // Server setup
         httpServer.createContext(contextPath, exchange -> {
             try {
-                // Validate If-Match header
                 List<String> ifMatchHeaders = exchange.getRequestHeaders().get("If-Match");
                 assertNotNull("If-Match header should be present", ifMatchHeaders);
                 assertEquals("If-Match header value", eTag, ifMatchHeaders.getFirst());
 
-                // Validate metadata headers if metadata is not null
                 if (metadata != null) {
                     for (Map.Entry<String, String> entry : metadata.entrySet()) {
                         List<String> values = exchange.getRequestHeaders().get("x-amz-meta-" + entry.getKey());
@@ -447,7 +435,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         assertEquals("Metadata value incorrect", entry.getValue(), values.getFirst());
                     }
                 } else {
-                    // Verify no x-amz-meta headers are present when metadata is null
                     for (String header : exchange.getRequestHeaders().keySet()) {
                         assertFalse(
                             "No metadata headers should be present when metadata is null",
@@ -456,26 +443,19 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     }
                 }
 
-                // Read the entire request body to avoid connection issues
                 Streams.readFully(exchange.getRequestBody());
 
                 try {
                     Thread.sleep(readTimeout.millis() + 100);
-                } catch (InterruptedException e) {
-                    // Ignore
-                }
+                } catch (InterruptedException e) {}
 
-                // Don't send any response, but do close the connection
                 exchange.close();
             } catch (Exception ex) {
-                // Safety net to ensure connection is always closed
-                logger.warn("Error in HTTP handler", ex);
                 exchange.close();
             }
         });
 
         try {
-            // Execute with expectThrows to capture direct exception
             Exception directException = expectThrows(IOException.class, () -> {
                 try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
                     if (metadata != null) {
@@ -486,7 +466,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 }
             });
 
-            // FIXED: Update expectation to match actual implementation
             assertThat(directException.getMessage().toLowerCase(Locale.ROOT), containsString("s3 upload failed for [" + blobName + "]"));
             assertThat(directException.getCause(), instanceOf(SdkClientException.class));
             assertThat(directException.getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
@@ -499,7 +478,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             assertNotNull("Exception should not be null", asyncException);
             assertTrue("Exception should be IOException", asyncException instanceof IOException);
 
-            // FIXED: Update listener expectation as well
             assertThat(asyncException.getMessage().toLowerCase(Locale.ROOT), containsString("s3 upload failed for [" + blobName + "]"));
             assertThat(asyncException.getCause(), instanceOf(SdkClientException.class));
             assertThat(asyncException.getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
@@ -508,13 +486,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         } catch (InterruptedException e) {
             fail("Test was interrupted: " + e);
         } finally {
-            // Clean up HTTP context
             httpServer.removeContext(contextPath);
         }
     }
 
     public void testWriteLargeBlobWithMetadataAndETag() throws Exception {
-        // Randomly decide if we should use metadata or null
         final Map<String, String> metadata = randomBoolean() ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null;
 
         final String expectedETag = "\"" + randomAlphaOfLength(32) + "\"";
@@ -524,10 +500,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final ActionListener<String> eTagListener = ActionListener.wrap(eTag -> {
             returnedETag.set(eTag);
             latch.countDown();
-        }, e -> {
-            logger.info("Operation encountered an error that may be timeout-related: {}", e.getMessage());
-            latch.countDown();
-        });
+        }, e -> { latch.countDown(); });
 
         writeLargeBlobWithMetadataAndETagHelper(metadata, expectedETag, eTagListener);
 
@@ -542,7 +515,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         String verificationTag,
         ActionListener<String> verificationTagListener
     ) throws Exception {
-        // Setup test parameters
         final boolean useTimeout = rarely();
         final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
         final ByteSizeValue bufferSize = new ByteSizeValue(5, ByteSizeUnit.MB);
@@ -557,53 +529,33 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * (parts + 1));
         final CountDown countDownComplete = new CountDown(nbErrors);
 
-        // Create a unique context path for this test
         final String contextPath = "/bucket/write_large_blob_metadata_etag";
-
-        // IMPROVED: Add diagnostic logging and simplify handler
-        logger.info("--> Setting up HTTP handler for {}, useTimeout={}", contextPath, useTimeout);
 
         httpServer.createContext(contextPath, exchange -> {
             try {
-                // Basic logging of each request for diagnostic purposes
-                logger.info(
-                    "--> Received request: {} {} with headers {}",
-                    exchange.getRequestMethod(),
-                    exchange.getRequestURI(),
-                    exchange.getRequestHeaders().entrySet()
-                );
-
                 long contentLength = 0;
                 String contentLengthHeader = exchange.getRequestHeaders().getFirst("Content-Length");
                 if (contentLengthHeader != null) {
                     try {
                         contentLength = Long.parseLong(contentLengthHeader);
-                    } catch (NumberFormatException e) {
-                        // Use default
-                    }
+                    } catch (NumberFormatException e) {}
                 }
 
-                // Handle initialization request
                 if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploads")) {
-                    // Don't assert - just log if the header is missing/incorrect
                     List<String> ifMatchHeaders = exchange.getRequestHeaders().get("If-Match");
-                    if (ifMatchHeaders == null || ifMatchHeaders.isEmpty()) {
-                        logger.warn("--> Missing If-Match header in initiate request");
-                    } else if (!verificationTag.equals(ifMatchHeaders.getFirst())) {
-                        logger.warn("--> Incorrect If-Match value: expected {}, got {}", verificationTag, ifMatchHeaders.getFirst());
+                    if (ifMatchHeaders == null || ifMatchHeaders.isEmpty()) {} else if (!verificationTag.equals(
+                        ifMatchHeaders.getFirst()
+                    )) {
                     }
 
-                    // Always check the metadata without assertions
                     if (metadata != null) {
                         for (Map.Entry<String, String> entry : metadata.entrySet()) {
                             List<String> values = exchange.getRequestHeaders().get("x-amz-meta-" + entry.getKey());
                             if (values == null || values.isEmpty()) {
-                                logger.warn("--> Missing metadata header: {}", entry.getKey());
                             }
                         }
                     }
 
-                    // Handle initialization success case
                     if (countDownInitiate.countDown()) {
                         byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                             + "<InitiateMultipartUploadResult>\n"
@@ -617,76 +569,52 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         exchange.close();
                         return;
                     }
-                }
-                // Handle upload part request
-                else if ("PUT".equals(exchange.getRequestMethod())
+                } else if ("PUT".equals(exchange.getRequestMethod())
                     && exchange.getRequestURI().getQuery().contains("uploadId=TEST")
                     && exchange.getRequestURI().getQuery().contains("partNumber=")) {
 
-                        // Log instead of assert for If-Match header check
                         if (exchange.getRequestHeaders().get("If-Match") != null) {
-                            logger.warn("--> Unexpected If-Match header in part upload");
                         }
 
-                        // Process the part data
                         SdkDigestInputStream digestInputStream = new SdkDigestInputStream(exchange.getRequestBody(), MessageDigests.md5());
                         BytesReference bytes = Streams.readFully(digestInputStream);
 
-                        // Log instead of assert for part size
                         if ((long) bytes.length() != lastPartSize && (long) bytes.length() != bufferSize.getBytes()) {
-                            logger.warn(
-                                "--> Unexpected part size: {} (expected {} or {})",
-                                bytes.length(),
-                                lastPartSize,
-                                bufferSize.getBytes()
-                            );
                         }
 
-                        // Handle success case for part upload
                         if (countDownUploads.decrementAndGet() % 2 == 0) {
                             exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(digestInputStream.getMessageDigest().digest()));
                             exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                             exchange.close();
                             return;
                         }
-                    }
-                // Handle completion request
-                else if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
+                    } else if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
 
-                    // Log instead of assert for If-Match header
-                    List<String> ifMatchHeaders = exchange.getRequestHeaders().get("If-Match");
-                    if (ifMatchHeaders == null || ifMatchHeaders.isEmpty()) {
-                        logger.warn("--> Missing If-Match header in complete request");
-                    } else if (!verificationTag.equals(ifMatchHeaders.getFirst())) {
-                        logger.warn(
-                            "--> Incorrect If-Match value in complete: expected {}, got {}",
-                            verificationTag,
+                        List<String> ifMatchHeaders = exchange.getRequestHeaders().get("If-Match");
+                        if (ifMatchHeaders == null || ifMatchHeaders.isEmpty()) {} else if (!verificationTag.equals(
                             ifMatchHeaders.getFirst()
-                        );
+                        )) {
+                        }
+
+                        if (countDownComplete.countDown()) {
+                            Streams.readFully(exchange.getRequestBody());
+                            byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                + "<CompleteMultipartUploadResult>\n"
+                                + "  <Bucket>bucket</Bucket>\n"
+                                + "  <Key>write_large_blob_metadata_etag</Key>\n"
+                                + "  <ETag>"
+                                + verificationTag
+                                + "</ETag>\n"
+                                + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                            exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                            exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                            exchange.getResponseBody().write(response);
+                            exchange.close();
+                            return;
+                        }
                     }
 
-                    // Handle success case for completion
-                    if (countDownComplete.countDown()) {
-                        Streams.readFully(exchange.getRequestBody());
-                        byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                            + "<CompleteMultipartUploadResult>\n"
-                            + "  <Bucket>bucket</Bucket>\n"
-                            + "  <Key>write_large_blob_metadata_etag</Key>\n"
-                            + "  <ETag>"
-                            + verificationTag
-                            + "</ETag>\n"
-                            + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                        exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                        exchange.getResponseBody().write(response);
-                        exchange.close();
-                        return;
-                    }
-                }
-
-                // CRITICAL: Handle error cases exactly like WriteLargeBlobHelper
                 if (useTimeout == false) {
-                    // For non-timeout cases, send an error response
                     if (randomBoolean() && contentLength > 0) {
                         Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]);
                     } else {
@@ -702,14 +630,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         );
                     }
                     exchange.close();
-                    logger.info("--> Sent error response for non-timeout case");
-                } else {
-                    // For timeout simulation, do nothing but log
-                    logger.info("--> Simulating timeout by not responding");
-                }
+                } else {}
             } catch (Exception e) {
-                // Log any exceptions but DON'T close the connection for timeout cases
-                logger.warn("--> Exception in HTTP handler", e);
                 if (!useTimeout) {
                     try {
                         exchange.close();
@@ -720,7 +642,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         try {
             if (metadata != null) {
-                logger.info("--> Starting writeBlobWithMetadataIfVerified");
                 blobContainer.writeBlobWithMetadataIfVerified(
                     "write_large_blob_metadata_etag",
                     new ZeroInputStream(blobSize),
@@ -730,9 +651,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     verificationTag,
                     verificationTagListener
                 );
-                logger.info("--> Completed writeBlobWithMetadataIfVerified successfully");
             } else {
-                logger.info("--> Starting writeBlobIfVerified");
                 blobContainer.writeBlobIfVerified(
                     "write_large_blob_metadata_etag",
                     new ZeroInputStream(blobSize),
@@ -741,38 +660,28 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     verificationTag,
                     verificationTagListener
                 );
-                logger.info("--> Completed writeBlobIfVerified successfully");
             }
 
-            // Only verify counters on success
             assertThat(countDownInitiate.isCountedDown(), is(true));
             assertThat(countDownUploads.get(), equalTo(0));
             assertThat(countDownComplete.isCountedDown(), is(true));
 
         } catch (IOException e) {
-            logger.info("--> Caught exception: {}", e.getMessage(), e);
-
-            // Always allow timeout-related exceptions to pass the test
             if (useTimeout
                 || e.getMessage().contains("Unable to execute HTTP request")
                 || e.getMessage().contains("failed to respond")
                 || e.getMessage().contains("service unavailable")
                 || e.getMessage().contains("timed out")
                 || e.getMessage().contains("timeout")
-                || (e.getCause() instanceof java.net.SocketTimeoutException)) {
-
-                logger.info("--> Expected exception in timeout scenario: {}", e.getMessage());
-            } else {
-                throw e; // Re-throw unexpected exceptions
+                || (e.getCause() instanceof java.net.SocketTimeoutException)) {} else {
+                throw e;
             }
         } finally {
-            logger.info("--> Cleaning up HTTP context");
             httpServer.removeContext(contextPath);
         }
     }
 
     public void testWriteBlobWithMetadataIfVerifiedAndETagMismatch() throws Exception {
-        // Randomly decide if we should use metadata or null
         final Map<String, String> metadata = randomBoolean() ? Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null;
         final String eTag = "\"" + randomAlphaOfLength(32) + "\"";
         final AtomicReference<Exception> listenerException = new AtomicReference<>();
@@ -795,28 +704,23 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             )
             .build();
 
-        // Create mock S3Client that throws our specific exception
         S3Client mockS3Client = mock(S3Client.class);
         when(mockS3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(preconditionFailedException);
 
-        // Create mock client reference
         AmazonS3Reference mockRef = mock(AmazonS3Reference.class);
         when(mockRef.get()).thenReturn(mockS3Client);
 
-        // Create a mock blob store with our mock client
         S3BlobStore mockBlobStore = mock(S3BlobStore.class);
         when(mockBlobStore.bucket()).thenReturn("bucket");
         when(mockBlobStore.clientReference()).thenReturn(mockRef);
-        when(mockBlobStore.bufferSizeInBytes()).thenReturn(104857600L); // 100MB
+        when(mockBlobStore.bufferSizeInBytes()).thenReturn(104857600L);
         when(mockBlobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
 
-        // Create the blob container with mocked dependencies
         BlobPath blobPath = new BlobPath();
         S3BlobContainer blobContainer = new S3BlobContainer(blobPath, mockBlobStore);
 
         final String blobName = "write_blob_metadata_etag_mismatch";
 
-        // Track input stream closure
         final AtomicBoolean streamClosed = new AtomicBoolean(false);
         InputStream trackingStream = new ByteArrayInputStream(new byte[1024]) {
             @Override
@@ -827,8 +731,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         };
 
         try {
-            // Execute the method under test
-            try (InputStream ignored = trackingStream) { // just to ensure closure in case of failure
+            try (InputStream ignored = trackingStream) {
                 if (metadata != null) {
                     blobContainer.writeBlobWithMetadataIfVerified(blobName, trackingStream, 1024, false, metadata, eTag, eTagListener);
                 } else {
@@ -843,18 +746,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 assertSame("Exception cause should be our mock S3Exception", preconditionFailedException, expected.getCause());
             }
 
-            // Verify the listener received the correct exception - use longer timeout
             assertTrue("Listener was not called within timeout", latch.await(30, TimeUnit.SECONDS));
             assertNotNull("Exception should not be null", listenerException.get());
-
-            // Verify OpenSearchException is correctly created
             assertTrue("Should receive OpenSearchException", listenerException.get() instanceof OpenSearchException);
 
-            // Verify resource cleanup
             verify(mockRef).close();
             assertTrue("Input stream should be closed", streamClosed.get());
         } catch (Exception e) {
-            logger.error("Test failed with exception", e);
             throw e;
         }
     }
