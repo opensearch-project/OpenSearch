@@ -132,7 +132,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
     public void setRefreshInterval(long refreshInterval) {
         if (refreshInterval < MIN_SYNC_REFRESH_INTERVAL) {
             logger.warn("Refresh interval must be at least 1000ms. Neglecting this change");
-            return;
+            throw new IllegalArgumentException("Refresh interval must be at least 1000ms");
         }
         this.refreshInterval = refreshInterval;
     }
