@@ -8,6 +8,7 @@
 
 package org.opensearch.search.startree.filter.provider;
 
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
@@ -41,6 +42,9 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
     @Override
     public StarTreeFilter getFilter(SearchContext context, QueryBuilder rawFilter, CompositeDataCubeFieldType compositeFieldType)
         throws IOException {
+        if (FeatureFlags.isEnabled(FeatureFlags.STAR_TREE_INDEX_SETTING) == false) {
+            return null;
+        }
         return processBoolQuery((BoolQueryBuilder) rawFilter, context, compositeFieldType);
     }
 
