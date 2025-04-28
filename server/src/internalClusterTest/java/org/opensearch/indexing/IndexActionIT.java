@@ -471,6 +471,29 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                     },
                     "ip_field": {
                         "type": "ip"
+                    },
+                    "constant_keyword": {
+                        "type": "constant_keyword",
+                        "value": "1"
+                    },
+                    "geo_point_field": {
+                        "type": "geo_point"
+                    },
+                    "text_field": {
+                        "type": "text",
+                        "store": true
+                    },
+                    "text_keyword_field": {
+                        "type": "text",
+                        "fields": {
+                            "keyword_field": {
+                                "type": "keyword"
+                            }
+                        }
+                    },
+                    "wildcard_field": {
+                        "type": "wildcard",
+                        "doc_values": true
                     }
                 }
             }""";
