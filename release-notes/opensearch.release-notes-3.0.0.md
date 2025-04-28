@@ -1,4 +1,4 @@
-## 2025-04-15 Version 3.0.0-beta1 Release Notes
+## 2025-04-28 Version 3.0.0 Release Notes
 
 ## [3.0.0]
 ### Breaking Changes
