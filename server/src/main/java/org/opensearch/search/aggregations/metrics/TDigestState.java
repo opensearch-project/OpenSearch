@@ -37,15 +37,15 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Iterator;
 
-import com.tdunning.math.stats.AVLTreeDigest;
 import com.tdunning.math.stats.Centroid;
+import com.tdunning.math.stats.MergingDigest;
 
 /**
  * Extension of {@link com.tdunning.math.stats.TDigest} with custom serialization.
  *
  * @opensearch.internal
  */
-public class TDigestState extends AVLTreeDigest {
+public class TDigestState extends MergingDigest {
 
     private final double compression;
 
