@@ -21,6 +21,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
@@ -113,7 +114,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     public static void waitForSearchableDocs(String indexName, long docCount, List<String> nodes) throws Exception {
         // wait until the replica has the latest segment generation.
-        assertBusy(() -> {
+        assertBusyWithFixedSleepTime(() -> {
             for (String node : nodes) {
                 final SearchResponse response = client(node).prepareSearch(indexName).setSize(0).setPreference("_only_local").get();
                 final long hits = response.getHits().getTotalHits().value();
@@ -121,7 +122,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                     fail("Expected search hits on node: " + node + " to be at least " + docCount + " but was: " + hits);
                 }
             }
-        }, 2, TimeUnit.MINUTES);
+        }, TimeValue.timeValueMinutes(2), TimeValue.timeValueSeconds(2));
     }
 
     protected void waitForSearchableDocs(long docCount, String... nodes) throws Exception {
