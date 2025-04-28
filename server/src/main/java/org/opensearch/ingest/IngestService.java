@@ -55,7 +55,6 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
@@ -97,6 +96,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_PIPELINE;
+import static org.opensearch.cluster.service.ClusterManagerTask.PUT_PIPELINE;
 
 /**
  * Holder class for several ingest related services.
@@ -170,8 +172,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.threadPool = threadPool;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_PIPELINE_KEY, true);
-        deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_PIPELINE_KEY, true);
+        putPipelineTaskKey = clusterService.registerClusterManagerTask(PUT_PIPELINE, true);
+        deletePipelineTaskKey = clusterService.registerClusterManagerTask(DELETE_PIPELINE, true);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_NUMBER_OF_INGEST_PROCESSORS, this::setMaxIngestProcessorCount);
         setMaxIngestProcessorCount(clusterService.getClusterSettings().get(MAX_NUMBER_OF_INGEST_PROCESSORS));
     }
