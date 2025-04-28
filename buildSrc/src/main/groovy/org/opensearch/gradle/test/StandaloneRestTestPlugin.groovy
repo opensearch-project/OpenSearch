@@ -98,7 +98,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         eclipse.classpath.plusConfigurations = [project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)]
 
         IdeaModel idea = project.extensions.getByType(IdeaModel)
-        idea.module.testSourceDirs += testSourceSet.java.srcDirs
+        idea.module.testSources.from(testSourceSet.java.srcDirs)
         idea.module.scopes.put('TEST', [plus: [project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)]] as Map<String, Collection<Configuration>>)
 
         PrecommitTasks.create(project, false)
