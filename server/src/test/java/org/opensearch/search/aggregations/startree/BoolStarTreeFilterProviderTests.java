@@ -1114,6 +1114,16 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertNull("Filter should be null when minimum_should_match is set in nested query", filter);
     }
 
+    public void testMustNotClauseReturnsNull() throws IOException {
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder().mustNot(new TermQueryBuilder("status", 200));
+
+        StarTreeFilterProvider provider = StarTreeFilterProvider.SingletonFactory.getProvider(boolQuery);
+        StarTreeFilter filter = provider.getFilter(searchContext, boolQuery, compositeFieldType);
+
+        // this should return null as must not clause is not supported
+        assertNull("Filter should be null for same dimension in MUST", filter);
+    }
+
     // Helper methods for assertions
     private void assertExactMatchValue(ExactMatchDimFilter filter, String expectedValue) {
         assertEquals(new BytesRef(expectedValue), filter.getRawValues().getFirst());

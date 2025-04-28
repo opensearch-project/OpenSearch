@@ -8,8 +8,12 @@
 
 package org.opensearch.search.aggregations.startree;
 
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeNodeCollector;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.DimensionFilterMergerUtils;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
@@ -71,6 +75,12 @@ public class DimensionFilterMergerUtilsTests extends OpenSearchTestCase {
         assertRangeIntersection(
             range("status", null, 500L, true, true),
             range("status", 200L, null, true, true),
+            range("status", 200L, 500L, true, true),
+            numericMapper
+        );
+        assertRangeIntersection(
+            range("status", 200L, null, true, true),
+            range("status", null, 500L, true, true),
             range("status", 200L, 500L, true, true),
             numericMapper
         );
@@ -298,6 +308,43 @@ public class DimensionFilterMergerUtilsTests extends OpenSearchTestCase {
             )
         );
         assertEquals("Cannot intersect filters for different dimensions: status and method", e4.getMessage());
+    }
+
+    public void testUnsupportedFilterCombination() {
+        // Create a custom filter type for testing
+        class CustomDimensionFilter implements DimensionFilter {
+            @Override
+            public String getDimensionName() {
+                return "status";
+            }
+
+            @Override
+            public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {}
+
+            @Override
+            public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector) {}
+
+            @Override
+            public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
+                return false;
+            }
+        }
+
+        DimensionFilter customFilter = new CustomDimensionFilter();
+
+        // Test unsupported combination with ExactMatchDimFilter
+        IllegalArgumentException e1 = assertThrows(
+            IllegalArgumentException.class,
+            () -> DimensionFilterMergerUtils.intersect(customFilter, exactMatch("status", List.of(200L)), numericMapper)
+        );
+        assertEquals("Unsupported filter combination: CustomDimensionFilter and ExactMatchDimFilter", e1.getMessage());
+
+        // Test unsupported combination with RangeMatchDimFilter
+        IllegalArgumentException e2 = assertThrows(
+            IllegalArgumentException.class,
+            () -> DimensionFilterMergerUtils.intersect(range("status", 200L, 300L, true, true), customFilter, numericMapper)
+        );
+        assertEquals("Unsupported filter combination: RangeMatchDimFilter and CustomDimensionFilter", e2.getMessage());
     }
 
     // Helper methods

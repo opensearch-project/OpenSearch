@@ -11,7 +11,9 @@ package org.opensearch.search.startree.filter;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Utility class for merging different types of {@link DimensionFilter}
@@ -140,11 +142,11 @@ public class DimensionFilterMergerUtils {
      */
     private static DimensionFilter intersectExactMatchFilters(ExactMatchDimFilter exact1, ExactMatchDimFilter exact2) {
         List<Object> values1 = exact1.getRawValues();
-        List<Object> values2 = exact2.getRawValues();
+        Set<Object> values2Set = new HashSet<>(exact2.getRawValues());
 
         List<Object> intersection = new ArrayList<>();
         for (Object value : values1) {
-            if (values2.contains(value)) {
+            if (values2Set.contains(value)) {
                 intersection.add(value);
             }
         }
