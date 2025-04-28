@@ -793,7 +793,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         boolean hasNested,
         AggregatorFactory aggregatorFactory,
         boolean assertCollectorEarlyTermination,
-        boolean skipFailingAssertion,
+        boolean skipReducedMultiBucketConsumerAssertion,
         MappedFieldType... fieldTypes
     ) throws IOException {
         query = query.rewrite(searcher);
@@ -843,7 +843,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
         @SuppressWarnings("unchecked")
         A internalAgg = (A) aggs.get(0).reduce(aggs, context);
-        if(!skipFailingAssertion) doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+        if(!skipReducedMultiBucketConsumerAssertion) doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
         return internalAgg;
     }
 
