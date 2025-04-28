@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations.startree;
 
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
@@ -36,16 +37,31 @@ import org.opensearch.search.startree.filter.StarTreeFilter;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 import org.opensearch.search.startree.filter.provider.StarTreeFilterProvider;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DimensionFilterAndMapperTests extends OpenSearchTestCase {
+
+    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
+
+    @Before
+    public void setup() {
+        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
+    }
+
+    @After
+    public void teardown() throws IOException {
+        fflock.close();
+    }
 
     public void testKeywordOrdinalMapping() throws IOException {
         DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
