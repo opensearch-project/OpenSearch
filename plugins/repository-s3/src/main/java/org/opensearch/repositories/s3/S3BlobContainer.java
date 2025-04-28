@@ -173,11 +173,89 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     }
 
     /**
+     * Writes a blob with an eTag for conditional PUT operations
+     */
+    @Override
+    public void writeBlobIfVerified(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        String eTag,
+        ActionListener<String> etagListener
+    ) throws IOException {
+        writeBlobWithMetadataIfVerified(blobName, inputStream, blobSize, failIfAlreadyExists, null, eTag, etagListener);
+    }
+
+    /**
      * This implementation ignores the failIfAlreadyExists flag as the S3 API has no way to enforce this due to its weak consistency model.
      */
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, null);
+    }
+
+    private void internalWriteBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        @Nullable String expectedETag,
+        @Nullable ActionListener<String> etagListener
+    ) throws IOException {
+
+        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
+
+        SocketAccess.doPrivilegedIOException(() -> {
+            if (blobSize <= getLargeBlobThresholdInBytes()) {
+                if (expectedETag != null && etagListener != null) {
+                    executeSingleUploadIfEtagMatches(
+                        blobStore,
+                        buildKey(blobName),
+                        inputStream,
+                        blobSize,
+                        metadata,
+                        expectedETag,
+                        etagListener
+                    );
+                } else {
+                    executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
+                }
+            } else {
+                if (expectedETag != null && etagListener != null) {
+                    executeMultipartUploadIfEtagMatches(
+                        blobStore,
+                        buildKey(blobName),
+                        inputStream,
+                        blobSize,
+                        metadata,
+                        expectedETag,
+                        etagListener
+                    );
+                } else {
+                    executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
+                }
+            }
+            return null;
+        });
+    }
+
+    /**
+     * Writes a blob along with its metadata and using an eTag for conditional PUT operations
+     */
+    @ExperimentalApi
+    @Override
+    public void writeBlobWithMetadataIfVerified(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        String eTag,
+        ActionListener<String> etagListener
+    ) throws IOException {
+        internalWriteBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, eTag, etagListener);
     }
 
     /**
@@ -192,15 +270,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         boolean failIfAlreadyExists,
         @Nullable Map<String, String> metadata
     ) throws IOException {
-        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
-        SocketAccess.doPrivilegedIOException(() -> {
-            if (blobSize <= getLargeBlobThresholdInBytes()) {
-                executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
-            } else {
-                executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
-            }
-            return null;
-        });
+        internalWriteBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, null, null);
     }
 
     @Override
