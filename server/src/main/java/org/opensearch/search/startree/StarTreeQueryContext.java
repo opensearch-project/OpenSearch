@@ -10,6 +10,7 @@ package org.opensearch.search.startree;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
@@ -250,12 +251,13 @@ public class StarTreeQueryContext {
         AggregatorFactory aggregatorFactory
     ) {
         boolean isValid;
+        boolean isFeatureFlagEnabled = FeatureFlags.isEnabled(FeatureFlags.STAR_TREE_INDEX_SETTING);
 
         switch (aggregatorFactory) {
             case TermsAggregatorFactory termsAggregatorFactory -> isValid = validateKeywordTermsAggregationSupport(
                 compositeIndexFieldInfo,
                 termsAggregatorFactory
-            );
+            ) && isFeatureFlagEnabled;
             case DateHistogramAggregatorFactory dateHistogramAggregatorFactory -> isValid = validateDateHistogramSupport(
                 compositeIndexFieldInfo,
                 dateHistogramAggregatorFactory
@@ -263,7 +265,7 @@ public class StarTreeQueryContext {
             case RangeAggregatorFactory rangeAggregatorFactory -> isValid = validateRangeAggregationSupport(
                 compositeIndexFieldInfo,
                 rangeAggregatorFactory
-            );
+            ) && isFeatureFlagEnabled;
             case MetricAggregatorFactory metricAggregatorFactory -> {
                 isValid = validateStarTreeMetricSupport(compositeIndexFieldInfo, metricAggregatorFactory);
                 return isValid && metricAggregatorFactory.getSubFactories().getFactories().length == 0;
@@ -273,7 +275,7 @@ public class StarTreeQueryContext {
             }
         }
 
-        if (!isValid) return false;
+        if (isValid == false) return false;
 
         for (AggregatorFactory subFactory : aggregatorFactory.getSubFactories().getFactories()) {
             if (!validateNestedAggregationStructure(compositeIndexFieldInfo, subFactory)) {

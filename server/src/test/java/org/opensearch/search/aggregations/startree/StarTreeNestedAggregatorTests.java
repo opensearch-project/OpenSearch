@@ -208,18 +208,15 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
             queryBuilder = null;
             for (Supplier<ValuesSourceAggregationBuilder<?>> outerSupplier : aggregationSuppliers) {
                 for (Supplier<ValuesSourceAggregationBuilder<?>> innerSupplier : aggregationSuppliers) {
-                    if (innerSupplier == outerSupplier) {
-                        continue;
-                    }
 
                     ValuesSourceAggregationBuilder<?> inner = innerSupplier.get().subAggregation(aggregationBuilder);
                     ValuesSourceAggregationBuilder<?> outer = outerSupplier.get().subAggregation(inner);
 
-                    // Skipping [DateHistogramAggregationBuilder + RangeAggregationBuilder] combinations for a failing assertion in
+                    // Skipping [DateHistogramAggregationBuilder + RangeAggregationBuilder] combinations for a ReducedMultiBucketConsumer assertion in
                     // searchAndReduceStarTree
-                    boolean skipFailingAssertion = (inner instanceof RangeAggregationBuilder
+                    boolean skipReducedMultiBucketConsumerAssertion = (inner instanceof RangeAggregationBuilder
                         && outer instanceof DateHistogramAggregationBuilder);
-                    testCase(indexSearcher, query, queryBuilder, outer, starTree, supportedDimensions, skipFailingAssertion);
+                    testCase(indexSearcher, query, queryBuilder, outer, starTree, supportedDimensions, skipReducedMultiBucketConsumerAssertion);
 
                     // Numeric-terms query with numeric terms aggregation
                     for (int cases = 0; cases < 10; cases++) {
@@ -233,7 +230,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                         queryValue = random.nextInt(10);
                         query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
                         queryBuilder = new TermQueryBuilder(queryField, queryValue);
-                        testCase(indexSearcher, query, queryBuilder, outer, starTree, supportedDimensions, skipFailingAssertion);
+                        testCase(indexSearcher, query, queryBuilder, outer, starTree, supportedDimensions, skipReducedMultiBucketConsumerAssertion);
                     }
                 }
             }
@@ -251,12 +248,12 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                         ValuesSourceAggregationBuilder<?> middle = middleSupplier.get().subAggregation(innermost);
                         ValuesSourceAggregationBuilder<?> outermost = outermostSupplier.get().subAggregation(middle);
 
-                        // Skipping [DateHistogramAggregationBuilder + RangeAggregationBuilder] combinations for a failing assertion in
+                        // Skipping [DateHistogramAggregationBuilder + RangeAggregationBuilder] combinations for a ReducedMultiBucketConsumer assertion in
                         // searchAndReduceStarTree
-                        boolean skipFailingAssertion = (middle instanceof RangeAggregationBuilder
+                        boolean skipReducedMultiBucketConsumerAssertion = (middle instanceof RangeAggregationBuilder
                             && outermost instanceof DateHistogramAggregationBuilder)
                             || (middle instanceof DateHistogramAggregationBuilder && innermost instanceof RangeAggregationBuilder);
-                        testCase(indexSearcher, query, queryBuilder, outermost, starTree, supportedDimensions, skipFailingAssertion);
+                        testCase(indexSearcher, query, queryBuilder, outermost, starTree, supportedDimensions, skipReducedMultiBucketConsumerAssertion);
 
                         // Numeric-terms query with numeric terms aggregation
                         for (int cases = 0; cases < 10; cases++) {
@@ -270,7 +267,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                             queryValue = random.nextInt(10);
                             query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
                             queryBuilder = new TermQueryBuilder(queryField, queryValue);
-                            testCase(indexSearcher, query, queryBuilder, outermost, starTree, supportedDimensions, skipFailingAssertion);
+                            testCase(indexSearcher, query, queryBuilder, outermost, starTree, supportedDimensions, skipReducedMultiBucketConsumerAssertion);
                         }
 
                     }
@@ -290,7 +287,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
         ValuesSourceAggregationBuilder<?> aggregationBuilder,
         CompositeIndexFieldInfo starTree,
         LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
-        boolean skipFailingAssertion
+        boolean skipReducedMultiBucketConsumerAssertion
     ) throws IOException {
 
         if (aggregationBuilder instanceof TermsAggregationBuilder) {
@@ -303,7 +300,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                 queryBuilder,
                 starTree,
                 supportedDimensions,
-                skipFailingAssertion,
+                skipReducedMultiBucketConsumerAssertion,
                 STATUS_FIELD_TYPE,
                 SIZE_FIELD_TYPE,
                 TIMESTAMP_FIELD_TYPE,
@@ -320,7 +317,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                 queryBuilder,
                 starTree,
                 supportedDimensions,
-                skipFailingAssertion,
+                skipReducedMultiBucketConsumerAssertion,
                 STATUS_FIELD_TYPE,
                 TIMESTAMP_FIELD_TYPE,
                 SIZE_FIELD_TYPE,
@@ -337,7 +334,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                 queryBuilder,
                 starTree,
                 supportedDimensions,
-                skipFailingAssertion,
+                skipReducedMultiBucketConsumerAssertion,
                 STATUS_FIELD_TYPE,
                 SIZE_FIELD_TYPE,
                 TIMESTAMP_FIELD_TYPE,
@@ -355,7 +352,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
         QueryBuilder queryBuilder,
         CompositeIndexFieldInfo starTree,
         LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
-        boolean skipFailingAssertion,
+        boolean skipReducedMultiBucketConsumerAssertion,
         MappedFieldType... fieldTypes
     ) throws IOException {
 
@@ -373,7 +370,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                 false,
                 null,
                 false,
-                skipFailingAssertion,
+                skipReducedMultiBucketConsumerAssertion,
                 fieldTypes
             )
         );
@@ -392,7 +389,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                 false,
                 null,
                 true,
-                skipFailingAssertion,
+                skipReducedMultiBucketConsumerAssertion,
                 fieldTypes
             )
         );
