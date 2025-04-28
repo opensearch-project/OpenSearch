@@ -259,12 +259,12 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                                 values.add(possibleValues.get(j)[randomIntBetween(0, possibleValues.get(j).length - 1)]);
                                 if (types[j].clazz == Long.class) {
                                     long value = (Long) values.get(k);
-                                    document.add(new SortedNumericDocValuesField(types[j].fieldType.name(), value));
+                                    document.add(SortedNumericDocValuesField.indexedField(types[j].fieldType.name(), value));
                                     document.add(new LongPoint(types[j].fieldType.name(), value));
                                 } else if (types[j].clazz == BigInteger.class) {
                                     BigInteger value = (BigInteger) values.get(k);
                                     document.add(
-                                        new SortedNumericDocValuesField(
+                                        SortedNumericDocValuesField.indexedField(
                                             types[j].fieldType.name(),
                                             NumericUtils.doubleToSortableLong(value.doubleValue())
                                         )
@@ -272,7 +272,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                                     document.add(new BigIntegerPoint(types[j].fieldType.name(), value));
                                 } else if (types[j].clazz == Double.class) {
                                     document.add(
-                                        new SortedNumericDocValuesField(
+                                        SortedNumericDocValuesField.indexedField(
                                             types[j].fieldType.name(),
                                             NumericUtils.doubleToSortableLong((Double) values.get(k))
                                         )

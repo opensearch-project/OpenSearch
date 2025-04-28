@@ -766,7 +766,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     public void testLongTermsAggregator() throws Exception {
         BiFunction<Long, Boolean, IndexableField> luceneFieldFactory = (val, mv) -> {
             if (mv) {
-                return new SortedNumericDocValuesField("field", val);
+                return SortedNumericDocValuesField.indexedField("field", val);
             } else {
                 return new NumericDocValuesField("field", val);
             }
@@ -779,7 +779,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     public void testDoubleTermsAggregator() throws Exception {
         BiFunction<Double, Boolean, IndexableField> luceneFieldFactory = (val, mv) -> {
             if (mv) {
-                return new SortedNumericDocValuesField("field", Double.doubleToRawLongBits(val));
+                return SortedNumericDocValuesField.indexedField("field", Double.doubleToRawLongBits(val));
             } else {
                 return new NumericDocValuesField("field", Double.doubleToRawLongBits(val));
             }
@@ -1499,9 +1499,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     for (int j = 0; j < 10; j++) {
                         for (int k = 0; k < 10; k++) {
                             Document d = new Document();
-                            d.add(new SortedNumericDocValuesField("i", i));
-                            d.add(new SortedNumericDocValuesField("j", j));
-                            d.add(new SortedNumericDocValuesField("k", k));
+                            d.add(SortedNumericDocValuesField.indexedField("i", i));
+                            d.add(SortedNumericDocValuesField.indexedField("j", j));
+                            d.add(SortedNumericDocValuesField.indexedField("k", k));
                             writer.addDocument(d);
                         }
                     }
@@ -1681,13 +1681,13 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             Document document = new Document();
             document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
             document.add(new Field(NestedPathFieldMapper.NAME, "nested_object", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-            document.add(new SortedNumericDocValuesField("nested_value", nestedValue));
+            document.add(SortedNumericDocValuesField.indexedField("nested_value", nestedValue));
             documents.add(document);
         }
 
         Document document = new Document();
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
-        document.add(new SortedNumericDocValuesField("value", value));
+        document.add(SortedNumericDocValuesField.indexedField("value", value));
         document.add(sequenceIDFields.primaryTerm);
         documents.add(document);
 
@@ -1698,16 +1698,16 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         Document document = new Document();
-        document.add(new SortedNumericDocValuesField("number", 10));
-        document.add(new SortedNumericDocValuesField("number", 100));
+        document.add(SortedNumericDocValuesField.indexedField("number", 10));
+        document.add(SortedNumericDocValuesField.indexedField("number", 100));
         indexWriter.addDocument(document);
         document = new Document();
-        document.add(new SortedNumericDocValuesField("number", 1));
-        document.add(new SortedNumericDocValuesField("number", 100));
+        document.add(SortedNumericDocValuesField.indexedField("number", 1));
+        document.add(SortedNumericDocValuesField.indexedField("number", 100));
         indexWriter.addDocument(document);
         document = new Document();
-        document.add(new SortedNumericDocValuesField("number", 10));
-        document.add(new SortedNumericDocValuesField("number", 1000));
+        document.add(SortedNumericDocValuesField.indexedField("number", 10));
+        document.add(SortedNumericDocValuesField.indexedField("number", 1000));
         indexWriter.addDocument(document);
         indexWriter.close();
         return DirectoryReader.open(directory);
@@ -1717,16 +1717,16 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         Document document = new Document();
-        document.add(new SortedNumericDocValuesField("number", NumericUtils.doubleToSortableLong(10.0d)));
-        document.add(new SortedNumericDocValuesField("number", NumericUtils.doubleToSortableLong(100.0d)));
+        document.add(SortedNumericDocValuesField.indexedField("number", NumericUtils.doubleToSortableLong(10.0d)));
+        document.add(SortedNumericDocValuesField.indexedField("number", NumericUtils.doubleToSortableLong(100.0d)));
         indexWriter.addDocument(document);
         document = new Document();
-        document.add(new SortedNumericDocValuesField("number", NumericUtils.doubleToSortableLong(1.0d)));
-        document.add(new SortedNumericDocValuesField("number", NumericUtils.doubleToSortableLong(100.0d)));
+        document.add(SortedNumericDocValuesField.indexedField("number", NumericUtils.doubleToSortableLong(1.0d)));
+        document.add(SortedNumericDocValuesField.indexedField("number", NumericUtils.doubleToSortableLong(100.0d)));
         indexWriter.addDocument(document);
         document = new Document();
-        document.add(new SortedNumericDocValuesField("number", NumericUtils.doubleToSortableLong(10.0d)));
-        document.add(new SortedNumericDocValuesField("number", NumericUtils.doubleToSortableLong(1000.0d)));
+        document.add(SortedNumericDocValuesField.indexedField("number", NumericUtils.doubleToSortableLong(10.0d)));
+        document.add(SortedNumericDocValuesField.indexedField("number", NumericUtils.doubleToSortableLong(1000.0d)));
         indexWriter.addDocument(document);
         indexWriter.close();
         return DirectoryReader.open(directory);

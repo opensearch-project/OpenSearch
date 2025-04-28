@@ -69,7 +69,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (long value : new long[] { 7, 3, -10, -6, 5, 15 }) {
                 Document doc = new Document();
-                doc.add(new SortedNumericDocValuesField("field", value));
+                doc.add(SortedNumericDocValuesField.indexedField("field", value));
                 w.addDocument(doc);
             }
 
@@ -99,7 +99,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (double value : new double[] { 9.3, 3.2, -10, -6.5, 5.3, 15.1 }) {
                 Document doc = new Document();
-                doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
+                doc.add(SortedNumericDocValuesField.indexedField("field", NumericUtils.doubleToSortableLong(value)));
                 w.addDocument(doc);
             }
 
@@ -147,7 +147,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             Document document = new Document();
             for (String date : dataset) {
                 long instant = fieldType.parse(date);
-                document.add(new SortedNumericDocValuesField(fieldName, instant));
+                document.add(SortedNumericDocValuesField.indexedField(fieldName, instant));
                 indexWriter.addDocument(document);
                 document.clear();
             }
@@ -166,7 +166,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (long value : new long[] { 3, 2, -10, 5, -9 }) {
                 Document doc = new Document();
-                doc.add(new SortedNumericDocValuesField("field", value));
+                doc.add(SortedNumericDocValuesField.indexedField("field", value));
                 w.addDocument(doc);
             }
 
@@ -196,7 +196,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (long value : new long[] { 7, 3, -10, -6, 5, 50 }) {
                 Document doc = new Document();
-                doc.add(new SortedNumericDocValuesField("field", value));
+                doc.add(SortedNumericDocValuesField.indexedField("field", value));
                 w.addDocument(doc);
             }
 
@@ -218,7 +218,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (long value : new long[] { 7, 3, -10, -6, 5, 15 }) {
                 Document doc = new Document();
-                doc.add(new SortedNumericDocValuesField("field", value));
+                doc.add(SortedNumericDocValuesField.indexedField("field", value));
                 w.addDocument(doc);
                 w.addDocument(new Document());
             }
@@ -315,7 +315,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (double value : new double[] { 9.3, 3.2, -5, -6.5, 5.3 }) {
                 Document doc = new Document();
-                doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
+                doc.add(SortedNumericDocValuesField.indexedField("field", NumericUtils.doubleToSortableLong(value)));
                 w.addDocument(doc);
             }
 
@@ -342,7 +342,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             // Note, these values are carefully chosen to ensure that no matter what offset we pick, no two can end up in the same bucket
             for (double value : new double[] { 9.3, 3.2, -5 }) {
                 Document doc = new Document();
-                doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
+                doc.add(SortedNumericDocValuesField.indexedField("field", NumericUtils.doubleToSortableLong(value)));
                 w.addDocument(doc);
             }
 
@@ -378,7 +378,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (double value : new double[] { 3.2, -5, -4.5, 4.3 }) {
                 Document doc = new Document();
-                doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
+                doc.add(SortedNumericDocValuesField.indexedField("field", NumericUtils.doubleToSortableLong(value)));
                 w.addDocument(doc);
             }
 
@@ -420,9 +420,9 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             for (int n = 0; n < 10000; n++) {
                 docs.add(
                     List.of(
-                        new SortedNumericDocValuesField("outer", n % 100),
-                        new SortedNumericDocValuesField("inner", n / 100),
-                        new SortedNumericDocValuesField("n", n)
+                        SortedNumericDocValuesField.indexedField("outer", n % 100),
+                        SortedNumericDocValuesField.indexedField("inner", n / 100),
+                        SortedNumericDocValuesField.indexedField("n", n)
                     )
                 );
             }

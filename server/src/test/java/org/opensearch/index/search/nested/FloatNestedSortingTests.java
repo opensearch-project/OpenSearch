@@ -76,7 +76,7 @@ public class FloatNestedSortingTests extends DoubleNestedSortingTests {
 
     @Override
     protected IndexableField createField(String name, int value) {
-        return new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value));
+        return SortedNumericDocValuesField.indexedField(name, NumericUtils.floatToSortableInt(value));
     }
 
     protected void assertAvgScoreMode(
