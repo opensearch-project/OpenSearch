@@ -130,6 +130,7 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 ReadWritePaths=/var/log/opensearch
 ReadWritePaths=/var/lib/opensearch
+ReadWritePaths=/dev/shm/performanceanalyzer
 ReadWritePaths=-/etc/opensearch
 ReadWritePaths=-/mnt/snapshots
 
