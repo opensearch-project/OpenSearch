@@ -113,7 +113,7 @@ public class TargetPoolAllocationDeciderTests extends RemoteShardsBalancerBaseTe
     }
 
     public void testTargetPoolDedicatedSearchNodeAllocationDecisions() {
-        ClusterState clusterState = createInitialCluster(3, 3, true, 2, 2);
+        ClusterState clusterState = createInitialCluster(3, 3, true, 2, 2, false);
         AllocationService service = this.createRemoteCapableAllocationService();
         clusterState = allocateShardsAndBalance(clusterState, service);
 
@@ -202,7 +202,7 @@ public class TargetPoolAllocationDeciderTests extends RemoteShardsBalancerBaseTe
     }
 
     public void testDebugMessage() {
-        ClusterState clusterState = createInitialCluster(3, 3, true, 2, 2);
+        ClusterState clusterState = createInitialCluster(3, 3, true, 2, 2, false);
         AllocationService service = this.createRemoteCapableAllocationService();
         clusterState = allocateShardsAndBalance(clusterState, service);
 

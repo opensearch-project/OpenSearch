@@ -47,7 +47,6 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -70,6 +69,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.ROLLOVER_INDEX;
 
 /**
  * Main class to swap the index pointed to by an alias, given some conditions
@@ -106,7 +107,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        rolloverIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.ROLLOVER_INDEX_KEY, true);
+        rolloverIndexTaskKey = clusterService.registerClusterManagerTask(ROLLOVER_INDEX, true);
     }
 
     @Override

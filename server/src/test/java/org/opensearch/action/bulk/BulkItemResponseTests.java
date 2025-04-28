@@ -34,6 +34,7 @@ package org.opensearch.action.bulk;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkItemResponse.Failure;
@@ -42,11 +43,15 @@ import org.opensearch.action.index.IndexResponseTests;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.action.update.UpdateResponseTests;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -129,6 +134,90 @@ public class BulkItemResponseTests extends OpenSearchTestCase {
         assertBulkItemResponse(expectedBulkItemResponse, parsedBulkItemResponse);
     }
 
+    public void testSerializationForFailure() throws Exception {
+        final Failure failure = new Failure("index", "id", new OpenSearchException("test"));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            failure.writeTo(out);
+
+            final Failure deserializedFailure;
+            try (StreamInput in = out.bytes().streamInput()) {
+                deserializedFailure = new Failure(in);
+            }
+            assertEquals(failure.getIndex(), deserializedFailure.getIndex());
+            assertEquals(failure.getId(), deserializedFailure.getId());
+            assertEquals(failure.getMessage(), deserializedFailure.getMessage());
+            assertEquals(failure.getStatus(), deserializedFailure.getStatus());
+            assertEquals(failure.getSource(), deserializedFailure.getSource());
+            assertDeepEquals((OpenSearchException) failure.getCause(), (OpenSearchException) deserializedFailure.getCause());
+        }
+    }
+
+    public void testBwcSerialization() throws Exception {
+        {
+            final Failure failure = new Failure("index", "id", new OpenSearchException("test"));
+            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                failure.writeTo(out);
+
+                try (StreamInput in = out.bytes().streamInput()) {
+                    in.setVersion(version);
+                    String index = in.readString();
+                    String id = in.readOptionalString();
+                    Exception cause = in.readException();
+                    RestStatus status = ExceptionsHelper.status(cause);
+                    long seqNo = in.readZLong();
+                    long term = in.readVLong();
+                    boolean aborted = in.readBoolean();
+                    Failure.FailureSource failureSource = Failure.FailureSource.UNKNOWN;
+                    if (version.onOrAfter(Version.V_3_0_0)) {
+                        failureSource = Failure.FailureSource.fromSourceType(in.readByte());
+                    }
+                    assertEquals(failure.getIndex(), index);
+                    assertEquals(failure.getId(), id);
+                    assertEquals(failure.getStatus(), status);
+                    assertEquals(failure.getSource(), failureSource);
+                    assertEquals(failure.getSeqNo(), seqNo);
+                    assertEquals(failure.getTerm(), term);
+                    assertEquals(failure.isAborted(), aborted);
+                    assertDeepEquals((OpenSearchException) failure.getCause(), (OpenSearchException) cause);
+                }
+            }
+        }
+
+        {
+            final Failure failure = new Failure("index", "id", new OpenSearchException("test"));
+            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                out.writeString(failure.getIndex());
+                out.writeOptionalString(failure.getId());
+                out.writeException(failure.getCause());
+                out.writeZLong(failure.getSeqNo());
+                out.writeVLong(failure.getTerm());
+                out.writeBoolean(failure.isAborted());
+                if (version.onOrAfter(Version.V_3_0_0)) {
+                    out.writeByte(failure.getSource().getSourceType());
+                }
+
+                final Failure deserializedFailure;
+                try (StreamInput in = out.bytes().streamInput()) {
+                    in.setVersion(version);
+                    deserializedFailure = new Failure(in);
+                }
+
+                assertEquals(failure.getIndex(), deserializedFailure.getIndex());
+                assertEquals(failure.getId(), deserializedFailure.getId());
+                assertEquals(failure.getStatus(), deserializedFailure.getStatus());
+                assertEquals(failure.getSource(), deserializedFailure.getSource());
+                assertEquals(failure.getSeqNo(), deserializedFailure.getSeqNo());
+                assertEquals(failure.getTerm(), deserializedFailure.getTerm());
+                assertEquals(failure.isAborted(), deserializedFailure.isAborted());
+                assertDeepEquals((OpenSearchException) failure.getCause(), (OpenSearchException) deserializedFailure.getCause());
+            }
+        }
+    }
+
     public static void assertBulkItemResponse(BulkItemResponse expected, BulkItemResponse actual) {
         assertEquals(expected.getItemId(), actual.getItemId());
         assertEquals(expected.getIndex(), actual.getIndex());
@@ -145,7 +234,7 @@ public class BulkItemResponseTests extends OpenSearchTestCase {
             assertEquals(expectedFailure.getId(), actualFailure.getId());
             assertEquals(expectedFailure.getMessage(), actualFailure.getMessage());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
-
+            assertEquals(expectedFailure.getSource(), actualFailure.getSource());
             assertDeepEquals((OpenSearchException) expectedFailure.getCause(), (OpenSearchException) actualFailure.getCause());
         } else {
             DocWriteResponse expectedDocResponse = expected.getResponse();

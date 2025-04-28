@@ -92,6 +92,43 @@ public interface DimensionFilterMapper {
         DimensionFilter.MatchType matchType
     );
 
+    /**
+     * Compares two values of the same type.
+     * @param v1 first object
+     * @param v2 second object
+     * @return :
+     */
+    int compareValues(Object v1, Object v2);
+
+    /**
+     * Checks if a value falls within a range.
+     * Default implementation for regular types.
+     */
+    default boolean isValueInRange(Object value, Object low, Object high, boolean includeLow, boolean includeHigh) {
+        if (low != null) {
+            int comparison = compareValues(value, low);
+            if (comparison < 0 || (comparison == 0 && !includeLow)) {
+                return false;
+            }
+        }
+
+        if (high != null) {
+            int comparison = compareValues(value, high);
+            if (comparison > 0 || (comparison == 0 && !includeHigh)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    default boolean isValidRange(Object low, Object high, boolean includeLow, boolean includeHigh) {
+        if (low == null || high == null) {
+            return true;
+        }
+        int comparison = compareValues(low, high);
+        return comparison < 0 || (comparison == 0 && includeLow && includeHigh);
+    }
+
     default Comparator<Long> comparator() {
         return DimensionDataType.LONG::compare;
     }
@@ -143,6 +180,14 @@ abstract class NumericMapper implements DimensionFilterMapper {
     ) {
         // Casting to long ensures that all numeric fields have been converted to equivalent long at request parsing time.
         return Optional.of((long) value);
+    }
+
+    @Override
+    public int compareValues(Object v1, Object v2) {
+        if (!(v1 instanceof Long) || !(v2 instanceof Long)) {
+            throw new IllegalArgumentException("Expected Long values for numeric comparison");
+        }
+        return Long.compare((Long) v1, (Long) v2);
     }
 }
 
@@ -233,6 +278,29 @@ class UnsignedLongFieldMapperNumeric extends NumericNonDecimalMapper {
     @Override
     public Comparator<Long> comparator() {
         return DimensionDataType.UNSIGNED_LONG::compare;
+    }
+
+    @Override
+    public int compareValues(Object v1, Object v2) {
+        if (!(v1 instanceof Long) || !(v2 instanceof Long)) {
+            throw new IllegalArgumentException("Expected Long values for unsigned comparison");
+        }
+        return Long.compareUnsigned((Long) v1, (Long) v2);
+    }
+
+    @Override
+    public boolean isValueInRange(Object value, Object low, Object high, boolean includeLow, boolean includeHigh) {
+        long v = (Long) value;
+        long l = low != null ? (Long) low : 0L;
+        long h = high != null ? (Long) high : -1L; // -1L is max unsigned
+
+        if (Long.compareUnsigned(l, h) > 0) {
+            return (Long.compareUnsigned(v, l) > 0 || (Long.compareUnsigned(v, l) == 0 && includeLow))
+                || (Long.compareUnsigned(v, h) < 0 || (Long.compareUnsigned(v, h) == 0 && includeHigh));
+        }
+
+        // Normal case
+        return super.isValueInRange(value, low, high, includeLow, includeHigh);
     }
 
 }
@@ -434,6 +502,14 @@ class KeywordFieldMapper implements DimensionFilterMapper {
             }
         }
         return parsedValue;
+    }
+
+    @Override
+    public int compareValues(Object v1, Object v2) {
+        if (!(v1 instanceof BytesRef) || !(v2 instanceof BytesRef)) {
+            throw new IllegalArgumentException("Expected BytesRef values for keyword comparison");
+        }
+        return ((BytesRef) v1).compareTo((BytesRef) v2);
     }
 
 }

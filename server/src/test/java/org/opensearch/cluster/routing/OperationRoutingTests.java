@@ -1088,7 +1088,7 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 .settings(
                     Settings.builder()
                         .put(state.metadata().index(indexName).getSettings())
-                        .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL)
+                        .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
                         .build()
                 )
                 .build();

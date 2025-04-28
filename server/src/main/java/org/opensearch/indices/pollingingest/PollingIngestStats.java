@@ -37,7 +37,8 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         long totalSkippedCount = in.readLong();
         this.messageProcessorStats = new MessageProcessorStats(totalProcessedCount, totalSkippedCount);
         long totalPolledCount = in.readLong();
-        this.consumerStats = new ConsumerStats(totalPolledCount);
+        long lagInMillis = in.readLong();
+        this.consumerStats = new ConsumerStats(totalPolledCount, lagInMillis);
     }
 
     @Override
@@ -45,6 +46,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         out.writeLong(messageProcessorStats.totalProcessedCount);
         out.writeLong(messageProcessorStats.totalSkippedCount);
         out.writeLong(consumerStats.totalPolledCount);
+        out.writeLong(consumerStats.lagInMillis);
     }
 
     @Override
@@ -56,6 +58,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         builder.endObject();
         builder.startObject("consumer_stats");
         builder.field("total_polled_count", consumerStats.totalPolledCount);
+        builder.field("lag_in_millis", consumerStats.lagInMillis);
         builder.endObject();
         builder.endObject();
         return builder;
@@ -93,7 +96,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
      * Stats for consumer (poller)
      */
     @ExperimentalApi
-    public record ConsumerStats(long totalPolledCount) {
+    public record ConsumerStats(long totalPolledCount, long lagInMillis) {
     }
 
     /**
@@ -104,6 +107,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         private long totalProcessedCount;
         private long totalSkippedCount;
         private long totalPolledCount;
+        private long lagInMillis;
 
         public Builder() {}
 
@@ -122,9 +126,14 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             return this;
         }
 
+        public Builder setLagInMillis(long lagInMillis) {
+            this.lagInMillis = lagInMillis;
+            return this;
+        }
+
         public PollingIngestStats build() {
             MessageProcessorStats messageProcessorStats = new MessageProcessorStats(totalProcessedCount, totalSkippedCount);
-            ConsumerStats consumerStats = new ConsumerStats(totalPolledCount);
+            ConsumerStats consumerStats = new ConsumerStats(totalPolledCount, lagInMillis);
             return new PollingIngestStats(messageProcessorStats, consumerStats);
         }
     }

@@ -20,6 +20,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
@@ -103,6 +104,62 @@ public class ApproximateMatchAllQueryTests extends OpenSearchTestCase {
         source.sort(new FieldSortBuilder(sortfield).missing("foo"));
         assertFalse(approximateMatchAllQuery.canApproximate(searchContext));
         assertThrows(IllegalStateException.class, () -> approximateMatchAllQuery.rewrite(null));
+    }
+
+    public void testCannotApproximateWithTrackTotalHits() {
+        ApproximateMatchAllQuery approximateMatchAllQuery = new ApproximateMatchAllQuery();
+
+        ShardSearchRequest[] shardSearchRequest = new ShardSearchRequest[1];
+
+        MapperService mockMapper = mock(MapperService.class);
+        String sortfield = "myfield";
+        MappedFieldType myFieldType = new NumberFieldMapper.NumberFieldType(sortfield, NumberFieldMapper.NumberType.LONG);
+        when(mockMapper.fieldType(sortfield)).thenReturn(myFieldType);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        QueryShardContext queryShardContext = new QueryShardContext(
+            0,
+            new IndexSettings(indexMetadata, settings),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            mockMapper,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        TestSearchContext searchContext = new TestSearchContext(queryShardContext) {
+            @Override
+            public ShardSearchRequest request() {
+                return shardSearchRequest[0];
+            }
+        };
+
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        shardSearchRequest[0] = new ShardSearchRequest(null, System.currentTimeMillis(), null);
+        shardSearchRequest[0].source(source);
+        source.sort(sortfield, SortOrder.ASC);
+
+        assertTrue(approximateMatchAllQuery.canApproximate(searchContext));
+
+        searchContext.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        assertFalse("Should not approximate when track_total_hits is accurate", approximateMatchAllQuery.canApproximate(searchContext));
+
+        searchContext.trackTotalHitsUpTo(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
+        assertTrue("Should approximate when track_total_hits is not accurate", approximateMatchAllQuery.canApproximate(searchContext));
     }
 
 }

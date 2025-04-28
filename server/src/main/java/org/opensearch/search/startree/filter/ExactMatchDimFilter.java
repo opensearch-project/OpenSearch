@@ -84,4 +84,13 @@ public class ExactMatchDimFilter implements DimensionFilter {
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
         return convertedOrdinals.contains(ordinal);
     }
+
+    public List<Object> getRawValues() {
+        return rawValues;
+    }
+
+    @Override
+    public String getDimensionName() {
+        return dimensionName;
+    }
 }

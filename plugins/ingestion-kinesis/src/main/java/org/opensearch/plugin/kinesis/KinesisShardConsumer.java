@@ -234,7 +234,8 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
 
         for (Record record : records) {
             SequenceNumber sequenceNumber1 = new SequenceNumber(record.sequenceNumber());
-            KinesisMessage message = new KinesisMessage(record.data().asByteArray());
+            Long timestamp = record.approximateArrivalTimestamp() != null ? record.approximateArrivalTimestamp().toEpochMilli() : null;
+            KinesisMessage message = new KinesisMessage(record.data().asByteArray(), timestamp);
             results.add(new ReadResult<>(sequenceNumber1, message));
         }
 
