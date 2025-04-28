@@ -26,6 +26,7 @@ import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNo
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeFactory;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.startree.ArrayBasedCollector;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -46,7 +47,8 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
         long[] randomSorted = random().longs(100, Long.MIN_VALUE, Long.MAX_VALUE).toArray();
         Arrays.sort(randomSorted);
         DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-            new NumberFieldMapper.NumberFieldType("fieldName", NumberFieldMapper.NumberType.LONG)
+            new NumberFieldMapper.NumberFieldType("fieldName", NumberFieldMapper.NumberType.LONG),
+            mock(SearchContext.class)
         );
         for (boolean createStarNode : new boolean[] { true, false }) {
             for (boolean createNullNode : new boolean[] { true, false }) {
@@ -142,7 +144,8 @@ public class FixedLengthStarTreeNodeSearchTests extends OpenSearchTestCase {
         long[] randomSorted = random().longs(100, Long.MIN_VALUE, Long.MAX_VALUE).toArray();
         Arrays.sort(randomSorted);
         DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-            new NumberFieldMapper.NumberFieldType("fieldName", NumberFieldMapper.NumberType.LONG)
+            new NumberFieldMapper.NumberFieldType("fieldName", NumberFieldMapper.NumberType.LONG),
+            mock(SearchContext.class)
         );
         for (boolean createStarNode : new boolean[] { true, false }) {
             for (boolean createNullNode : new boolean[] { true, false }) {
