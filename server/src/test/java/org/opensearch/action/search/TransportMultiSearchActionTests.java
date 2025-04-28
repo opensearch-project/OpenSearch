@@ -406,14 +406,14 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
                 fail("Latch should have counted down");
             }
 
-            boolean concalled = false;
+            boolean cancelled = false;
             for (MultiSearchResponse.Item item : responses[0].getResponses()) {
                 if (item.isFailure() && item.getFailure().getMessage().contains("Parent task was cancelled")) {
-                    concalled = true;
+                    cancelled = true;
                     break;
                 }
             }
-            assertTrue(concalled);
+            assertTrue(cancelled);
         } finally {
             assertTrue(OpenSearchTestCase.terminate(threadPool));
         }
