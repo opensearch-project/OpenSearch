@@ -77,7 +77,11 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected void canDeriveSourceInternal() {}
+    public void canDeriveSource() {
+        if (this.copyTo() != null && !this.copyTo().copyToFields().isEmpty()) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with copy_to parameter set");
+        }
+    }
 
     /**
      * For each doc, it will return constant value defined in field mapping

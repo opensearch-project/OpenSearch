@@ -586,14 +586,25 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.derivedFieldGenerator = derivedFieldGenerator;
     }
 
+    protected DerivedFieldGenerator getDerivedFieldGenerator() {
+        return this.derivedFieldGenerator;
+    }
+
     /**
-     * Method to determine, if it is possible to derive source for this field using field mapping parameters
+     * Method to determine, if it is possible to derive source for this field using field mapping parameters.
+     * DerivedFieldGenerator should be set for which derived source feature is supported, this behaviour can be
+     * overridden at a Mapper level by implementing this method
      */
     public void canDeriveSource() {
         if (this.copyTo() != null && !this.copyTo().copyToFields().isEmpty()) {
             throw new UnsupportedOperationException("Unable to derive source for fields with copy_to parameter set");
         }
         canDeriveSourceInternal();
+        if (getDerivedFieldGenerator() == null) {
+            throw new UnsupportedOperationException(
+                "Derive source is not supported for field [" + name() + "] with field " + "type [" + fieldType().typeName() + "]"
+            );
+        }
     }
 
     /**
@@ -601,7 +612,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected void canDeriveSourceInternal() {
         throw new UnsupportedOperationException(
-            "Derive source is not supported for field [" + name() + "] with field " + "type [" + fieldType() + "]"
+            "Derive source is not supported for field [" + name() + "] with field " + "type [" + fieldType().typeName() + "]"
         );
     }
 

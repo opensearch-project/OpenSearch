@@ -912,7 +912,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             );
         }
         if (!mappedFieldType.hasDocValues()) {
-            throw new UnsupportedOperationException("Unable to derive source for [ " + name() + "] with docValues disabled");
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with docValues disabled");
         }
     }
 
