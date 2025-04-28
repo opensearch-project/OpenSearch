@@ -38,6 +38,7 @@ import org.opensearch.plugin.wlm.rest.RestDeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
+import org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
@@ -46,10 +47,12 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rule.InMemoryRuleProcessingService;
+import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
+import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
 import org.opensearch.rule.storage.XContentRuleParser;
@@ -59,7 +62,6 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -99,19 +101,32 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        RuleEntityParser parser = new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE);
+        AttributeValueStoreFactory attributeValueStoreFactory = new AttributeValueStoreFactory(
+            WorkloadGroupFeatureType.INSTANCE,
+            DefaultAttributeValueStore::new
+        );
+        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(attributeValueStoreFactory);
         RulePersistenceServiceHolder.rulePersistenceService = new IndexStoredRulePersistenceService(
             INDEX_NAME,
             client,
             MAX_RULES_PER_PAGE,
-            new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE),
+            parser,
             new IndexBasedRuleQueryMapper()
         );
-        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
-            WorkloadGroupFeatureType.INSTANCE,
-            DefaultAttributeValueStore::new
+
+        RefreshBasedSyncMechanism refreshMechanism = new RefreshBasedSyncMechanism(
+            client,
+            threadPool,
+            clusterService.getSettings(),
+            clusterService.getClusterSettings(),
+            parser,
+            ruleProcessingService,
+            WorkloadGroupFeatureType.INSTANCE
         );
+
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
-        return Collections.emptyList();
+        return List.of(refreshMechanism);
     }
 
     @Override
@@ -154,7 +169,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(WorkloadGroupPersistenceService.MAX_QUERY_GROUP_COUNT);
+        return List.of(WorkloadGroupPersistenceService.MAX_QUERY_GROUP_COUNT, RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING);
     }
 
     @Override
