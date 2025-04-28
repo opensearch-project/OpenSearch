@@ -255,6 +255,51 @@ public class DimensionFilterMergerUtilsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testIntersectValidation() {
+        // Test null filters
+        assertNull(
+            "Should return null for null first filter",
+            DimensionFilterMergerUtils.intersect(null, exactMatch("status", List.of(200L)), numericMapper)
+        );
+        assertNull(
+            "Should return null for null second filter",
+            DimensionFilterMergerUtils.intersect(exactMatch("status", List.of(200L)), null, numericMapper)
+        );
+        assertNull("Should return null for both null filters", DimensionFilterMergerUtils.intersect(null, null, numericMapper));
+
+        // Test null dimension names
+        DimensionFilter nullDimFilter1 = new ExactMatchDimFilter(null, List.of(200L));
+        DimensionFilter nullDimFilter2 = new ExactMatchDimFilter(null, List.of(300L));
+        IllegalArgumentException e1 = assertThrows(
+            IllegalArgumentException.class,
+            () -> DimensionFilterMergerUtils.intersect(nullDimFilter1, exactMatch("status", List.of(200L)), numericMapper)
+        );
+        assertEquals("Cannot intersect filters with null dimension name", e1.getMessage());
+
+        IllegalArgumentException e2 = assertThrows(
+            IllegalArgumentException.class,
+            () -> DimensionFilterMergerUtils.intersect(exactMatch("status", List.of(200L)), nullDimFilter2, numericMapper)
+        );
+        assertEquals("Cannot intersect filters with null dimension name", e2.getMessage());
+
+        IllegalArgumentException e3 = assertThrows(
+            IllegalArgumentException.class,
+            () -> DimensionFilterMergerUtils.intersect(nullDimFilter1, nullDimFilter2, numericMapper)
+        );
+        assertEquals("Cannot intersect filters with null dimension name", e3.getMessage());
+
+        // Test different dimensions
+        IllegalArgumentException e4 = assertThrows(
+            IllegalArgumentException.class,
+            () -> DimensionFilterMergerUtils.intersect(
+                exactMatch("status", List.of(200L)),
+                exactMatch("method", List.of("GET")),
+                numericMapper
+            )
+        );
+        assertEquals("Cannot intersect filters for different dimensions: status and method", e4.getMessage());
+    }
+
     // Helper methods
     private RangeMatchDimFilter range(String dimension, Object low, Object high, boolean includeLow, boolean includeHigh) {
         return new RangeMatchDimFilter(dimension, low, high, includeLow, includeHigh);
