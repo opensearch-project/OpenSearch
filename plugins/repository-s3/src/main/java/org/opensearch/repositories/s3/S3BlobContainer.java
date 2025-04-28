@@ -118,9 +118,9 @@ import static org.opensearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MU
 class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamBlobContainer {
 
     private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
-
     private final S3BlobStore blobStore;
     private final String keyPath;
+    public static final int HTTP_STATUS_PRECONDITION_FAILED = 412;
 
     S3BlobContainer(BlobPath path, S3BlobStore blobStore) {
         super(path);
@@ -581,7 +581,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             }
 
         } catch (S3Exception e) {
-            if (e.statusCode() == 412) {
+            if (e.statusCode() == HTTP_STATUS_PRECONDITION_FAILED) {
                 etagListener.onFailure(new OpenSearchException("stale_primary_shard", e, "Precondition Failed : Etag Mismatch", blobName));
                 throw new IOException("Unable to upload object [" + blobName + "] due to ETag mismatch", e);
             } else {

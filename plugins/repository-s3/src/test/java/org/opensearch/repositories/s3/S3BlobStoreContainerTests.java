@@ -775,7 +775,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         S3Exception preconditionFailedException = (S3Exception) S3Exception.builder()
             .message("Precondition Failed")
-            .statusCode(412)
+            .statusCode(S3BlobContainer.HTTP_STATUS_PRECONDITION_FAILED)
             .build();
         when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(preconditionFailedException);
 
@@ -808,7 +808,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertNotNull("Should have a cause", cause);
         assertTrue("Cause should be an S3Exception", cause instanceof S3Exception);
         S3Exception s3Cause = (S3Exception) cause;
-        assertEquals(412, s3Cause.statusCode());
+        assertEquals(S3BlobContainer.HTTP_STATUS_PRECONDITION_FAILED, s3Cause.statusCode());
         assertEquals("Precondition Failed", s3Cause.getMessage());
         verify(clientReference).close();
     }
