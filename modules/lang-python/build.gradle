@@ -1,0 +1,154 @@
+import org.opensearch.gradle.test.RestIntegTestTask
+
+
+buildscript {
+ext {
+	opensearch_group = "org.opensearch"
+	opensearch_version = System.getProperty("opensearch.version", "3.0.0-SNAPSHOT")
+}
+
+repositories {
+	mavenLocal()
+	maven { url = "https://aws.oss.sonatype.org/content/repositories/snapshots" }
+	mavenCentral()
+	maven { url = "https://plugins.gradle.org/m2/" }
+}
+
+dependencies {
+	classpath "org.opensearch.gradle:build-tools:${opensearch_version}"
+}
+}
+
+plugins {
+id 'java'
+id 'idea'
+id 'eclipse'
+id 'org.graalvm.buildtools.native' version '0.10.6'
+id 'org.graalvm.python' version '24.2.0'
+}
+
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.opensearchplugin'
+apply plugin: 'opensearch.pluginzip'
+
+allprojects {
+group = 'org.opensearch'
+version = opensearch_version - "-SNAPSHOT" + ".0"
+}
+
+ext {
+graalVersion = '24.2.0'
+antlr4Version = '4.13.2'
+}
+
+dependencies {
+api "org.graalvm.polyglot:polyglot:$graalVersion"
+api "org.graalvm.polyglot:python:$graalVersion"
+api "org.antlr:antlr4-runtime:$antlr4Version"
+}
+
+def pluginName = 'lang-python'
+def pluginDescription = 'Python as a scripting language for OpenSearch'
+def packagePath = 'org.opensearch'
+def pathToPlugin = 'python'
+def pluginClassName = 'PythonModulePlugin'
+
+
+ext {
+// Do not fail on `javadoc` warning (ANTLR generated code)
+failOnJavadocWarning = false
+}
+
+// This is to generate a plugin-descriptor.properties file that is required by all opensearch plugins
+// see https://github.com/opensearch-project/opensearch-plugins/blob/main/BUILDING.md#plugin-descriptorproperties
+opensearchplugin {
+name = pluginName
+description = pluginDescription
+classname = "${packagePath}.${pathToPlugin}.${pluginClassName}"
+licenseFile = rootProject.file('LICENSE.txt')
+noticeFile = rootProject.file('NOTICE.txt')
+}
+
+publishing {
+	publications {
+		pluginZip(MavenPublication) { publication ->
+			pom {
+			name = pluginName
+			description = pluginDescription
+			}
+		}
+	}
+}
+
+// This requires an additional Jar not published as part of build-tools
+loggerUsageCheck.enabled = false
+
+// No need to validate pom, as we do not upload to maven/sonatype
+validateNebulaPom.enabled = false
+
+repositories {
+	mavenLocal()
+	maven { url = "https://aws.oss.sonatype.org/content/repositories/snapshots" }
+	mavenCentral()
+	maven { url = "https://plugins.gradle.org/m2/" }
+}
+
+test {
+	include '**/*Tests.class'
+}
+
+tasks.register('integTest', RestIntegTestTask) {
+description = "Run tests against a cluster"
+testClassesDirs = sourceSets.test.output.classesDirs
+classpath = sourceSets.test.runtimeClasspath
+}
+tasks.named("check").configure { dependsOn("integTest") }
+
+tasks.named("publishNebulaPublicationToMavenLocal").configure { dependsOn "generatePomFileForPluginZipPublication" }
+
+integTest {
+	// The --debug-jvm command-line option makes the cluster debuggable; this makes the tests debuggable
+	if (System.getProperty("test.debug") != null) {
+		jvmArgs '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005'
+	}
+}
+
+testClusters.integTest {
+	testDistribution = "INTEG_TEST"
+
+	// This installs our plugin into the testClusters
+	plugin(project.tasks.bundlePlugin.archiveFile)
+}
+
+run {
+	useCluster testClusters.integTest
+}
+
+// updateVersion: Task to auto update version to the next development iteration
+tasks.register('updateVersion') {
+onlyIf { System.getProperty('newVersion') }
+doLast {
+	ext.newVersion = System.getProperty('newVersion')
+	println "Setting version to ${newVersion}."
+	// String tokenization to support -SNAPSHOT
+	ant.replaceregexp(file: 'build.gradle', match: '"opensearch.version", "\\d.*"', replace: '"opensearch.version", "' + newVersion.tokenize('-')[0] + '-SNAPSHOT"', flags: 'g', byline: true)
+}
+}
+
+tasks.named('dependencyLicenses') {
+enabled = false
+}
+
+tasks.named('thirdPartyAudit') {
+enabled = false
+}
+
+graalPy {
+packages = ["numpy==1.24.3", "termcolor==2.2"]
+}
+
+// This task copies the dependencies to a 'libs' directory
+tasks.register('copyDependencies', Copy) {
+	from configurations.runtimeClasspath
+	into 'libs' // Destination directory
+}

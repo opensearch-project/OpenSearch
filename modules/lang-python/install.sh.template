@@ -1,0 +1,35 @@
+export OPENSEARCH_JAVA_HOME=
+VERSION=3.0.0.0
+OPENSEARCH_PATH=
+
+PLUGIN_ZIP_PATH=./build/distributions/lang-python-$VERSION.zip
+
+# Compile the plugin into a zip file
+./gradlew assemble
+
+# check whether OPENSEARCH_JAVA_HOME, OPENSEARCH_PATH, and PROJECT_ROOT are set
+if [ -z "$OPENSEARCH_JAVA_HOME" ] || [ -z "$OPENSEARCH_PATH" ]; then
+  echo "Please set the OPENSEARCH_JAVA_HOME and OPENSEARCH_PATH variables."
+  echo "OPENSEARCH 3.0.0.0 for Mac can be downloaded from https://artifacts.opensearch.org/snapshots/core/opensearch/3.0.0-SNAPSHOT/opensearch-min-3.0.0-SNAPSHOT-darwin-x64-latest.tar.gz"
+  exit 1
+fi
+
+# check if the PLGUINZIP_PATH exists
+if [ ! -f $PLUGIN_ZIP_PATH ]; then
+  echo "The plugin zip file does not exist: $PLUGIN_ZIP_PATH"
+  exit 1
+fi
+
+# Remove installed plugin and install the new version
+cd $OPENSEARCH_PATH && ./bin/opensearch-plugin remove lang-python
+cd $OPENSEARCH_PATH && output=$(yes | ./bin/opensearch-plugin install file://$PLUGIN_ZIP_PATH)
+
+if echo "$output" | grep -q "Installed lang-python with folder name lang-python"; then
+  echo "The plugin has been installed. Moving the plugin zip to the backup folder."
+  mkdir -p $OPENSEARCH_PATH/plugin_distributions && mv $PLUGIN_ZIP_PATH $OPENSEARCH_PATH/plugin_distributions
+  echo "Spinning up OpenSearch..."
+  cd $OPENSEARCH_PATH && ./bin/opensearch
+else
+  echo "The plugin has not been installed. Please check the output."
+  echo "$output"
+fi
