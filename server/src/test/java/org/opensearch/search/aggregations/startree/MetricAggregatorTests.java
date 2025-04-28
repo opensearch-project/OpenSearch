@@ -52,6 +52,7 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -255,7 +256,9 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         for (int cases = 0; cases < 15; cases++) {
             // Get all types of queries (Term/Terms/Range) for all the given dimensions.
             List<QueryBuilder> allFieldQueries = dimensionFieldData.stream()
-                .flatMap(x -> Stream.of(x.getTermQueryBuilder(), x.getTermsQueryBuilder(), x.getRangeQueryBuilder()))
+                .flatMap(
+                    x -> Stream.of(x.getTermQueryBuilder(), x.getTermsQueryBuilder(), x.getRangeQueryBuilder(), x.getBoolQueryBuilder())
+                )
                 .toList();
 
             for (QueryBuilder qb : allFieldQueries) {
@@ -555,6 +558,24 @@ public class MetricAggregatorTests extends AggregatorTestCase {
                 .to(valueSupplier.get())
                 .includeLower(randomBoolean())
                 .includeUpper(randomBoolean());
+        }
+
+        public QueryBuilder getBoolQueryBuilder() {
+            // MUST only
+            BoolQueryBuilder mustOnly = new BoolQueryBuilder().must(getTermQueryBuilder()).must(getRangeQueryBuilder());
+
+            // MUST with nested SHOULD on same dimension
+            BoolQueryBuilder mustWithShould = new BoolQueryBuilder().must(getTermQueryBuilder())
+                .must(
+                    new BoolQueryBuilder().should(new TermQueryBuilder(fieldName, valueSupplier.get()))
+                        .should(new TermQueryBuilder(fieldName, valueSupplier.get()))
+                );
+
+            // SHOULD only on same dimension
+            BoolQueryBuilder shouldOnly = new BoolQueryBuilder().should(new TermQueryBuilder(fieldName, valueSupplier.get()))
+                .should(new RangeQueryBuilder(fieldName).from(valueSupplier.get()).to(valueSupplier.get()));
+
+            return randomFrom(mustOnly, mustWithShould, shouldOnly);
         }
 
         public String getFieldType() {
