@@ -944,50 +944,39 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertNumberOfMultiparts(factor + 1, remaining, (size * factor) + remaining, size);
     }
 
-    /**
-     * Tests the basic success path for conditional multipart upload when ETag matches
-     */
     public void testExecuteMultipartUploadIfEtagMatchesSuccess() throws IOException {
-        // Setup test parameters with randomized values
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
-        final String inputETag = randomAlphaOfLengthBetween(8, 32); // Input ETag for conditional check
-        final String finalETag = randomAlphaOfLengthBetween(8, 32); // ETag returned by complete operation
+        final String inputETag = randomAlphaOfLengthBetween(8, 32);
+        final String finalETag = randomAlphaOfLengthBetween(8, 32);
         final String uploadId = randomAlphaOfLengthBetween(10, 20);
 
-        // Add metadata - ADDED
         final Map<String, String> metadata = new HashMap<>();
         metadata.put("key1", "value1");
         metadata.put("key2", "value2");
 
-        // Setup path
         final BlobPath blobPath = new BlobPath();
         if (randomBoolean()) {
             IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
         }
 
-        // Calculate sizes for multipart upload - ensure minimum viable multipart size
-        final long partSize = ByteSizeUnit.MB.toBytes(5); // 5MB minimum part size
+        final long partSize = ByteSizeUnit.MB.toBytes(5);
         final int partCount = randomIntBetween(2, 5);
         final long lastPartSize = randomIntBetween(1, (int) partSize);
         final long blobSize = partSize * (partCount - 1) + lastPartSize;
 
-        // Mock S3BlobStore with randomized parameters - ADDED
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
 
-        // Randomize storage class - ADDED
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);
 
-        // Randomize server-side encryption - ADDED
         final boolean serverSideEncryption = randomBoolean();
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
 
-        // Randomize ACL - ADDED
         final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
@@ -998,13 +987,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-        // Mock S3 client with argument captors to verify requests
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         when(blobStore.clientReference()).thenReturn(clientReference);
         when(clientReference.get()).thenReturn(client);
 
-        // Setup argument captors for request validation
         final ArgumentCaptor<CreateMultipartUploadRequest> createRequestCaptor = ArgumentCaptor.forClass(
             CreateMultipartUploadRequest.class
         );
@@ -1014,38 +1001,31 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             CompleteMultipartUploadRequest.class
         );
 
-        // Mock createMultipartUpload response with uploadId
         when(client.createMultipartUpload(createRequestCaptor.capture())).thenReturn(
             CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
         );
 
-        // Generate unique ETags for each part
         final List<String> partETags = new ArrayList<>();
         for (int i = 0; i < partCount; i++) {
             partETags.add("etag-part-" + (i + 1));
         }
 
-        // Mock uploadPart responses with the appropriate ETags
         when(client.uploadPart(uploadPartRequestCaptor.capture(), requestBodyCaptor.capture())).thenAnswer(invocation -> {
             UploadPartRequest request = (UploadPartRequest) invocation.getArguments()[0];
             int partNumber = request.partNumber();
             return UploadPartResponse.builder().eTag(partETags.get(partNumber - 1)).build();
         });
 
-        // Mock successful completion response WITH final ETag - FIXED
         when(client.completeMultipartUpload(completeRequestCaptor.capture())).thenReturn(
             CompleteMultipartUploadResponse.builder().eTag(finalETag).build()
         );
 
-        // Create action listener to verify callback
         @SuppressWarnings("unchecked")
         ActionListener<String> etagListener = mock(ActionListener.class);
 
-        // Execute the multipart upload
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
         blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, inputETag, etagListener);
 
-        // Verify the create multipart request parameters
         final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
         assertEquals(bucketName, createRequest.bucket());
         assertEquals(blobPath.buildAsString() + blobName, createRequest.key());
@@ -1053,88 +1033,69 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(cannedAccessControlList, createRequest.acl());
         assertEquals(metadata, createRequest.metadata());
 
-        // Verify server-side encryption if enabled - ADDED
         if (serverSideEncryption) {
             assertEquals(ServerSideEncryption.AES256, createRequest.serverSideEncryption());
         }
 
-        // Verify part upload requests
         List<UploadPartRequest> partRequests = uploadPartRequestCaptor.getAllValues();
         assertEquals(partCount, partRequests.size());
 
-        // Verify request bodies for content (partial content verification) - ADDED
         List<RequestBody> requestBodies = requestBodyCaptor.getAllValues();
         assertEquals(partCount, requestBodies.size());
 
-        // Check each part request
         for (int i = 0; i < partCount; i++) {
             UploadPartRequest partRequest = partRequests.get(i);
             assertEquals(bucketName, partRequest.bucket());
             assertEquals(blobPath.buildAsString() + blobName, partRequest.key());
             assertEquals(uploadId, partRequest.uploadId());
             assertEquals(Integer.valueOf(i + 1), partRequest.partNumber());
-            // Verify part size - last part can be different
             long expectedPartSize = (i < partCount - 1) ? partSize : lastPartSize;
             assertEquals(expectedPartSize, partRequest.contentLength().longValue());
 
-            // Verify content for first part only (partial content verification) - MODIFIED
             if (i == 0) {
                 RequestBody body = requestBodies.get(i);
                 try (InputStream is = body.contentStreamProvider().newStream()) {
-                    // Just verify the stream exists
                     assertNotNull(is);
                 }
             }
         }
 
-        // Verify complete request
         CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
         assertEquals(bucketName, completeRequest.bucket());
         assertEquals(blobPath.buildAsString() + blobName, completeRequest.key());
         assertEquals(uploadId, completeRequest.uploadId());
 
-        // Verify ifMatch on complete request (NOT create request) - FIXED
         assertEquals(inputETag, completeRequest.ifMatch());
 
-        // Verify listener was called with the FINAL ETag (not last part's ETag) - FIXED
         verify(etagListener).onResponse(finalETag);
         verify(etagListener, never()).onFailure(any());
 
-        // Verify resources were properly closed
         verify(clientReference).close();
     }
 
-    /**
-     * Tests conditional multipart upload with various configuration combinations
-     */
     public void testExecuteMultipartUploadIfEtagMatchesWithMetadataAndSSE() throws IOException {
-        // Setup test parameters
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String inputETag = randomAlphaOfLengthBetween(8, 32);
-        final String finalETag = randomAlphaOfLengthBetween(8, 32); // Added distinct final ETag
+        final String finalETag = randomAlphaOfLengthBetween(8, 32);
         final String uploadId = randomAlphaOfLengthBetween(10, 20);
 
-        // Create metadata map
         final Map<String, String> metadata = new HashMap<>();
         metadata.put("key1", "value1");
         metadata.put("key2", "value2");
 
         final BlobPath blobPath = new BlobPath();
 
-        // Setup for a minimal viable multipart upload
         final long partSize = ByteSizeUnit.MB.toBytes(5);
-        final long blobSize = partSize * 2; // Two parts
+        final long blobSize = partSize * 2;
 
-        // Mock S3BlobStore with various configurations enabled
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
 
-        // Setup random configurations
-        final boolean serverSideEncryption = true; // Force enabled to test this case
+        final boolean serverSideEncryption = true;
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
@@ -1148,13 +1109,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-        // Mock S3 client and capture requests
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         when(blobStore.clientReference()).thenReturn(clientReference);
         when(clientReference.get()).thenReturn(client);
 
-        // Setup argument captors
         final ArgumentCaptor<CreateMultipartUploadRequest> createRequestCaptor = ArgumentCaptor.forClass(
             CreateMultipartUploadRequest.class
         );
@@ -1164,35 +1123,28 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             CompleteMultipartUploadRequest.class
         );
 
-        // Mock responses
         when(client.createMultipartUpload(createRequestCaptor.capture())).thenReturn(
             CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
         );
 
-        // Generate part ETags
         final List<String> partETags = List.of("etag-part-1", "etag-part-2");
 
-        // Mock part upload responses
         when(client.uploadPart(uploadPartRequestCaptor.capture(), requestBodyCaptor.capture())).thenAnswer(invocation -> {
             UploadPartRequest request = (UploadPartRequest) invocation.getArguments()[0];
             int partNumber = request.partNumber();
             return UploadPartResponse.builder().eTag(partETags.get(partNumber - 1)).build();
         });
 
-        // Mock complete response with final ETag
         when(client.completeMultipartUpload(completeRequestCaptor.capture())).thenReturn(
             CompleteMultipartUploadResponse.builder().eTag(finalETag).build()
         );
 
-        // Create listener
         @SuppressWarnings("unchecked")
         ActionListener<String> etagListener = mock(ActionListener.class);
 
-        // Execute the multipart upload
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
         blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, inputETag, etagListener);
 
-        // Verify the create multipart request parameters including all configurations
         final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
         assertEquals(bucketName, createRequest.bucket());
         assertEquals(blobPath.buildAsString() + blobName, createRequest.key());
@@ -1200,14 +1152,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(cannedAccessControlList, createRequest.acl());
         assertEquals(metadata, createRequest.metadata());
 
-        // Verify server-side encryption is set
         assertEquals(ServerSideEncryption.AES256, createRequest.serverSideEncryption());
 
-        // Verify upload part requests
         List<UploadPartRequest> partRequests = uploadPartRequestCaptor.getAllValues();
-        assertEquals(2, partRequests.size()); // We expect exactly 2 parts
+        assertEquals(2, partRequests.size());
 
-        // Verify both parts
         for (int i = 0; i < 2; i++) {
             UploadPartRequest partRequest = partRequests.get(i);
             assertEquals(bucketName, partRequest.bucket());
@@ -1225,51 +1174,39 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             }
         }
 
-        // Verify complete request
         CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
         assertEquals(bucketName, completeRequest.bucket());
         assertEquals(blobPath.buildAsString() + blobName, completeRequest.key());
         assertEquals(uploadId, completeRequest.uploadId());
 
-        // Verify ifMatch is on complete request - NOT create request
         assertEquals(inputETag, completeRequest.ifMatch());
 
-        // Verify listener was called with exact final ETag
         verify(etagListener).onResponse(finalETag);
         verify(etagListener, never()).onFailure(any());
 
-        // Verify resources were properly closed
         verify(clientReference).close();
 
     }
 
-    /**
-     * Tests that actual content is properly transmitted during conditional multipart upload
-     */
     public void testExecuteMultipartUploadIfEtagMatchesContentIntegrity() throws IOException {
-        // Setup test parameters
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
-        final String inputETag = randomAlphaOfLengthBetween(8, 32); // Input ETag for condition
-        final String finalETag = randomAlphaOfLengthBetween(8, 32); // Final ETag returned
+        final String inputETag = randomAlphaOfLengthBetween(8, 32);
+        final String finalETag = randomAlphaOfLengthBetween(8, 32);
         final String uploadId = randomAlphaOfLengthBetween(10, 20);
 
         final BlobPath blobPath = new BlobPath();
 
-        // Setup for multipart upload with known content
         final int partCount = 3;
-        final long partSize = ByteSizeUnit.MB.toBytes(5); // 5MB
+        final long partSize = ByteSizeUnit.MB.toBytes(5);
         final long blobSize = partSize * partCount;
 
-        // Create verifiable content - use a pattern that's different for each part
         final byte[] blobContent = new byte[(int) blobSize];
-        Random random = new Random(0); // Fixed seed for reproducibility
+        Random random = new Random(0);
         random.nextBytes(blobContent);
 
-        // Mock S3BlobStore
         final S3BlobStore blobStore = mock(S3BlobStore.class);
 
-        // FIX 1: Replace mock StatsMetricPublisher with a real instance
         final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
 
         when(blobStore.bucket()).thenReturn(bucketName);
@@ -1281,13 +1218,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-        // Mock S3 client
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         when(blobStore.clientReference()).thenReturn(clientReference);
         when(clientReference.get()).thenReturn(client);
 
-        // Setup argument captors with focus on request body
         final ArgumentCaptor<CreateMultipartUploadRequest> createRequestCaptor = ArgumentCaptor.forClass(
             CreateMultipartUploadRequest.class
         );
@@ -1296,16 +1231,13 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         );
         final ArgumentCaptor<RequestBody> requestBodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
 
-        // Mock responses
         when(client.createMultipartUpload(createRequestCaptor.capture())).thenReturn(
             CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
         );
 
-        // Content verification will happen in this mock
         final List<byte[]> capturedPartContents = new ArrayList<>();
 
         when(client.uploadPart(any(UploadPartRequest.class), requestBodyCaptor.capture())).thenAnswer(invocation -> {
-            // Capture content from request body for later verification
             RequestBody requestBody = requestBodyCaptor.getValue();
             try (InputStream contentStream = requestBody.contentStreamProvider().newStream()) {
                 byte[] partContent = contentStream.readAllBytes();
@@ -1314,21 +1246,16 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             return UploadPartResponse.builder().eTag("etag-for-part").build();
         });
 
-        // Add final ETag to complete response
         when(client.completeMultipartUpload(completeRequestCaptor.capture())).thenReturn(
             CompleteMultipartUploadResponse.builder().eTag(finalETag).build()
         );
 
-        // Create listener
         @SuppressWarnings("unchecked")
         ActionListener<String> etagListener = mock(ActionListener.class);
 
-        // FIX 2: Handle exceptions properly - in this case we expect successful execution
-        // If we were expecting an exception, we would use expectThrows instead
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(blobContent);
         blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, inputETag, etagListener);
 
-        // Verify key request parameters
         final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
         assertEquals(bucketName, createRequest.bucket());
         assertEquals(blobPath.buildAsString() + blobName, createRequest.key());
@@ -1356,9 +1283,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         verify(clientReference).close();
     }
 
-    /**
-     * Tests that multipart uploads enforce minimum and maximum size boundaries
-     */
     public void testExecuteMultipartUploadIfEtagMatchesSizeValidation() {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
@@ -1366,13 +1290,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final String inputETag = randomAlphaOfLengthBetween(8, 32);
         final String finalETag = randomAlphaOfLengthBetween(8, 32);
 
-        // Use mocked listeners to verify interactions
         @SuppressWarnings("unchecked")
         ActionListener<String> invalidSizeListener = mock(ActionListener.class);
 
-        // Test case 1: Below minimum size (4.9MB)
         {
-            final long tooSmallSize = ByteSizeUnit.MB.toBytes(5) - 1024; // Just below 5MB
+            final long tooSmallSize = ByteSizeUnit.MB.toBytes(5) - 1024;
 
             final IllegalArgumentException tooSmallException = expectThrows(
                 IllegalArgumentException.class,
@@ -1388,12 +1310,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             );
 
             assertTrue(tooSmallException.getMessage().contains("can't be smaller than"));
-            // Listener should never be called when validation fails immediately
             verify(invalidSizeListener, never()).onResponse(any());
             verify(invalidSizeListener, never()).onFailure(any());
         }
 
-        // Test case 2: Above maximum size (5TB + 1 byte)
         {
             final long tooLargeSize = ByteSizeUnit.TB.toBytes(5) + 1;
 
@@ -1415,7 +1335,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             verify(invalidSizeListener, never()).onFailure(any());
         }
 
-        // Setup mocks for valid size tests
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
@@ -1425,15 +1344,12 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(clientReference.get()).thenReturn(client);
         when(blobStore.bucket()).thenReturn("test-bucket");
 
-        // Configure buffer size to allow valid tests
         when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(5));
 
-        // Add argument captors for request validation
         ArgumentCaptor<CompleteMultipartUploadRequest> completeRequestCaptor = ArgumentCaptor.forClass(
             CompleteMultipartUploadRequest.class
         );
 
-        // Setup success responses
         when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
             CreateMultipartUploadResponse.builder().uploadId("test-upload-id").build()
         );
@@ -1446,13 +1362,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             CompleteMultipartUploadResponse.builder().eTag(finalETag).build()
         );
 
-        // Test case 3: Exactly minimum size (5MB)
         {
             final long exactMinimumSize = ByteSizeUnit.MB.toBytes(5);
             @SuppressWarnings("unchecked")
             ActionListener<String> validSizeListener = mock(ActionListener.class);
 
-            // Use a stream that returns zeros but doesn't allocate full memory
             InputStream zeroStream = new InputStream() {
                 long remaining = exactMinimumSize;
 
@@ -1479,7 +1393,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             };
 
             try {
-                // This should not throw an exception
                 blobContainer.executeMultipartUploadIfEtagMatches(
                     blobStore,
                     blobName,
@@ -1490,14 +1403,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                     validSizeListener
                 );
 
-                // Verify that listener was called with success
                 verify(validSizeListener).onResponse(finalETag);
                 verify(validSizeListener, never()).onFailure(any());
 
-                // Verify resources were closed
                 verify(clientReference).close();
 
-                // Verify if-match condition was applied properly
                 CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
                 assertEquals(inputETag, completeRequest.ifMatch());
 
@@ -1506,19 +1416,15 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             }
         }
 
-        // Reset for next test case
         reset(clientReference);
         when(blobStore.clientReference()).thenReturn(clientReference);
         when(clientReference.get()).thenReturn(client);
 
-        // Test case 4: Valid larger size
         {
-            // Use a moderate size for test purposes (10MB)
             final long testSize = ByteSizeUnit.MB.toBytes(10);
             @SuppressWarnings("unchecked")
             ActionListener<String> validSizeListener = mock(ActionListener.class);
 
-            // Use a stream that returns zeros without allocating full memory
             InputStream zeroStream = new InputStream() {
                 long remaining = testSize;
 
@@ -1555,14 +1461,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                     validSizeListener
                 );
 
-                // Verify that listener was called with success
                 verify(validSizeListener).onResponse(finalETag);
                 verify(validSizeListener, never()).onFailure(any());
 
-                // Verify resources were closed
                 verify(clientReference).close();
 
-                // Verify if-match condition was applied properly
                 CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
                 assertEquals(inputETag, completeRequest.ifMatch());
 
@@ -1572,20 +1475,15 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
     }
 
-    /**
-     * Tests handling of 412 Precondition Failed errors when ETag doesn't match
-     */
     public void testExecuteMultipartUploadIfEtagMatchesPreconditionFailed() {
-        // Setup test parameters
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
 
         final BlobPath blobPath = new BlobPath();
-        final long partSize = ByteSizeUnit.MB.toBytes(5); // 5MB
-        final long blobSize = partSize * 2; // Two parts for simplicity
+        final long partSize = ByteSizeUnit.MB.toBytes(5);
+        final long blobSize = partSize * 2;
 
-        // Mock S3BlobStore
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
         when(blobStore.bucket()).thenReturn(bucketName);
@@ -1597,23 +1495,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-        // Mock S3 client and references
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
         final AmazonS3Reference abortClientReference = mock(AmazonS3Reference.class);
 
-        // Setup client reference behavior
         when(blobStore.clientReference()).thenReturn(clientReference).thenReturn(abortClientReference);
         when(clientReference.get()).thenReturn(client);
         when(abortClientReference.get()).thenReturn(client);
 
-        // Create 412 Precondition Failed exception
         S3Exception preconditionFailedException = (S3Exception) S3Exception.builder()
             .message("Precondition Failed")
-            .statusCode(412)
+            .statusCode(S3BlobContainer.HTTP_STATUS_PRECONDITION_FAILED)
             .build();
 
-        // Setup success for initial upload stages
         final String uploadId = randomAlphaOfLengthBetween(10, 20);
         when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
             CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
@@ -1623,15 +1517,12 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             UploadPartResponse.builder().eTag("part-etag").build()
         );
 
-        // Fail on complete with 412
         when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenThrow(preconditionFailedException);
 
-        // Setup abort response
         when(client.abortMultipartUpload(any(AbortMultipartUploadRequest.class))).thenReturn(
             AbortMultipartUploadResponse.builder().build()
         );
 
-        // Execute the multipart upload
         final AtomicReference<Exception> capturedException = new AtomicReference<>();
         ActionListener<String> etagListener = ActionListener.wrap(
             r -> fail("Should have failed with precondition failure"),
@@ -1645,7 +1536,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             () -> blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, eTag, etagListener)
         );
 
-        // Verify exception handling
         assertEquals("Unable to upload object [" + blobName + "] due to ETag mismatch", ioException.getMessage());
         assertEquals(preconditionFailedException, ioException.getCause());
 
@@ -1654,21 +1544,15 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertTrue("Exception should be an OpenSearchException", exception instanceof OpenSearchException);
         assertEquals("stale_primary_shard", ((OpenSearchException) exception).getMessage());
 
-        // Verify workflow
         verify(client).createMultipartUpload(any(CreateMultipartUploadRequest.class));
         verify(client).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
         verify(client).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
 
-        // Verify both client references were closed
         verify(clientReference).close();
         verify(abortClientReference).close();
     }
 
-    /**
-     * Tests handling of various exception types during multipart uploads
-     */
     public void testExecuteMultipartUploadIfEtagMatchesS3ExceptionTypes() {
-        // Setup basic test parameters
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
@@ -1677,30 +1561,23 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final long partSize = ByteSizeUnit.MB.toBytes(5);
         final long blobSize = partSize * 2;
 
-        // Create test metadata
         Map<String, String> metadata = new HashMap<>();
         metadata.put("key1", "value1");
 
-        // Define test cases with minimal necessary parameters
-        // [Exception type, error phase (0=create, 1=upload, 2=complete), status code]
         Object[][] testCases = {
-            // Key test cases for each error path
-            { "S3Exception", 0, 403 },  // Access denied during create
-            { "S3Exception", 1, 404 },  // Not found during upload
-            { "S3Exception", 2, 412 },  // Conditional check failure during complete
-            { "SdkException", 1, 0 },   // SDK error during upload
-        };
+            { "S3Exception", 0, 403 },
+            { "S3Exception", 1, 404 },
+            { "S3Exception", 2, 412 },
+            { "SdkException", 1, 0 }, };
 
         for (Object[] testCase : testCases) {
             String exceptionType = (String) testCase[0];
             int errorPhase = (int) testCase[1];
             int statusCode = (int) testCase[2];
 
-            // Create fresh mocks for each test case
             final S3BlobStore blobStore = mock(S3BlobStore.class);
             final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
 
-            // Basic configuration
             when(blobStore.bucket()).thenReturn(bucketName);
             when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
             when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
@@ -1709,17 +1586,14 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
             final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-            // Create client references
             final S3Client client = mock(S3Client.class);
             final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
             final AmazonS3Reference abortClientReference = mock(AmazonS3Reference.class);
 
-            // Setup client reference behavior
             when(blobStore.clientReference()).thenReturn(clientReference).thenReturn(abortClientReference);
             when(clientReference.get()).thenReturn(client);
             when(abortClientReference.get()).thenReturn(client);
 
-            // Create the appropriate exception
             Exception testException;
             if ("S3Exception".equals(exceptionType)) {
                 testException = (S3Exception) S3Exception.builder()
@@ -1730,46 +1604,37 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                 testException = SdkException.builder().message("SDK Error occurred").build();
             }
 
-            // Setup responses for each phase
             final String uploadId = "test-upload-id";
             if (errorPhase >= 1) {
-                // Success for create if error happens later
                 when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
                     CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
                 );
             } else {
-                // Error during create
                 when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenThrow(testException);
             }
 
             if (errorPhase >= 2) {
-                // Success for upload parts if error happens at complete
                 when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenReturn(
                     UploadPartResponse.builder().eTag("part-etag").build()
                 );
             } else if (errorPhase == 1) {
-                // Error during upload
                 when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(testException);
             }
 
             if (errorPhase == 2) {
-                // Error during complete
                 when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenThrow(testException);
             }
 
-            // Setup abort response
             when(client.abortMultipartUpload(any(AbortMultipartUploadRequest.class))).thenReturn(
                 AbortMultipartUploadResponse.builder().build()
             );
 
-            // Capture listener exception
             final AtomicReference<Exception> capturedException = new AtomicReference<>();
             ActionListener<String> etagListener = ActionListener.wrap(
                 r -> fail("Should have failed with exception"),
                 capturedException::set
             );
 
-            // Execute with expectThrows
             final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
             IOException exception = expectThrows(
                 IOException.class,
@@ -1784,14 +1649,11 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                 )
             );
 
-            // Verify thrown exception has the correct cause
             assertEquals(testException, exception.getCause());
 
-            // Verify listener behavior
             Exception listenerException = capturedException.get();
             assertNotNull("Expected a listener exception", listenerException);
 
-            // Special handling for 412 case
             if ("S3Exception".equals(exceptionType) && statusCode == 412) {
                 assertTrue(listenerException instanceof OpenSearchException);
                 assertEquals("stale_primary_shard", ((OpenSearchException) listenerException).getMessage());
@@ -1799,10 +1661,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                 assertTrue(listenerException instanceof IOException);
             }
 
-            // Verify resource cleanup
             verify(clientReference).close();
 
-            // Verify abort called when appropriate
             if (errorPhase >= 1) {
                 verify(client).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
                 verify(abortClientReference).close();
@@ -1812,11 +1672,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
     }
 
-    /**
-     * Tests handling of generic SdkException scenarios during multipart uploads
-     */
     public void testExecuteMultipartUploadIfEtagMatchesSdkException() {
-        // Test parameters
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
@@ -1825,19 +1681,16 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final long partSize = ByteSizeUnit.MB.toBytes(5);
         final long blobSize = partSize * 2;
 
-        // Define test cases: [scenario name, error stage, should abort fail]
         Object[][] testScenarios = {
-            { "initialization error", 0, false },     // SdkException during createMultipartUpload
-            { "part upload error", 1, false },        // SdkException during uploadPart with successful abort
-            { "abort failure", 1, true }              // SdkException during uploadPart with abort failure
-        };
+            { "initialization error", 0, false },
+            { "part upload error", 1, false },
+            { "abort failure", 1, true } };
 
         for (Object[] scenario : testScenarios) {
             String scenarioName = (String) scenario[0];
             int errorStage = (int) scenario[1];
             boolean abortFails = (boolean) scenario[2];
 
-            // Setup fresh mocks for each scenario
             final S3BlobStore blobStore = mock(S3BlobStore.class);
             final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
             when(blobStore.bucket()).thenReturn(bucketName);
@@ -1847,7 +1700,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
             final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-            // Mock S3 client
             final S3Client client = mock(S3Client.class);
             final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
             final AmazonS3Reference abortClientReference = mock(AmazonS3Reference.class);
@@ -1855,25 +1707,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             when(clientReference.get()).thenReturn(client);
             when(abortClientReference.get()).thenReturn(client);
 
-            // Create primary exception
             SdkException primaryException = SdkException.builder().message("SDK error during " + scenarioName).build();
 
-            // Setup responses based on scenario
             final String uploadId = "test-upload-id";
             if (errorStage == 0) {
-                // Error during initialization
                 when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenThrow(primaryException);
             } else {
-                // Success for initialization
                 when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
                     CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
                 );
 
-                // Error during part upload
                 when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(primaryException);
             }
 
-            // Configure abort behavior with argument captor
             ArgumentCaptor<AbortMultipartUploadRequest> abortCaptor = ArgumentCaptor.forClass(AbortMultipartUploadRequest.class);
 
             if (abortFails) {
@@ -1883,14 +1729,12 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                 when(client.abortMultipartUpload(abortCaptor.capture())).thenReturn(AbortMultipartUploadResponse.builder().build());
             }
 
-            // Capture listener exception
             final AtomicReference<Exception> capturedException = new AtomicReference<>();
             ActionListener<String> etagListener = ActionListener.wrap(
                 r -> fail("Should have failed with SdkException"),
                 capturedException::set
             );
 
-            // Execute with expectThrows
             final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
             IOException exception = expectThrows(
                 IOException.class,
@@ -1905,24 +1749,18 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                 )
             );
 
-            // Verify thrown exception
             assertEquals("Original SdkException should be preserved as cause", primaryException, exception.getCause());
 
-            // Verify listener exception
             Exception listenerException = capturedException.get();
             assertNotNull("Expected an exception", listenerException);
             assertTrue("Exception should be IOException", listenerException instanceof IOException);
 
-            // Verify main client reference was closed
             verify(clientReference).close();
 
-            // Verify abort behavior
             if (errorStage > 0) {
-                // Should attempt abort if upload ID exists
                 verify(client).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
                 verify(abortClientReference).close();
 
-                // Verify abort request parameters
                 if (!abortCaptor.getAllValues().isEmpty()) {
                     AbortMultipartUploadRequest abortRequest = abortCaptor.getValue();
                     assertEquals("Abort request should have correct upload ID", uploadId, abortRequest.uploadId());
@@ -1930,17 +1768,12 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                     assertEquals("Abort request should have correct key", blobPath.buildAsString() + blobName, abortRequest.key());
                 }
             } else {
-                // No abort if no upload ID
                 verify(client, never()).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
             }
         }
     }
 
-    /**
-     * Tests that client references are properly managed (acquired and closed) in various scenarios
-     */
     public void testExecuteMultipartUploadIfEtagMatchesResourceManagement() throws IOException {
-        // Setup test parameters
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
@@ -1950,17 +1783,15 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final long partSize = ByteSizeUnit.MB.toBytes(5);
         final long blobSize = partSize * 2;
 
-        // Define scenarios to test different resource management cases
         enum ResourceScenario {
-            SUCCESS_PATH,           // Complete successful upload
-            INIT_FAILURE,           // Failure during createMultipartUpload
-            PART_UPLOAD_FAILURE,    // Failure during uploadPart
-            COMPLETION_FAILURE,     // Failure during completeMultipartUpload
-            ABORT_FAILURE           // Failure during abortMultipartUpload
+            SUCCESS_PATH,
+            INIT_FAILURE,
+            PART_UPLOAD_FAILURE,
+            COMPLETION_FAILURE,
+            ABORT_FAILURE
         }
 
         for (ResourceScenario scenario : ResourceScenario.values()) {
-            // Create fresh mocks for each scenario
             final S3BlobStore blobStore = mock(S3BlobStore.class);
             final StatsMetricPublisher metricPublisher = new StatsMetricPublisher();
             when(blobStore.bucket()).thenReturn(bucketName);
@@ -1968,31 +1799,24 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
             when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
 
-            // S3 client and references
             final S3Client client = mock(S3Client.class);
 
-            // The implementation always creates separate references for the main operation and abort
             AmazonS3Reference primaryClientReference = mock(AmazonS3Reference.class);
             AmazonS3Reference abortClientReference = mock(AmazonS3Reference.class);
 
             when(primaryClientReference.get()).thenReturn(client);
             when(abortClientReference.get()).thenReturn(client);
 
-            // Configure clientReference behavior based on implementation pattern
             when(blobStore.clientReference()).thenReturn(primaryClientReference).thenReturn(abortClientReference);
 
             final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-            // Create exceptions with distinctive messages for each scenario
             SdkException stageException = SdkException.builder().message("Failure during " + scenario.name()).build();
 
-            // Setup argument captor for abort request validation
             ArgumentCaptor<AbortMultipartUploadRequest> abortCaptor = ArgumentCaptor.forClass(AbortMultipartUploadRequest.class);
 
-            // Configure upload behavior based on scenario
             switch (scenario) {
                 case SUCCESS_PATH:
-                    // Successful path should close reference after completion
                     when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
                         CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
                     );
@@ -2005,12 +1829,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                     break;
 
                 case INIT_FAILURE:
-                    // Initialization failure should close reference immediately
                     when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenThrow(stageException);
                     break;
 
                 case PART_UPLOAD_FAILURE:
-                    // Part upload failure should close primary reference and abort reference
                     when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
                         CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
                     );
@@ -2019,7 +1841,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                     break;
 
                 case COMPLETION_FAILURE:
-                    // Completion failure should close primary reference and abort reference
                     when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
                         CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
                     );
@@ -2031,7 +1852,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                     break;
 
                 case ABORT_FAILURE:
-                    // Even if abort fails, all references should be closed
                     when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
                         CreateMultipartUploadResponse.builder().uploadId(uploadId).build()
                     );
@@ -2042,26 +1862,20 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                     break;
             }
 
-            // Create action listener to capture callbacks
             @SuppressWarnings("unchecked")
             ActionListener<String> etagListener = mock(ActionListener.class);
 
             final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
 
-            // Execute the appropriate test based on scenario
             if (scenario == ResourceScenario.SUCCESS_PATH) {
-                // Success path should not throw exceptions
                 blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, eTag, etagListener);
 
-                // Verify listener success callback
                 verify(etagListener).onResponse("final-etag");
                 verify(etagListener, never()).onFailure(any());
 
-                // Success path uses one client reference exactly once
                 verify(blobStore, times(1)).clientReference();
                 verify(primaryClientReference).close();
             } else {
-                // For all failure scenarios, expect exception
                 IOException exception = expectThrows(
                     IOException.class,
                     () -> blobContainer.executeMultipartUploadIfEtagMatches(
@@ -2075,23 +1889,18 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                     )
                 );
 
-                // Verify exception has the correct cause
                 assertEquals("Exception cause should be the original exception", stageException, exception.getCause());
 
-                // Verify listener failure callback
                 verify(etagListener).onFailure(any(Exception.class));
                 verify(etagListener, never()).onResponse(any());
 
-                // Primary reference should always be closed
                 verify(primaryClientReference).close();
 
                 if (scenario != ResourceScenario.INIT_FAILURE) {
-                    // For non-init failures, verify abort is called
-                    verify(blobStore, times(2)).clientReference(); // Main + abort
+                    verify(blobStore, times(2)).clientReference();
                     verify(client).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
                     verify(abortClientReference).close();
 
-                    // Verify abort request parameters
                     if (!abortCaptor.getAllValues().isEmpty()) {
                         AbortMultipartUploadRequest abortRequest = abortCaptor.getValue();
                         assertEquals("Upload ID should match", uploadId, abortRequest.uploadId());
@@ -2099,8 +1908,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                         assertEquals("Key should match", blobPath.buildAsString() + blobName, abortRequest.key());
                     }
                 } else {
-                    // Init failure should not use abort
-                    verify(blobStore, times(1)).clientReference(); // Main only
+                    verify(blobStore, times(1)).clientReference();
                     verify(client, never()).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
                 }
             }
