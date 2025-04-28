@@ -850,7 +850,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<Integer> INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING = Setting.intSetting(
         SETTING_INGESTION_SOURCE_INTERNAL_QUEUE_SIZE,
         100,
-        100,
+        1,
+        100000,
         Property.IndexScope,
         Setting.Property.Final
     );
