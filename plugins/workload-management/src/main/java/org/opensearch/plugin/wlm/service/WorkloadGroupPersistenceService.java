@@ -41,15 +41,15 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.WorkloadGroup.updateExistingWorkloadGroup;
+import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_QUERY_GROUP;
+import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_QUERY_GROUP;
+import static org.opensearch.cluster.service.ClusterManagerTask.UPDATE_QUERY_GROUP;
 
 /**
  * This class defines the functions for WorkloadGroup persistence
  */
 public class WorkloadGroupPersistenceService {
     static final String SOURCE = "query-group-persistence-service";
-    private static final String CREATE_QUERY_GROUP_THROTTLING_KEY = "create-query-group";
-    private static final String DELETE_QUERY_GROUP_THROTTLING_KEY = "delete-query-group";
-    private static final String UPDATE_QUERY_GROUP_THROTTLING_KEY = "update-query-group";
     private static final Logger logger = LogManager.getLogger(WorkloadGroupPersistenceService.class);
     /**
      *  max WorkloadGroup count setting name
@@ -94,9 +94,9 @@ public class WorkloadGroupPersistenceService {
         final ClusterSettings clusterSettings
     ) {
         this.clusterService = clusterService;
-        this.createWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(CREATE_QUERY_GROUP_THROTTLING_KEY, true);
-        this.deleteWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(DELETE_QUERY_GROUP_THROTTLING_KEY, true);
-        this.updateWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(UPDATE_QUERY_GROUP_THROTTLING_KEY, true);
+        this.createWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(CREATE_QUERY_GROUP, true);
+        this.deleteWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(DELETE_QUERY_GROUP, true);
+        this.updateWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(UPDATE_QUERY_GROUP, true);
         setMaxWorkloadGroupCount(MAX_QUERY_GROUP_COUNT.get(settings));
         clusterSettings.addSettingsUpdateConsumer(MAX_QUERY_GROUP_COUNT, this::setMaxWorkloadGroupCount);
     }

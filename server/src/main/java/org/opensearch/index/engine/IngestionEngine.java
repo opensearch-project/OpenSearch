@@ -129,7 +129,8 @@ public class IngestionEngine extends InternalEngine {
             initialPollerState,
             ingestionSource.getMaxPollSize(),
             ingestionSource.getPollTimeout(),
-            ingestionSource.getNumProcessorThreads()
+            ingestionSource.getNumProcessorThreads(),
+            ingestionSource.getBlockingQueueSize()
         );
         streamPoller.start();
     }

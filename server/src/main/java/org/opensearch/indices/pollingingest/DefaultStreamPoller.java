@@ -39,6 +39,8 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile boolean paused;
     private volatile IngestionErrorStrategy errorStrategy;
 
+    private volatile long lastPolledMessageTimestamp = 0;
+
     private IngestionShardConsumer consumer;
 
     private ExecutorService consumerThread;
@@ -56,6 +58,9 @@ public class DefaultStreamPoller implements StreamPoller {
     private Set<IngestionShardPointer> persistedPointers;
 
     private final CounterMetric totalPolledCount = new CounterMetric();
+    private final CounterMetric totalConsumerErrorCount = new CounterMetric();
+    private final CounterMetric totalPollerMessageFailureCount = new CounterMetric();
+    private final CounterMetric totalPollerMessageDroppedCount = new CounterMetric();
 
     // A pointer to the max persisted pointer for optimizing the check
     @Nullable
@@ -74,13 +79,20 @@ public class DefaultStreamPoller implements StreamPoller {
         State initialState,
         long maxPollSize,
         int pollTimeout,
-        int numProcessorThreads
+        int numProcessorThreads,
+        int blockingQueueSize
     ) {
         this(
             startPointer,
             persistedPointers,
             consumer,
-            new PartitionedBlockingQueueContainer(numProcessorThreads, consumer.getShardId(), ingestionEngine, errorStrategy),
+            new PartitionedBlockingQueueContainer(
+                numProcessorThreads,
+                consumer.getShardId(),
+                ingestionEngine,
+                errorStrategy,
+                blockingQueueSize
+            ),
             resetState,
             resetValue,
             errorStrategy,
@@ -225,6 +237,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 // The user will have the option to manually update the offset and resume ingestion.
                 // todo: support retry?
                 logger.error("Pausing ingestion. Fatal error occurred in polling the shard {}: {}", consumer.getShardId(), e);
+                totalConsumerErrorCount.inc();
                 pause();
             }
         }
@@ -247,7 +260,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 }
                 totalPolledCount.inc();
                 blockingQueueContainer.add(result);
-
+                lastPolledMessageTimestamp = result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp();
                 logger.debug(
                     "Put message {} with pointer {} to the blocking queue",
                     String.valueOf(result.getMessage().getPayload()),
@@ -261,12 +274,15 @@ public class DefaultStreamPoller implements StreamPoller {
                     e
                 );
                 errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.POLLING);
+                totalPollerMessageFailureCount.inc();
 
-                if (!errorStrategy.shouldIgnoreError(e, IngestionErrorStrategy.ErrorStage.POLLING)) {
+                if (errorStrategy.shouldIgnoreError(e, IngestionErrorStrategy.ErrorStage.POLLING) == false) {
                     // Blocking error encountered. Pause poller to stop processing remaining updates.
                     pause();
                     failedShardPointer = result.getPointer();
                     break;
+                } else {
+                    totalPollerMessageDroppedCount.inc();
                 }
             }
         }
@@ -362,11 +378,29 @@ public class DefaultStreamPoller implements StreamPoller {
 
     @Override
     public PollingIngestStats getStats() {
+        MessageProcessorRunnable.MessageProcessorMetrics processorMetrics = blockingQueueContainer.getMessageProcessorMetrics();
         PollingIngestStats.Builder builder = new PollingIngestStats.Builder();
+        // set processor stats
+        builder.setTotalProcessedCount(processorMetrics.processedCounter().count());
+        builder.setTotalInvalidMessageCount(processorMetrics.invalidMessageCounter().count());
+        builder.setTotalProcessorVersionConflictsCount(processorMetrics.versionConflictCounter().count());
+        builder.setTotalProcessorFailedCount(processorMetrics.failedMessageCounter().count());
+        builder.setTotalProcessorFailuresDroppedCount(processorMetrics.failedMessageDroppedCounter().count());
+        builder.setTotalProcessorThreadInterruptCount(processorMetrics.processorThreadInterruptCounter().count());
+        // set consumer stats
         builder.setTotalPolledCount(totalPolledCount.count());
-        builder.setTotalProcessedCount(blockingQueueContainer.getTotalProcessedCount());
-        builder.setTotalSkippedCount(blockingQueueContainer.getTotalSkippedCount());
+        builder.setTotalConsumerErrorCount(totalConsumerErrorCount.count());
+        builder.setTotalPollerMessageFailureCount(totalPollerMessageFailureCount.count());
+        builder.setTotalPollerMessageDroppedCount(totalPollerMessageDroppedCount.count());
+        builder.setLagInMillis(computeLag());
         return builder.build();
+    }
+
+    /**
+     * Returns the lag in milliseconds since the last polled message
+     */
+    private long computeLag() {
+        return System.currentTimeMillis() - lastPolledMessageTimestamp;
     }
 
     public State getState() {

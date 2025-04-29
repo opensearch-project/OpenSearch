@@ -44,7 +44,6 @@ import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
@@ -60,6 +59,11 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_PERSISTENT_TASK;
+import static org.opensearch.cluster.service.ClusterManagerTask.FINISH_PERSISTENT_TASK;
+import static org.opensearch.cluster.service.ClusterManagerTask.REMOVE_PERSISTENT_TASK;
+import static org.opensearch.cluster.service.ClusterManagerTask.UPDATE_TASK_STATE;
 
 /**
  * Component that runs only on the cluster-manager node and is responsible for assigning running tasks to nodes
@@ -106,10 +110,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             .addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING, this::setRecheckInterval);
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        createPersistentTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_PERSISTENT_TASK_KEY, true);
-        finishPersistentTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.FINISH_PERSISTENT_TASK_KEY, true);
-        removePersistentTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_PERSISTENT_TASK_KEY, true);
-        updatePersistentTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_TASK_STATE_KEY, true);
+        createPersistentTaskKey = clusterService.registerClusterManagerTask(CREATE_PERSISTENT_TASK, true);
+        finishPersistentTaskKey = clusterService.registerClusterManagerTask(FINISH_PERSISTENT_TASK, true);
+        removePersistentTaskKey = clusterService.registerClusterManagerTask(REMOVE_PERSISTENT_TASK, true);
+        updatePersistentTaskKey = clusterService.registerClusterManagerTask(UPDATE_TASK_STATE, true);
     }
 
     // visible for testing only

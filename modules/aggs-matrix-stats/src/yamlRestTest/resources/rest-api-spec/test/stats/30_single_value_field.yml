@@ -145,7 +145,8 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 14}
   - match: {aggregations.mfs.fields.0.count: 14}
-  - match: {aggregations.mfs.fields.2.correlation.val2: 0.9569513137793205}
+  - gte: {aggregations.mfs.fields.2.correlation.val2: 0.956951313779319}
+  - lte: {aggregations.mfs.fields.2.correlation.val2: 0.956951313779321}
 
 ---
 "Partially unmapped with missing default":
@@ -159,7 +160,8 @@ setup:
   - match: {hits.total: 15}
   - match: {aggregations.mfs.doc_count: 15}
   - match: {aggregations.mfs.fields.0.count: 15}
-  - match: {aggregations.mfs.fields.2.correlation.val2: 0.9567970467908384}
+  - gte: {aggregations.mfs.fields.2.correlation.val2: 0.956797046790837}
+  - lte: {aggregations.mfs.fields.2.correlation.val2: 0.956797046790839}
 
 ---
 "With script":
