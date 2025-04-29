@@ -34,6 +34,7 @@ package org.opensearch.action.get;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.DocRequest;
 import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
@@ -66,7 +67,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
+public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest, DocRequest {
 
     private String id;
     private String routing;
@@ -163,6 +164,12 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this;
     }
 
+    @Override
+    public String index() {
+        return super.index();
+    }
+
+    @Override
     public String id() {
         return id;
     }
