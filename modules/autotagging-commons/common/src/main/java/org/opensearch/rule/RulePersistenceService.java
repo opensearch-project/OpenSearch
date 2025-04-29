@@ -37,4 +37,11 @@ public interface RulePersistenceService {
      * @param listener The listener that will handle the response or failure.
      */
     void deleteRule(DeleteRuleRequest request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Update rule based on the provided request.
+     * @param request The request containing the details for updating the rule.
+     * @param listener The listener that will handle the response or failure.
+     */
+    void updateRule(UpdateRuleRequest request, ActionListener<UpdateRuleResponse> listener);
 }

@@ -7,6 +7,6 @@
  */
 
 /**
- * This package contains abstract action classes for rules
+ * Java Agent Policy
  */
-package org.opensearch.rule.action;
+package org.opensearch.secure_sm.policy;

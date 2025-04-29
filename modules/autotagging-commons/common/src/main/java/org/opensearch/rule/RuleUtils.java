@@ -15,6 +15,11 @@ import org.opensearch.rule.autotagging.Rule;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.autotagging.Rule;
+
+import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -63,5 +68,25 @@ public class RuleUtils {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Creates an updated {@link Rule} object by applying non-null fields from the given {@link UpdateRuleRequest}
+     * to the original rule. Fields not provided in the request will retain their values from the original rule.
+     * @param originalRule the original rule to update
+     * @param request the request containing the new values for the rule
+     * @param featureType the feature type to assign to the updated rule
+     */
+    public static Rule composeUpdatedRule(Rule originalRule, UpdateRuleRequest request, FeatureType featureType) {
+        String requestDescription = request.getDescription();
+        Map<Attribute, Set<String>> requestMap = request.getAttributeMap();
+        String requestLabel = request.getFeatureValue();
+        return new Rule(
+            requestDescription == null ? originalRule.getDescription() : requestDescription,
+            requestMap == null || requestMap.isEmpty() ? originalRule.getAttributeMap() : requestMap,
+            featureType,
+            requestLabel == null ? originalRule.getFeatureValue() : requestLabel,
+            Instant.now().toString()
+        );
     }
 }

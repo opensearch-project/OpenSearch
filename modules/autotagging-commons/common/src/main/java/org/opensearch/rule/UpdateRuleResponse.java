@@ -6,9 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule.action;
+package org.opensearch.rule;
 
-import org.opensearch.autotagging.Rule;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -16,20 +15,21 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.rule.autotagging.Rule;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.autotagging.Rule._ID_STRING;
+import static org.opensearch.rule.autotagging.Rule._ID_STRING;
 
 /**
  * Response for the update API for Rule
  * Example response:
  * {
  *     _id": "z1MJApUB0zgMcDmz-UQq",
- *     "description": "Rule for tagging query_group_id to index123"
+ *     "description": "Rule for tagging workload_group_id to index123"
  *     "index_pattern": ["index123"],
- *     "query_group": "query_group_id",
+ *     "workload_group": "workload_group_id",
  *     "updated_at": "2025-02-14T01:19:22.589Z"
  * }
  * @opensearch.experimental

@@ -6,16 +6,16 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule.action;
+package org.opensearch.rule;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.autotagging.Attribute;
-import org.opensearch.autotagging.FeatureType;
-import org.opensearch.autotagging.RuleValidator;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.autotagging.RuleValidator;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -26,12 +26,11 @@ import java.util.Set;
 /**
  * A request for update Rule
  * Example request:
- * Note that the endpoint "localhost:9200/_wlm/rule" serves only as an example endpoint here
- * curl -XPUT "localhost:9200/_wlm/rule/{rule_id}" -H 'Content-Type: application/json' -d '
+ * curl -XPUT "localhost:9200/_rules/{featureType}/{_id}" -H 'Content-Type: application/json' -d '
  * {
  *     "description": "description",
  *      "index_pattern": ["log*", "event*"],
- *      "query_group": "dev_query_group_id_2"
+ *      "workload_group": "dev_workload_group_id_2"
  * }'
  * @opensearch.experimental
  */
@@ -119,6 +118,13 @@ public class UpdateRuleRequest extends ActionRequest {
      */
     public Map<Attribute, Set<String>> getAttributeMap() {
         return attributeMap;
+    }
+
+    /**
+     * featureType getter
+     */
+    public FeatureType getFeatureType() {
+        return featureType;
     }
 
     /**

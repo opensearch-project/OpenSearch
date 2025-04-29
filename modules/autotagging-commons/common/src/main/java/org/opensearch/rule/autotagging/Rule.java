@@ -369,6 +369,10 @@ public class Rule implements Writeable, ToXContentObject {
             return attributeMap;
         }
 
+        /**
+         * Returns description
+         * @return
+         */
         public String getDescription() {
             return description;
         }
