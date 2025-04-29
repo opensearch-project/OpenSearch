@@ -38,7 +38,6 @@ import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.metadata.AliasAction.NewAliasValidator;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -62,6 +61,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.opensearch.cluster.service.ClusterManagerTask.INDEX_ALIASES;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -97,7 +97,7 @@ public class MetadataIndexAliasesService {
         this.xContentRegistry = xContentRegistry;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        indexAliasTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.INDEX_ALIASES_KEY, true);
+        indexAliasTaskKey = clusterService.registerClusterManagerTask(INDEX_ALIASES, true);
 
     }
 

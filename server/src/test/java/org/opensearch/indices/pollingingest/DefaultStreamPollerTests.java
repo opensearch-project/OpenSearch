@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -305,7 +306,10 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         );
         poller.start();
         Thread.sleep(sleepTime);
+        PollingIngestStats pollingIngestStats = poller.getStats();
 
+        assertThat(pollingIngestStats.getConsumerStats().totalPollerMessageFailureCount(), is(1L));
+        assertThat(pollingIngestStats.getConsumerStats().totalPollerMessageDroppedCount(), is(1L));
         verify(errorStrategy, times(1)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.POLLING));
         verify(mockQueue, times(4)).put(any());
         blockingQueueContainer.close();
@@ -359,6 +363,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         poller.start();
         Thread.sleep(sleepTime);
 
+        PollingIngestStats pollingIngestStats = poller.getStats();
+        assertThat(pollingIngestStats.getConsumerStats().totalPollerMessageDroppedCount(), is(0L));
         verify(errorStrategy, times(1)).handleError(any(), eq(IngestionErrorStrategy.ErrorStage.POLLING));
         assertEquals(DefaultStreamPoller.State.PAUSED, poller.getState());
         assertTrue(poller.isPaused());
