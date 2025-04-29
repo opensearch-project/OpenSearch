@@ -28,7 +28,7 @@ import static org.opensearch.rule.autotagging.Rule._ID_STRING;
  *    "_id":"wi6VApYBoX5wstmtU_8l",
  *    "description":"description1",
  *    "index_pattern":["log*", "uvent*"],
- *    "query_group":"poOiU851RwyLYvV5lbvv5w",
+ *    "workload_group":"poOiU851RwyLYvV5lbvv5w",
  *    "updated_at":"2025-04-04T20:54:22.406Z"
  * }
  * @opensearch.experimental

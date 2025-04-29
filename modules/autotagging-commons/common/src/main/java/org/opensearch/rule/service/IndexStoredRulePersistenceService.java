@@ -32,9 +32,9 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.CreateRuleRequest;
 import org.opensearch.rule.CreateRuleResponse;
+import org.opensearch.rule.DuplicateRuleChecker;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
-import org.opensearch.rule.RuleDuplicateChecker;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleQueryMapper;
@@ -66,7 +66,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final int maxRulesPerPage;
     private final RuleEntityParser parser;
     private final RuleQueryMapper<QueryBuilder> queryBuilder;
-    private final RuleDuplicateChecker ruleDuplicateChecker;
+    private final DuplicateRuleChecker ruleDuplicateChecker;
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
     private static final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
 
@@ -88,7 +88,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         int maxRulesPerPage,
         RuleEntityParser parser,
         RuleQueryMapper<QueryBuilder> queryBuilder,
-        RuleDuplicateChecker ruleDuplicateChecker
+        DuplicateRuleChecker ruleDuplicateChecker
     ) {
         this.indexName = indexName;
         this.client = client;
@@ -107,66 +107,51 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      */
     public void createRule(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener) {
         try (ThreadContext.StoredContext ctx = getContext()) {
-            createIndexIfAbsent(new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    validateNoDuplicateRule(request.getRule(), new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void unused) {
-                            persistRule(request.getRule(), listener);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            if (!clusterService.state().metadata().hasIndex(indexName)) {
+                createIndex(listener, request.getRule());
+            } else {
+                validateAndPersist(request.getRule(), listener);
+            }
         }
     }
 
     /**
-     * Creates the system index if it doesn't exist
+     * Creates the system index, then validates and persists the given rule.
      * @param listener - ActionListener for CreateRuleResponse
+     * @param rule - the rule to validate and persist
      */
-    private void createIndexIfAbsent(ActionListener<Void> listener) {
-        try (ThreadContext.StoredContext ctx = getContext()) {
-            if (clusterService.state().metadata().hasIndex(indexName)) {
-                listener.onResponse(null);
-                return;
+    private void createIndex(ActionListener<CreateRuleResponse> listener, Rule rule) {
+        final CreateIndexRequest request = new CreateIndexRequest(indexName).settings(indexSettings);
+        client.admin().indices().create(request, new ActionListener<>() {
+            @Override
+            public void onResponse(CreateIndexResponse response) {
+                if (!response.isAcknowledged()) {
+                    logger.error("Index creation not acknowledged: {}", indexName);
+                    listener.onFailure(new IllegalStateException(indexName + " index creation failed and rule cannot be persisted"));
+                } else {
+                    validateAndPersist(rule, listener);
+                }
             }
 
-            final CreateIndexRequest request = new CreateIndexRequest(indexName).settings(indexSettings);
-            client.admin().indices().create(request, new ActionListener<>() {
-                @Override
-                public void onResponse(CreateIndexResponse response) {
-                    if (!response.isAcknowledged()) {
-                        logger.error("Index creation not acknowledged: {}", indexName);
-                        listener.onFailure(new IllegalStateException(indexName + " index creation failed and rule cannot be persisted"));
-                    } else {
-                        logger.info("Index {} created", indexName);
-                        listener.onResponse(null);
-                    }
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof ResourceAlreadyExistsException) {
+                    validateAndPersist(rule, listener);
+                } else {
+                    logger.error("Failed to create index {}: {}", indexName, e.getMessage());
+                    listener.onFailure(e);
                 }
+            }
+        });
+    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException) {
-                        logger.trace("Index {} already exists", indexName);
-                        listener.onResponse(null);
-                    } else {
-                        logger.error("Failed to create index {}: {}", indexName, e.getMessage());
-                        listener.onFailure(e);
-                    }
-                }
-            });
-        }
+    /**
+     * Validates that the rule does not already exist, then persists it if validation succeeds
+     * @param rule - The rule to validate and persist
+     * @param listener - ActionListener for CreateRuleResponse
+     */
+    private void validateAndPersist(Rule rule, ActionListener<CreateRuleResponse> listener) {
+        validateNoDuplicateRule(rule, ActionListener.wrap(unused -> persistRule(rule, listener), listener::onFailure));
     }
 
     /**
@@ -175,6 +160,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param rule - the rule we check duplicate against
      * @param listener - listener for validateNoDuplicateRule response
      */
+
     private void validateNoDuplicateRule(Rule rule, ActionListener<Void> listener) {
         try (ThreadContext.StoredContext ctx = getContext()) {
             QueryBuilder query = queryBuilder.from(new GetRuleRequest(null, rule.getAttributeMap(), null, rule.getFeatureType()));

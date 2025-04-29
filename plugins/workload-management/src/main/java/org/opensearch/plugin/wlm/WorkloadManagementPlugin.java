@@ -52,7 +52,7 @@ import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
-import org.opensearch.rule.storage.IndexBasedRuleDuplicateChecker;
+import org.opensearch.rule.storage.IndexBasedDuplicateRuleChecker;
 import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
 import org.opensearch.rule.storage.XContentRuleParser;
 import org.opensearch.script.ScriptService;
@@ -110,7 +110,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             MAX_RULES_PER_PAGE,
             new XContentRuleParser(FeatureTypeHolder.featureType),
             new IndexBasedRuleQueryMapper(),
-            new IndexBasedRuleDuplicateChecker()
+            new IndexBasedDuplicateRuleChecker()
         );
         InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
             FeatureTypeHolder.featureType,

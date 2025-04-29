@@ -18,7 +18,7 @@ import java.util.Optional;
  * Interface to check for rule duplication.
  */
 @ExperimentalApi
-public interface RuleDuplicateChecker {
+public interface DuplicateRuleChecker {
     /**
      * Checks if the given rule already exists in the provided rule map.
      * @param rule     the rule to check for duplication

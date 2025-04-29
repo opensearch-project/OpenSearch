@@ -9,7 +9,8 @@
 package org.opensearch.rule.autotagging;
 
 /**
- * Validates a feature value for a specific feature type
+ * Interface for validating a feature value against pre-defined values (such as
+ * values from the index, cluster state, etc.) for a specific feature type.
  * @opensearch.experimental
  */
 public interface FeatureValueValidator {
