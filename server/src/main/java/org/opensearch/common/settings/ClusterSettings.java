@@ -41,6 +41,7 @@ import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.replication.TransportReplicationAction;
+import org.opensearch.autoforcemerge.ForceMergeManagerSettings;
 import org.opensearch.bootstrap.BootstrapSettings;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
@@ -829,7 +830,17 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Setting related to refresh optimisations
                 IndicesService.CLUSTER_REFRESH_FIXED_INTERVAL_SCHEDULE_ENABLED_SETTING,
-                IndicesService.CLUSTER_REFRESH_SHARD_LEVEL_ENABLED_SETTING
+                IndicesService.CLUSTER_REFRESH_SHARD_LEVEL_ENABLED_SETTING,
+
+                // Settings related to Auto Force Merge Manager
+                ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING,
+                ForceMergeManagerSettings.SEGMENT_COUNT_THRESHOLD_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL,
+                ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.FORCE_MERGE_THREADS_THRESHOLD_COUNT_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER
             )
         )
     );

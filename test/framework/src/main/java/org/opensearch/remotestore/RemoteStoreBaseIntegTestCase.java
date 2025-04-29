@@ -183,7 +183,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     protected void setFailRate(String repoName, int value) throws ExecutionException, InterruptedException {
-        GetRepositoriesRequest gr = new GetRepositoriesRequest(new String[] { repoName });
+        GetRepositoriesRequest gr = new GetRepositoriesRequest(new String[]{repoName});
         GetRepositoriesResponse res = client().admin().cluster().getRepositories(gr).get();
         RepositoryMetadata rmd = res.repositories().get(0);
         Settings.Builder settings = Settings.builder()
@@ -335,6 +335,15 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         String uuid = getIndexResponse.getSettings().get(indexName).get(IndexMetadata.SETTING_INDEX_UUID);
         IndexService indexService = indicesService.indexService(new Index(indexName, uuid));
         return indexService.getShard(0);
+    }
+
+    protected IndexShard getIndexShardFromShardId(String dataNode, String indexName, Integer shardId) throws ExecutionException, InterruptedException {
+        String clusterManagerName = internalCluster().getClusterManagerName();
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNode);
+        GetIndexResponse getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
+        String uuid = getIndexResponse.getSettings().get(indexName).get(IndexMetadata.SETTING_INDEX_UUID);
+        IndexService indexService = indicesService.indexService(new Index(indexName, uuid));
+        return indexService.getShard(shardId);
     }
 
     protected void restore(boolean restoreAllShards, String... indices) {

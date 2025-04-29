@@ -57,6 +57,7 @@ import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.arrow.spi.StreamManager;
+import org.opensearch.autoforcemerge.AutoForceMergeManager;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.ClusterInfoService;
@@ -159,7 +160,6 @@ import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
-import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
 import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -367,7 +367,6 @@ public class Node implements Closeable {
      * Note that this does not control whether the node stores actual indices (see
      * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
      * and {@link #NODE_MASTER_SETTING} must also be false.
-     *
      */
     public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting(
         "node.local_storage",
@@ -383,7 +382,7 @@ public class Node implements Closeable {
                 && (Character.isWhitespace(value.charAt(0)) || Character.isWhitespace(value.charAt(value.length() - 1)))) {
                 throw new IllegalArgumentException(key + " cannot have leading or trailing whitespace " + "[" + value + "]");
             }
-            if (value.length() > 0 && "node.attr.server_name".equals(key)) {
+            if (value.length() > 0 && "node.attr.server_name" .equals(key)) {
                 try {
                     new SNIHostName(value);
                 } catch (IllegalArgumentException e) {
@@ -449,7 +448,7 @@ public class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
     private final Tracer tracer;
-
+    private final AutoForceMergeManager autoForceMergeManager;
     private final MetricsRegistry metricsRegistry;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
@@ -895,25 +894,9 @@ public class Node implements Closeable {
                 });
             directoryFactories.putAll(builtInDirectoryFactories);
 
-            final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories = new HashMap<>();
-            pluginsService.filterPlugins(IndexStorePlugin.class)
-                .stream()
-                .map(IndexStorePlugin::getCompositeDirectoryFactories)
-                .flatMap(m -> m.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-                .forEach((k, v) -> {
-                    if (k.equals("default")) {
-                        throw new IllegalStateException(
-                            "registered composite index store type [" + k + "] conflicts with a built-in default type"
-                        );
-                    }
-                    compositeDirectoryFactories.put(k, v);
-                });
-            compositeDirectoryFactories.put("default", new DefaultCompositeDirectoryFactory());
-
             final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
-                IndexStorePlugin.class
-            )
+                    IndexStorePlugin.class
+                )
                 .stream()
                 .map(IndexStorePlugin::getRecoveryStateFactories)
                 .flatMap(m -> m.entrySet().stream())
@@ -969,7 +952,6 @@ public class Node implements Closeable {
                 metaStateService,
                 engineFactoryProviders,
                 Map.copyOf(directoryFactories),
-                Map.copyOf(compositeDirectoryFactories),
                 searchModule.getValuesSourceRegistry(),
                 recoveryStateFactories,
                 remoteDirectoryFactory,
@@ -1170,6 +1152,8 @@ public class Node implements Closeable {
                 threadPool,
                 workloadGroupService
             );
+
+            this.autoForceMergeManager = new AutoForceMergeManager(threadPool, monitorService.osService(), monitorService.jvmService(), indicesService, clusterService);
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
                 .stream()
@@ -1461,9 +1445,9 @@ public class Node implements Closeable {
 
             final Optional<TaskManagerClient> taskManagerClientOptional = FeatureFlags.isEnabled(BACKGROUND_TASK_EXECUTION_EXPERIMENTAL)
                 ? pluginsService.filterPlugins(TaskManagerClientPlugin.class)
-                    .stream()
-                    .map(plugin -> plugin.getTaskManagerClient(client, clusterService, threadPool))
-                    .findFirst()
+                .stream()
+                .map(plugin -> plugin.getTaskManagerClient(client, clusterService, threadPool))
+                .findFirst()
                 : Optional.empty();
 
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(tasksExecutors);
@@ -1879,7 +1863,9 @@ public class Node implements Closeable {
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
         nodeService.getTaskCancellationMonitoringService().stop();
-
+        if (autoForceMergeManager.lifecycleState() != Lifecycle.State.STOPPED) {
+            autoForceMergeManager.stop();
+        }
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
@@ -1979,7 +1965,9 @@ public class Node implements Closeable {
         if (logger.isTraceEnabled()) {
             toClose.add(() -> logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint()));
         }
-
+        if (autoForceMergeManager.lifecycleState() != Lifecycle.State.STOPPED) {
+            autoForceMergeManager.stop();
+        }
         IOUtils.close(toClose);
         logger.info("closed");
     }
@@ -2036,9 +2024,12 @@ public class Node implements Closeable {
         final BootstrapContext context,
         final BoundTransportAddress boundTransportAddress,
         List<BootstrapCheck> bootstrapChecks
-    ) throws NodeValidationException {}
+    ) throws NodeValidationException {
+    }
 
-    /** Writes a file to the logs dir containing the ports for the given transport type */
+    /**
+     * Writes a file to the logs dir containing the ports for the given transport type
+     */
     private void writePortsFile(String type, BoundTransportAddress boundAddress) {
         Path tmpPortsFile = environment.logsDir().resolve(type + ".ports.tmp");
         try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, StandardCharsets.UTF_8)) {
@@ -2066,6 +2057,7 @@ public class Node implements Closeable {
 
     /**
      * Creates a new {@link CircuitBreakerService} based on the settings provided.
+     *
      * @see #BREAKER_TYPE_KEY
      */
     public static CircuitBreakerService createCircuitBreakerService(
@@ -2141,6 +2133,7 @@ public class Node implements Closeable {
 
     /**
      * Get Custom Name Resolvers list based on a Discovery Plugins list
+     *
      * @param discoveryPlugins Discovery plugins list
      */
     private List<NetworkService.CustomNameResolver> getCustomNameResolvers(List<DiscoveryPlugin> discoveryPlugins) {
@@ -2154,7 +2147,9 @@ public class Node implements Closeable {
         return customNameResolvers;
     }
 
-    /** Constructs a ClusterInfoService which may be mocked for tests. */
+    /**
+     * Constructs a ClusterInfoService which may be mocked for tests.
+     */
     protected ClusterInfoService newClusterInfoService(
         Settings settings,
         ClusterService clusterService,
@@ -2169,7 +2164,9 @@ public class Node implements Closeable {
         return service;
     }
 
-    /** Constructs a {@link org.opensearch.http.HttpServerTransport} which may be mocked for tests. */
+    /**
+     * Constructs a {@link org.opensearch.http.HttpServerTransport} which may be mocked for tests.
+     */
     protected HttpServerTransport newHttpTransport(NetworkModule networkModule) {
         return networkModule.getHttpServerTransportSupplier().get();
     }
