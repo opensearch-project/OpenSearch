@@ -33,13 +33,11 @@ package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 
@@ -47,14 +45,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.cluster.ClusterManagerMetrics.NODE_ID_TAG;
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 /**
@@ -82,22 +78,19 @@ public class LagDetector {
     private final Supplier<DiscoveryNode> localNodeSupplier;
     private final ThreadPool threadPool;
     private final Map<DiscoveryNode, NodeAppliedStateTracker> appliedStateTrackersByNode = newConcurrentMap();
-    private ClusterManagerMetrics clusterManagerMetrics;
 
     public LagDetector(
         final Settings settings,
         final ClusterSettings clusterSettings,
         final ThreadPool threadPool,
         final Consumer<DiscoveryNode> onLagDetected,
-        final Supplier<DiscoveryNode> localNodeSupplier,
-        final ClusterManagerMetrics clusterManagerMetrics
+        final Supplier<DiscoveryNode> localNodeSupplier
     ) {
         this.threadPool = threadPool;
         this.clusterStateApplicationTimeout = CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING, this::setFollowerLagTimeout);
         this.onLagDetected = onLagDetected;
         this.localNodeSupplier = localNodeSupplier;
-        this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
     public void setTrackedNodes(final Iterable<DiscoveryNode> discoveryNodes) {
@@ -212,13 +205,6 @@ public class LagDetector {
                 version,
                 clusterStateApplicationTimeout
             );
-
-            clusterManagerMetrics.incrementCounter(
-                clusterManagerMetrics.lagCounter,
-                1.0,
-                Optional.ofNullable(Tags.create().addTag(NODE_ID_TAG, discoveryNode.getId()))
-            );
-
             onLagDetected.accept(discoveryNode);
         }
     }

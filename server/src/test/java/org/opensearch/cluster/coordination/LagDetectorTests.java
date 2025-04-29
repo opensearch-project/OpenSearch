@@ -31,19 +31,16 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.telemetry.TestInMemoryMetricsRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.cluster.coordination.LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING;
@@ -60,7 +57,6 @@ public class LagDetectorTests extends OpenSearchTestCase {
     private LagDetector lagDetector;
     private DiscoveryNode node1, node2, localNode;
     private TimeValue followerLagTimeout;
-    private TestInMemoryMetricsRegistry metricsRegistry;
 
     @Before
     public void setupFixture() {
@@ -77,16 +73,7 @@ public class LagDetectorTests extends OpenSearchTestCase {
         }
         Settings settings = settingsBuilder.build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        metricsRegistry = new TestInMemoryMetricsRegistry();
-        final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
-        lagDetector = new LagDetector(
-            settings,
-            clusterSettings,
-            deterministicTaskQueue.getThreadPool(),
-            failedNodes::add,
-            () -> localNode,
-            clusterManagerMetrics
-        );
+        lagDetector = new LagDetector(settings, clusterSettings, deterministicTaskQueue.getThreadPool(), failedNodes::add, () -> localNode);
 
         localNode = CoordinationStateTests.createNode("local");
         node1 = CoordinationStateTests.createNode("node1");
@@ -133,10 +120,6 @@ public class LagDetectorTests extends OpenSearchTestCase {
         );
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));
-        assertEquals(
-            Double.valueOf(1),
-            metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
-        );
     }
 
     public void testNoLagDetectedOnLocalNode() {
@@ -160,10 +143,6 @@ public class LagDetectorTests extends OpenSearchTestCase {
         lagDetector.setAppliedVersion(node1, 1);
         deterministicTaskQueue.runAllTasks();
         assertThat(failedNodes, contains(node1));
-        assertEquals(
-            Double.valueOf(1),
-            metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
-        );
     }
 
     public void testNoLagDetectedIfNodeIsRemovedAfterLagDetectorStarted() {
@@ -176,10 +155,6 @@ public class LagDetectorTests extends OpenSearchTestCase {
         lagDetector.startLagDetector(2);
         deterministicTaskQueue.runAllTasks();
         assertThat(failedNodes, contains(node2));
-        assertEquals(
-            Double.valueOf(1),
-            metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node2")))
-        );
     }
 
     public void testNoLagDetectedIfDetectorIsClearedAfterLagDetectorStarted() {
@@ -193,10 +168,6 @@ public class LagDetectorTests extends OpenSearchTestCase {
         lagDetector.startLagDetector(2);
         deterministicTaskQueue.runAllTasks();
         assertThat(failedNodes, contains(node1));
-        assertEquals(
-            Double.valueOf(1),
-            metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
-        );
     }
 
     public void testDetectorIgnoresNodesAddedAfterStarted() {
@@ -214,10 +185,6 @@ public class LagDetectorTests extends OpenSearchTestCase {
         lagDetector.setTrackedNodes(Arrays.asList(node1, node2));
         deterministicTaskQueue.runAllTasks();
         assertThat(failedNodes, contains(node1));
-        assertEquals(
-            Double.valueOf(1),
-            metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
-        );
     }
 
     public void testDetectorIgnoresApplicationsFromUnknownNodes() {
@@ -226,19 +193,11 @@ public class LagDetectorTests extends OpenSearchTestCase {
         lagDetector.setAppliedVersion(node2, 1);
         deterministicTaskQueue.runAllTasks();
         assertThat(failedNodes, contains(node1));
-        assertEquals(
-            Double.valueOf(1),
-            metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
-        );
 
         failedNodes.clear();
         lagDetector.startLagDetector(2);
         deterministicTaskQueue.runAllTasks();
         assertThat(failedNodes, contains(node1));
-        assertEquals(
-            Double.valueOf(2),
-            metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
-        );
     }
 
     public void testLagDetection() {
@@ -277,10 +236,6 @@ public class LagDetectorTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));
         failedNodes.clear();
-        assertEquals(
-            Double.valueOf(1),
-            metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
-        );
 
         lagDetector.startLagDetector(5);
         lagDetector.clearTrackedNodes();
@@ -292,10 +247,6 @@ public class LagDetectorTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));
         failedNodes.clear(); // ... but later lag detectors still work
-        assertEquals(
-            Double.valueOf(2),
-            metricsRegistry.getCounterStore().get("lag.count").getCounterValueForTags().get((Map.of("node_id", "node1")))
-        );
 
         lagDetector.setTrackedNodes(Collections.singletonList(node2));
         lagDetector.setAppliedVersion(node2, 7);

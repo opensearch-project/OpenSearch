@@ -39,7 +39,6 @@ public final class ClusterManagerMetrics {
     public final Counter nodeFollowerChecksFailureCounter;
     public final Counter asyncFetchFailureCounter;
     public final Counter asyncFetchSuccessCounter;
-    public final Counter lagCounter;
     public final Counter nodeLeftCounter;
     public final Counter fsHealthFailCounter;
 
@@ -99,7 +98,6 @@ public final class ClusterManagerMetrics {
             "Counter for number of successful async fetches",
             COUNTER_METRICS_UNIT
         );
-        lagCounter = metricsRegistry.createCounter("lag.count", "Counter for lag in the node version", COUNTER_METRICS_UNIT);
         nodeLeftCounter = metricsRegistry.createCounter("node.left.count", "Counter for node left operation", COUNTER_METRICS_UNIT);
         fsHealthFailCounter = metricsRegistry.createCounter(
             "fsHealth.failure.count",
