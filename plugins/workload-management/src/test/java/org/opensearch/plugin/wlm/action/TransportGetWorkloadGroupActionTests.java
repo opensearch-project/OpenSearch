@@ -13,8 +13,6 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.wlm.action.GetWorkloadGroupRequest;
-import org.opensearch.plugin.wlm.action.TransportGetWorkloadGroupAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;

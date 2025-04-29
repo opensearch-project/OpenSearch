@@ -20,6 +20,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.rule.DuplicateRuleChecker;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
@@ -59,7 +60,9 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         when(getRuleRequest.getAttributeFilters()).thenReturn(new HashMap<>());
         QueryBuilder queryBuilder = mock(QueryBuilder.class);
         RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
+        DuplicateRuleChecker ruleDuplicateChecker = mock(DuplicateRuleChecker.class);
         RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
+        ClusterService clusterService = mock(ClusterService.class);
         Rule mockRule = mock(Rule.class);
 
         when(mockRuleEntityParser.parse(anyString())).thenReturn(mockRule);
@@ -72,9 +75,11 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
             TEST_INDEX_NAME,
             client,
+            clusterService,
             MAX_VALUES_PER_PAGE,
             mockRuleEntityParser,
-            mockRuleQueryMapper
+            mockRuleQueryMapper,
+            ruleDuplicateChecker
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
@@ -105,6 +110,8 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         when(getRuleRequest.getId()).thenReturn(_ID_ONE);
         QueryBuilder queryBuilder = mock(QueryBuilder.class);
         RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
+        DuplicateRuleChecker ruleDuplicateChecker = mock(DuplicateRuleChecker.class);
+        ClusterService clusterService = mock(ClusterService.class);
         RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
         Rule mockRule = mock(Rule.class);
 
@@ -118,9 +125,11 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
             TEST_INDEX_NAME,
             client,
+            clusterService,
             MAX_VALUES_PER_PAGE,
             mockRuleEntityParser,
-            mockRuleQueryMapper
+            mockRuleQueryMapper,
+            ruleDuplicateChecker
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);

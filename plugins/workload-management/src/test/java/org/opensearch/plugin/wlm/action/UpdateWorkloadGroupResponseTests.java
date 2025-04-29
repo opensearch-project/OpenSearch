@@ -16,7 +16,6 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugin.wlm.WorkloadGroupTestUtils;
-import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupResponse;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

@@ -74,16 +74,27 @@ public class RuleValidator {
         }
     }
 
+    /**
+     * validates the updated rule object fields
+     */
     public List<String> validateUpdatingRuleParams() {
         List<String> errorMessages = new ArrayList<>();
-        if (isInvalidUpdatedValue(description)) {
+        if (isEmpty(description)) {
             errorMessages.add("Rule description can't be empty");
         }
-        if (isInvalidUpdatedValue(featureValue)) {
+        if (isEmpty(featureValue)) {
             errorMessages.add("Rule featureValue can't be empty");
         }
+        FeatureValueValidator featureValueValidator = featureType.getFeatureValueValidator();
+        if (featureValue != null && !featureValue.isEmpty() && featureValueValidator != null) {
+            try {
+                featureValueValidator.validate(featureValue);
+            } catch (Exception e) {
+                errorMessages.add(e.getMessage());
+            }
+        }
         if (attributeMap != null && !attributeMap.isEmpty()) {
-            validateAttributeMap();
+            errorMessages.addAll(validateAttributeMap());
         }
         return errorMessages;
     }
@@ -108,7 +119,12 @@ public class RuleValidator {
         return str == null || str.isEmpty();
     }
 
-    private boolean isInvalidUpdatedValue(String str) {
+    /**
+     * Utility method which checks the empty string in context of Rule
+     * @param str
+     * @return
+     */
+    public static boolean isEmpty(String str) {
         return str != null && str.isEmpty();
     }
 
