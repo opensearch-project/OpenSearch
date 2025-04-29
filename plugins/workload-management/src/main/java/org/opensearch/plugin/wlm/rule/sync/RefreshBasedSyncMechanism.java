@@ -34,20 +34,29 @@ import java.util.Arrays;
  * This class pulls the latest rules from the RULES system index to update the in-memory view
  */
 public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
+    /**
+     * Setting name to control the refresh interval of synchronization service
+     */
     public static final String RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME = "wlm.rule.sync_refresh_interval";
+    /**
+     * Default value for refresh interval
+     */
     public static final long RULE_SYNC_REFRESH_INTERVAL_DEFAULT = 5000;
+    /**
+     * Minimum value for refresh interval
+     */
+    public static final int MIN_SYNC_REFRESH_INTERVAL = 1000;
 
     /**
-     * Setting to control the run interval of Query Group Service
+     * Setting to control the run interval of synchronization service
      */
     public static final Setting<Long> RULE_SYNC_REFRESH_INTERVAL_SETTING = Setting.longSetting(
         RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME,
         RULE_SYNC_REFRESH_INTERVAL_DEFAULT,
-        1000,
+        MIN_SYNC_REFRESH_INTERVAL,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final int MIN_SYNC_REFRESH_INTERVAL = 1000;
 
     private final Client client;
     private final ThreadPool threadPool;
@@ -58,6 +67,17 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
     private final FeatureType featureType;
     private static final Logger logger = LogManager.getLogger(RefreshBasedSyncMechanism.class);
 
+    /**
+     * Constructor
+     *
+     * @param client
+     * @param threadPool
+     * @param settings
+     * @param clusterSettings
+     * @param parser
+     * @param ruleProcessingService
+     * @param featureType
+     */
     public RefreshBasedSyncMechanism(
         Client client,
         ThreadPool threadPool,
