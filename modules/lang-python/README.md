@@ -3,7 +3,9 @@
 This plugin is created from [template for creating OpenSearch Plugins](https://github.com/opensearch-project/opensearch-plugin-template-java).
 Please consult the original template repository for more information on building and running this plugin.
 
-## Build & Install the Plugin
+## Use `lang-python` as a Plugin
+
+### Build & Install the Plugin
 1. Download and install [GraalVM JDK](https://www.graalvm.org/downloads/).
 2. Build the plugin using the following command:
    ```bash
@@ -18,7 +20,7 @@ Please consult the original template repository for more information on building
     ./bin/opensearch-plugin install file:///path/to/lang-ptyhon/build/distributions/lang-python-3.0.0.0.zip
     ```
 
-## Run OpenSearch with the Plugin
+### Run OpenSearch with the Plugin
 1. Set the `OPENSEARCH_JAVA_HOME` environment variable to point to GraalVM JDK's Java home.
 2. Start OpenSearch with the plugin installed:
    ```bash
@@ -30,6 +32,29 @@ Please consult the original template repository for more information on building
     curl --location 'localhost:9200/_cat/plugins'
     ```
     You should see an entry for `lang-python` in the output.
+
+## Use `lang-python` as a Module
+
+1. Download and install [GraalVM JDK](https://www.graalvm.org/downloads/).
+2. Build the project with:
+   ```bash
+   ./gradlew localDistro
+   ```
+   The plugin will be built with the project as a built-in module.
+
+## Execute Python Scripts
+
+The following example demonstrates concatenating two strings using the Python language plugin.
+
+```bash
+curl --location 'http://localhost:9200/_scripts/python/_execute' \
+--data '{
+  "script": {
+    "source": "'\''hello'\'' + '\'' world'\''"
+  }
+}
+'
+```
 
 ## Solutions to Common Issues
 ### No language and polyglot implementation was found on the module-path.

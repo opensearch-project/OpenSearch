@@ -144,7 +144,7 @@ enabled = false
 }
 
 graalPy {
-packages = ["numpy==1.24.3", "termcolor==2.2"]
+packages = ["termcolor==2.2"]
 }
 
 // This task copies the dependencies to a 'libs' directory

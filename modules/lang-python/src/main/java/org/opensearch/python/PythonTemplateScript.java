@@ -5,12 +5,12 @@
 
 package org.opensearch.python;
 
-import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.Value;
 import org.opensearch.script.ScriptFactory;
 import org.opensearch.script.TemplateScript;
+
+import java.util.Map;
 
 public class PythonTemplateScript {
     private static final Logger logger = LogManager.getLogger();
@@ -43,12 +43,12 @@ public class PythonTemplateScript {
         }
 
         private static String executePython(String code, Map<String, ?> params) {
-            Value result = ExecutionUtils.executePython(code, params, null, null);
+            String result = ExecutionUtils.executePythonAsString(code, params, null, null);
             if (result == null) {
                 logger.warn("Did not get any result from Python execution");
                 return "";
             }
-            return result.asString();
+            return result;
         }
     }
 }
