@@ -49,6 +49,21 @@ import static org.mockito.Mockito.when;
 
 public class WorkloadManagementPluginTests extends OpenSearchTestCase {
     WorkloadManagementPlugin plugin = new WorkloadManagementPlugin();
+    ClusterService mockClusterService;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        mockClusterService = mock(ClusterService.class);
+        Settings settings = Settings.builder().put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000).build();
+        when(mockClusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, new HashSet<>(plugin.getSettings())));
+        when(mockClusterService.getSettings()).thenReturn(settings);
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+    }
 
     public void testGetActionsReturnsHandlers() {
         List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = plugin.getActions();
@@ -78,7 +93,7 @@ public class WorkloadManagementPluginTests extends OpenSearchTestCase {
         Client mockClient = mock(Client.class);
         plugin.createComponents(
             mockClient,
-            mock(ClusterService.class),
+            mockClusterService,
             mock(ThreadPool.class),
             mock(ResourceWatcherService.class),
             mock(ScriptService.class),
@@ -138,7 +153,6 @@ public class WorkloadManagementPluginTests extends OpenSearchTestCase {
      */
     public void testCreateComponentsReturnsRefreshMechanism() {
         Client mockClient = mock(Client.class);
-        ClusterService mockClusterService = mock(ClusterService.class);
         ThreadPool mockThreadPool = mock(ThreadPool.class);
         ResourceWatcherService mockResourceWatcherService = mock(ResourceWatcherService.class);
         ScriptService mockScriptService = mock(ScriptService.class);
@@ -147,9 +161,6 @@ public class WorkloadManagementPluginTests extends OpenSearchTestCase {
         NamedWriteableRegistry mockNamedWriteableRegistry = mock(NamedWriteableRegistry.class);
         IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         Supplier<RepositoriesService> mockRepositoriesServiceSupplier = () -> mock(RepositoriesService.class);
-        Settings settings = Settings.builder().put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000).build();
-        when(mockClusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, new HashSet<>(plugin.getSettings())));
-        when(mockClusterService.getSettings()).thenReturn(settings);
 
         Collection<Object> components = plugin.createComponents(
             mockClient,
