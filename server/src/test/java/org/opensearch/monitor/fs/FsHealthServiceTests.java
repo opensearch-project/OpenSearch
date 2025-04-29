@@ -141,8 +141,6 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env, clusterManagerMetrics);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
-            System.out.println("arpitptw");
-            System.out.println(metricsRegistry.getCounterStore().get("fsHealth.failure.count").getCounterValueForTags());
             assertEquals(
                 Double.valueOf(1),
                 metricsRegistry.getCounterStore()

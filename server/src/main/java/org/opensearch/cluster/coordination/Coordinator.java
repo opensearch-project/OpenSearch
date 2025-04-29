@@ -113,6 +113,11 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.ClusterManagerMetrics.NODE_ID_TAG;
+import static org.opensearch.cluster.ClusterManagerMetrics.REASON_TAG;
+import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_DISCONNECTED;
+import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL;
+import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_HEALTHCHECK_FAIL;
+import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_LAGGING;
 import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
@@ -129,11 +134,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     public static final long ZEN1_BWC_TERM = 0;
 
     private static final Logger logger = LogManager.getLogger(Coordinator.class);
-    public static final String NODE_LEFT_REASON_LAGGING = "lagging";
-    public static final String NODE_LEFT_REASON_DISCONNECTED = "disconnected";
-    public static final String NODE_LEFT_REASON_HEALTHCHECK_FAIL = "health check failed";
-    public static final String NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL = "followers check retry count exceeded";
-    private static final String REASON_TAG = "Reason";
 
     // the timeout before emitting an info log about a slow-running publication
     public static final Setting<TimeValue> PUBLISH_INFO_TIMEOUT_SETTING = Setting.timeSetting(
@@ -372,8 +372,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 String reasonToPublish = switch (reason) {
                     case NODE_LEFT_REASON_DISCONNECTED -> "disconnected";
                     case NODE_LEFT_REASON_LAGGING -> "lagging";
-                    case NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL -> "followerCheckFail";
-                    case NODE_LEFT_REASON_HEALTHCHECK_FAIL -> "healthCheckFail";
+                    case NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL -> "follower.check.fail";
+                    case NODE_LEFT_REASON_HEALTHCHECK_FAIL -> "health.check.fail";
                     default -> reason;
                 };
                 clusterManagerMetrics.incrementCounter(

@@ -70,9 +70,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.opensearch.cluster.coordination.Coordinator.NODE_LEFT_REASON_DISCONNECTED;
-import static org.opensearch.cluster.coordination.Coordinator.NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL;
-import static org.opensearch.cluster.coordination.Coordinator.NODE_LEFT_REASON_HEALTHCHECK_FAIL;
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
@@ -89,6 +86,10 @@ public class FollowersChecker {
     private static final Logger logger = LogManager.getLogger(FollowersChecker.class);
 
     public static final String FOLLOWER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/follower_check";
+    public static final String NODE_LEFT_REASON_LAGGING = "lagging";
+    public static final String NODE_LEFT_REASON_DISCONNECTED = "disconnected";
+    public static final String NODE_LEFT_REASON_HEALTHCHECK_FAIL = "health check failed";
+    public static final String NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL = "followers check retry count exceeded";
 
     // the time between checks sent to each node
     public static final Setting<TimeValue> FOLLOWER_CHECK_INTERVAL_SETTING = Setting.timeSetting(

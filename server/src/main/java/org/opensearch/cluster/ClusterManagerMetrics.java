@@ -24,6 +24,7 @@ import java.util.Optional;
 public final class ClusterManagerMetrics {
 
     public static final String NODE_ID_TAG = "node_id";
+    public static final String REASON_TAG = "reason";
     private static final String LATENCY_METRIC_UNIT_MS = "ms";
     private static final String COUNTER_METRICS_UNIT = "1";
 
