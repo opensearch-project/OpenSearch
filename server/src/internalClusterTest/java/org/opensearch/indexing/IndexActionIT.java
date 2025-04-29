@@ -483,14 +483,6 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                         "type": "text",
                         "store": true
                     },
-                    "text_keyword_field": {
-                        "type": "text",
-                        "fields": {
-                            "keyword_field": {
-                                "type": "keyword"
-                            }
-                        }
-                    },
                     "wildcard_field": {
                         "type": "wildcard",
                         "doc_values": true
