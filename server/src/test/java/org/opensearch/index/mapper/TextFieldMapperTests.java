@@ -1077,23 +1077,18 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testPossibleToDeriveSource_WhenCopyToPresent() throws IOException {
         FieldMapper.CopyTo copyTo = new FieldMapper.CopyTo.Builder().add("copy_to_field").build();
-        TextFieldMapper mapper = getMapper(copyTo, false, "keyword", false, false, Integer.MAX_VALUE, "default");
+        TextFieldMapper mapper = getMapper(copyTo, false);
         assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
     }
 
-    public void testPossibleToDeriveSource_WhenStoredFieldAndSubKeyWordFieldNotPresent() throws IOException {
-        TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, "keyword", false, false, Integer.MAX_VALUE, "default");
-        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
-    }
-
-    public void testPossibleToDeriveSource_WhenSubKeyWordFieldWithIgnoreAbovePresent() throws IOException {
-        TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, "keyword", true, false, 10, "default");
+    public void testPossibleToDeriveSource_WhenStoredFieldDisabled() throws IOException {
+        TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false);
         assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
     }
 
     public void testDerivedValueFetching_StoredField() throws IOException {
         try (Directory directory = newDirectory()) {
-            TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), true, "keyword", false, false, Integer.MAX_VALUE, "default");
+            TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), true);
             String value = "value";
             try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
                 iw.addDocument(createDocument("field", value, false, false));
@@ -1109,68 +1104,8 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDerivedValueFetching_SubFieldDocValues() throws IOException {
-        try (Directory directory = newDirectory()) {
-            TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, "keyword", true, false, Integer.MAX_VALUE, "default");
-            mapper.canDeriveSource();
-            String value = "value";
-            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
-                iw.addDocument(createDocument("field.sub_field", value, true, true));
-            }
-
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
-                builder.endObject();
-                String source = builder.toString();
-                assertEquals("{\"" + "field" + "\":" + "\"" + value + "\"" + "}", source);
-            }
-        }
-    }
-
-    public void testDerivedValueFetching_SubFieldStoredField() throws IOException {
-        try (Directory directory = newDirectory()) {
-            TextFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, "keyword", false, true, Integer.MAX_VALUE, "default");
-            mapper.canDeriveSource();
-            String value = "value";
-            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
-                iw.addDocument(createDocument("field.sub_field", value, true, false));
-            }
-
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
-                builder.endObject();
-                String source = builder.toString();
-                assertEquals("{\"" + "field" + "\":" + "\"" + value + "\"" + "}", source);
-            }
-        }
-    }
-
-    private TextFieldMapper getMapper(
-        FieldMapper.CopyTo copyTo,
-        boolean isStored,
-        String subFieldType,
-        boolean subFieldHasDocValues,
-        boolean subFieldIsStored,
-        int subFieldIgnoreAbove,
-        String subFieldNormalizerName
-    ) throws IOException {
-        MapperService mapperService = createMapperService(
-            fieldMapping(
-                b -> b.field("type", "text")
-                    .field("store", isStored)
-                    .startObject("fields")
-                    .startObject("sub_field")
-                    .field("type", subFieldType)
-                    .field("doc_values", subFieldHasDocValues)
-                    .field("store", subFieldIsStored)
-                    .field("ignore_above", subFieldIgnoreAbove)
-                    .field("normalizer", subFieldNormalizerName)
-                    .endObject()
-                    .endObject()
-            )
-        );
+    private TextFieldMapper getMapper(FieldMapper.CopyTo copyTo, boolean isStored) throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text").field("store", isStored)));
         TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         mapper.copyTo = copyTo;
         return mapper;

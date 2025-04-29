@@ -45,7 +45,6 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -991,7 +990,6 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
     protected final Version indexCreatedVersion;
     protected final IndexAnalyzers indexAnalyzers;
     private final FielddataFrequencyFilter freqFilter;
-    private KeywordFieldMapper keywordMapperForDerivedSource;
 
     protected TextFieldMapper(
         String simpleName,
@@ -1231,46 +1229,19 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void canDeriveSourceInternal() {
-        if (mappedFieldType.isStored()) {
-            return;
+        if (!mappedFieldType.isStored()) {
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored field disabled");
         }
-        if (keywordMapperForDerivedSource == null) {
-            for (final Mapper mapper : this.multiFields()) {
-                if (mapper instanceof KeywordFieldMapper) {
-                    try {
-                        final KeywordFieldMapper subFieldMapper = (KeywordFieldMapper) mapper;
-                        subFieldMapper.canDeriveSource();
-                        keywordMapperForDerivedSource = subFieldMapper;
-                        keywordMapperForDerivedSource.setDerivedFieldGenerator(
-                            new DerivedFieldGenerator(
-                                keywordMapperForDerivedSource.fieldType(),
-                                new SortedSetDocValuesFetcher(keywordMapperForDerivedSource.fieldType(), simpleName()),
-                                new StoredFieldFetcher(keywordMapperForDerivedSource.fieldType(), simpleName())
-                            )
-                        );
-                        return;
-                    } catch (Exception ignored) {}
-                }
-            }
-        }
-        throw new UnsupportedOperationException(
-            "Unable to derive source for ["
-                + name()
-                + "] with stored field disabled and "
-                + "keyword subfield is not there with derived source supported"
-        );
     }
 
     /**
-     * 1. If store=true, then derive source using stored field
-     * 2. If there is any subfield present of type keyword, for which source can be derived(doc_values/stored field
-     *    is present and other conditional for keyword field mapper are valid to derive source, i.e. ignore_above or
-     *    normalizer should not be present in subfield mapping)
+     * 1. Currently, we will only be supporting text field, if stored field is enabled
+     *
      * <p>
-     * Considerations:
-     *    1. When deriving source from stored field of text, order and duplicate values would be preserved
-     *    2. When using doc values for sub keyword field, for multi value field, result would be deduplicated and in sorted order
-     *    3. When using stored field for sub keyword field, order and duplicate values would be preserved
+     * Future Improvements
+     * 1. If there is any subfield present of type keyword, for which source can be derived(doc_values/stored field
+     *    is present and other conditions are meeting for keyword field mapper, i.e. ignore_above or normalizer should
+     *    not be present in subfield mapping)
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
@@ -1280,16 +1251,5 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 return FieldValueType.STORED;
             }
         };
-    }
-
-    @Override
-    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
-        if (mappedFieldType.isStored()) {
-            super.deriveSource(builder, leafReader, docId);
-        } else {
-            if (keywordMapperForDerivedSource != null) {
-                keywordMapperForDerivedSource.deriveSource(builder, leafReader, docId);
-            }
-        }
     }
 }
