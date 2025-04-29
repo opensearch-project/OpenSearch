@@ -59,7 +59,6 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -235,13 +234,6 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         }
         leaderChecker.updateLeader(null);
         assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
-        assertEquals(
-            Double.valueOf(1),
-            metricsRegistry.getCounterStore()
-                .get("node.leader.checker.failure.count")
-                .getCounterValueForTags()
-                .get((Map.of("node_id", leader2.getId())))
-        );
     }
 
     enum Response {
@@ -368,13 +360,6 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
             assertTrue(leaderFailed.get());
         }
         assertEquals(Integer.valueOf(3), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
-        assertEquals(
-            Double.valueOf(3),
-            metricsRegistry.getCounterStore()
-                .get("node.leader.checker.failure.count")
-                .getCounterValueForTags()
-                .get((Map.of("node_id", "leader")))
-        );
     }
 
     public void testFollowerFailsImmediatelyOnHealthCheckFailure() {
@@ -458,13 +443,6 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         }
 
         assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
-        assertEquals(
-            Double.valueOf(1),
-            metricsRegistry.getCounterStore()
-                .get("node.leader.checker.failure.count")
-                .getCounterValueForTags()
-                .get((Map.of("node_id", "leader")))
-        );
     }
 
     public void testLeaderBehaviour() {

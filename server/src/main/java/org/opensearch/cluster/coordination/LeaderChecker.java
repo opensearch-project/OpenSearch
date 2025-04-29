@@ -51,7 +51,6 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
-import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.NodeDisconnectedException;
@@ -66,13 +65,11 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.opensearch.cluster.ClusterManagerMetrics.NODE_ID_TAG;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
@@ -359,11 +356,6 @@ public class LeaderChecker {
         void leaderFailed(Exception e) {
             if (isClosed.compareAndSet(false, true)) {
                 clusterManagerMetrics.incrementCounter(clusterManagerMetrics.leaderCheckFailureCounter, 1.0);
-                clusterManagerMetrics.incrementCounter(
-                    clusterManagerMetrics.nodeLeaderCheckFailureCounter,
-                    1.0,
-                    Optional.ofNullable(Tags.create().addTag(NODE_ID_TAG, leader.getId()))
-                );
                 transportService.getThreadPool().generic().execute(new Runnable() {
                     @Override
                     public void run() {

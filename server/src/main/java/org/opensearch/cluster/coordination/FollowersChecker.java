@@ -49,7 +49,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
-import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.Transport;
@@ -66,13 +65,11 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.opensearch.cluster.ClusterManagerMetrics.NODE_ID_TAG;
 import static org.opensearch.cluster.coordination.Coordinator.NODE_LEFT_REASON_DISCONNECTED;
 import static org.opensearch.cluster.coordination.Coordinator.NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL;
 import static org.opensearch.cluster.coordination.Coordinator.NODE_LEFT_REASON_HEALTHCHECK_FAIL;
@@ -430,11 +427,6 @@ public class FollowersChecker {
 
         void failNode(String reason) {
             clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerChecksFailureCounter, 1.0);
-            clusterManagerMetrics.incrementCounter(
-                clusterManagerMetrics.nodeFollowerChecksFailureCounter,
-                1.0,
-                Optional.ofNullable(Tags.create().addTag(NODE_ID_TAG, discoveryNode.getId()))
-            );
             transportService.getThreadPool().generic().execute(new Runnable() {
                 @Override
                 public void run() {
