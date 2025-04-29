@@ -9,7 +9,7 @@
 package org.opensearch.rule.storage;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.rule.RuleDuplicateChecker;
+import org.opensearch.rule.DuplicateRuleChecker;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.Rule;
 
@@ -21,12 +21,12 @@ import java.util.Set;
  * This class is used to check rule duplication for indexed based rules.
  */
 @ExperimentalApi
-public class IndexBasedRuleDuplicateChecker implements RuleDuplicateChecker {
+public class IndexBasedDuplicateRuleChecker implements DuplicateRuleChecker {
 
     /**
      * Default constructor
      */
-    public IndexBasedRuleDuplicateChecker() {}
+    public IndexBasedDuplicateRuleChecker() {}
 
     /**
      * Checks if a duplicate rule exists based on the attribute map.
