@@ -100,6 +100,8 @@ LockPersonality=yes
 # System call filterings which restricts which system calls a process can make
 # @ means allowed
 # ~ means not allowed
+# These syscalls are related to mmap which is needed for OpenSearch Services
+SystemCallFilter=madvise mincore mlock mlock2 munlock get_mempolicy sched_getaffinity sched_setaffinity fcntl
 SystemCallFilter=@system-service
 SystemCallFilter=~@reboot
 SystemCallFilter=~@swap
@@ -138,7 +140,7 @@ ReadWritePaths=-/etc/opensearch
 ReadWritePaths=-/mnt/snapshots
 
 ## Allow read access to system files
-ReadOnlyPaths=/etc/os-release /usr/lib/os-release /etc/system-release
+ReadOnlyPaths=-/etc/os-release -/usr/lib/os-release -/etc/system-release
 
 ## Allow read access to Linux IO stats
 ReadOnlyPaths=/proc/self/mountinfo /proc/diskstats
