@@ -26,6 +26,9 @@ WorkingDirectory=/usr/share/opensearch
 User=opensearch
 Group=opensearch
 
+ExecStartPre=/bin/mkdir -p /dev/shm/performanceanalyzer
+ExecStartPre=/bin/chown opensearch:opensearch /dev/shm/performanceanalyzer
+
 ExecStart=/usr/share/opensearch/bin/systemd-entrypoint -p ${PID_DIR}/opensearch.pid --quiet
 
 # StandardOutput is configured to redirect to journalctl since
@@ -130,6 +133,7 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 ReadWritePaths=/var/log/opensearch
 ReadWritePaths=/var/lib/opensearch
+ReadWritePaths=/dev/shm/
 ReadWritePaths=-/etc/opensearch
 ReadWritePaths=-/mnt/snapshots
 
@@ -149,15 +153,23 @@ RestrictNamespaces=true
 NoNewPrivileges=true
 
 # Memory and execution protection
-MemoryDenyWriteExecute=true           # Prevent creating writable executable memory mappings
-SystemCallArchitectures=native        # Allow only native system calls
-KeyringMode=private                   # Service does not share key material with other services
-LockPersonality=true                  # Prevent changing ABI personality
-RestrictSUIDSGID=true                 # Prevent creating SUID/SGID files
-RestrictRealtime=true                 # Prevent acquiring realtime scheduling
-ProtectHostname=true                  # Prevent changes to system hostname
-ProtectKernelLogs=true                # Prevent reading/writing kernel logs
-ProtectClock=true                     # Prevent tampering with the system clock
+
+# Allow only native system calls
+SystemCallArchitectures=native
+# Service does not share key material with other services
+KeyringMode=private
+# Prevent changing ABI personality
+LockPersonality=true
+# Prevent creating SUID/SGID files
+RestrictSUIDSGID=true
+# Prevent acquiring realtime scheduling
+RestrictRealtime=true
+# Prevent changes to system hostname
+ProtectHostname=true
+# Prevent reading/writing kernel logs
+ProtectKernelLogs=true
+# Prevent tampering with the system clock
+ProtectClock=true
 
 [Install]
 WantedBy=multi-user.target
