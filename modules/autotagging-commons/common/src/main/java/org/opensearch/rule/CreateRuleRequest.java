@@ -12,6 +12,7 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.rule.autotagging.FeatureValueValidator;
 import org.opensearch.rule.autotagging.Rule;
 
 import java.io.IOException;
@@ -24,7 +25,7 @@ import java.io.IOException;
  * {
  *      "description": "description1",
  *      "index_pattern": ["log*", "event*"],
- *      "query_group": "poOiU851RwyLYvV5lbvv5w"
+ *      "workload_group": "poOiU851RwyLYvV5lbvv5w"
  * }'
  * @opensearch.experimental
  */
@@ -51,7 +52,10 @@ public class CreateRuleRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         try {
-            rule.getFeatureType().getFeatureValueValidator().validate(rule.getFeatureValue());
+            FeatureValueValidator featureValueValidator = rule.getFeatureType().getFeatureValueValidator();
+            if (featureValueValidator != null) {
+                featureValueValidator.validate(rule.getFeatureValue());
+            }
             return null;
         } catch (Exception e) {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
