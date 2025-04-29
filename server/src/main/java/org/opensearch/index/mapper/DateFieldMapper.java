@@ -520,23 +520,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                     } else {
                         query = pointRangeQuery;
                     }
-                    if (FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY_SETTING)) {
-                        return new ApproximateScoreQuery(
-                            query,
-                            new ApproximatePointRangeQuery(
-                                name(),
-                                pack(new long[] { l }).bytes,
-                                pack(new long[] { u }).bytes,
-                                new long[] { l }.length
-                            ) {
-                                @Override
-                                protected String toString(int dimension, byte[] value) {
-                                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                                }
-                            }
-                        );
-                    }
-                    return query;
+                    return new ApproximateScoreQuery(
+                        query,
+                        new ApproximatePointRangeQuery(
+                            name(),
+                            pack(new long[] { l }).bytes,
+                            pack(new long[] { u }).bytes,
+                            new long[] { l }.length,
+                            ApproximatePointRangeQuery.LONG_FORMAT
+                        )
+                    );
                 }
 
                 // Not searchable. Must have doc values.

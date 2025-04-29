@@ -11,6 +11,8 @@ package org.opensearch.javaagent;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.lang.StackWalker.Option;
+import java.security.Policy;
+import java.util.Collection;
 
 import net.bytebuddy.asm.Advice;
 
@@ -29,11 +31,18 @@ public class SystemExitInterceptor {
      * @throws Exception exceptions
      */
     @Advice.OnMethodEnter()
+    @SuppressWarnings("removal")
     public static void intercept(int code) throws Exception {
+        final Policy policy = AgentPolicy.getPolicy();
+        if (policy == null) {
+            return; /* noop */
+        }
+
         final StackWalker walker = StackWalker.getInstance(Option.RETAIN_CLASS_REFERENCE);
         final Class<?> caller = walker.getCallerClass();
+        final Collection<Class<?>> chain = walker.walk(StackCallerClassChainExtractor.INSTANCE);
 
-        if (!AgentPolicy.isClassThatCanExit(caller.getName())) {
+        if (AgentPolicy.isChainThatCanExit(caller, chain) == false) {
             throw new SecurityException("The class " + caller + " is not allowed to call System::exit(" + code + ")");
         }
     }

@@ -161,7 +161,9 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
         ClusterState clusterState = initializeClusterStateWithSingleIndexAndShard(newNode("node1"), metadata, gatewayAllocator);
         clusterState = strategy.reroute(clusterState, "reroute");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newSearchNode("node2")))
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         assertEquals(2, clusterState.routingTable().shardsWithState(STARTED).size());
@@ -215,7 +217,7 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
 
         clusterState = strategy.reroute(clusterState, "reroute");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-        DiscoveryNode node2 = newRemoteNode("node2");
+        DiscoveryNode node2 = newRemoteSearchNode("node2");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(node2)).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -293,6 +295,21 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
 
     private static DiscoveryNode newRemoteNode(String name) {
         return newNode(
+            name,
+            name,
+            Map.of(
+                REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "cluster-repo",
+                REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "segment-repo",
+                REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                "translog-repo"
+            )
+        );
+    }
+
+    private static DiscoveryNode newRemoteSearchNode(String name) {
+        return newSearchNode(
             name,
             name,
             Map.of(

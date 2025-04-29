@@ -28,9 +28,27 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
         builder.endObject();
 
         String expected = "{\"polling_ingest_stats\":{\"message_processor_stats\":{\"total_processed_count\":"
-            + stats.getMessageProcessorStats().getTotalProcessedCount()
+            + stats.getMessageProcessorStats().totalProcessedCount()
+            + ",\"total_invalid_message_count\":"
+            + stats.getMessageProcessorStats().totalInvalidMessageCount()
+            + ",\"total_version_conflicts_count\":"
+            + stats.getMessageProcessorStats().totalVersionConflictsCount()
+            + ",\"total_failed_count\":"
+            + stats.getMessageProcessorStats().totalFailedCount()
+            + ",\"total_failures_dropped_count\":"
+            + stats.getMessageProcessorStats().totalFailuresDroppedCount()
+            + ",\"total_processor_thread_interrupt_count\":"
+            + stats.getMessageProcessorStats().totalProcessorThreadInterruptCount()
             + "},\"consumer_stats\":{\"total_polled_count\":"
-            + stats.getConsumerStats().getTotalPolledCount()
+            + stats.getConsumerStats().totalPolledCount()
+            + ",\"total_consumer_error_count\":"
+            + stats.getConsumerStats().totalConsumerErrorCount()
+            + ",\"total_poller_message_failure_count\":"
+            + stats.getConsumerStats().totalPollerMessageFailureCount()
+            + ",\"total_poller_message_dropped_count\":"
+            + stats.getConsumerStats().totalPollerMessageDroppedCount()
+            + ",\"lag_in_millis\":"
+            + stats.getConsumerStats().lagInMillis()
             + "}}}";
 
         assertEquals(expected, builder.toString());
@@ -52,7 +70,9 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
     private PollingIngestStats createTestInstance() {
         return PollingIngestStats.builder()
             .setTotalProcessedCount(randomNonNegativeLong())
+            .setTotalInvalidMessageCount(randomNonNegativeLong())
             .setTotalPolledCount(randomNonNegativeLong())
+            .setLagInMillis(randomNonNegativeLong())
             .build();
     }
 }

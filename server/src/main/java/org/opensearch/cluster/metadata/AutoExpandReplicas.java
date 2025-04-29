@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.Booleans;
@@ -142,13 +141,14 @@ public final class AutoExpandReplicas {
 
     private OptionalInt getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         if (enabled) {
-            int numMatchingDataNodes = 0;
-            for (final DiscoveryNode cursor : allocation.nodes().getDataNodes().values()) {
-                Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, cursor, allocation);
-                if (decision.type() != Decision.Type.NO) {
-                    numMatchingDataNodes++;
-                }
-            }
+            int numMatchingDataNodes = (int) allocation.nodes()
+                .getDataNodes()
+                .values()
+                .stream()
+                .filter(node -> node.isSearchNode() == false)
+                .map(node -> allocation.deciders().shouldAutoExpandToNode(indexMetadata, node, allocation))
+                .filter(decision -> decision.type() != Decision.Type.NO)
+                .count();
 
             final int min = getMinReplicas();
             final int max = getMaxReplicas(numMatchingDataNodes);
@@ -182,6 +182,10 @@ public final class AutoExpandReplicas {
 
         for (final IndexMetadata indexMetadata : metadata) {
             if (indexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
+                // Skip the replica auto-expansion for indices in search_only mode with the SEARCH_ONLY block
+                if (indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)) {
+                    continue;
+                }
                 AutoExpandReplicas autoExpandReplicas = SETTING.get(indexMetadata.getSettings());
                 autoExpandReplicas.getDesiredNumberOfReplicas(indexMetadata, allocation).ifPresent(numberOfReplicas -> {
                     if (numberOfReplicas != indexMetadata.getNumberOfReplicas()) {

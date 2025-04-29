@@ -43,6 +43,7 @@ tasks.named('forbiddenApisTest').configure { onlyIf { false } }
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
+  onlyIf { false }
 }
 
 task prepareAgent(type: Copy) {
@@ -62,6 +63,10 @@ thirdPartyAudit {
   )
 }
 
+tasks.named('generateMetadataFileForNebulaPublication') {
+  dependsOn prepareAgent
+}
+
 tasks.named('validateNebulaPom') {
   dependsOn prepareAgent
 }
@@ -73,4 +78,8 @@ tasks.test {
 
 tasks.check {
   dependsOn test
+}
+
+tasks.named('assemble') {
+  dependsOn prepareAgent
 }

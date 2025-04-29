@@ -35,11 +35,11 @@ package org.opensearch.ingest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.DocWriteRequest;
-import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.ingest.DeletePipelineRequest;
@@ -55,7 +55,6 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
@@ -86,6 +85,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -97,6 +97,9 @@ import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_PIPELINE;
+import static org.opensearch.cluster.service.ClusterManagerTask.PUT_PIPELINE;
+
 /**
  * Holder class for several ingest related services.
  *
@@ -107,6 +110,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static final String NOOP_PIPELINE_NAME = "_none";
 
     public static final String INGEST_ORIGIN = "ingest";
+    private static final int MAX_PIPELINE_ID_BYTES = 512;
 
     /**
      * Defines the limit for the number of processors which can run on a given document during ingestion.
@@ -168,8 +172,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.threadPool = threadPool;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_PIPELINE_KEY, true);
-        deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_PIPELINE_KEY, true);
+        putPipelineTaskKey = clusterService.registerClusterManagerTask(PUT_PIPELINE, true);
+        deletePipelineTaskKey = clusterService.registerClusterManagerTask(DELETE_PIPELINE, true);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_NUMBER_OF_INGEST_PROCESSORS, this::setMaxIngestProcessorCount);
         setMaxIngestProcessorCount(clusterService.getClusterSettings().get(MAX_NUMBER_OF_INGEST_PROCESSORS));
     }
@@ -512,6 +516,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             throw new IllegalStateException("Ingest info is empty");
         }
 
+        int pipelineIdLength = UnicodeUtil.calcUTF16toUTF8Length(request.getId(), 0, request.getId().length());
+
+        if (pipelineIdLength > MAX_PIPELINE_ID_BYTES) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Pipeline id [%s] exceeds maximum length of %d UTF-8 bytes (actual: %d bytes)",
+                    request.getId(),
+                    MAX_PIPELINE_ID_BYTES,
+                    pipelineIdLength
+                )
+            );
+        }
+
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();
         Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, scriptService);
 
@@ -550,8 +568,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         BiConsumer<Integer, Exception> onFailure,
         BiConsumer<Thread, Exception> onCompletion,
         IntConsumer onDropped,
-        String executorName,
-        BulkRequest originalBulkRequest
+        String executorName
     ) {
         threadPool.executor(executorName).execute(new AbstractRunnable() {
 
@@ -562,7 +579,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             @Override
             protected void doRun() {
-                runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped, originalBulkRequest);
+                runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped);
             }
         });
     }
@@ -572,8 +589,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Iterable<DocWriteRequest<?>> actionRequests,
         BiConsumer<Integer, Exception> onFailure,
         BiConsumer<Thread, Exception> onCompletion,
-        IntConsumer onDropped,
-        BulkRequest originalBulkRequest
+        IntConsumer onDropped
     ) {
 
         final Thread originalThread = Thread.currentThread();
@@ -618,7 +634,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             i++;
         }
 
-        int batchSize = Math.min(numberOfActionRequests, originalBulkRequest.batchSize());
+        int batchSize = numberOfActionRequests;
         List<List<IndexRequestWrapper>> batches = prepareBatches(batchSize, indexRequestWrappers);
         logger.debug("batchSize: {}, batches: {}", batchSize, batches.size());
 

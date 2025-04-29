@@ -10,7 +10,6 @@ package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
-import java.lang.StackWalker.Option;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.NetPermission;
@@ -18,7 +17,7 @@ import java.net.SocketPermission;
 import java.net.UnixDomainSocketAddress;
 import java.security.Policy;
 import java.security.ProtectionDomain;
-import java.util.List;
+import java.util.Collection;
 
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.asm.Advice.Origin;
@@ -46,15 +45,15 @@ public class SocketChannelInterceptor {
             return; /* noop */
         }
 
-        final StackWalker walker = StackWalker.getInstance(Option.RETAIN_CLASS_REFERENCE);
-        final List<ProtectionDomain> callers = walker.walk(new StackCallerChainExtractor());
+        final StackWalker walker = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
+        final Collection<ProtectionDomain> callers = walker.walk(StackCallerProtectionDomainChainExtractor.INSTANCE);
 
         if (args[0] instanceof InetSocketAddress address) {
             if (!AgentPolicy.isTrustedHost(address.getHostString())) {
                 final String host = address.getHostString() + ":" + address.getPort();
 
                 final SocketPermission permission = new SocketPermission(host, "connect,resolve");
-                for (final ProtectionDomain domain : callers) {
+                for (ProtectionDomain domain : callers) {
                     if (!policy.implies(domain, permission)) {
                         throw new SecurityException("Denied access to: " + host + ", domain " + domain);
                     }
@@ -62,7 +61,7 @@ public class SocketChannelInterceptor {
             }
         } else if (args[0] instanceof UnixDomainSocketAddress address) {
             final NetPermission permission = new NetPermission("accessUnixDomainSocket");
-            for (final ProtectionDomain domain : callers) {
+            for (ProtectionDomain domain : callers) {
                 if (!policy.implies(domain, permission)) {
                     throw new SecurityException("Denied access to: " + address + ", domain " + domain);
                 }

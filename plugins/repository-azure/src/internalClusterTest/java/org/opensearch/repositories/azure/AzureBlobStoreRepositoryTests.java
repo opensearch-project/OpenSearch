@@ -49,6 +49,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.AfterClass;
 
 import java.io.IOException;
@@ -63,6 +64,7 @@ import fixture.azure.AzureHttpHandler;
 import reactor.core.scheduler.Schedulers;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
     @AfterClass
     public static void shutdownSchedulers() {

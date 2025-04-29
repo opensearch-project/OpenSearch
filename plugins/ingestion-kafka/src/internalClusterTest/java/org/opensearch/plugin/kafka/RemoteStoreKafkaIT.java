@@ -19,7 +19,10 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Requests;
@@ -133,6 +136,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         // malformed message
         produceData("2", "", "");
         produceData("3", "name3", "25");
+        produceData("{\"_op_type\":\"invalid\",\"_source\":{\"name\":\"name4\", \"age\": 25}}");
+        produceData("5", "name5", "25");
 
         internalCluster().startClusterManagerOnlyNode();
         final String node = internalCluster().startDataOnlyNode();
@@ -145,6 +150,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.type", "kafka")
                 .put("ingestion_source.error_strategy", "block")
                 .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.internal_queue_size", "1000")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("index.replication.type", "SEGMENT")
@@ -162,7 +168,16 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             .setSettings(Settings.builder().put("ingestion_source.error_strategy", "drop"))
             .get();
         waitForState(() -> "drop".equalsIgnoreCase(getSettings(indexName, "index.ingestion_source.error_strategy")));
-        waitForSearchableDocs(2, Arrays.asList(node));
+        resumeIngestion(indexName);
+        waitForSearchableDocs(3, Arrays.asList(node));
+
+        PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(stats);
+        assertThat(stats.getMessageProcessorStats().totalFailedCount(), is(1L));
+        assertThat(stats.getMessageProcessorStats().totalFailuresDroppedCount(), is(1L));
+        assertThat(stats.getConsumerStats().totalConsumerErrorCount(), is(0L));
+        assertThat(stats.getConsumerStats().totalPollerMessageDroppedCount(), is(1L));
     }
 
     public void testPauseAndResumeIngestion() throws Exception {
@@ -246,8 +261,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         internalCluster().startDataOnlyNode();
-        createIndexWithDefaultSettings("index1", 5, 0);
-        createIndexWithDefaultSettings("index2", 5, 0);
+        createIndexWithDefaultSettings("index1", 5, 0, 1);
+        createIndexWithDefaultSettings("index2", 5, 0, 1);
         ensureGreen("index1");
         ensureGreen("index2");
 
@@ -308,6 +323,129 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             boolean indexMatch = "index2".equalsIgnoreCase(shardIngestionState.index());
             return indexMatch && shardsMatch;
         }));
+    }
+
+    public void testExternalVersioning() throws Exception {
+        // setup nodes and index
+        produceDataWithExternalVersion("1", 1, "name1", "25", defaultMessageTimestamp, "index");
+        produceDataWithExternalVersion("2", 1, "name2", "25", defaultMessageTimestamp, "index");
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        createIndexWithDefaultSettings(1, 1);
+        ensureGreen(indexName);
+        waitForSearchableDocs(2, Arrays.asList(nodeA, nodeB));
+
+        // validate next version docs get indexed
+        produceDataWithExternalVersion("1", 2, "name1", "30", defaultMessageTimestamp, "index");
+        produceDataWithExternalVersion("2", 2, "name2", "30", defaultMessageTimestamp, "index");
+        waitForState(() -> {
+            BoolQueryBuilder query1 = new BoolQueryBuilder().must(new TermQueryBuilder("_id", 1));
+            SearchResponse response1 = client().prepareSearch(indexName).setQuery(query1).get();
+            assertThat(response1.getHits().getTotalHits().value(), is(1L));
+            BoolQueryBuilder query2 = new BoolQueryBuilder().must(new TermQueryBuilder("_id", 2));
+            SearchResponse response2 = client().prepareSearch(indexName).setQuery(query2).get();
+            assertThat(response2.getHits().getTotalHits().value(), is(1L));
+            return 30 == (Integer) response1.getHits().getHits()[0].getSourceAsMap().get("age")
+                && 30 == (Integer) response2.getHits().getHits()[0].getSourceAsMap().get("age");
+        });
+
+        // test out-of-order updates
+        produceDataWithExternalVersion("1", 1, "name1", "25", defaultMessageTimestamp, "index");
+        produceDataWithExternalVersion("2", 1, "name2", "25", defaultMessageTimestamp, "index");
+        produceDataWithExternalVersion("3", 1, "name3", "25", defaultMessageTimestamp, "index");
+        waitForSearchableDocs(3, Arrays.asList(nodeA, nodeB));
+
+        BoolQueryBuilder query1 = new BoolQueryBuilder().must(new TermQueryBuilder("_id", 1));
+        SearchResponse response1 = client().prepareSearch(indexName).setQuery(query1).get();
+        assertThat(response1.getHits().getTotalHits().value(), is(1L));
+        assertEquals(30, response1.getHits().getHits()[0].getSourceAsMap().get("age"));
+
+        BoolQueryBuilder query2 = new BoolQueryBuilder().must(new TermQueryBuilder("_id", 2));
+        SearchResponse response2 = client().prepareSearch(indexName).setQuery(query2).get();
+        assertThat(response2.getHits().getTotalHits().value(), is(1L));
+        assertEquals(30, response2.getHits().getHits()[0].getSourceAsMap().get("age"));
+
+        // test deletes with smaller version
+        produceDataWithExternalVersion("1", 1, "name1", "25", defaultMessageTimestamp, "delete");
+        produceDataWithExternalVersion("4", 1, "name4", "25", defaultMessageTimestamp, "index");
+        waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
+        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(23);
+        SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+        assertThat(response.getHits().getTotalHits().value(), is(4L));
+
+        // test deletes with correct version
+        produceDataWithExternalVersion("1", 3, "name1", "30", defaultMessageTimestamp, "delete");
+        produceDataWithExternalVersion("2", 3, "name2", "30", defaultMessageTimestamp, "delete");
+        waitForState(() -> {
+            RangeQueryBuilder rangeQuery = new RangeQueryBuilder("age").gte(23);
+            SearchResponse rangeQueryResponse = client().prepareSearch(indexName).setQuery(rangeQuery).get();
+            assertThat(rangeQueryResponse.getHits().getTotalHits().value(), is(2L));
+            return true;
+        });
+
+        // validate processor stats
+        PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(stats);
+        assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(11L));
+        assertThat(stats.getMessageProcessorStats().totalVersionConflictsCount(), is(3L));
+    }
+
+    public void testExternalVersioningWithDisabledGCDeletes() throws Exception {
+        // setup nodes and index
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("index.gc_deletes", "0")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        // insert documents
+        produceDataWithExternalVersion("1", 1, "name1", "25", defaultMessageTimestamp, "index");
+        produceDataWithExternalVersion("2", 1, "name2", "25", defaultMessageTimestamp, "index");
+        waitForState(() -> {
+            RangeQueryBuilder rangeQuery = new RangeQueryBuilder("age").gte(23);
+            SearchResponse rangeQueryResponse = client().prepareSearch(indexName).setQuery(rangeQuery).get();
+            assertThat(rangeQueryResponse.getHits().getTotalHits().value(), is(2L));
+            return true;
+        });
+
+        // delete documents 1 and 2
+        produceDataWithExternalVersion("1", 2, "name1", "25", defaultMessageTimestamp, "delete");
+        produceDataWithExternalVersion("2", 2, "name2", "25", defaultMessageTimestamp, "delete");
+        produceDataWithExternalVersion("3", 1, "name3", "25", defaultMessageTimestamp, "index");
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", 3));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 25 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
+        });
+        waitForSearchableDocs(1, Arrays.asList(nodeA, nodeB));
+
+        // validate index operation with lower version creates new document
+        produceDataWithExternalVersion("1", 1, "name1", "35", defaultMessageTimestamp, "index");
+        produceDataWithExternalVersion("4", 1, "name4", "35", defaultMessageTimestamp, "index");
+        waitForState(() -> {
+            RangeQueryBuilder rangeQuery = new RangeQueryBuilder("age").gte(34);
+            SearchResponse rangeQueryResponse = client().prepareSearch(indexName).setQuery(rangeQuery).get();
+            assertThat(rangeQueryResponse.getHits().getTotalHits().value(), is(2L));
+            return true;
+        });
+
     }
 
     private void verifyRemoteStoreEnabled(String node) {

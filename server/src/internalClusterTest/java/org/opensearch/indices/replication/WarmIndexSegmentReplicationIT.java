@@ -128,10 +128,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
 
     @Override
     public Settings indexSettings() {
-        return Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL.name())
-            .build();
+        return Settings.builder().put(super.indexSettings()).put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true).build();
     }
 
     @Override

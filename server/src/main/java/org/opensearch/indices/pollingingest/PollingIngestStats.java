@@ -25,7 +25,6 @@ import java.util.Objects;
 public class PollingIngestStats implements Writeable, ToXContentFragment {
     private final MessageProcessorStats messageProcessorStats;
     private final ConsumerStats consumerStats;
-    // TODO: add error stats from error handling sink
 
     public PollingIngestStats(MessageProcessorStats messageProcessorStats, ConsumerStats consumerStats) {
         this.messageProcessorStats = messageProcessorStats;
@@ -34,25 +33,65 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
 
     public PollingIngestStats(StreamInput in) throws IOException {
         long totalProcessedCount = in.readLong();
-        this.messageProcessorStats = new MessageProcessorStats(totalProcessedCount);
+        long totalInvalidMessageCount = in.readLong();
+        long totalProcessorVersionConflictsCount = in.readLong();
+        long totalProcessorFailedCount = in.readLong();
+        long totalProcessorFailuresDroppedCount = in.readLong();
+        long totalProcessorThreadInterruptCount = in.readLong();
+        this.messageProcessorStats = new MessageProcessorStats(
+            totalProcessedCount,
+            totalInvalidMessageCount,
+            totalProcessorVersionConflictsCount,
+            totalProcessorFailedCount,
+            totalProcessorFailuresDroppedCount,
+            totalProcessorThreadInterruptCount
+        );
         long totalPolledCount = in.readLong();
-        this.consumerStats = new ConsumerStats(totalPolledCount);
+        long lagInMillis = in.readLong();
+        long totalConsumerErrorCount = in.readLong();
+        long totalPollerMessageFailureCount = in.readLong();
+        long totalPollerMessageDroppedCount = in.readLong();
+        this.consumerStats = new ConsumerStats(
+            totalPolledCount,
+            lagInMillis,
+            totalConsumerErrorCount,
+            totalPollerMessageFailureCount,
+            totalPollerMessageDroppedCount
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(messageProcessorStats.getTotalProcessedCount());
-        out.writeLong(consumerStats.getTotalPolledCount());
+        out.writeLong(messageProcessorStats.totalProcessedCount);
+        out.writeLong(messageProcessorStats.totalInvalidMessageCount);
+        out.writeLong(messageProcessorStats.totalVersionConflictsCount);
+        out.writeLong(messageProcessorStats.totalFailedCount);
+        out.writeLong(messageProcessorStats.totalFailuresDroppedCount);
+        out.writeLong(messageProcessorStats.totalProcessorThreadInterruptCount);
+        out.writeLong(consumerStats.totalPolledCount);
+        out.writeLong(consumerStats.lagInMillis);
+        out.writeLong(consumerStats.totalConsumerErrorCount);
+        out.writeLong(consumerStats.totalPollerMessageFailureCount);
+        out.writeLong(consumerStats.totalPollerMessageDroppedCount);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("polling_ingest_stats");
         builder.startObject("message_processor_stats");
-        builder.field("total_processed_count", messageProcessorStats.getTotalProcessedCount());
+        builder.field("total_processed_count", messageProcessorStats.totalProcessedCount);
+        builder.field("total_invalid_message_count", messageProcessorStats.totalInvalidMessageCount);
+        builder.field("total_version_conflicts_count", messageProcessorStats.totalVersionConflictsCount);
+        builder.field("total_failed_count", messageProcessorStats.totalFailedCount);
+        builder.field("total_failures_dropped_count", messageProcessorStats.totalFailuresDroppedCount);
+        builder.field("total_processor_thread_interrupt_count", messageProcessorStats.totalProcessorThreadInterruptCount);
         builder.endObject();
         builder.startObject("consumer_stats");
-        builder.field("total_polled_count", consumerStats.getTotalPolledCount());
+        builder.field("total_polled_count", consumerStats.totalPolledCount);
+        builder.field("total_consumer_error_count", consumerStats.totalConsumerErrorCount);
+        builder.field("total_poller_message_failure_count", consumerStats.totalPollerMessageFailureCount);
+        builder.field("total_poller_message_dropped_count", consumerStats.totalPollerMessageDroppedCount);
+        builder.field("lag_in_millis", consumerStats.lagInMillis);
         builder.endObject();
         builder.endObject();
         return builder;
@@ -83,58 +122,16 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
      * Stats for message processor
      */
     @ExperimentalApi
-    public static class MessageProcessorStats {
-        private final long totalProcessedCount;
-
-        public MessageProcessorStats(long totalProcessedCount) {
-            this.totalProcessedCount = totalProcessedCount;
-        }
-
-        public long getTotalProcessedCount() {
-            return totalProcessedCount;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof MessageProcessorStats)) return false;
-            MessageProcessorStats that = (MessageProcessorStats) o;
-            return totalProcessedCount == that.totalProcessedCount;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(totalProcessedCount);
-        }
+    public record MessageProcessorStats(long totalProcessedCount, long totalInvalidMessageCount, long totalVersionConflictsCount,
+        long totalFailedCount, long totalFailuresDroppedCount, long totalProcessorThreadInterruptCount) {
     }
 
     /**
      * Stats for consumer (poller)
      */
     @ExperimentalApi
-    public static class ConsumerStats {
-        private final long totalPolledCount;
-
-        public ConsumerStats(long totalPolledCount) {
-            this.totalPolledCount = totalPolledCount;
-        }
-
-        public long getTotalPolledCount() {
-            return totalPolledCount;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof ConsumerStats)) return false;
-            ConsumerStats that = (ConsumerStats) o;
-            return totalPolledCount == that.totalPolledCount;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(totalPolledCount);
-        }
+    public record ConsumerStats(long totalPolledCount, long lagInMillis, long totalConsumerErrorCount, long totalPollerMessageFailureCount,
+        long totalPollerMessageDroppedCount) {
     }
 
     /**
@@ -143,7 +140,16 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
     @ExperimentalApi
     public static class Builder {
         private long totalProcessedCount;
+        private long totalInvalidMessageCount;
         private long totalPolledCount;
+        private long totalVersionConflictsCount;
+        private long totalFailedCount;
+        private long totalFailuresDroppedCount;
+        private long totalProcessorThreadInterruptCount;
+        private long lagInMillis;
+        private long totalConsumerErrorCount;
+        private long totalPollerMessageFailureCount;
+        private long totalPollerMessageDroppedCount;
 
         public Builder() {}
 
@@ -157,9 +163,67 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             return this;
         }
 
+        public Builder setTotalInvalidMessageCount(long totalInvalidMessageCount) {
+            this.totalInvalidMessageCount = totalInvalidMessageCount;
+            return this;
+        }
+
+        public Builder setTotalProcessorVersionConflictsCount(long totalVersionConflictsCount) {
+            this.totalVersionConflictsCount = totalVersionConflictsCount;
+            return this;
+        }
+
+        public Builder setTotalProcessorFailedCount(long totalFailedCount) {
+            this.totalFailedCount = totalFailedCount;
+            return this;
+        }
+
+        public Builder setTotalProcessorFailuresDroppedCount(long totalFailuresDroppedCount) {
+            this.totalFailuresDroppedCount = totalFailuresDroppedCount;
+            return this;
+        }
+
+        public Builder setTotalProcessorThreadInterruptCount(long totalProcessorThreadInterruptCount) {
+            this.totalProcessorThreadInterruptCount = totalProcessorThreadInterruptCount;
+            return this;
+        }
+
+        public Builder setLagInMillis(long lagInMillis) {
+            this.lagInMillis = lagInMillis;
+            return this;
+        }
+
+        public Builder setTotalConsumerErrorCount(long totalConsumerErrorCount) {
+            this.totalConsumerErrorCount = totalConsumerErrorCount;
+            return this;
+        }
+
+        public Builder setTotalPollerMessageFailureCount(long totalPollerMessageFailureCount) {
+            this.totalPollerMessageFailureCount = totalPollerMessageFailureCount;
+            return this;
+        }
+
+        public Builder setTotalPollerMessageDroppedCount(long totalPollerMessageDroppedCount) {
+            this.totalPollerMessageDroppedCount = totalPollerMessageDroppedCount;
+            return this;
+        }
+
         public PollingIngestStats build() {
-            MessageProcessorStats messageProcessorStats = new MessageProcessorStats(totalProcessedCount);
-            ConsumerStats consumerStats = new ConsumerStats(totalPolledCount);
+            MessageProcessorStats messageProcessorStats = new MessageProcessorStats(
+                totalProcessedCount,
+                totalInvalidMessageCount,
+                totalVersionConflictsCount,
+                totalFailedCount,
+                totalFailuresDroppedCount,
+                totalProcessorThreadInterruptCount
+            );
+            ConsumerStats consumerStats = new ConsumerStats(
+                totalPolledCount,
+                lagInMillis,
+                totalConsumerErrorCount,
+                totalPollerMessageFailureCount,
+                totalPollerMessageDroppedCount
+            );
             return new PollingIngestStats(messageProcessorStats, consumerStats);
         }
     }

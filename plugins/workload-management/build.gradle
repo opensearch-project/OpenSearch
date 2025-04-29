@@ -9,6 +9,7 @@
  * GitHub history for details.
  */
 
+apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
@@ -16,12 +17,10 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
   description = 'OpenSearch Workload Management Plugin.'
   classname = 'org.opensearch.plugin.wlm.WorkloadManagementPlugin'
+  extendedPlugins = [] // Remove autotagging-commons since it's not a plugin
 }
 
 dependencies {
-  api 'org.apache.commons:commons-collections4:4.4'
-}
-
-tasks.named("dependencyLicenses").configure {
-  mapping from: /commons-collections.*/, to: 'commons-collections'
+  implementation project(':modules:autotagging-commons:common')
+  implementation project(':modules:autotagging-commons:spi')
 }

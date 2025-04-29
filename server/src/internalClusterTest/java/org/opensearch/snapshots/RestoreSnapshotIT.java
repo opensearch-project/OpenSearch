@@ -1200,7 +1200,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         setupSnapshotRestore();
 
         // try index restore with mix of removable and UnmodifiableOnRestore settings ignored
-        // index.version.created is UnmodifiableOnRestore, index.number_of_search_only_replicas is removable
+        // index.version.created is UnmodifiableOnRestore, index.number_of_search_replicas is removable
         SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
             () -> client().admin()
@@ -1220,7 +1220,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         setupSnapshotRestore();
 
         // try index restore with mix of removable and USER_UNREMOVABLE_SETTINGS settings ignored
-        // index.number_of_replicas is USER_UNREMOVABLE_SETTINGS, index.number_of_search_only_replicas is removable
+        // index.number_of_replicas is USER_UNREMOVABLE_SETTINGS, index.number_of_search_replicas is removable
         SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
             () -> client().admin()
@@ -1367,7 +1367,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         setupSnapshotRestore();
 
         // try index restore with mix of modifiable and UnmodifiableOnRestore settings modified
-        // index.version.created is UnmodifiableOnRestore, index.number_of_search_only_replicas is modifiable
+        // index.version.created is UnmodifiableOnRestore, index.number_of_search_replicas is modifiable
         Settings mixedSettingsUnmodifiableOnRestore = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_EMPTY)
             .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
@@ -1393,7 +1393,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         setupSnapshotRestore();
 
         // try index restore with mix of modifiable and USER_UNMODIFIABLE_SETTINGS settings modified
-        // index.remote_store.enabled is USER_UNMODIFIABLE_SETTINGS, index.number_of_search_only_replicas is modifiable
+        // index.remote_store.enabled is USER_UNMODIFIABLE_SETTINGS, index.number_of_search_replicas is modifiable
         Settings mixedSettingsUserUnmodifiableSettings = Settings.builder()
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
             .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
