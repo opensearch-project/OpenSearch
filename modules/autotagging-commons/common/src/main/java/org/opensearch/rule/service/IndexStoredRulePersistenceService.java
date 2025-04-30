@@ -25,7 +25,7 @@ import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleQueryMapper;
-import org.opensearch.rule.RuleUtils;
+import org.opensearch.rule.UpdatedRuleBuilder;
 import org.opensearch.rule.UpdateRuleRequest;
 import org.opensearch.rule.UpdateRuleResponse;
 import org.opensearch.rule.autotagging.FeatureType;
@@ -71,7 +71,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param maxRulesPerPage - The maximum number of rules that can be returned in a single get request.
      * @param parser
      * @param queryBuilder
-     * @param ruleDuplicateChecker
+     * @param duplicateRuleChecker
      */
     public IndexStoredRulePersistenceService(
         String indexName,
@@ -80,7 +80,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         int maxRulesPerPage,
         RuleEntityParser parser,
         RuleQueryMapper<QueryBuilder> queryBuilder,
-        DuplicateRuleChecker ruleDuplicateChecker
+        DuplicateRuleChecker duplicateRuleChecker
     ) {
         this.indexName = indexName;
         this.client = client;
@@ -88,7 +88,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         this.maxRulesPerPage = maxRulesPerPage;
         this.parser = parser;
         this.queryBuilder = queryBuilder;
-        this.duplicateRuleChecker = ruleDuplicateChecker;
+        this.duplicateRuleChecker = duplicateRuleChecker;
     }
 
     /**
@@ -165,7 +165,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                         listener.onFailure(new ResourceNotFoundException("Rule with ID " + ruleId + " not found."));
                         return;
                     }
-                    Rule updatedRule = RuleUtils.composeUpdatedRule(getRuleResponse.getRules().get(ruleId), request, featureType);
+                    Rule updatedRule = new UpdatedRuleBuilder(getRuleResponse.getRules().get(ruleId), request).build();
                     validateNoDuplicateRule(
                         updatedRule,
                         ActionListener.wrap(unused -> persistUpdatedRule(ruleId, updatedRule, listener), listener::onFailure)
@@ -199,7 +199,6 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                         () -> listener.onResponse(null)
                     );
                 }
-
                 @Override
                 public void onFailure(Exception e) {
                     listener.onFailure(e);

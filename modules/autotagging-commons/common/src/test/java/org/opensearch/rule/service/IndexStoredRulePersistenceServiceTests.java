@@ -60,7 +60,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         when(getRuleRequest.getAttributeFilters()).thenReturn(new HashMap<>());
         QueryBuilder queryBuilder = mock(QueryBuilder.class);
         RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
-        DuplicateRuleChecker ruleDuplicateChecker = mock(DuplicateRuleChecker.class);
+        DuplicateRuleChecker duplicateRuleChecker = mock(DuplicateRuleChecker.class);
         RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
         ClusterService clusterService = mock(ClusterService.class);
         Rule mockRule = mock(Rule.class);
@@ -79,7 +79,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
             MAX_VALUES_PER_PAGE,
             mockRuleEntityParser,
             mockRuleQueryMapper,
-            ruleDuplicateChecker
+            duplicateRuleChecker
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
@@ -110,7 +110,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         when(getRuleRequest.getId()).thenReturn(_ID_ONE);
         QueryBuilder queryBuilder = mock(QueryBuilder.class);
         RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
-        DuplicateRuleChecker ruleDuplicateChecker = mock(DuplicateRuleChecker.class);
+        DuplicateRuleChecker duplicateRuleChecker = mock(DuplicateRuleChecker.class);
         ClusterService clusterService = mock(ClusterService.class);
         RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
         Rule mockRule = mock(Rule.class);
@@ -129,7 +129,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
             MAX_VALUES_PER_PAGE,
             mockRuleEntityParser,
             mockRuleQueryMapper,
-            ruleDuplicateChecker
+            duplicateRuleChecker
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
