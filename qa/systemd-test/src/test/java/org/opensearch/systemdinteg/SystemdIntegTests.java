@@ -135,19 +135,6 @@ public class SystemdIntegTests extends LuceneTestCase {
                 limits.contains("Max open files            unlimited            unlimited"));
     }
 
-    public void testSystemCallFilter() throws IOException, InterruptedException {
-        // Check if Seccomp is enabled
-        String seccomp = executeCommand("sudo su -c 'grep Seccomp /proc/" + opensearchPid + "/status'", "Failed to read Seccomp status");
-        assertFalse("Seccomp should be enabled", seccomp.contains("0"));
-        
-        // Test specific system calls that should be blocked
-        String rebootResult = executeCommand("sudo su opensearch -c 'kill -s SIGHUP 1' 2>&1 || echo 'Operation not permitted'", "Failed to test reboot system call");
-        assertTrue("Reboot system call should be blocked", rebootResult.contains("Operation not permitted"));
-        
-        String swapResult = executeCommand("sudo su opensearch -c 'swapon -a' 2>&1 || echo 'Operation not permitted'", "Failed to test swap system call");
-        assertTrue("Swap system call should be blocked", swapResult.contains("Operation not permitted"));
-    }
-
     public void testOpenSearchProcessCannotExit() throws IOException, InterruptedException {
 
         String scriptPath;

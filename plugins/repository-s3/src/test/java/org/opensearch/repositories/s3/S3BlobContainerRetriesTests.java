@@ -69,6 +69,7 @@ import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 import org.opensearch.repositories.s3.async.TransferSemaphoresHolder;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -94,6 +95,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.opensearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
@@ -162,14 +164,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @After
     public void tearDown() throws Exception {
         IOUtils.close(service, asyncService);
-
-        streamReaderService.shutdown();
-        futureCompletionService.shutdown();
-        remoteTransferRetry.shutdown();
-        transferQueueConsumerService.shutdown();
-        scheduler.shutdown();
         normalPrioritySizeBasedBlockingQ.close();
         lowPrioritySizeBasedBlockingQ.close();
+        Stream.of(streamReaderService, futureCompletionService, remoteTransferRetry, transferQueueConsumerService, scheduler)
+            .forEach(e -> assertTrue(ThreadPool.terminate(e, 5, TimeUnit.SECONDS)));
         IOUtils.close(transferNIOGroup);
 
         if (previousOpenSearchPathConf != null) {

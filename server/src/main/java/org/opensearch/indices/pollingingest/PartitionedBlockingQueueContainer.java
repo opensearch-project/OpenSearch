@@ -10,7 +10,6 @@ package org.opensearch.indices.pollingingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.util.RequestUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionShardConsumer;
@@ -39,7 +38,6 @@ import static org.opensearch.action.index.IndexRequest.UNSET_AUTO_GENERATED_TIME
  */
 public class PartitionedBlockingQueueContainer {
     private static final Logger logger = LogManager.getLogger(PartitionedBlockingQueueContainer.class);
-    private static final int defaultQueueSize = 100;
     private final int numPartitions;
 
     // partition mappings
@@ -54,7 +52,8 @@ public class PartitionedBlockingQueueContainer {
         int numPartitions,
         int shardId,
         IngestionEngine ingestionEngine,
-        IngestionErrorStrategy errorStrategy
+        IngestionErrorStrategy errorStrategy,
+        int blockingQueueSize
     ) {
         assert numPartitions > 0 : "Number of processor threads / partitions must be greater than 0";
         partitionToQueueMap = new ConcurrentHashMap<>();
@@ -76,7 +75,7 @@ public class PartitionedBlockingQueueContainer {
                 r -> new Thread(r, String.format(Locale.ROOT, processorThreadName))
             );
             partitionToProcessorExecutorMap.put(partition, executorService);
-            partitionToQueueMap.put(partition, new ArrayBlockingQueue<>(defaultQueueSize));
+            partitionToQueueMap.put(partition, new ArrayBlockingQueue<>(blockingQueueSize));
 
             MessageProcessorRunnable messageProcessorRunnable = new MessageProcessorRunnable(
                 partitionToQueueMap.get(partition),
@@ -162,25 +161,14 @@ public class PartitionedBlockingQueueContainer {
     }
 
     /**
-     * Return total number of processed updates across all partitions.
+     * Returns aggregated message processor metrics from all processor threads.
      */
-    public long getTotalProcessedCount() {
+    public MessageProcessorRunnable.MessageProcessorMetrics getMessageProcessorMetrics() {
         return partitionToMessageProcessorMap.values()
             .stream()
-            .map(MessageProcessorRunnable::getProcessedCounter)
-            .mapToLong(CounterMetric::count)
-            .sum();
-    }
-
-    /**
-     * Return total number of skipped updates across all partitions.
-     */
-    public long getTotalSkippedCount() {
-        return partitionToMessageProcessorMap.values()
-            .stream()
-            .map(MessageProcessorRunnable::getSkippedCounter)
-            .mapToLong(CounterMetric::count)
-            .sum();
+            .map(MessageProcessorRunnable::getMessageProcessorMetrics)
+            .reduce(MessageProcessorRunnable.MessageProcessorMetrics::combine)
+            .orElseGet(MessageProcessorRunnable.MessageProcessorMetrics::create);
     }
 
     /**

@@ -127,6 +127,7 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         assertThrows(RepositoryException.class, () -> createRepository(repositoryName, FsRepository.TYPE, repoSettings));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15842")
     public void testCreatSnapAndUpdateReposityCauseInfiniteLoop() throws InterruptedException {
         // create index
         internalCluster();

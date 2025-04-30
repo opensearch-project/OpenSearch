@@ -1,9 +1,3 @@
-# CODEOWNERS manages notifications, not PR approvals
-# For PR approvals see /.github/workflows/maintainer-approval.yml
-
-# Files have a single rule applied, the last match decides the owner
-# If you would like to more specifically apply ownership, include existing owner in new sub fields
-
 # To verify changes of CODEOWNERS file
 # In VSCode
 #   1. Install extension https://marketplace.visualstudio.com/items?itemName=jasonnutter.vscode-codeowners
@@ -11,27 +5,27 @@
 #   3. Use the command palette to run the CODEOWNERS: Show owners of current file command, which will display all code owners for the current file.
 
 # Default ownership for all repo files
-* @anasalkouz @andrross @ashking94 @bugmakerrrrrr @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jainankitk @kotwanikunal @linuxpi @mch2 @msfroh @nknize @owaiskazi19  @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
+* @opensearch-project/opensearch-core-maintainers
 
-/modules/lang-painless/ @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
-/modules/parent-join/ @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
-/modules/transport-netty4/ @peternied
+/modules/lang-painless/ @opensearch-project/opensearch-core-maintainers @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
+/modules/parent-join/ @opensearch-project/opensearch-core-maintainers @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
+/modules/transport-netty4/ @opensearch-project/opensearch-core-maintainers @peternied
 
-/plugins/identity-shiro/ @peternied @cwperks
+/plugins/identity-shiro/ @opensearch-project/opensearch-core-maintainers @peternied @cwperks
 
-/server/src/internalClusterTest/java/org/opensearch/index/ @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
-/server/src/internalClusterTest/java/org/opensearch/search/ @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
+/server/src/internalClusterTest/java/org/opensearch/index/ @opensearch-project/opensearch-core-maintainers @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
+/server/src/internalClusterTest/java/org/opensearch/search/ @opensearch-project/opensearch-core-maintainers @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
 
-/server/src/main/java/org/opensearch/extensions/ @peternied
-/server/src/main/java/org/opensearch/identity/ @peternied @cwperks 
-/server/src/main/java/org/opensearch/index/ @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
-/server/src/main/java/org/opensearch/search/ @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
-/server/src/main/java/org/opensearch/threadpool/ @jed326 @peternied
-/server/src/main/java/org/opensearch/transport/ @peternied
+/server/src/main/java/org/opensearch/extensions/ @opensearch-project/opensearch-core-maintainers @peternied
+/server/src/main/java/org/opensearch/identity/ @opensearch-project/opensearch-core-maintainers @peternied @cwperks 
+/server/src/main/java/org/opensearch/index/ @opensearch-project/opensearch-core-maintainers @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
+/server/src/main/java/org/opensearch/search/ @opensearch-project/opensearch-core-maintainers @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
+/server/src/main/java/org/opensearch/threadpool/ @opensearch-project/opensearch-core-maintainers @jed326 @peternied
+/server/src/main/java/org/opensearch/transport/ @opensearch-project/opensearch-core-maintainers @peternied
 
-/server/src/test/java/org/opensearch/index/ @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
-/server/src/test/java/org/opensearch/search/ @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
+/server/src/test/java/org/opensearch/index/ @opensearch-project/opensearch-core-maintainers @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
+/server/src/test/java/org/opensearch/search/ @opensearch-project/opensearch-core-maintainers @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
 
-/.github/ @jed326 @peternied
+/.github/ @opensearch-project/opensearch-core-maintainers @jed326 @peternied
 
-/MAINTAINERS.md @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @cwperks @dbwiddis @gaobinlong @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @peternied @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
+/MAINTAINERS.md @opensearch-project/opensearch-core-maintainers

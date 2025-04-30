@@ -64,21 +64,19 @@ public interface ExistingShardsAllocator {
 
     /**
      * Boolean setting to enable/disable batch allocation of unassigned shards already existing on disk.
-     * This will allow sending all Unassigned Shards to the ExistingShard Allocator to  make decision to allocate
+     * This will allow sending all Unassigned Shards to the ExistingShard Allocator to make decision to allocate
      * in one or more go.
-     *
-     * Enable this setting if your ExistingShardAllocator is implementing the
+     * <p>
+     * This setting is enabled by default. In your ExistingShardAllocator implement the
      * {@link ExistingShardsAllocator#allocateAllUnassignedShards(RoutingAllocation, boolean)} method.
      * The default implementation of this method is not optimized and assigns shards one by one.
-     *
-     * If no plugin overrides {@link ExistingShardsAllocator} then default implementation will be use for it , i.e,
+     * <p>
+     * If no plugin overrides {@link ExistingShardsAllocator} then default implementation will be used for it , i.e,
      * {@link ShardsBatchGatewayAllocator}.
-     *
-     * This setting is experimental at this point.
      */
     Setting<Boolean> EXISTING_SHARDS_ALLOCATOR_BATCH_MODE = Setting.boolSetting(
         "cluster.allocator.existing_shards_allocator.batch_enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

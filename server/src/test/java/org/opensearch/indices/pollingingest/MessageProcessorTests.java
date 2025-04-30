@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.pollingingest;
 
-import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.FakeIngestionSource;
@@ -59,7 +58,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         Engine.Operation operation = processor.getOperation(
             new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), 0),
-            new CounterMetric()
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
         );
 
         assertTrue(operation instanceof Engine.Index);
@@ -75,7 +74,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         Engine.Operation operation = processor.getOperation(
             new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
-            new CounterMetric()
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
         );
 
         assertTrue(operation instanceof Engine.Delete);
@@ -89,7 +88,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         Engine.Operation operation = processor.getOperation(
             new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
-            new CounterMetric()
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
         );
         assertNull(operation);
 
@@ -98,7 +97,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         operation = processor.getOperation(
             new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), 0),
-            new CounterMetric()
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
         );
         assertNull(operation);
     }
@@ -109,7 +108,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         Engine.Operation operation = processor.getOperation(
             new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
-            new CounterMetric()
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
         );
         assertNull(operation);
     }
@@ -123,7 +122,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
         Engine.Operation operation = processor.getOperation(
             new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
-            new CounterMetric()
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
         );
         assertNull(operation);
     }
@@ -137,8 +136,34 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
         Engine.Operation operation = processor.getOperation(
             new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), System.currentTimeMillis()),
-            new CounterMetric()
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
         );
         assertTrue(operation instanceof Engine.NoOp);
+    }
+
+    public void testMessageProcessorMetrics() {
+        MessageProcessorRunnable.MessageProcessorMetrics metrics1 = MessageProcessorRunnable.MessageProcessorMetrics.create();
+        metrics1.processedCounter().inc(100);
+        metrics1.invalidMessageCounter().inc(5);
+        metrics1.versionConflictCounter().inc(2);
+        metrics1.failedMessageCounter().inc(1);
+        metrics1.failedMessageDroppedCounter().inc(1);
+        metrics1.processorThreadInterruptCounter().inc(0);
+
+        MessageProcessorRunnable.MessageProcessorMetrics metrics2 = MessageProcessorRunnable.MessageProcessorMetrics.create();
+        metrics2.processedCounter().inc(100);
+        metrics2.invalidMessageCounter().inc(0);
+        metrics2.versionConflictCounter().inc(0);
+        metrics2.failedMessageCounter().inc(100);
+        metrics2.failedMessageDroppedCounter().inc(100);
+        metrics2.processorThreadInterruptCounter().inc(1);
+
+        MessageProcessorRunnable.MessageProcessorMetrics combinedMetric = metrics1.combine(metrics2);
+        assertEquals(200, combinedMetric.processedCounter().count());
+        assertEquals(5, combinedMetric.invalidMessageCounter().count());
+        assertEquals(2, combinedMetric.versionConflictCounter().count());
+        assertEquals(101, combinedMetric.failedMessageCounter().count());
+        assertEquals(101, combinedMetric.failedMessageDroppedCounter().count());
+        assertEquals(1, combinedMetric.processorThreadInterruptCounter().count());
     }
 }

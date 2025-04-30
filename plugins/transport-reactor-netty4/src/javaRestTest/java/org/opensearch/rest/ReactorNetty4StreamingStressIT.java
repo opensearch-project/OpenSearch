@@ -44,6 +44,7 @@ public class ReactorNetty4StreamingStressIT extends OpenSearchRestTestCase {
         super.tearDown();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15840")
     public void testCloseClientStreamingRequest() throws Exception {
         final VirtualTimeScheduler scheduler = VirtualTimeScheduler.create(true);
 

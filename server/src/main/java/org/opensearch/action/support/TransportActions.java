@@ -34,11 +34,8 @@ package org.opensearch.action.support;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.UnavailableShardsException;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.ShardNotFoundException;
@@ -65,14 +62,6 @@ public class TransportActions {
      */
     public static boolean isReadOverrideException(Exception e) {
         return !isShardNotAvailableException(e);
-    }
-
-    public static boolean isRetryableSearchException(final Exception e) {
-        return (OpenSearchException.status(e).getStatusFamilyCode() != 4) && (e.getCause() instanceof TaskCancelledException == false)
-            // There exists a scenario where a primary shard (0 replicas) relocates and is in POST_RECOVERY on the
-            // target node but already deleted on the source node. Search request should still work.
-            || (e.getCause() instanceof IndexNotFoundException)
-            || (e.getCause() instanceof OpenSearchRejectedExecutionException);
     }
 
 }
