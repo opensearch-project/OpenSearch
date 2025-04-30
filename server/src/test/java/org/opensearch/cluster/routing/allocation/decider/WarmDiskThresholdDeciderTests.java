@@ -59,14 +59,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.cluster.routing.ShardRoutingState.*;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 
-public class FileCacheThresholdDeciderTests extends OpenSearchAllocationTestCase {
+public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
 
-    FileCacheThresholdDecider makeDecider(Settings settings) {
-        return new FileCacheThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    WarmDiskThresholdDecider makeDecider(Settings settings) {
+        return new WarmDiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
     /**
-     * Tests that the FileCacheThresholdDecider returns a YES decision when allocating a shard with available space.
+     * Tests that the WarmDiskThresholdDecider returns a YES decision when allocating a shard with available space.
      */
     @Test
     public void testCanAllocateSufficientFreeSpace() {
@@ -135,7 +135,7 @@ public class FileCacheThresholdDeciderTests extends OpenSearchAllocationTestCase
     }
 
     /**
-     * Tests that the FileCacheThresholdDecider returns a NO decision when allocating a shard with insufficient available space.
+     * Tests that the WarmDiskThresholdDecider returns a NO decision when allocating a shard with insufficient available space.
      */
     @Test
     public void testCanAllocateInSufficientFreeSpace() {

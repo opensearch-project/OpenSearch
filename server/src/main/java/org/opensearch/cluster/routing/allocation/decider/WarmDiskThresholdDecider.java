@@ -55,7 +55,7 @@ import static org.opensearch.cluster.routing.RoutingPool.*;
 import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.*;
 
 /**
- * The {@link FileCacheThresholdDecider} checks that the node a shard is potentially
+ * The {@link WarmDiskThresholdDecider} checks that the node a shard is potentially
  * being allocated to has enough remote addressable space (calculated using remote
  * data ratio and total file cache size).
  * <p>
@@ -79,17 +79,17 @@ import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.*;
  *
  * @opensearch.internal
  */
-public class FileCacheThresholdDecider extends AllocationDecider{
+public class WarmDiskThresholdDecider extends AllocationDecider{
 
-    private static final Logger logger = LogManager.getLogger(FileCacheThresholdDecider.class);
+    private static final Logger logger = LogManager.getLogger(WarmDiskThresholdDecider.class);
 
-    public static final String NAME = "file_cache";
+    public static final String NAME = "warm_disk_threshold";
 
     private final FileCacheSettings fileCacheSettings;
     private final DiskThresholdSettings diskThresholdSettings;
     private final boolean enableForSingleDataNode;
 
-    public FileCacheThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
+    public WarmDiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.fileCacheSettings = new FileCacheSettings(settings, clusterSettings);
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         assert Version.CURRENT.major < 9 : "remove enable_for_single_data_node in 9";

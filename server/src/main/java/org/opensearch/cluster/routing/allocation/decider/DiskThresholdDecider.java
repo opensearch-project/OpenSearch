@@ -167,7 +167,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         ClusterInfo clusterInfo = allocation.clusterInfo();
 
-        // For this case FileCacheThresholdDecider or TargetPoolAllocation Decider will take decision
+        // For this case WarmDiskThresholdDecider or TargetPoolAllocation Decider will take decision
         if (REMOTE_CAPABLE.equals(getNodePool(node)) || REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
             return super.canAllocate(shardRouting, node, allocation);
         }
@@ -435,7 +435,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             throw new IllegalArgumentException("Shard [" + shardRouting + "] is not allocated on node: [" + node.nodeId() + "]");
         }
 
-        // For this case FileCacheThresholdDecider or TargetPoolAllocation Decider will take decision
+        // For this case WarmDiskThresholdDecider or TargetPoolAllocation Decider will take decision
         if (REMOTE_CAPABLE.equals(getNodePool(node)) || REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
             return super.canAllocate(shardRouting, node, allocation);
         }
