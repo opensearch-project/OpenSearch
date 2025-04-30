@@ -29,6 +29,7 @@ configurations {
   arm64DockerSource
   s390xDockerSource
   ppc64leDockerSource
+  riscv64DockerSource
   dockerSource
 }
 
@@ -37,6 +38,7 @@ dependencies {
   arm64DockerSource project(path: ":distribution:archives:linux-arm64-tar", configuration:"default")
   s390xDockerSource project(path: ":distribution:archives:linux-s390x-tar", configuration:"default")
   ppc64leDockerSource project(path: ":distribution:archives:linux-ppc64le-tar", configuration:"default")
+  riscv64DockerSource project(path: ":distribution:archives:linux-riscv64-tar", configuration:"default")
   dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
 }
 
@@ -51,6 +53,8 @@ ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
       classifier = "linux-s390x"
     } else if (architecture == Architecture.PPC64LE) {
       classifier = "linux-ppc64le"
+    } else if (architecture == Architecture.RISCV64) {
+      classifier = "linux-riscv64"
     } else {
       throw new IllegalArgumentException("Unsupported architecture [" + architecture + "]")
     }
@@ -96,6 +100,7 @@ private static String buildPath(Architecture architecture, DockerBase base) {
     (architecture == Architecture.ARM64 ? 'arm64-' : '') +
     (architecture == Architecture.S390X ? 's390x-' : '') +
     (architecture == Architecture.PPC64LE ? 'ppc64le-' : '') +
+    (architecture == Architecture.RISCV64 ? 'riscv64-' : '') +
     'docker'
 }
 
@@ -104,6 +109,7 @@ private static String taskName(String prefix, Architecture architecture, DockerB
     (architecture == Architecture.ARM64 ? 'Arm64' : '') +
     (architecture == Architecture.S390X ? 'S390x' : '') +
     (architecture == Architecture.PPC64LE ? 'Ppc64le' : '') +
+    (architecture == Architecture.RISCV64 ? 'Riscv64' : '') +
     suffix
 }
 
@@ -144,6 +150,8 @@ void addCopyDockerContextTask(Architecture architecture, DockerBase base) {
       from configurations.s390xDockerSource
     } else if (architecture == Architecture.PPC64LE) {
       from configurations.ppc64leDockerSource
+    } else if (architecture == Architecture.RISCV64) {
+      from configurations.riscv64DockerSource
     } else {
       from configurations.dockerSource
     }
