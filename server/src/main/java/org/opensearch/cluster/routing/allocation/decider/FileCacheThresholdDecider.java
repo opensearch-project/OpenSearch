@@ -122,7 +122,7 @@ public class FileCacheThresholdDecider extends AllocationDecider{
         final long totalAddressableRemoteSize = calculateTotalAddressableRemoteSize(node, allocation);
         final long currentNodeRemoteShardSize = calculateCurrentNodeRemoteShardSize(node, allocation, false);
         final long freeSpace = totalAddressableRemoteSize - currentNodeRemoteShardSize;
-        final long freeSpaceAfterAllocation = freeSpace - shardSize;
+        final long freeSpaceAfterAllocation = freeSpace > shardSize ? freeSpace - shardSize : 0;
         final long freeSpaceLowThreshold = calculateFreeSpaceLowThreshold(diskThresholdSettings, totalAddressableRemoteSize);
 
         final ByteSizeValue freeSpaceLowThresholdInByteSize = new ByteSizeValue(freeSpaceLowThreshold);

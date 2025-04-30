@@ -63,7 +63,9 @@ import java.util.Set;
 import static org.opensearch.cluster.routing.RoutingPool.REMOTE_CAPABLE;
 import static org.opensearch.cluster.routing.RoutingPool.getNodePool;
 import static org.opensearch.cluster.routing.RoutingPool.getShardPool;
-import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.*;
+import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
+import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING;
+import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.ENABLE_FOR_SINGLE_DATA_NODE;
 
 /**
  * The {@link DiskThresholdDecider} checks that the node a shard is potentially
