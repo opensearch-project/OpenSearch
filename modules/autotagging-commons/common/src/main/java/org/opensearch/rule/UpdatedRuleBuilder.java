@@ -27,12 +27,20 @@ import java.util.Set;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class RuleUtils {
+public class UpdatedRuleBuilder {
+
+    private final Rule originalRule;
+    private final UpdateRuleRequest request;
 
     /**
-     * constructor for RuleUtils
+     * constructor for UpdatedRuleBuilder
+     * @param originalRule - the existing rule to update
+     * @param updateRuleRequest - the update request containing updating details
      */
-    public RuleUtils() {}
+    public UpdatedRuleBuilder(Rule originalRule, UpdateRuleRequest updateRuleRequest) {
+        this.originalRule = originalRule;
+        this.request = updateRuleRequest;
+    }
 
     /**
      * Checks if a duplicate rule exists and returns its id.
@@ -73,18 +81,15 @@ public class RuleUtils {
     /**
      * Creates an updated {@link Rule} object by applying non-null fields from the given {@link UpdateRuleRequest}
      * to the original rule. Fields not provided in the request will retain their values from the original rule.
-     * @param originalRule the original rule to update
-     * @param request the request containing the new values for the rule
-     * @param featureType the feature type to assign to the updated rule
      */
-    public static Rule composeUpdatedRule(Rule originalRule, UpdateRuleRequest request, FeatureType featureType) {
+    public Rule build() {
         String requestDescription = request.getDescription();
         Map<Attribute, Set<String>> requestMap = request.getAttributeMap();
         String requestLabel = request.getFeatureValue();
         return new Rule(
             requestDescription == null ? originalRule.getDescription() : requestDescription,
             requestMap == null || requestMap.isEmpty() ? originalRule.getAttributeMap() : requestMap,
-            featureType,
+            originalRule.getFeatureType(),
             requestLabel == null ? originalRule.getFeatureValue() : requestLabel,
             Instant.now().toString()
         );
