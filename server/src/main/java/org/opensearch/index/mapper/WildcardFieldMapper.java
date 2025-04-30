@@ -911,9 +911,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
             );
         }
-        if (!mappedFieldType.hasDocValues()) {
-            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with docValues disabled");
-        }
+        checkStoredForDerivedSource();
     }
 
     /**

@@ -617,6 +617,24 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
+     * Validates if stored field is enabled for a field or not
+     */
+    void checkStoredForDerivedSource() {
+        if (!mappedFieldType.isStored()) {
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with store disabled");
+        }
+    }
+
+    /**
+     * Validates if doc_values or stored field is enabled for a field or not
+     */
+    void checkStoredAndDocValuesForDerivedSource() {
+        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored and " + "docValues disabled");
+        }
+    }
+
+    /**
      * Method used for deriving source and building it to XContentBuilder object
      * <p>
      * Considerations:

@@ -1229,9 +1229,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void canDeriveSourceInternal() {
-        if (!mappedFieldType.isStored()) {
-            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored field disabled");
-        }
+        checkStoredForDerivedSource();
     }
 
     /**

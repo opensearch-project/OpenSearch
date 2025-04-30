@@ -213,9 +213,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void canDeriveSourceInternal() {
-        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
-            throw new UnsupportedOperationException("Unable to derive source for [ " + name() + "] with stored and docValues disabled");
-        }
+        checkStoredAndDocValuesForDerivedSource();
     }
 
     /**

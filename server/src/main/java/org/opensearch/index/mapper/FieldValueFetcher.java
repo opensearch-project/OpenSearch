@@ -57,7 +57,11 @@ public abstract class FieldValueFetcher {
         if (values.size() == 1) {
             builder.field(simpleName, convert(values.getFirst()));
         } else {
-            builder.array(simpleName, values.stream().map(this::convert).toArray());
+            final Object[] displayValues = new Object[values.size()];
+            for (int i = 0; i < values.size(); i++) {
+                displayValues[i] = convert(values.get(i));
+            }
+            builder.array(simpleName, displayValues);
         }
     }
 }

@@ -276,9 +276,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
             );
         }
-        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
-            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored and " + "docValues disabled");
-        }
+        checkStoredAndDocValuesForDerivedSource();
     }
 
     /**
