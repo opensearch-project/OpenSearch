@@ -100,7 +100,6 @@ public class WarmDiskThresholdDecider extends AllocationDecider{
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         var nodeRoutingPool = getNodePool(node);
         var shardRoutingPool = getShardPool(shardRouting, allocation);
-        // This make sures that this decider run only for dedicated warn nodes
         if (nodeRoutingPool != REMOTE_CAPABLE || shardRoutingPool != REMOTE_CAPABLE) {
             return super.canAllocate(shardRouting, node, allocation);
         }
@@ -170,7 +169,6 @@ public class WarmDiskThresholdDecider extends AllocationDecider{
 
         var nodeRoutingPool = getNodePool(node);
         var shardRoutingPool = getShardPool(shardRouting, allocation);
-        // This make sures that this decider run only for dedicated warn nodes
         if (nodeRoutingPool != REMOTE_CAPABLE || shardRoutingPool != REMOTE_CAPABLE) {
             return super.canRemain(shardRouting, node, allocation);
         }

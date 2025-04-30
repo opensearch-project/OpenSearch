@@ -167,9 +167,11 @@ public class DiskThresholdDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         ClusterInfo clusterInfo = allocation.clusterInfo();
 
-        // For this case WarmDiskThresholdDecider or TargetPoolAllocation Decider will take decision
-        if (REMOTE_CAPABLE.equals(getNodePool(node)) || REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
+        // For this case WarmDiskThresholdDecider Decider will take decision
+        if (REMOTE_CAPABLE.equals(getNodePool(node)) && REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
             return super.canAllocate(shardRouting, node, allocation);
+        } else if (REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
+            return Decision.NO;
         }
 
         Map<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
@@ -435,9 +437,11 @@ public class DiskThresholdDecider extends AllocationDecider {
             throw new IllegalArgumentException("Shard [" + shardRouting + "] is not allocated on node: [" + node.nodeId() + "]");
         }
 
-        // For this case WarmDiskThresholdDecider or TargetPoolAllocation Decider will take decision
-        if (REMOTE_CAPABLE.equals(getNodePool(node)) || REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
+        // For this case WarmDiskThresholdDecider Decider will take decision
+        if (REMOTE_CAPABLE.equals(getNodePool(node)) && REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
             return super.canAllocate(shardRouting, node, allocation);
+        } else if (REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
+            return Decision.NO;
         }
 
         final ClusterInfo clusterInfo = allocation.clusterInfo();
