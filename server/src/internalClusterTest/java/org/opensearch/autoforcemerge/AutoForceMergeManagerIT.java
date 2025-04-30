@@ -9,24 +9,27 @@
 package org.opensearch.autoforcemerge;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.node.Node;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
-import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.index.shard.IndexShard;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.*;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, supportsDedicatedMasters = false)
@@ -52,8 +55,9 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
+            .put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 32)
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), SCHEDULER_INTERVAL)
-            .put(ForceMergeManagerSettings.SEGMENT_COUNT_THRESHOLD_FOR_AUTO_FORCE_MERGE.getKey(), SEGMENT_COUNT)
+            .put(ForceMergeManagerSettings.SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE.getKey(), SEGMENT_COUNT)
             .put(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), MERGE_DELAY)
             .build();
     }
@@ -99,6 +103,35 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
 
         // Deleting the index (so that ref count drops to zero for all the files) and then pruning the cache to clear it to avoid any file
         // leaks
+        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
+    }
+
+    public void testAutoForceMergeTriggeringWithOneShardOfNonWarmCandidate() throws Exception {
+        Settings clusterSettings = Settings.builder()
+            .put(super.nodeSettings(0))
+            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
+            .build();
+        InternalTestCluster internalTestCluster = internalCluster();
+        internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
+        String dataNode = internalTestCluster.startDataOnlyNodes(1, clusterSettings).getFirst();
+        internalCluster().startWarmOnlyNodes(1, clusterSettings).getFirst();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_ALLOW_AUTO_FORCE_MERGES.getKey(), false)
+            .build();
+        assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_1).setSettings(settings).get());
+        for (int i = 0; i < INGESTION_COUNT; i++) {
+            indexBulk(INDEX_NAME_1, NUM_DOCS_IN_BULK);
+            flushAndRefresh(INDEX_NAME_1);
+        }
+        IndexShard shard = getIndexShard(dataNode, INDEX_NAME_1);
+        assertNotNull(shard);
+        SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false);
+        Thread.sleep(TimeValue.parseTimeValue(SCHEDULER_INTERVAL, "test").getMillis() * 3);
+        flushAndRefresh(INDEX_NAME_1);
+        SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false);
+        assertEquals(segmentsStatsBefore.getCount(), segmentsStatsAfter.getCount());
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
     }
 
@@ -158,14 +191,30 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
         String dataNode = internalTestCluster.startDataOnlyNodes(1, clusterSettings).getFirst();
         internalCluster().startWarmOnlyNodes(1, clusterSettings).getFirst();
-        assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_1).setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build()).get());
-        assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_2).setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build()).get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(INDEX_NAME_1)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build()
+                )
+                .get()
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(INDEX_NAME_2)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build()
+                )
+                .get()
+        );
 
         // Each ingestion request creates a segment here
         for (int i = 0; i < INGESTION_COUNT; i++) {
@@ -192,11 +241,10 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         SegmentsStats segmentsStatsForShard3Before = shard3.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard4Before = shard4.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard5Before = shard5.segmentStats(false, false);
-        AtomicLong totalSegments = new AtomicLong(segmentsStatsForShard1Before.getCount()
-            + segmentsStatsForShard2Before.getCount()
-            + segmentsStatsForShard3Before.getCount()
-            + segmentsStatsForShard4Before.getCount()
-            + segmentsStatsForShard5Before.getCount());
+        AtomicLong totalSegments = new AtomicLong(
+            segmentsStatsForShard1Before.getCount() + segmentsStatsForShard2Before.getCount() + segmentsStatsForShard3Before.getCount()
+                + segmentsStatsForShard4Before.getCount() + segmentsStatsForShard5Before.getCount()
+        );
 
         assertTrue(totalSegments.get() > 5);
 
@@ -208,11 +256,10 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         SegmentsStats segmentsStatsForShard3After = shard3.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard4After = shard4.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard5After = shard5.segmentStats(false, false);
-        totalSegments.set(segmentsStatsForShard1After.getCount()
-            + segmentsStatsForShard2After.getCount()
-            + segmentsStatsForShard3After.getCount()
-            + segmentsStatsForShard4After.getCount()
-            + segmentsStatsForShard5After.getCount());
+        totalSegments.set(
+            segmentsStatsForShard1After.getCount() + segmentsStatsForShard2After.getCount() + segmentsStatsForShard3After.getCount()
+                + segmentsStatsForShard4After.getCount() + segmentsStatsForShard5After.getCount()
+        );
         // refresh to clear old segments
         flushAndRefresh(INDEX_NAME_1);
         flushAndRefresh(INDEX_NAME_2);
@@ -224,4 +271,3 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_2).get());
     }
 }
-

@@ -183,7 +183,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     protected void setFailRate(String repoName, int value) throws ExecutionException, InterruptedException {
-        GetRepositoriesRequest gr = new GetRepositoriesRequest(new String[]{repoName});
+        GetRepositoriesRequest gr = new GetRepositoriesRequest(new String[] { repoName });
         GetRepositoriesResponse res = client().admin().cluster().getRepositories(gr).get();
         RepositoryMetadata rmd = res.repositories().get(0);
         Settings.Builder settings = Settings.builder()

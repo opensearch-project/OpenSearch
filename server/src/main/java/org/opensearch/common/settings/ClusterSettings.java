@@ -834,12 +834,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to Auto Force Merge Manager
                 ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING,
-                ForceMergeManagerSettings.SEGMENT_COUNT_THRESHOLD_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL,
                 ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
-                ForceMergeManagerSettings.FORCE_MERGE_THREADS_THRESHOLD_COUNT_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER
             )
         )

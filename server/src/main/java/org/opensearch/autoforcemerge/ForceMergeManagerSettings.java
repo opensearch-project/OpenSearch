@@ -8,10 +8,13 @@
 
 package org.opensearch.autoforcemerge;
 
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+
+import java.util.function.Consumer;
 
 /**
  * Settings class that manages configuration parameters for the Auto Force Merge functionality.
@@ -20,33 +23,28 @@ import org.opensearch.common.unit.TimeValue;
  */
 public class ForceMergeManagerSettings {
 
-    private Integer segmentCountThreshold;
+    private Integer segmentCount;
     private TimeValue forcemergeDelay;
     private TimeValue schedulerInterval;
     private Double cpuThreshold;
     private Double jvmThreshold;
-    private Integer forceMergeThreadCount;
     private Integer concurrencyMultiplier;
     private Boolean autoForceMergeFeatureEnabled;
-
-    private final AutoForceMergeManager autoForceMergeManager;
-
-    public static final String AUTO_FORCE_MERGE = "cluster.auto_force_merge_feature.enabled";
 
     /**
      * Setting to enable Auto Force Merge (default: false)
      */
     public static final Setting<Boolean> AUTO_FORCE_MERGE_SETTING = Setting.boolSetting(
-        AUTO_FORCE_MERGE,
+        "cluster.auto_force_merge_feature.enabled",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     /**
-     * Setting for segment count threshold that triggers force merge (default: 20).
+     * Setting for segment count threshold that triggers force merge (default: 1).
      */
-    public static final Setting<Integer> SEGMENT_COUNT_THRESHOLD_FOR_AUTO_FORCE_MERGE = Setting.intSetting(
+    public static final Setting<Integer> SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE = Setting.intSetting(
         "node.auto.force_merge.segment.count",
         1,
         1,
@@ -55,7 +53,7 @@ public class ForceMergeManagerSettings {
     );
 
     /**
-     * Setting for wait time between force merge operations (default: 3s).
+     * Setting for wait time between force merge operations (default: 10s).
      */
     public static final Setting<TimeValue> MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE = Setting.timeSetting(
         "node.auto.force_merge.merge_delay",
@@ -103,18 +101,7 @@ public class ForceMergeManagerSettings {
     );
 
     /**
-     * Setting for force merge thread count concurrent threshold. (default: 1)
-     */
-    public static final Setting<Integer> FORCE_MERGE_THREADS_THRESHOLD_COUNT_FOR_AUTO_FORCE_MERGE = Setting.intSetting(
-        "node.auto.force_merge.threads.threshold",
-        0,
-        0,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * Setting for thread pool multiplier to determine concurrent force merge operations (default: 3).
+     * Setting for thread pool multiplier to determine concurrent force merge operations (default: 2).
      */
     public static final Setting<Integer> CONCURRENCY_MULTIPLIER = Setting.intSetting(
         "node.auto.force_merge.threads.concurrency_multiplier",
@@ -128,45 +115,40 @@ public class ForceMergeManagerSettings {
     /**
      * Creates settings manager with cluster settings for dynamic updates.
      */
-    public ForceMergeManagerSettings(Settings settings, ClusterSettings clusterSettings, AutoForceMergeManager autoForceMergeManager) {
-        this.autoForceMergeManager = autoForceMergeManager;
+    public ForceMergeManagerSettings(ClusterService clusterService, Consumer<TimeValue> modifySchedulerInterval) {
+        Settings settings = clusterService.getSettings();
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.autoForceMergeFeatureEnabled = AUTO_FORCE_MERGE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(AUTO_FORCE_MERGE_SETTING, this::setAutoForceMergeFeatureEnabled);
-        this.segmentCountThreshold = SEGMENT_COUNT_THRESHOLD_FOR_AUTO_FORCE_MERGE.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SEGMENT_COUNT_THRESHOLD_FOR_AUTO_FORCE_MERGE, this::setSegmentCountThreshold);
+        this.segmentCount = SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE, this::setSegmentCount);
         this.forcemergeDelay = MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE, this::setForcemergeDelay);
+        clusterSettings.addSettingsUpdateConsumer(MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE, modifySchedulerInterval);
         this.schedulerInterval = AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.get(settings);
         clusterSettings.addSettingsUpdateConsumer(AUTO_FORCE_MERGE_SCHEDULER_INTERVAL, this::setSchedulerInterval);
         this.cpuThreshold = CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE, this::setCpuThreshold);
         this.jvmThreshold = JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE, this::setJvmThreshold);
-        this.forceMergeThreadCount = FORCE_MERGE_THREADS_THRESHOLD_COUNT_FOR_AUTO_FORCE_MERGE.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(FORCE_MERGE_THREADS_THRESHOLD_COUNT_FOR_AUTO_FORCE_MERGE, this::setForceMergeThreadCount);
         this.concurrencyMultiplier = CONCURRENCY_MULTIPLIER.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CONCURRENCY_MULTIPLIER, this::setConcurrencyMultiplier);
     }
 
     public void setAutoForceMergeFeatureEnabled(Boolean autoForceMergeFeatureEnabled) {
         this.autoForceMergeFeatureEnabled = autoForceMergeFeatureEnabled;
-        if (this.autoForceMergeFeatureEnabled) {
-            autoForceMergeManager.start();
-        } else {
-            autoForceMergeManager.stop();
-        }
     }
 
-    public Boolean getAutoForceMergeFeatureEnabled() {
+    public Boolean isAutoForceMergeFeatureEnabled() {
         return this.autoForceMergeFeatureEnabled;
     }
 
-    public void setSegmentCountThreshold(Integer segmentCountThreshold) {
-        this.segmentCountThreshold = segmentCountThreshold;
+    public void setSegmentCount(Integer segmentCount) {
+        this.segmentCount = segmentCount;
     }
 
-    public Integer getSegmentCountThreshold() {
-        return this.segmentCountThreshold;
+    public Integer getSegmentCount() {
+        return this.segmentCount;
     }
 
     public void setForcemergeDelay(TimeValue forcemergeDelay) {
@@ -199,14 +181,6 @@ public class ForceMergeManagerSettings {
 
     public Double getJvmThreshold() {
         return this.jvmThreshold;
-    }
-
-    public void setForceMergeThreadCount(Integer forceMergeThreadCount) {
-        this.forceMergeThreadCount = forceMergeThreadCount;
-    }
-
-    public Integer getForceMergeThreadCount() {
-        return this.forceMergeThreadCount;
     }
 
     public void setConcurrencyMultiplier(Integer concurrencyMultiplier) {

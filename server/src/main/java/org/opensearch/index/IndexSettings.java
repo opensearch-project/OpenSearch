@@ -783,6 +783,13 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_ALLOW_AUTO_FORCE_MERGES = Setting.boolSetting(
+        "index.allow.auto_force_merges",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -797,6 +804,7 @@ public final class IndexSettings {
     private volatile String remoteStoreTranslogRepository;
     private volatile String remoteStoreRepository;
     private int remoteTranslogKeepExtraGen;
+    private boolean allowAutoForcemerges;
     private Version extendedCompatibilitySnapshotVersion;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
@@ -971,7 +979,7 @@ public final class IndexSettings {
      * while index level settings will overwrite node settings.
      *
      * @param indexMetadata the index metadata this settings object is associated with
-     * @param nodeSettings the nodes settings this index is allocated on.
+     * @param nodeSettings  the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings) {
         this(indexMetadata, nodeSettings, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
@@ -982,7 +990,7 @@ public final class IndexSettings {
      * while index level settings will overwrite node settings.
      *
      * @param indexMetadata the index metadata this settings object is associated with
-     * @param nodeSettings the nodes settings this index is allocated on.
+     * @param nodeSettings  the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
         scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetadata);
@@ -1186,6 +1194,8 @@ public final class IndexSettings {
             this::setRemoteTranslogUploadBufferInterval
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
+        this.allowAutoForcemerges = INDEX_ALLOW_AUTO_FORCE_MERGES.get(settings);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_ALLOW_AUTO_FORCE_MERGES, this::setAllowAutoForcemerges);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING, this::setEnableFuzzySetForDocId);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
@@ -1542,6 +1552,10 @@ public final class IndexSettings {
 
     public void setRemoteTranslogKeepExtraGen(int extraGen) {
         this.remoteTranslogKeepExtraGen = extraGen;
+    }
+
+    public void setAllowAutoForcemerges(boolean allowAutoForcemerges) {
+        this.allowAutoForcemerges = allowAutoForcemerges;
     }
 
     /**
