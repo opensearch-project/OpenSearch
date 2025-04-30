@@ -59,12 +59,14 @@ import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDec
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;
+import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.telemetry.metrics.Histogram;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.test.gateway.TestShardBatchGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -192,8 +194,10 @@ public class AllocationServiceTests extends OpenSearchTestCase {
         final String unrealisticAllocatorName = "unrealistic";
         final Map<String, ExistingShardsAllocator> allocatorMap = new HashMap<>();
         final TestGatewayAllocator testGatewayAllocator = new TestGatewayAllocator();
+        final TestShardBatchGatewayAllocator testShardBatchGatewayAllocator = new TestShardBatchGatewayAllocator();
         allocatorMap.put(GatewayAllocator.ALLOCATOR_NAME, testGatewayAllocator);
         allocatorMap.put(unrealisticAllocatorName, new UnrealisticAllocator());
+        allocatorMap.put(ShardsBatchGatewayAllocator.ALLOCATOR_NAME, testShardBatchGatewayAllocator);
         allocationService.setExistingShardsAllocators(allocatorMap);
 
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();

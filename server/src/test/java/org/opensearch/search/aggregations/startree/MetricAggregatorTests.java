@@ -137,6 +137,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18110")
     public void testStarTreeDocValues() throws IOException {
         final List<Supplier<Integer>> MAX_LEAF_DOC_VARIATIONS = List.of(
             () -> 1,
