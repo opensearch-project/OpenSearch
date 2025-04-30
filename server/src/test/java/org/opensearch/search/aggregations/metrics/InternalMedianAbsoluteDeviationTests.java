@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTestCase<InternalMedianAbsoluteDeviation> {
-
     @Override
     protected InternalMedianAbsoluteDeviation createTestInstance(String name, Map<String, Object> metadata) {
         final TDigestState valuesSketch = new TDigestState(randomDoubleBetween(20, 1000, true));
