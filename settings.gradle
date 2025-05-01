@@ -154,3 +154,7 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+
+include ':plugins:analysis-layered'
+project(':plugins:analysis-layered').projectDir = file('plugins/analysis-layered')
+

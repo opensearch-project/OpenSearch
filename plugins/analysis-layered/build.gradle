@@ -1,0 +1,21 @@
+apply plugin: 'java'
+apply plugin: 'opensearch.opensearchplugin'
+
+version = '2.19.0-SNAPSHOT'
+
+opensearchplugin {
+  description = 'A token filter that emits layered tokens at the same position'
+  classname = 'org.opensearch.analysis.layered.LayeredAnalysisPlugin'
+  hasClientJar = false
+}
+
+dependencies {
+  api project(':server')
+  api "org.apache.lucene:lucene-core:9.12.1"
+}
+
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(21)
+  }
+}
