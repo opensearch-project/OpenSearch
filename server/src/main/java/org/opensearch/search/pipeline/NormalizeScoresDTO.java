@@ -12,6 +12,9 @@ import java.util.List;
 
 import reactor.util.annotation.NonNull;
 
+/**
+ * Normalize Score DTO class
+ */
 public class NormalizeScoresDTO {
     public NormalizeScoresDTO(@NonNull List<CompoundTopDocs> queryTopDocs, @NonNull ScoreNormalizationTechnique normalizationTechnique) {
         this.queryTopDocs = queryTopDocs;
@@ -33,10 +36,17 @@ public class NormalizeScoresDTO {
     @NonNull
     private ScoreNormalizationTechnique normalizationTechnique;
 
+    /**
+     * Builder class
+     * @return NormalizeScoresDTOBuilder
+     */
     public static NormalizeScoresDTOBuilder builder() {
         return new NormalizeScoresDTOBuilder();
     }
 
+    /**
+     * Normalize Score DTO builder class
+     */
     public static class NormalizeScoresDTOBuilder {
         private List<CompoundTopDocs> queryTopDocs;
         private ScoreNormalizationTechnique normalizationTechnique;

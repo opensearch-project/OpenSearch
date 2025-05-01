@@ -8,6 +8,9 @@
 
 package org.opensearch.search.pipeline;
 
+/**
+ * ScoreNormalizationTechnique DTO
+ */
 public interface ScoreNormalizationTechnique {
 
     /**

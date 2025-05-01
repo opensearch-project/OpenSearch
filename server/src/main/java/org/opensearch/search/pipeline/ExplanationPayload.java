@@ -10,6 +10,9 @@ package org.opensearch.search.pipeline;
 
 import java.util.Map;
 
+/**
+ * ExplainationPayload class
+ */
 public class ExplanationPayload {
     public ExplanationPayload(Map<PayloadType, Object> explainPayload) {
         this.explainPayload = explainPayload;
@@ -21,14 +24,24 @@ public class ExplanationPayload {
 
     private final Map<PayloadType, Object> explainPayload;
 
+    /**
+     * Payload type
+     */
     public enum PayloadType {
         NORMALIZATION_PROCESSOR
     }
 
+    /**
+     * Builder method
+     * @return Builder
+     */
     public static Builder builder() {
         return new Builder();
     }
 
+    /**
+     * Builder class
+     */
     public static class Builder {
         private Map<PayloadType, Object> explainPayload;
 

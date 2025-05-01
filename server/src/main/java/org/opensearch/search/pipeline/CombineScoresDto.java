@@ -18,6 +18,9 @@ import java.util.List;
 
 import reactor.util.annotation.NonNull;
 
+/**
+ * CombineScoreDTO class
+ */
 public class CombineScoresDto {
     private static final Logger log = LogManager.getLogger(CombineScoresDto.class);
 
@@ -73,6 +76,9 @@ public class CombineScoresDto {
         return new CombineScoresDtoBuilder();
     }
 
+    /**
+     * CombineScoresDTOBuilder class
+     */
     public static class CombineScoresDtoBuilder {
         private List<CompoundTopDocs> queryTopDocs;
         private ScoreCombinationTechnique scoreCombinationTechnique;

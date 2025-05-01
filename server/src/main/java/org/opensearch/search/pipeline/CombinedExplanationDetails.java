@@ -8,6 +8,9 @@
 
 package org.opensearch.search.pipeline;
 
+/**
+ * CombinedExplanationDetails class
+ */
 public class CombinedExplanationDetails {
     public CombinedExplanationDetails(ExplanationDetails normalizationExplanations, ExplanationDetails combinationExplanations) {
         this.normalizationExplanations = normalizationExplanations;
@@ -25,10 +28,17 @@ public class CombinedExplanationDetails {
     private ExplanationDetails normalizationExplanations;
     private ExplanationDetails combinationExplanations;
 
+    /**
+     * Builder class
+     * @return CombineExplanationDetailsBuilder
+     */
     public static CombineExplanationDetailsBuilder builder() {
         return new CombineExplanationDetailsBuilder();
     }
 
+    /**
+     * CombineExplanationDetailsBuilder
+     */
     public static class CombineExplanationDetailsBuilder {
         private ExplanationDetails normalizationExplanations;
         private ExplanationDetails combinationExplanations;

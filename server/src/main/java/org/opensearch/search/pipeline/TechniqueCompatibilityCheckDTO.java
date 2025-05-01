@@ -37,10 +37,16 @@ public class TechniqueCompatibilityCheckDTO {
     @NonNull
     private ScoreNormalizationTechnique scoreNormalizationTechnique;
 
+    /*
+    Builder method
+     */
     public static Builder builder() {
         return new Builder();
     }
 
+    /**
+    Builder class
+     */
     public static class Builder {
         private ScoreCombinationTechnique scoreCombinationTechnique;
         private ScoreNormalizationTechnique scoreNormalizationTechnique;

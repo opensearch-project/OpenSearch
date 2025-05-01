@@ -8,6 +8,9 @@
 
 package org.opensearch.search.pipeline;
 
+/**
+ * ScoreCombinationTechnique class
+ */
 public interface ScoreCombinationTechnique {
 
     /**

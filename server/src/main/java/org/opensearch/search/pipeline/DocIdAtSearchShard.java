@@ -8,6 +8,9 @@
 
 package org.opensearch.search.pipeline;
 
+/**
+ * DocIdAtSearchShard class
+ */
 public final class DocIdAtSearchShard {
     public DocIdAtSearchShard(int docId, SearchShard searchShard) {
         this.docId = docId;

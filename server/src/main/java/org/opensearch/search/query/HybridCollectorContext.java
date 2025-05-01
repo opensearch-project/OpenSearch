@@ -18,7 +18,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.index.search.NestedHelper;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
@@ -27,13 +26,14 @@ import org.opensearch.search.sort.SortAndFormats;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
 import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_TOP_HITS;
 
+/**
+ * HybridCollectorContext class
+ */
 public class HybridCollectorContext extends QueryCollectorContext {
     protected final @Nullable SortAndFormats sortAndFormats;
     private final int numHits;
@@ -256,7 +256,9 @@ public class HybridCollectorContext extends QueryCollectorContext {
 
     @Override
     void postProcess(QuerySearchResult result) throws IOException {
-        CollectorManager<Collector, ReduceableSearchResult> collectorManager = (CollectorManager<Collector, ReduceableSearchResult>) searchContext.queryCollectorManagers().get(HybridCollectorManager.class);
+        CollectorManager<Collector, ReduceableSearchResult> collectorManager = (CollectorManager<
+            Collector,
+            ReduceableSearchResult>) searchContext.queryCollectorManagers().get(HybridCollectorManager.class);
         final Collection<Collector> subCollectors = new ArrayList<>();
         subCollectors.add(collector);
         try {

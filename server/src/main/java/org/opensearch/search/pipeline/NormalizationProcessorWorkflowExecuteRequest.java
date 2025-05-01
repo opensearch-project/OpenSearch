@@ -15,6 +15,9 @@ import org.opensearch.search.query.QuerySearchResult;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * NormalizationProcessor Workflow class
+ */
 public class NormalizationProcessorWorkflowExecuteRequest {
     final List<QuerySearchResult> querySearchResults;
     final Optional<FetchSearchResult> fetchSearchResultOptional;
@@ -70,10 +73,17 @@ public class NormalizationProcessorWorkflowExecuteRequest {
         return searchPhaseContext;
     }
 
+    /**
+     * Builder class
+     * @return NormalizationProcessorWorkflowExecuteRequestBuilder
+     */
     public static NormalizationProcessorWorkflowExecuteRequestBuilder builder() {
         return new NormalizationProcessorWorkflowExecuteRequestBuilder();
     }
 
+    /**
+     * NormalizationProcessorWorkflowExecuteRequestBuilder
+     */
     public static class NormalizationProcessorWorkflowExecuteRequestBuilder {
         private List<QuerySearchResult> querySearchResults;
         private Optional<FetchSearchResult> fetchSearchResultOptional;

@@ -13,10 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.search.NestedHelper;
 import org.opensearch.search.aggregations.AggregationProcessor;
 import org.opensearch.search.internal.ContextIndexSearcher;
@@ -63,8 +60,8 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        if(isHybridQuery(query,searchContext)){
-            query = extractHybridQuery(searchContext,query);
+        if (isHybridQuery(query, searchContext)) {
+            query = extractHybridQuery(searchContext, query);
         }
         if (searchContext.shouldUseConcurrentSearch()) {
             return concurrentQueryPhaseSearcher.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
@@ -86,7 +83,6 @@ public class QueryPhaseSearcherWrapper implements QueryPhaseSearcher {
             return defaultQueryPhaseSearcher.aggregationProcessor(searchContext);
         }
     }
-
 
     protected Query extractHybridQuery(final SearchContext searchContext, final Query query) {
         if (isHybridQueryWrappedInBooleanQuery(searchContext, query)) {

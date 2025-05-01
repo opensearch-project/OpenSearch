@@ -26,6 +26,9 @@ public class HybridQueryContext {
         return new HybridQueryContextBuilder();
     }
 
+    /**
+     * HybridQueryContextBuilder class
+     */
     public static class HybridQueryContextBuilder {
         private Integer paginationDepth;
 

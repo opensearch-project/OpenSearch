@@ -10,6 +10,9 @@ package org.opensearch.search.pipeline;
 
 import org.opensearch.search.SearchShardTarget;
 
+/**
+ * SearchShard class
+ */
 public final class SearchShard {
     public SearchShard(String index, int shardId, String nodeId) {
         this.index = index;
