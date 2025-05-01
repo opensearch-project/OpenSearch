@@ -69,7 +69,7 @@ dependencies {
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
-  api "org.apache.commons:commons-lang3:${versions.commonslang}"
+  compileOnly "org.apache.commons:commons-lang3:${versions.commonslang}"
   compileOnly group: 'commons-lang', name: 'commons-lang', version: '2.6'
 
   compileOnly project(":libs:agent-sm:bootstrap")
