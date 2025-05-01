@@ -452,14 +452,24 @@ public class MinMaxScoreNormalizationTechnique implements ScoreNormalizationTech
         }
     }
 
-    // Base interface for all pairs
+    /**
+     * Base class
+     * @param <T>
+     * @param <U>
+     */
     public interface Pair<T, U> {
         T getLeft();
 
         U getRight();
     }
 
-    // Immutable implementation using record
+    /**
+     * Immutabel pair
+     * @param left
+     * @param right
+     * @param <T>
+     * @param <U>
+     */
     public record ImmutablePair<T, U>(T left, U right) implements Pair<T, U> {
         @Override
         public T getLeft() {
@@ -472,6 +482,11 @@ public class MinMaxScoreNormalizationTechnique implements ScoreNormalizationTech
         }
     }
 
+    /**
+     * Mutable class
+     * @param <T>
+     * @param <U>
+     */
     public static class MutablePair<T, U> implements Pair<T, U> {
         private T left;
         private U right;
