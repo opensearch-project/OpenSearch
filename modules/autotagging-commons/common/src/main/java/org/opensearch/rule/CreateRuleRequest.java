@@ -53,13 +53,14 @@ public class CreateRuleRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         try {
             FeatureValueValidator featureValueValidator = rule.getFeatureType().getFeatureValueValidator();
-            if (featureValueValidator != null) {
-                featureValueValidator.validate(rule.getFeatureValue());
+            if (featureValueValidator == null) {
+                throw new IllegalStateException("FeatureValueValidator is not defined for feature type " + rule.getFeatureType().getName());
             }
+            featureValueValidator.validate(rule.getFeatureValue());
             return null;
         } catch (Exception e) {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
-            validationException.addValidationError(e.getMessage());
+            validationException.addValidationError("Validation failed: " + e.getMessage());
             return validationException;
         }
     }

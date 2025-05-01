@@ -39,7 +39,7 @@ import static org.opensearch.rule.rest.RestGetRuleAction.FEATURE_TYPE;
  */
 public class RestCreateRuleAction extends BaseRestHandler {
     /**
-     * constructor for RestUpdateRuleAction
+     * constructor for RestCreateRuleAction
      */
     public RestCreateRuleAction() {}
 

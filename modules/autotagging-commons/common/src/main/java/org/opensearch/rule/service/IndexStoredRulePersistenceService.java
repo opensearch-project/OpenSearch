@@ -10,6 +10,7 @@ package org.opensearch.rule.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.DocWriteResponse;
@@ -135,10 +136,11 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof ResourceAlreadyExistsException) {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof ResourceAlreadyExistsException) {
                     validateAndPersist(rule, listener);
                 } else {
-                    logger.error("Failed to create index {}: {}", indexName, e.getMessage());
+                    logger.error("Failed to create index {}: {}", indexName, e.getMessage(), e);
                     listener.onFailure(e);
                 }
             }
