@@ -8,8 +8,6 @@
 
 package org.opensearch.search.pipeline;
 
-import org.apache.commons.lang3.Range;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -117,7 +115,7 @@ public class ScoreCombinationUtil {
      * @param weightsList
      */
     private void validateWeights(final List<Float> weightsList) {
-        boolean isOutOfRange = weightsList.stream().anyMatch(weight -> !Range.of(0.0f, 1.0f).contains(weight));
+        boolean isOutOfRange = weightsList.stream().anyMatch(weight -> weight < 0.0f || weight > 1.0f);
         if (isOutOfRange) {
             throw new IllegalArgumentException(
                 String.format(

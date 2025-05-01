@@ -8,9 +8,6 @@
 
 package org.opensearch.search.pipeline;
 
-import org.apache.commons.lang3.Validate;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 
@@ -177,7 +174,7 @@ public class MinMaxScoreNormalizationTechnique implements ScoreNormalizationTech
             List<Pair<Float, String>> explanations = new ArrayList<>();
             for (float score : normScores) {
                 String description = String.format(Locale.ROOT, "%s normalization of:", technique.describe());
-                explanations.add(Pair.of(score, description));
+                explanations.add(MutablePair.of(score, description));
             }
             explain.put(entry.getKey(), new ExplanationDetails(explanations));
         }
@@ -287,7 +284,7 @@ public class MinMaxScoreNormalizationTechnique implements ScoreNormalizationTech
         LowerBound.Mode mode = LowerBound.Mode.fromString(lowerBoundModeValue);
         float minScore = extractAndValidateMinScore(lowerBound);
 
-        return ImmutablePair.of(mode, minScore);
+        return new ImmutablePair<>(mode, minScore);
     }
 
     private float extractAndValidateMinScore(Map<String, Object> lowerBound) {
@@ -300,12 +297,15 @@ public class MinMaxScoreNormalizationTechnique implements ScoreNormalizationTech
             if (Objects.nonNull(lowerBound.get(PARAM_NAME_LOWER_BOUND_MIN_SCORE))) {
                 minScore = Float.parseFloat(String.valueOf(lowerBound.get(PARAM_NAME_LOWER_BOUND_MIN_SCORE)));
             }
-            Validate.isTrue(
-                minScore >= LowerBound.MIN_LOWER_BOUND_SCORE && minScore <= LowerBound.MAX_LOWER_BOUND_SCORE,
-                "min_score must be a valid finite number between %f and %f",
-                LowerBound.MIN_LOWER_BOUND_SCORE,
-                LowerBound.MAX_LOWER_BOUND_SCORE
-            );
+            if ((minScore >= LowerBound.MIN_LOWER_BOUND_SCORE && minScore <= LowerBound.MAX_LOWER_BOUND_SCORE) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        "min_score must be a valid finite number between %f and %f",
+                        LowerBound.MIN_LOWER_BOUND_SCORE,
+                        LowerBound.MAX_LOWER_BOUND_SCORE
+                    )
+                );
+            }
             return minScore;
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("invalid format for min_score: must be a valid float value", e);
@@ -449,6 +449,63 @@ public class MinMaxScoreNormalizationTechnique implements ScoreNormalizationTech
             public String toString() {
                 return name().toLowerCase(Locale.ROOT);
             }
+        }
+    }
+
+    // Base interface for all pairs
+    public interface Pair<T, U> {
+        T getLeft();
+
+        U getRight();
+    }
+
+    // Immutable implementation using record
+    public record ImmutablePair<T, U>(T left, U right) implements Pair<T, U> {
+        @Override
+        public T getLeft() {
+            return left;
+        }
+
+        @Override
+        public U getRight() {
+            return right;
+        }
+    }
+
+    public static class MutablePair<T, U> implements Pair<T, U> {
+        private T left;
+        private U right;
+
+        public MutablePair(T left, U right) {
+            this.left = left;
+            this.right = right;
+        }
+
+        // Static factory methods
+        public static <T, U> MutablePair<T, U> of(T left, U right) {
+            return new MutablePair<>(left, right);
+        }
+
+        public static <T, U> MutablePair<T, U> empty() {
+            return new MutablePair<>(null, null);
+        }
+
+        @Override
+        public T getLeft() {
+            return left;
+        }
+
+        @Override
+        public U getRight() {
+            return right;
+        }
+
+        public void setLeft(T left) {
+            this.left = left;
+        }
+
+        public void setRight(U right) {
+            this.right = right;
         }
     }
 }
