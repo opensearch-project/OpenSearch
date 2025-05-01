@@ -58,6 +58,7 @@ import org.opensearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.opensearch.index.query.GeoDistanceQueryBuilder;
 import org.opensearch.index.query.GeoPolygonQueryBuilder;
 import org.opensearch.index.query.GeoShapeQueryBuilder;
+import org.opensearch.index.query.HybridQueryBuilder;
 import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.query.IntervalQueryBuilder;
 import org.opensearch.index.query.IntervalsSourceProvider;
@@ -1173,6 +1174,7 @@ public class SearchModule {
         registerQuery(
             new QuerySpec<>(MatchBoolPrefixQueryBuilder.NAME, MatchBoolPrefixQueryBuilder::new, MatchBoolPrefixQueryBuilder::fromXContent)
         );
+        registerQuery(new QuerySpec<>(HybridQueryBuilder.NAME, HybridQueryBuilder::new, HybridQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TemplateQueryBuilder.NAME, TemplateQueryBuilder::new, TemplateQueryBuilder::fromXContent));
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));

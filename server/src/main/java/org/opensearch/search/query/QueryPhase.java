@@ -79,6 +79,8 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
+import static org.opensearch.search.query.HybridCollectorContext.createHybridCollectorContext;
+import static org.opensearch.search.query.HybridCollectorContext.isHybridQuery;
 import static org.opensearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
@@ -446,6 +448,19 @@ public class QueryPhase {
             boolean hasTimeout
         ) throws IOException {
             // create the top docs collector last when the other collectors are known
+
+            if (isHybridQuery(searchContext.query(), searchContext)) {
+                HybridCollectorContext hybridCollectorContext = createHybridCollectorContext(searchContext);
+                return searchWithCollector(
+                    searchContext,
+                    searcher,
+                    query,
+                    collectors,
+                    hybridCollectorContext,
+                    hasFilterCollector,
+                    hasTimeout
+                );
+            }
             final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
             return searchWithCollector(searchContext, searcher, query, collectors, topDocsFactory, hasFilterCollector, hasTimeout);
         }

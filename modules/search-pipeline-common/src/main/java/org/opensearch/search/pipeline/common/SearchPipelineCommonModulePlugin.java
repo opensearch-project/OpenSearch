@@ -12,7 +12,14 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
+import org.opensearch.search.pipeline.NormalizationProcessor;
+import org.opensearch.search.pipeline.NormalizationProcessorFactory;
+import org.opensearch.search.pipeline.NormalizationProcessorWorkflow;
 import org.opensearch.search.pipeline.Processor;
+import org.opensearch.search.pipeline.ScoreCombinationFactory;
+import org.opensearch.search.pipeline.ScoreCombiner;
+import org.opensearch.search.pipeline.ScoreNormalizationFactory;
+import org.opensearch.search.pipeline.ScoreNormalizer;
 import org.opensearch.search.pipeline.SearchPhaseResultsProcessor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
@@ -107,7 +114,18 @@ public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPi
 
     @Override
     public Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessors(Parameters parameters) {
-        return filterForAllowlistSetting(SEARCH_PHASE_RESULTS_PROCESSORS_ALLOWLIST_SETTING, parameters.env.settings(), Map.of());
+        return filterForAllowlistSetting(
+            SEARCH_PHASE_RESULTS_PROCESSORS_ALLOWLIST_SETTING,
+            parameters.env.settings(),
+            Map.of(
+                NormalizationProcessor.TYPE,
+                new NormalizationProcessorFactory(
+                    new NormalizationProcessorWorkflow(new ScoreNormalizer(), new ScoreCombiner()),
+                    new ScoreNormalizationFactory(),
+                    new ScoreCombinationFactory()
+                )
+            )
+        );
     }
 
     private <T extends Processor> Map<String, Processor.Factory<T>> filterForAllowlistSetting(

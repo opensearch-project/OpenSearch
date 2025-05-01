@@ -77,6 +77,6 @@ public class ReactorNetty4StreamingStressIT extends OpenSearchRestTestCase {
             })
             .then(() -> scheduler.advanceTimeBy(delay))
             .expectErrorMatches(t -> t instanceof InterruptedIOException || t instanceof ConnectionClosedException)
-            .verify();
+            .verify(Duration.ofSeconds(10));
     }
 }

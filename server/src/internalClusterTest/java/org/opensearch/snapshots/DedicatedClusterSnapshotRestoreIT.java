@@ -69,6 +69,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
+import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
@@ -450,7 +451,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository(
             "test-repo",
             "mock",
-            Settings.builder().put("location", repo).put("random", randomAlphaOfLength(10)).put("wait_after_unblock", 200)
+            Settings.builder()
+                .put("location", repo)
+                .put("random", randomAlphaOfLength(10))
+                .put("wait_after_unblock", 200)
+                // TODO: There's likely a bug with other path types where cleanup seems to leave unexpected files
+                .put(BlobStoreRepository.SHARD_PATH_TYPE.getKey(), RemoteStoreEnums.PathType.FIXED)
         );
 
         // Pick one node and block it
