@@ -22,4 +22,11 @@ public interface RulePersistenceService {
      * @param listener The listener that will handle the response or failure.
      */
     void getRule(GetRuleRequest request, ActionListener<GetRuleResponse> listener);
+
+    /**
+     * Delete a rule based on the provided request.
+     * @param request The request containing the ID of the rule to delete.
+     * @param listener The listener that will handle the response or failure.
+     */
+    void deleteRule(DeleteRuleRequest request, ActionListener<DeleteRuleResponse> listener);
 }
