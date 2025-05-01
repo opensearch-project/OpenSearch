@@ -176,7 +176,7 @@ public abstract class GradleUtils {
         Configuration runtimeClasspathConfiguration = project.getConfigurations().getByName(runtimeClasspathName);
         project.getPluginManager().withPlugin("idea", p -> {
             IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
-            idea.getModule().setTestSourceDirs(testSourceSet.getJava().getSrcDirs());
+            idea.getModule().getTestSources().setFrom(testSourceSet.getJava().getSrcDirs());
             idea.getModule().getScopes().put(testSourceSet.getName(), new HashMap<String, Collection<Configuration>>() {
                 {
                     put("plus", Arrays.asList(runtimeClasspathConfiguration));

@@ -95,6 +95,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_INDEX;
+import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_INDEX;
+import static org.opensearch.cluster.service.ClusterManagerTask.PUT_MAPPING;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -914,8 +917,8 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
         int taskId = 1;
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final CountDownLatch latch = new CountDownLatch(1);
-        final String taskName = "test";
-        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = clusterManagerService.registerClusterManagerTask(taskName, true);
+        final ClusterManagerTask task = CREATE_INDEX;
+        ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = clusterManagerService.registerClusterManagerTask(task, true);
         class Task {
             private final int id;
 
@@ -945,7 +948,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             }
         }
 
-        clusterManagerService.clusterManagerTaskThrottler.updateLimit(taskName, throttlingLimit);
+        clusterManagerService.clusterManagerTaskThrottler.updateLimit(task.getKey(), throttlingLimit);
 
         final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
             @Override
@@ -959,7 +962,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
         // submit one task which will be execution, post that will submit throttlingLimit tasks.
         try {
             clusterManagerService.submitStateUpdateTask(
-                taskName,
+                task.getKey(),
                 new Task(taskId++),
                 ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                 executor,
@@ -974,7 +977,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
         for (int i = 0; i < throttlingLimit; i++) {
             try {
                 clusterManagerService.submitStateUpdateTask(
-                    taskName,
+                    task.getKey(),
                     new Task(taskId++),
                     ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                     executor,
@@ -989,7 +992,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
         final AtomicReference<ClusterManagerThrottlingException> assertionRef = new AtomicReference<>();
         try {
             clusterManagerService.submitStateUpdateTask(
-                taskName,
+                task.getKey(),
                 new Task(taskId++),
                 ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                 executor,
@@ -1010,9 +1013,9 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
         int numberOfTask1 = randomIntBetween(throttlingLimitForTask1, 10);
         int numberOfTask2 = randomIntBetween(throttlingLimitForTask2, 10);
         int numberOfTask3 = randomIntBetween(throttlingLimitForTask3, 10);
-        String task1 = "Task1";
-        String task2 = "Task2";
-        String task3 = "Task3";
+        ClusterManagerTask task1 = CREATE_INDEX;
+        ClusterManagerTask task2 = PUT_MAPPING;
+        ClusterManagerTask task3 = DELETE_INDEX;
 
         ClusterManagerTaskThrottler.ThrottlingKey throttlingKey1 = clusterManagerService.registerClusterManagerTask(task1, true);
         ClusterManagerTaskThrottler.ThrottlingKey throttlingKey2 = clusterManagerService.registerClusterManagerTask(task2, true);
@@ -1071,8 +1074,8 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
         }
 
         // configuring limits for Task1 and Task3. All task submission of Task2 should pass.
-        clusterManagerService.clusterManagerTaskThrottler.updateLimit(task1, throttlingLimitForTask1);
-        clusterManagerService.clusterManagerTaskThrottler.updateLimit(task3, throttlingLimitForTask3);
+        clusterManagerService.clusterManagerTaskThrottler.updateLimit(task1.getKey(), throttlingLimitForTask1);
+        clusterManagerService.clusterManagerTaskThrottler.updateLimit(task3.getKey(), throttlingLimitForTask3);
         final CountDownLatch latch = new CountDownLatch(numberOfTask1 + numberOfTask2 + numberOfTask3);
         AtomicInteger throttledTask1 = new AtomicInteger();
         AtomicInteger throttledTask2 = new AtomicInteger();
@@ -1086,18 +1089,18 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
             @Override
             public void onFailure(String source, Exception e) {
                 // Task3's timeout should have called this.
-                assertEquals(task3, source);
+                assertEquals(task3.getKey(), source);
                 timedOutTask3.incrementAndGet();
                 latch.countDown();
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (source.equals(task1)) {
+                if (source.equals(task1.getKey())) {
                     succeededTask1.incrementAndGet();
-                } else if (source.equals(task2)) {
+                } else if (source.equals(task2.getKey())) {
                     succeededTask2.incrementAndGet();
-                } else if (source.equals(task3)) {
+                } else if (source.equals(task3.getKey())) {
                     succeededTask3.incrementAndGet();
                 }
                 latch.countDown();
@@ -1113,7 +1116,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
                 public void run() {
                     try {
                         clusterManagerService.submitStateUpdateTask(
-                            task1,
+                            task1.getKey(),
                             new Task1(),
                             ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                             executor1,
@@ -1133,7 +1136,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
                 public void run() {
                     try {
                         clusterManagerService.submitStateUpdateTask(
-                            task2,
+                            task2.getKey(),
                             new Task2(),
                             ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                             executor2,
@@ -1152,7 +1155,7 @@ public class ClusterManagerServiceTests extends OpenSearchTestCase {
                 public void run() {
                     try {
                         clusterManagerService.submitStateUpdateTask(
-                            task3,
+                            task3.getKey(),
                             new Task3(),
                             ClusterStateTaskConfig.build(randomFrom(Priority.values()), new TimeValue(0)),
                             executor3,

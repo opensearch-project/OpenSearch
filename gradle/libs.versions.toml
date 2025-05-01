@@ -1,9 +1,9 @@
 [versions]
-opensearch        = "3.0.0"
+opensearch        = "3.1.0"
 lucene            = "10.1.0"
 
 bundled_jdk_vendor = "adoptium"
-bundled_jdk = "21.0.6+7"
+bundled_jdk = "21.0.7+6"
 
 # optional dependencies
 spatial4j         = "0.7"
@@ -42,8 +42,8 @@ reactor_netty     = "1.2.4"
 reactor           = "3.5.20"
 
 # client dependencies
-httpclient5       = "5.4.1"
-httpcore5         = "5.3.2"
+httpclient5       = "5.4.4"
+httpcore5         = "5.3.4"
 httpclient        = "4.5.14"
 httpcore          = "4.4.16"
 httpasyncclient   = "4.1.5"
