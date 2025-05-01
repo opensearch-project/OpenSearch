@@ -75,9 +75,9 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class DistroTestPlugin implements Plugin<Project> {
-    private static final String SYSTEM_JDK_VERSION = "8u442-b06";
+    private static final String SYSTEM_JDK_VERSION = "8u452-b09";
     private static final String SYSTEM_JDK_VENDOR = "adoptium";
-    private static final String GRADLE_JDK_VERSION = "11.0.26+4";
+    private static final String GRADLE_JDK_VERSION = "11.0.27+6";
     private static final String GRADLE_JDK_VENDOR = "adoptium";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
