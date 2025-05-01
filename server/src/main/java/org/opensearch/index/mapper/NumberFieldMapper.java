@@ -59,6 +59,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
@@ -206,7 +207,36 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 if (val == null) {
                     return null;
                 }
-                return mappedFieldType.valueForDisplay(type.toDoubleValue(val));
+                return switch (type) {
+                    case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(val.shortValue());
+                    case FLOAT -> NumericUtils.sortableIntToFloat(val.intValue());
+                    case DOUBLE -> NumericUtils.sortableLongToDouble(val);
+                    case BYTE, SHORT, INTEGER, LONG -> val;
+                    case UNSIGNED_LONG -> Numbers.toUnsignedBigInteger(val);
+                };
+            }
+
+            // Unsigned long is sorted according to it's long value, as it is getting ingested as long, so we need to
+            // sort it again as per its unsigned long value to keep the behavior consistent
+            @Override
+            public void write(XContentBuilder builder, List<Object> values) throws IOException {
+                if (type != NumberType.UNSIGNED_LONG) {
+                    super.write(builder, values);
+                    return;
+                }
+                if (values.isEmpty()) {
+                    return;
+                }
+                if (values.size() == 1) {
+                    builder.field(simpleName, convert(values.getFirst()));
+                } else {
+                    final BigInteger[] displayValues = new BigInteger[values.size()];
+                    for (int i = 0; i < values.size(); i++) {
+                        displayValues[i] = (BigInteger) convert(values.get(i));
+                    }
+                    Arrays.sort(displayValues);
+                    builder.array(simpleName, displayValues);
+                }
             }
         }, new StoredFieldFetcher(mappedFieldType, simpleName()));
     }
@@ -996,11 +1026,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             Number valueForSearch(String value) {
                 return Integer.parseInt(value);
             }
-
-            @Override
-            Number valueForSearch(Number value) {
-                return value.intValue();
-            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -1143,11 +1168,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             Number valueForSearch(String value) {
                 return Long.parseLong(value);
-            }
-
-            @Override
-            Number valueForSearch(Number value) {
-                return value.longValue();
             }
         },
         UNSIGNED_LONG("unsigned_long", NumericType.UNSIGNED_LONG) {
