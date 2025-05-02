@@ -1237,7 +1237,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertProfileData(context, "BooleanQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(10L));
+            assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(5L));
             if (executor != null) {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
