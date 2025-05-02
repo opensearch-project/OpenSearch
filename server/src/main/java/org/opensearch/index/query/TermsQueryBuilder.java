@@ -39,6 +39,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -57,6 +59,8 @@ import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.indices.TermsLookup;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
@@ -601,7 +605,26 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (termsLookup != null && termsLookup.query() != null) {
+            QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
+            if (shardContext == null) {
+                throw new IllegalStateException("QueryShardContext is required for executing the query.");
+            }
+
+            Client client = shardContext.getClient();
+            SearchRequest searchRequest = new SearchRequest(termsLookup.index());
+            searchRequest.source(new SearchSourceBuilder().query(termsLookup.query()).fetchSource(false));
+            // SearchResponse response = client.search(searchRequest, RequestOptions.DEFAULT);
+            SearchResponse response = (SearchResponse) client.search(searchRequest);
+
+            List<Object> terms = new ArrayList<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                terms.addAll(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
+            }
+            return new TermsQueryBuilder(fieldName, terms);
+        }
+
         if (supplier != null) {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get(), valueType);
         } else if (this.termsLookup != null) {
@@ -638,5 +661,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
 
         return this;
+        // return super.doRewrite(queryRewriteContext);
     }
 }

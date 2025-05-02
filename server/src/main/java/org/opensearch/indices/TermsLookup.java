@@ -42,6 +42,8 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.AbstractQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 
 import java.io.IOException;
@@ -60,6 +62,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     private final String id;
     private final String path;
     private String routing;
+    private QueryBuilder query;
 
     public TermsLookup(String index, String id, String path) {
         if (id == null) {
@@ -90,6 +93,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             store = in.readBoolean();
         }
+        if (in.readBoolean()) {
+            query = in.readOptionalWriteable(inStream -> inStream.readNamedWriteable(QueryBuilder.class));
+        }
     }
 
     @Override
@@ -103,6 +109,12 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         out.writeOptionalString(routing);
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeBoolean(store);
+        }
+        if (query != null) {
+            out.writeBoolean(true);
+            out.writeOptionalWriteable(query);
+        } else {
+            out.writeBoolean(false);
         }
     }
 
@@ -138,6 +150,15 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return this;
     }
 
+    public QueryBuilder query() {
+        return query;
+    }
+
+    public TermsLookup query(QueryBuilder query) {
+        this.query = query;
+        return this;
+    }
+
     private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
         String index = (String) args[0];
         String id = (String) args[1];
@@ -150,6 +171,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         PARSER.declareString(constructorArg(), new ParseField("path"));
         PARSER.declareString(TermsLookup::routing, new ParseField("routing"));
         PARSER.declareBoolean(TermsLookup::store, new ParseField("store"));
+        PARSER.declareObject(TermsLookup::query, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), new ParseField("query"));
     }
 
     public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {
@@ -171,6 +193,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         }
         if (store) {
             builder.field("store", true);
+        }
+        if (query != null) {
+            builder.field("query", query);
         }
         return builder;
     }
