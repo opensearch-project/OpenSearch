@@ -9,35 +9,27 @@
 package org.opensearch.rule;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-<<<<<<< HEAD
 import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
-import org.opensearch.rule.autotagging.FeatureType;
-=======
->>>>>>> 0dfab231d13 (change the structure to update a rule to make testing easier)
-import org.opensearch.rule.autotagging.Rule;
+import java.util.Set;
 
 /**
- * A functional interface for updating an existing {@link Rule} using an {@link UpdateRuleRequest}.
+ * Utility class for operations related to {@link Rule} objects.
  * @opensearch.experimental
  */
 @ExperimentalApi
-@FunctionalInterface
-public interface UpdatedRuleBuilder {
+public class RuleUtils {
+
     /**
-     * Applies updates to an existing rule based on the provided update request.
-     * @param existingRule the rule to update
-     * @param request the update request containing new values
+     * constructor for RuleUtils
      */
-<<<<<<< HEAD
-    public UpdatedRuleBuilder(Rule originalRule, UpdateRuleRequest updateRuleRequest) {
-        this.originalRule = originalRule;
-        this.request = updateRuleRequest;
-    }
+    public RuleUtils() {}
 
     /**
      * Checks if a duplicate rule exists and returns its id.
@@ -78,20 +70,20 @@ public interface UpdatedRuleBuilder {
     /**
      * Creates an updated {@link Rule} object by applying non-null fields from the given {@link UpdateRuleRequest}
      * to the original rule. Fields not provided in the request will retain their values from the original rule.
+     * @param originalRule the original rule to update
+     * @param request the request containing the new values for the rule
+     * @param featureType the feature type to assign to the updated rule
      */
-    public Rule build() {
+    public static Rule composeUpdatedRule(Rule originalRule, UpdateRuleRequest request, FeatureType featureType) {
         String requestDescription = request.getDescription();
         Map<Attribute, Set<String>> requestMap = request.getAttributeMap();
         String requestLabel = request.getFeatureValue();
         return new Rule(
             requestDescription == null ? originalRule.getDescription() : requestDescription,
             requestMap == null || requestMap.isEmpty() ? originalRule.getAttributeMap() : requestMap,
-            originalRule.getFeatureType(),
+            featureType,
             requestLabel == null ? originalRule.getFeatureValue() : requestLabel,
             Instant.now().toString()
         );
     }
-=======
-    Rule apply(Rule existingRule, UpdateRuleRequest request);
->>>>>>> 0dfab231d13 (change the structure to update a rule to make testing easier)
 }

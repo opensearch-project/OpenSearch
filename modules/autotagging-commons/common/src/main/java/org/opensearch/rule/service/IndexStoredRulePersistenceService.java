@@ -31,15 +31,15 @@ import org.opensearch.rule.CreateRuleResponse;
 import org.opensearch.rule.DeleteRuleRequest;
 
 import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.rule.DuplicateRuleChecker;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleQueryMapper;
-import org.opensearch.rule.UpdatedRuleBuilder;
+import org.opensearch.rule.RuleUtils;
 import org.opensearch.rule.UpdateRuleRequest;
 import org.opensearch.rule.UpdateRuleResponse;
+import org.opensearch.rule.UpdatedRuleBuilder;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.search.SearchHit;
@@ -70,6 +70,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final int maxRulesPerPage;
     private final RuleEntityParser parser;
     private final RuleQueryMapper<QueryBuilder> queryBuilder;
+    private final UpdatedRuleBuilder updatedRuleBuilder;
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
     private static final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
 
@@ -82,6 +83,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param maxRulesPerPage - The maximum number of rules that can be returned in a single get request.
      * @param parser
      * @param queryBuilder
+     * @param updatedRuleBuilder
      */
     public IndexStoredRulePersistenceService(
         String indexName,
@@ -89,7 +91,8 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         ClusterService clusterService,
         int maxRulesPerPage,
         RuleEntityParser parser,
-        RuleQueryMapper<QueryBuilder> queryBuilder
+        RuleQueryMapper<QueryBuilder> queryBuilder,
+        UpdatedRuleBuilder updatedRuleBuilder
     ) {
         this.indexName = indexName;
         this.client = client;
@@ -97,6 +100,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         this.maxRulesPerPage = maxRulesPerPage;
         this.parser = parser;
         this.queryBuilder = queryBuilder;
+        this.updatedRuleBuilder = updatedRuleBuilder;
     }
 
     /**
@@ -255,7 +259,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                         listener.onFailure(new ResourceNotFoundException("Rule with ID " + ruleId + " not found."));
                         return;
                     }
-                    Rule updatedRule = new UpdatedRuleBuilder(getRuleResponse.getRules().get(ruleId), request).build();
+                    Rule updatedRule = updatedRuleBuilder.apply(getRuleResponse.getRules().get(ruleId), request);
                     validateNoDuplicateRule(
                         updatedRule,
                         ActionListener.wrap(unused -> persistUpdatedRule(ruleId, updatedRule, listener), listener::onFailure)
@@ -273,6 +277,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     /**
      * indexName getter
      */
+
     public String getIndexName() {
         return indexName;
     }
