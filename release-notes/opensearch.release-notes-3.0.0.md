@@ -26,6 +26,7 @@
 - Rename Class ending with Plugin to Module under modules dir ([#4042](https://github.com/opensearch-project/OpenSearch/pull/4042))
 - Remove deprecated `batch_size` parameter from `_bulk` ([#14283](https://github.com/opensearch-project/OpenSearch/issues/14283))
 - Unset discovery nodes for every transport node actions request ([#17682](https://github.com/opensearch-project/OpenSearch/pull/17682))
+- Added cluster:monitor/shards permission for _cat/shards action ([#13966](https://github.com/opensearch-project/OpenSearch/pull/13966))
 
 ### Added
 - Support for HTTP/2 (server-side) ([#3847](https://github.com/opensearch-project/OpenSearch/pull/3847))
