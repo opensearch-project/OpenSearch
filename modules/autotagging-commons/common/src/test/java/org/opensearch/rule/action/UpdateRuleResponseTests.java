@@ -13,20 +13,15 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.UpdateRuleResponse;
-import org.opensearch.rule.autotagging.Attribute;
-import org.opensearch.rule.autotagging.Rule;
-import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
 
+import static org.opensearch.rule.action.GetRuleRequestTests._ID_ONE;
+import static org.opensearch.rule.action.GetRuleRequestTests.assertEqualRule;
+import static org.opensearch.rule.action.GetRuleRequestTests.ruleOne;
 import static org.mockito.Mockito.mock;
-import static org.opensearch.rule.action.GetRuleRequestTests.*;
 
 public class UpdateRuleResponseTests extends OpenSearchTestCase {
     /**
@@ -48,15 +43,15 @@ public class UpdateRuleResponseTests extends OpenSearchTestCase {
         UpdateRuleResponse response = new UpdateRuleResponse(_ID_ONE, ruleOne);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
-        String expected = "{\n" +
-            "  \"_id\" : \"id_1\",\n" +
-            "  \"description\" : \"description_1\",\n" +
-            "  \"mock_attribute_one\" : [\n" +
-            "    \"mock_attribute_one\"\n" +
-            "  ],\n" +
-            "  \"mock_feature_type\" : \"feature_value_one\",\n" +
-            "  \"updated_at\" : \"2024-01-26T08:58:57.558Z\"\n" +
-            "}";
+        String expected = "{\n"
+            + "  \"_id\" : \"id_1\",\n"
+            + "  \"description\" : \"description_1\",\n"
+            + "  \"mock_attribute_one\" : [\n"
+            + "    \"mock_attribute_one\"\n"
+            + "  ],\n"
+            + "  \"mock_feature_type\" : \"feature_value_one\",\n"
+            + "  \"updated_at\" : \"2024-01-26T08:58:57.558Z\"\n"
+            + "}";
         assertEquals(expected, actual);
     }
 }

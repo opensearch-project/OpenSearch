@@ -46,10 +46,10 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rule.RulePersistenceService;
+import org.opensearch.rule.RuleUtils;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
-import org.opensearch.rule.storage.IndexBasedDuplicateRuleChecker;
 import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
 import org.opensearch.rule.storage.XContentRuleParser;
 import org.opensearch.script.ScriptService;
@@ -75,8 +75,6 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
      * The maximum number of rules allowed per GET request.
      */
     public static final int MAX_RULES_PER_PAGE = 50;
-
-    private final RulePersistenceServiceHolder rulePersistenceServiceHolder = new RulePersistenceServiceHolder();
 
     /**
      * Default constructor
@@ -105,7 +103,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             MAX_RULES_PER_PAGE,
             new XContentRuleParser(FeatureTypeHolder.featureType),
             new IndexBasedRuleQueryMapper(),
-            new IndexBasedDuplicateRuleChecker()
+            (existingRule, request) -> RuleUtils.composeUpdatedRule(existingRule, request, request.getFeatureType())
         );
         return Collections.emptyList();
     }

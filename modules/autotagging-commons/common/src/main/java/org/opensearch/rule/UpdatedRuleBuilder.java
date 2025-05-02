@@ -9,48 +9,19 @@
 package org.opensearch.rule;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.rule.autotagging.Attribute;
-import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 
-import java.time.Instant;
-import java.util.Map;
-import java.util.Set;
-
 /**
- * Utility class for operations related to {@link Rule} objects.
+ * A functional interface for updating an existing {@link Rule} using an {@link UpdateRuleRequest}.
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class UpdatedRuleBuilder {
-
-    private final Rule originalRule;
-    private final UpdateRuleRequest request;
-
+@FunctionalInterface
+public interface UpdatedRuleBuilder {
     /**
-     * constructor for UpdatedRuleBuilder
-     * @param originalRule - the existing rule to update
-     * @param updateRuleRequest - the update request containing updating details
+     * Applies updates to an existing rule based on the provided update request.
+     * @param existingRule the rule to update
+     * @param request the update request containing new values
      */
-    public UpdatedRuleBuilder(Rule originalRule, UpdateRuleRequest updateRuleRequest) {
-        this.originalRule = originalRule;
-        this.request = updateRuleRequest;
-    }
-
-    /**
-     * Creates an updated {@link Rule} object by applying non-null fields from the given {@link UpdateRuleRequest}
-     * to the original rule. Fields not provided in the request will retain their values from the original rule.
-     */
-    public Rule build() {
-        String requestDescription = request.getDescription();
-        Map<Attribute, Set<String>> requestMap = request.getAttributeMap();
-        String requestLabel = request.getFeatureValue();
-        return new Rule(
-            requestDescription == null ? originalRule.getDescription() : requestDescription,
-            requestMap == null || requestMap.isEmpty() ? originalRule.getAttributeMap() : requestMap,
-            originalRule.getFeatureType(),
-            requestLabel == null ? originalRule.getFeatureValue() : requestLabel,
-            Instant.now().toString()
-        );
-    }
+    Rule apply(Rule existingRule, UpdateRuleRequest request);
 }

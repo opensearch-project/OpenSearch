@@ -19,15 +19,15 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.rule.DuplicateRuleChecker;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleQueryMapper;
-import org.opensearch.rule.UpdatedRuleBuilder;
+import org.opensearch.rule.RuleUtils;
 import org.opensearch.rule.UpdateRuleRequest;
 import org.opensearch.rule.UpdateRuleResponse;
+import org.opensearch.rule.UpdatedRuleBuilder;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.search.SearchHit;
@@ -58,7 +58,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final int maxRulesPerPage;
     private final RuleEntityParser parser;
     private final RuleQueryMapper<QueryBuilder> queryBuilder;
-    private final DuplicateRuleChecker duplicateRuleChecker;
+    private final UpdatedRuleBuilder updatedRuleBuilder;
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
     private static final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
 
@@ -71,7 +71,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param maxRulesPerPage - The maximum number of rules that can be returned in a single get request.
      * @param parser
      * @param queryBuilder
-     * @param duplicateRuleChecker
+     * @param updatedRuleBuilder
      */
     public IndexStoredRulePersistenceService(
         String indexName,
@@ -80,7 +80,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         int maxRulesPerPage,
         RuleEntityParser parser,
         RuleQueryMapper<QueryBuilder> queryBuilder,
-        DuplicateRuleChecker duplicateRuleChecker
+        UpdatedRuleBuilder updatedRuleBuilder
     ) {
         this.indexName = indexName;
         this.client = client;
@@ -88,7 +88,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         this.maxRulesPerPage = maxRulesPerPage;
         this.parser = parser;
         this.queryBuilder = queryBuilder;
-        this.duplicateRuleChecker = duplicateRuleChecker;
+        this.updatedRuleBuilder = updatedRuleBuilder;
     }
 
     /**
@@ -165,7 +165,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                         listener.onFailure(new ResourceNotFoundException("Rule with ID " + ruleId + " not found."));
                         return;
                     }
-                    Rule updatedRule = new UpdatedRuleBuilder(getRuleResponse.getRules().get(ruleId), request).build();
+                    Rule updatedRule = updatedRuleBuilder.apply(getRuleResponse.getRules().get(ruleId), request);
                     validateNoDuplicateRule(
                         updatedRule,
                         ActionListener.wrap(unused -> persistUpdatedRule(ruleId, updatedRule, listener), listener::onFailure)
@@ -186,19 +186,19 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param rule - the rule we check duplicate against
      * @param listener - listener for validateNoDuplicateRule response
      */
-
     private void validateNoDuplicateRule(Rule rule, ActionListener<Void> listener) {
         try (ThreadContext.StoredContext ctx = getContext()) {
             QueryBuilder query = queryBuilder.from(new GetRuleRequest(null, rule.getAttributeMap(), null, rule.getFeatureType()));
             getRuleFromIndex(null, query, null, new ActionListener<>() {
                 @Override
                 public void onResponse(GetRuleResponse getRuleResponse) {
-                    Optional<String> duplicateRuleId = duplicateRuleChecker.getDuplicateRuleId(rule, getRuleResponse.getRules());
+                    Optional<String> duplicateRuleId = RuleUtils.getDuplicateRuleId(rule, getRuleResponse.getRules());
                     duplicateRuleId.ifPresentOrElse(
                         id -> listener.onFailure(new IllegalArgumentException("Duplicate rule exists under id " + id)),
                         () -> listener.onResponse(null)
                     );
                 }
+
                 @Override
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
