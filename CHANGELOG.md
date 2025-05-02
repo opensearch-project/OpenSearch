@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.microsoft.azure:msal4j` from 1.18.0 to 1.20.0 ([#17925](https://github.com/opensearch-project/OpenSearch/pull/17925))
 - Update Apache HttpClient5 and HttpCore5 (CVE-2025-27820) ([#18152](https://github.com/opensearch-project/OpenSearch/pull/18152))
 - Bump `org.apache.commons:commons-collections4` from 4.4 to 4.5.0 ([#18101](https://github.com/opensearch-project/OpenSearch/pull/18101))
+- Bump `org.apache.commons:commons-text` from 1.13.0 to 1.13.1 ([#18102](https://github.com/opensearch-project/OpenSearch/pull/18102))
 
 ### Deprecated
 
