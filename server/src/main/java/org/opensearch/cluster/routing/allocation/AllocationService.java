@@ -598,7 +598,7 @@ public class AllocationService {
             allocateAllUnassignedShards(allocation);
             return;
         }
-        logger.warn("Falling back to single shard assignment since batch mode disable or multiple custom allocators set");
+        logger.debug("Falling back to single shard assignment since batch mode disable or multiple custom allocators set");
 
         final RoutingNodes.UnassignedShards.UnassignedIterator primaryIterator = allocation.routingNodes().unassigned().iterator();
         while (primaryIterator.hasNext()) {
