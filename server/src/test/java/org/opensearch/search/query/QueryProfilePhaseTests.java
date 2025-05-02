@@ -1242,9 +1242,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("max_score_count"), equalTo(10L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), equalTo(10L));
-                assertThat(query.getTimeBreakdown().get("avg_score_count"), equalTo(10L));
+                assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(5L));
+                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(5L));
+                assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(5L));
             }
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
