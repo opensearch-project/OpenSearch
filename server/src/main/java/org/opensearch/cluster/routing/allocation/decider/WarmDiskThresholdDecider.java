@@ -38,7 +38,6 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.settings.ClusterSettings;
@@ -251,18 +250,28 @@ public class WarmDiskThresholdDecider extends AllocationDecider{
 
     private long calculateCurrentNodeRemoteShardSize(RoutingNode node, RoutingAllocation allocation, boolean subtractLeavingShards){
         final List<ShardRouting> remoteShardsOnNode = StreamSupport.stream(node.spliterator(), false)
-            .filter(shard -> shard.primary() && REMOTE_CAPABLE.equals(getShardPool(shard, allocation)) && (!subtractLeavingShards || shard.state() != ShardRoutingState.RELOCATING))
+            .filter(shard -> shard.primary() && REMOTE_CAPABLE.equals(getShardPool(shard, allocation)) && (!subtractLeavingShards || !shard.relocating()))
             .collect(Collectors.toList());
 
-        return remoteShardsOnNode.stream()
-            .map(ShardRouting::getExpectedShardSize)
-            .mapToLong(Long::longValue)
-            .sum();
+        var remoteShardSize = 0L;
+        for (ShardRouting shard : remoteShardsOnNode) {
+            remoteShardSize += DiskThresholdDecider.getExpectedShardSize(
+                shard,
+                0L,
+                allocation.clusterInfo(),
+                allocation.snapshotShardSizeInfo(),
+                allocation.metadata(),
+                allocation.routingTable()
+            );
+        }
+
+        return remoteShardSize;
     }
 
     private long calculateTotalAddressableRemoteSize(RoutingNode node, RoutingAllocation allocation){
         ClusterInfo clusterInfo = allocation.clusterInfo();
-        final double dataToFileCacheSizeRatio = fileCacheSettings.getRemoteDataRatio(); // When ratio is < 1 what is the default value ??
+        // TODO: Change the default value to 5 instead of 0
+        final double dataToFileCacheSizeRatio = fileCacheSettings.getRemoteDataRatio();
         final FileCacheStats fileCacheStats = clusterInfo.getNodeFileCacheStats().getOrDefault(node.nodeId(), null);
         final long nodeCacheSize = fileCacheStats != null ? fileCacheStats.getTotal().getBytes() : 0;
         return (long) dataToFileCacheSizeRatio * nodeCacheSize;
