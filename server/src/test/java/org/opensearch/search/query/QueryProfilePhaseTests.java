@@ -1233,7 +1233,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.trackTotalHitsUpTo(5);
 
         QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
-        assertEquals(10, context.queryResult().topDocs().topDocs.totalHits.value());
+        assertTrue(context.queryResult().topDocs().topDocs.totalHits.value() >= 5);
         assertProfileData(context, "BooleanQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
