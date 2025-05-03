@@ -59,14 +59,17 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 public class TermsLookup implements Writeable, ToXContentFragment {
 
     private final String index;
-    private final String id;
+    private String id;
     private final String path;
     private String routing;
     private QueryBuilder query;
 
-    public TermsLookup(String index, String id, String path) {
-        if (id == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the id.");
+    public TermsLookup(String index, String id, String path, QueryBuilder query) {
+        if (id == null && query == null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query.");
+        }
+        if (id != null && query != null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
         }
         if (path == null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the path.");
@@ -77,6 +80,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         this.index = index;
         this.id = id;
         this.path = path;
+        this.query = query;
     }
 
     /**
@@ -159,19 +163,38 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return this;
     }
 
+    public void setQuery(QueryBuilder query) {
+        this.query = query;
+    }
+
     private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
         String index = (String) args[0];
         String id = (String) args[1];
         String path = (String) args[2];
-        return new TermsLookup(index, id, path);
+        QueryBuilder query = args.length > 3 ? (QueryBuilder) args[3] : null; // Safely handle optional query
+
+        // Ensure either `id` or `query` is provided, but not both
+        if (id == null && query == null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query.");
+        }
+        if (id != null && query != null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
+        }
+        return new TermsLookup(index, id, path, query);
     });
     static {
-        PARSER.declareString(constructorArg(), new ParseField("index"));
-        PARSER.declareString(constructorArg(), new ParseField("id"));
-        PARSER.declareString(constructorArg(), new ParseField("path"));
-        PARSER.declareString(TermsLookup::routing, new ParseField("routing"));
-        PARSER.declareBoolean(TermsLookup::store, new ParseField("store"));
-        PARSER.declareObject(TermsLookup::query, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), new ParseField("query"));
+        PARSER.declareString(constructorArg(), new ParseField("index")); // Required
+        PARSER.declareString(constructorArg(), new ParseField("id")); // Optional
+        PARSER.declareString(constructorArg(), new ParseField("path")); // Required
+        PARSER.declareObject((termsLookup, parser) -> {
+            try {
+                termsLookup.setQuery(AbstractQueryBuilder.parseInnerQueryBuilder((XContentParser) parser)); // Parse query if provided
+            } catch (IOException e) {
+                throw new RuntimeException("Error parsing inner query builder", e);
+            }
+        }, (parser, context) -> AbstractQueryBuilder.parseInnerQueryBuilder(parser), new ParseField("query")); // Optional
+        PARSER.declareString(TermsLookup::routing, new ParseField("routing")); // Optional
+        PARSER.declareBoolean(TermsLookup::store, new ParseField("store")); // Optional
     }
 
     public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {
@@ -190,6 +213,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         builder.field("path", path);
         if (routing != null) {
             builder.field("routing", routing);
+        }
+        if (query != null) {
+            builder.field("query", query);
         }
         if (store) {
             builder.field("store", true);
