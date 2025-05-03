@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Encapsulates the parameters needed to fetch terms.
@@ -167,11 +168,16 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         this.query = query;
     }
 
+    public TermsLookup id(String id) {
+        this.id = id;
+        return this;
+    }
+
     private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
         String index = (String) args[0];
-        String id = (String) args[1];
+        String id = (String) args[1]; // Optional id
         String path = (String) args[2];
-        QueryBuilder query = args.length > 3 ? (QueryBuilder) args[3] : null; // Safely handle optional query
+        QueryBuilder query = (QueryBuilder) args[3]; // Optional query
 
         // Ensure either `id` or `query` is provided, but not both
         if (id == null && query == null) {
@@ -184,15 +190,23 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     });
     static {
         PARSER.declareString(constructorArg(), new ParseField("index")); // Required
-        PARSER.declareString(constructorArg(), new ParseField("id")); // Optional
+        //PARSER.declareString(constructorArg(), new ParseField("id")); // Optional
+        PARSER.declareString(optionalConstructorArg(), new ParseField("id")); // Optional
         PARSER.declareString(constructorArg(), new ParseField("path")); // Required
-        PARSER.declareObject((termsLookup, parser) -> {
+//        PARSER.declareObject((termsLookup, parser) -> {
+//            try {
+//                termsLookup.setQuery(AbstractQueryBuilder.parseInnerQueryBuilder((XContentParser) parser)); // Parse query if provided
+//            } catch (IOException e) {
+//                throw new RuntimeException("Error parsing inner query builder", e);
+//            }
+//        }, (parser, context) -> AbstractQueryBuilder.parseInnerQueryBuilder(parser), new ParseField("query")); // Optional
+        PARSER.declareObject(optionalConstructorArg(), (parser, context) -> {
             try {
-                termsLookup.setQuery(AbstractQueryBuilder.parseInnerQueryBuilder((XContentParser) parser)); // Parse query if provided
+                return AbstractQueryBuilder.parseInnerQueryBuilder(parser); // Parse query if provided
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing inner query builder", e);
             }
-        }, (parser, context) -> AbstractQueryBuilder.parseInnerQueryBuilder(parser), new ParseField("query")); // Optional
+        }, new ParseField("query")); // Optional
         PARSER.declareString(TermsLookup::routing, new ParseField("routing")); // Optional
         PARSER.declareBoolean(TermsLookup::store, new ParseField("store")); // Optional
     }
