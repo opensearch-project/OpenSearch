@@ -533,6 +533,20 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (termsLookup != null && termsLookup.query() != null) {
+            QueryBuilder rewrittenQuery = termsLookup.query().rewrite(context);
+            SearchResponse response = context.getClient().search(
+                new SearchRequest(termsLookup.index())
+                    .source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(false))
+            ).actionGet();
+
+            List<Object> terms = new ArrayList<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                terms.addAll(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
+            }
+            return context.fieldMapper(fieldName).termsQuery(terms, context);
+        }
+
         if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
@@ -554,6 +568,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
+
         if (valueType == ValueType.BITMAP) {
             if (values.size() == 1 && values.get(0) instanceof BytesArray) {
                 if (fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
