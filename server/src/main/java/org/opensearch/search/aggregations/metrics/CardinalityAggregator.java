@@ -452,9 +452,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public int nextDoc() {
-            // don't expect this to be called based on its usage in DefaultBulkScorer
-            throw new UnsupportedOperationException();
+        public int nextDoc() throws IOException {
+            return advance(slowDocId + 1);
         }
 
         @Override
