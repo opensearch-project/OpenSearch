@@ -458,8 +458,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         @Override
         public long cost() {
-            // don't expect this to be called based on its usage in DefaultBulkScorer
-            throw new UnsupportedOperationException();
+            return queue.top() == null ? 0 : queue.top().approximation.cost();
         }
     }
 
