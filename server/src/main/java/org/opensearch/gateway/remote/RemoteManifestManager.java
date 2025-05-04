@@ -144,7 +144,7 @@ public class RemoteManifestManager {
         CountDownLatch latch = new CountDownLatch(1);
 
         LatchedActionListener completionListener = new LatchedActionListener<>(ActionListener.wrap(resp -> {
-            logger.trace(String.format(Locale.ROOT, "Manifest file uploaded successfully."));
+            logger.trace("Manifest file uploaded successfully.");
         }, ex -> { exceptionReference.set(ex); }), latch);
 
         RemoteClusterMetadataManifest remoteClusterMetadataManifest = new RemoteClusterMetadataManifest(
@@ -158,13 +158,13 @@ public class RemoteManifestManager {
         try {
             if (latch.await(getMetadataManifestUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
                 RemoteStateTransferException ex = new RemoteStateTransferException(
-                    String.format(Locale.ROOT, "Timed out waiting for transfer of manifest file to complete")
+                    "Timed out waiting for transfer of manifest file to complete"
                 );
                 throw ex;
             }
         } catch (InterruptedException ex) {
             RemoteStateTransferException exception = new RemoteStateTransferException(
-                String.format(Locale.ROOT, "Timed out waiting for transfer of manifest file to complete - %s"),
+                "Timed out waiting for transfer of manifest file to complete",
                 ex
             );
             Thread.currentThread().interrupt();
