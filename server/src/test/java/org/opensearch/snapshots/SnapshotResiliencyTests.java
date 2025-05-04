@@ -460,7 +460,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
         Map<String, FileCacheStats> nodeFileCacheStats = new HashMap<>();
         for (TestClusterNodes.TestClusterNode node : testClusterNodes.nodes.values()) {
-            nodeFileCacheStats.put(node.node.getId(), new FileCacheStats(0, 1, 0, 0, 0, 0, 0));
+            nodeFileCacheStats.put(node.node.getId(), new FileCacheStats(0, 1, 0, 0, 0, 0, 0, null));
         }
         ClusterInfo clusterInfo = new ClusterInfo(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), nodeFileCacheStats);
         testClusterNodes.nodes.values().forEach(node -> when(node.getMockClusterInfoService().getClusterInfo()).thenReturn(clusterInfo));
