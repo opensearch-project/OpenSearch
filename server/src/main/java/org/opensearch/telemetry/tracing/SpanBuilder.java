@@ -76,6 +76,12 @@ public final class SpanBuilder {
         return SpanCreationContext.server().name(spanName).attributes(buildSpanAttributes(nodeId, request));
     }
 
+    public static SpanCreationContext from(String spanName, int numIndices) {
+        return SpanCreationContext.server()
+            .name(spanName)
+            .attributes(Attributes.create().addAttribute(AttributeNames.NUM_INDICES, numIndices));
+    }
+
     private static String createSpanName(HttpRequest httpRequest) {
         Tuple<String, String> uriParts = splitUri(httpRequest.uri());
         String path = uriParts.v1();
