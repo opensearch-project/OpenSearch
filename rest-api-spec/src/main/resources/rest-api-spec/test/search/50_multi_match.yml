@@ -33,3 +33,18 @@
   - match: { hits.total.value: 3 }
   - match: { hits.hits.0._id: "2" }
   - gt: { hits.hits.2._score: 0.0 }
+
+  # Test that query with null field fails appropriately
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: "red"
+              fields: ["color", null, "shape"]
+
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - match: { error.reason: "[query_string] field name in [fields] cannot be null" }
