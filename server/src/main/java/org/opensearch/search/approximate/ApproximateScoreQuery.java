@@ -85,6 +85,10 @@ public final class ApproximateScoreQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher indexSearcher, ScoreMode scoreMode, float boost) throws IOException {
+        if (resolvedQuery == null) {
+            // Default to the original query.
+            return originalQuery.createWeight(indexSearcher, scoreMode, boost);
+        }
         return resolvedQuery.createWeight(indexSearcher, scoreMode, boost);
     }
 
