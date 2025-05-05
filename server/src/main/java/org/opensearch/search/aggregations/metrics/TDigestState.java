@@ -70,11 +70,20 @@ public class TDigestState extends MergingDigest {
     }
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
-        int byteSize = state.byteSize();
-        out.writeVInt(byteSize);
-        ByteBuffer buf = ByteBuffer.allocate(byteSize);
-        state.asBytes(buf);
-        out.writeBytes(buf.array());
+        if (out.getVersion().before(Version.V_3_1_0)) {
+            out.writeDouble(state.compression);
+            out.writeVInt(state.centroidCount());
+            for (Centroid centroid : state.centroids()) {
+                out.writeDouble(centroid.mean());
+                out.writeVLong(centroid.count());
+            }
+        } else {
+            int byteSize = state.byteSize();
+            out.writeVInt(byteSize);
+            ByteBuffer buf = ByteBuffer.allocate(byteSize);
+            state.asBytes(buf);
+            out.writeBytes(buf.array());
+        }
     }
 
     public static TDigestState read(StreamInput in) throws IOException {
@@ -83,12 +92,15 @@ public class TDigestState extends MergingDigest {
             double compression = in.readDouble();
             AVLTreeDigest treeDigest = new AVLTreeDigest(compression);
             int n = in.readVInt();
-            for (int i = 0; i < n; i++) {
-                treeDigest.add(in.readDouble(), in.readVInt());
+            if (n > 0) {
+                for (int i = 0; i < n; i++) {
+                    treeDigest.add(in.readDouble(), in.readVInt());
+                }
+                MergingDigest mergingDigest = new MergingDigest(compression);
+                mergingDigest.add(List.of(treeDigest));
+                return new TDigestState(compression, mergingDigest);
             }
-            MergingDigest mergingDigest = new MergingDigest(compression);
-            mergingDigest.add(List.of(treeDigest));
-            return new TDigestState(compression, mergingDigest);
+            return new TDigestState(compression);
         } else {
             // For MergingDigest, adding the original centroids in ascending order to a new, empty MergingDigest isn't guaranteed
             // to produce a MergingDigest whose centroids are exactly equal to the originals.
@@ -96,7 +108,8 @@ public class TDigestState extends MergingDigest {
             // The AVLTreeDigest had the same limitation for equals() where it was only guaranteed to return true if the other object was
             // produced by de/serializing the object, so this should be fine.
             int byteSize = in.readVInt();
-            byte[] bytes = in.readNBytes(byteSize);
+            byte[] bytes = new byte[byteSize];
+            in.readBytes(bytes, 0, byteSize);
             MergingDigest mergingDigest = MergingDigest.fromBytes(ByteBuffer.wrap(bytes));
             if (mergingDigest.centroids().isEmpty()) {
                 return new TDigestState(mergingDigest.compression());
