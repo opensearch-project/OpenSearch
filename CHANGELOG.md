@@ -35,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix the native plugin installation error cause by the pgp public key change ([#18147](https://github.com/opensearch-project/OpenSearch/pull/18147))
 - Fix object field exists query ([#17843](https://github.com/opensearch-project/OpenSearch/pull/17843))
 - Use Bad Request status for InputCoercionEcception ([#18161](https://github.com/opensearch-project/OpenSearch/pull/18161))
+- Null check field names in QueryStringQueryBuilder ([#18194](https://github.com/opensearch-project/OpenSearch/pull/18194))
 
 ### Security
 
