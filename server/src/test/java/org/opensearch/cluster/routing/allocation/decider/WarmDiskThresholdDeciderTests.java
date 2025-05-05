@@ -33,8 +33,12 @@
 package org.opensearch.cluster.routing.allocation.decider;
 
 import org.opensearch.Version;
-import org.opensearch.cluster.*;
-
+import org.opensearch.cluster.ClusterInfo;
+import org.opensearch.cluster.ClusterInfoService;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.DiskUsage;
+import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -43,12 +47,12 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
@@ -56,7 +60,11 @@ import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -207,7 +215,7 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
         assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(2));
     }
 
-    public void testCanRemainSufficientSpace(){
+    public void testCanRemainSufficientSpace() {
         Settings settings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "300b")
@@ -273,7 +281,7 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
         assertEquals(Decision.Type.YES, decider.canRemain(shard2, clusterState.getRoutingNodes().node("node2"), allocation).type());
     }
 
-    public void testCanRemainInsufficientSpace(){
+    public void testCanRemainInsufficientSpace() {
         Settings settings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "300b")
@@ -334,11 +342,11 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
         ShardRouting shard2 = routingTable.index("test2").shard(0).primaryShard();
 
         // Test canRemain decisions
-        assertEquals(Decision.Type.NO, decider.canRemain(shard1, clusterState.getRoutingNodes().node("node1"), allocation).type()); // [test][0][P] can't remain on node1
-        assertEquals(Decision.Type.YES, decider.canRemain(shard2, clusterState.getRoutingNodes().node("node2"), allocation).type()); // [test2][0][P] can remain on node2
+        assertEquals(Decision.Type.NO, decider.canRemain(shard1, clusterState.getRoutingNodes().node("node1"), allocation).type());
+        assertEquals(Decision.Type.YES, decider.canRemain(shard2, clusterState.getRoutingNodes().node("node2"), allocation).type());
     }
 
-    public void testCanRemainSufficientSpaceAfterRelocation(){
+    public void testCanRemainSufficientSpaceAfterRelocation() {
         Settings settings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "300b")
@@ -383,7 +391,9 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
 
         // [test3][0][P]: RELOCATING from node1
         IndexRoutingTable.Builder indexRoutingTableBuilder3 = IndexRoutingTable.builder(metadata.index("test3").getIndex());
-        indexRoutingTableBuilder3.addShard(TestShardRouting.newShardRouting("test3", 0, "node1", "node2", true, ShardRoutingState.RELOCATING));
+        indexRoutingTableBuilder3.addShard(
+            TestShardRouting.newShardRouting("test3", 0, "node1", "node2", true, ShardRoutingState.RELOCATING)
+        );
 
         routingTableBuilder.add(indexRoutingTableBuilder.build());
         routingTableBuilder.add(indexRoutingTableBuilder2.build());
@@ -406,8 +416,8 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
         ShardRouting shard2 = routingTable.index("test2").shard(0).primaryShard();
 
         // Test canRemain decisions with [test3][0][p] relocating from node1
-        assertEquals(Decision.Type.YES, decider.canRemain(shard1, clusterState.getRoutingNodes().node("node1"), allocation).type()); // [test][0][P] can remain on node1
-        assertEquals(Decision.Type.YES, decider.canRemain(shard2, clusterState.getRoutingNodes().node("node2"), allocation).type()); // [test2][0][P] can remain on node2
+        assertEquals(Decision.Type.YES, decider.canRemain(shard1, clusterState.getRoutingNodes().node("node1"), allocation).type());
+        assertEquals(Decision.Type.YES, decider.canRemain(shard2, clusterState.getRoutingNodes().node("node2"), allocation).type());
     }
 
     public void logShardStates(ClusterState state) {

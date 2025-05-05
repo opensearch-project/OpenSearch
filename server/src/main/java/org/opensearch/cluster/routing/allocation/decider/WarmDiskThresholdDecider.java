@@ -50,8 +50,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.opensearch.cluster.routing.RoutingPool.*;
-import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.*;
+import static org.opensearch.cluster.routing.RoutingPool.REMOTE_CAPABLE;
+import static org.opensearch.cluster.routing.RoutingPool.getNodePool;
+import static org.opensearch.cluster.routing.RoutingPool.getShardPool;
+import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
+import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING;
+import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.ENABLE_FOR_SINGLE_DATA_NODE;
 
 /**
  * The {@link WarmDiskThresholdDecider} checks that the node a shard is potentially
@@ -78,7 +82,7 @@ import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.*;
  *
  * @opensearch.internal
  */
-public class WarmDiskThresholdDecider extends AllocationDecider{
+public class WarmDiskThresholdDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(WarmDiskThresholdDecider.class);
 
@@ -248,9 +252,13 @@ public class WarmDiskThresholdDecider extends AllocationDecider{
         return 0;
     }
 
-    private long calculateCurrentNodeRemoteShardSize(RoutingNode node, RoutingAllocation allocation, boolean subtractLeavingShards){
+    private long calculateCurrentNodeRemoteShardSize(RoutingNode node, RoutingAllocation allocation, boolean subtractLeavingShards) {
         final List<ShardRouting> remoteShardsOnNode = StreamSupport.stream(node.spliterator(), false)
-            .filter(shard -> shard.primary() && REMOTE_CAPABLE.equals(getShardPool(shard, allocation)) && (!subtractLeavingShards || !shard.relocating()))
+            .filter(
+                shard -> shard.primary()
+                    && REMOTE_CAPABLE.equals(getShardPool(shard, allocation))
+                    && (!subtractLeavingShards || !shard.relocating())
+            )
             .collect(Collectors.toList());
 
         var remoteShardSize = 0L;
@@ -268,7 +276,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider{
         return remoteShardSize;
     }
 
-    private long calculateTotalAddressableRemoteSize(RoutingNode node, RoutingAllocation allocation){
+    private long calculateTotalAddressableRemoteSize(RoutingNode node, RoutingAllocation allocation) {
         ClusterInfo clusterInfo = allocation.clusterInfo();
         // TODO: Change the default value to 5 instead of 0
         final double dataToFileCacheSizeRatio = fileCacheSettings.getRemoteDataRatio();
@@ -277,7 +285,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider{
         return (long) dataToFileCacheSizeRatio * nodeCacheSize;
     }
 
-    private Decision earlyTerminate(RoutingNode node,RoutingAllocation allocation) {
+    private Decision earlyTerminate(RoutingNode node, RoutingAllocation allocation) {
         // Always allow allocation if the decider is disabled
         if (diskThresholdSettings.isEnabled() == false) {
             return allocation.decision(Decision.YES, NAME, "the disk threshold decider is disabled");
