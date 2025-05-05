@@ -138,7 +138,7 @@ public class SystemdIntegTests extends LuceneTestCase {
 
     public void testSeccompEnabled() throws IOException, InterruptedException {
         // Check if Seccomp is enabled
-        String seccomp = executeCommand("sudo su -c 'grep \"^Seccomp:\" /proc/" + opensearchPid + "/status'", "Failed to read Seccomp status");
+        String seccomp = executeCommand("grep \"^Seccomp:\" /proc/" + opensearchPid + "/status", "Failed to read Seccomp status");
         int seccompValue = Integer.parseInt(seccomp.split(":\\s*")[1].trim());
         assertNotEquals("Seccomp should be enabled", 0, seccompValue);
     }
