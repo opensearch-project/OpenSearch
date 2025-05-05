@@ -34,6 +34,7 @@ package org.opensearch.indices;
 
 import org.opensearch.Version;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -66,22 +67,31 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     private QueryBuilder query;
 
     public TermsLookup(String index, String id, String path, QueryBuilder query) {
+        if (Strings.isEmpty(index)) {
+            throw new IllegalArgumentException("index cannot be null or empty for TermsLookup");
+        }
+        if (Strings.isEmpty(path)) {
+            throw new IllegalArgumentException("path cannot be null or empty for TermsLookup");
+        }
         if (id == null && query == null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query.");
         }
         if (id != null && query != null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
         }
-        if (path == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the path.");
-        }
-        if (index == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the index.");
-        }
+
         this.index = index;
         this.id = id;
         this.path = path;
         this.query = query;
+    }
+
+    public String index() {
+        return index;
+    }
+
+    public String id() {
+        return id;
     }
 
     /**
@@ -121,14 +131,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         } else {
             out.writeBoolean(false);
         }
-    }
-
-    public String index() {
-        return index;
-    }
-
-    public String id() {
-        return id;
     }
 
     public String path() {
@@ -193,13 +195,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         //PARSER.declareString(constructorArg(), new ParseField("id")); // Optional
         PARSER.declareString(optionalConstructorArg(), new ParseField("id")); // Optional
         PARSER.declareString(constructorArg(), new ParseField("path")); // Required
-//        PARSER.declareObject((termsLookup, parser) -> {
-//            try {
-//                termsLookup.setQuery(AbstractQueryBuilder.parseInnerQueryBuilder((XContentParser) parser)); // Parse query if provided
-//            } catch (IOException e) {
-//                throw new RuntimeException("Error parsing inner query builder", e);
-//            }
-//        }, (parser, context) -> AbstractQueryBuilder.parseInnerQueryBuilder(parser), new ParseField("query")); // Optional
         PARSER.declareObject(optionalConstructorArg(), (parser, context) -> {
             try {
                 return AbstractQueryBuilder.parseInnerQueryBuilder(parser); // Parse query if provided
@@ -223,19 +218,20 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("index", index);
-        builder.field("id", id);
+        //builder.field("id", id);
+        if (id != null) {
+            builder.field("id", id);
+        }
         builder.field("path", path);
         if (routing != null) {
             builder.field("routing", routing);
         }
         if (query != null) {
             builder.field("query", query);
+            query.toXContent(builder, params); // Serialize the query field
         }
         if (store) {
             builder.field("store", true);
-        }
-        if (query != null) {
-            builder.field("query", query);
         }
         return builder;
     }
