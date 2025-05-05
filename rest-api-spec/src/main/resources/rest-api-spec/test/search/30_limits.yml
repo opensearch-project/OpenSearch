@@ -46,6 +46,9 @@ setup:
 
 ---
 "Request with size exceeding max integer value":
+  - skip:
+      version: "- 3.0.99"
+      reason: "returns 500 before 3.1.0"
   - do:
       catch:      /Numeric value \(2147483648\) out of range of int/
       search:
