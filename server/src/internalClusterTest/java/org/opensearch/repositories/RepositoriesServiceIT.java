@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories;
 
+import org.apache.lucene.store.RateLimiter;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
@@ -42,11 +43,18 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
 
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Locale;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.MAX_REMOTE_DOWNLOAD_BYTES_PER_SEC;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.MAX_REMOTE_LOW_PRIORITY_UPLOAD_BYTES_PER_SEC;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.MAX_REMOTE_UPLOAD_BYTES_PER_SEC;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -138,10 +146,11 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
 
         // create repository
         final String repositoryName = "test-repo";
+        Path path = randomRepoPath();
         Settings.Builder repoSettings = Settings.builder()
-            .put("location", randomRepoPath())
-            .put("max_snapshot_bytes_per_sec", "10mb")
-            .put("max_restore_bytes_per_sec", "10mb");
+            .put("location", path)
+            .put(MAX_SNAPSHOT_BYTES_PER_SEC, "10mb")
+            .put(MAX_RESTORE_BYTES_PER_SEC, "10mb");
         OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
             client().admin().cluster(),
             repositoryName,
@@ -150,8 +159,8 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
             repoSettings
         );
 
-        String snapshotName = "test-snapshot";
         Runnable createSnapshot = () -> {
+            String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             logger.info("--> begining snapshot");
             client().admin()
                 .cluster()
@@ -174,7 +183,7 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         thread.start();
 
         logger.info("--> begin to reset repository");
-        repoSettings = Settings.builder().put("location", randomRepoPath()).put("max_snapshot_bytes_per_sec", "300mb");
+        repoSettings = Settings.builder().put("location", path).put(MAX_SNAPSHOT_BYTES_PER_SEC, "300mb");
         OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
             client().admin().cluster(),
             repositoryName,
@@ -188,5 +197,97 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         createSnapshot.run();
 
         thread.join();
+    }
+
+    public void testAdjustBytesPerSecSettingForSnapAndRestore() {
+        final InternalTestCluster cluster = internalCluster();
+        final RepositoriesService repositoriesService = cluster.getDataOrClusterManagerNodeInstances(RepositoriesService.class)
+            .iterator()
+            .next();
+
+        // create repository
+        final String repositoryName = "test-repo1";
+        long rateBytes = 200000;
+        Path path = randomRepoPath();
+        Settings.Builder repoSettings = Settings.builder()
+            .put("location", path)
+            .put(MAX_SNAPSHOT_BYTES_PER_SEC, (rateBytes + "b"))
+            .put(MAX_RESTORE_BYTES_PER_SEC, (rateBytes + "b"))
+            .put(MAX_REMOTE_UPLOAD_BYTES_PER_SEC, (rateBytes + "b"))
+            .put(MAX_REMOTE_LOW_PRIORITY_UPLOAD_BYTES_PER_SEC, (rateBytes + "b"))
+            .put(MAX_REMOTE_DOWNLOAD_BYTES_PER_SEC, (rateBytes + "b"));
+        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+            client().admin().cluster(),
+            repositoryName,
+            FsRepository.TYPE,
+            true,
+            repoSettings
+        );
+
+        FsRepository repository = (FsRepository) repositoriesService.repository(repositoryName);
+        RateLimiter snapshotRateLimiter = repository.snapshotRateLimiter();
+        assertThat(snapshotRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+        RateLimiter restoreRateLimiter = repository.restoreRateLimiter();
+        assertThat(restoreRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+        RateLimiter remoteUploadRateLimiter = repository.remoteUploadRateLimiter();
+        assertThat(remoteUploadRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+        RateLimiter remoteUploadLowPriorityRateLimiter = repository.remoteUploadLowPriorityRateLimiter();
+        assertThat(remoteUploadLowPriorityRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+        RateLimiter remoteDownloadRateLimiter = repository.remoteDownloadRateLimiter();
+        assertThat(remoteDownloadRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+
+        // adjust the store and restore rate of snapshot
+        rateBytes = rateBytes / 2;
+        repoSettings = Settings.builder()
+            .put("location", path)
+            .put(MAX_SNAPSHOT_BYTES_PER_SEC, (rateBytes + "b"))
+            .put(MAX_RESTORE_BYTES_PER_SEC, (rateBytes + "b"))
+            .put(MAX_REMOTE_UPLOAD_BYTES_PER_SEC, (rateBytes + "b"))
+            .put(MAX_REMOTE_LOW_PRIORITY_UPLOAD_BYTES_PER_SEC, (rateBytes + "b"))
+            .put(MAX_REMOTE_DOWNLOAD_BYTES_PER_SEC, (rateBytes + "b"));
+        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+            client().admin().cluster(),
+            repositoryName,
+            FsRepository.TYPE,
+            true,
+            repoSettings
+        );
+        FsRepository newRepository = (FsRepository) repositoriesService.repository(repositoryName);
+        assertThat(newRepository, sameInstance(repository));
+        snapshotRateLimiter = newRepository.snapshotRateLimiter();
+        assertThat(snapshotRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+        restoreRateLimiter = newRepository.restoreRateLimiter();
+        assertThat(restoreRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+        remoteUploadRateLimiter = newRepository.remoteUploadRateLimiter();
+        assertThat(remoteUploadRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+        remoteUploadLowPriorityRateLimiter = newRepository.remoteUploadLowPriorityRateLimiter();
+        assertThat(remoteUploadLowPriorityRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+        remoteDownloadRateLimiter = newRepository.remoteDownloadRateLimiter();
+        assertThat(remoteDownloadRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+
+        // only adjust the store and restore rate of snapshot, without path
+        long newRateBytes = rateBytes / 2;
+        repoSettings = Settings.builder()
+            .put(MAX_SNAPSHOT_BYTES_PER_SEC, (newRateBytes + "b"))
+            .put(MAX_RESTORE_BYTES_PER_SEC, (newRateBytes + "b"));
+        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+            client().admin().cluster(),
+            repositoryName,
+            FsRepository.TYPE,
+            true,
+            repoSettings
+        );
+        newRepository = (FsRepository) repositoriesService.repository(repositoryName);
+        assertThat(newRepository, sameInstance(repository));
+        snapshotRateLimiter = newRepository.snapshotRateLimiter();
+        assertThat(snapshotRateLimiter.getMBPerSec(), equalTo((double) newRateBytes / (1024 * 1024)));
+        restoreRateLimiter = newRepository.restoreRateLimiter();
+        assertThat(restoreRateLimiter.getMBPerSec(), equalTo((double) newRateBytes / (1024 * 1024)));
+        remoteUploadRateLimiter = newRepository.remoteUploadRateLimiter();
+        assertThat(remoteUploadRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+        remoteUploadLowPriorityRateLimiter = newRepository.remoteUploadLowPriorityRateLimiter();
+        assertThat(remoteUploadLowPriorityRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
+        remoteDownloadRateLimiter = newRepository.remoteDownloadRateLimiter();
+        assertThat(remoteDownloadRateLimiter.getMBPerSec(), equalTo((double) rateBytes / (1024 * 1024)));
     }
 }
