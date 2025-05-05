@@ -8,6 +8,7 @@
 
 package org.opensearch.rule;
 
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.core.action.ActionListener;
 
 /**
@@ -28,5 +29,5 @@ public interface RulePersistenceService {
      * @param request The request containing the ID of the rule to delete.
      * @param listener The listener that will handle the response or failure.
      */
-    void deleteRule(DeleteRuleRequest request, ActionListener<DeleteRuleResponse> listener);
+    void deleteRule(DeleteRuleRequest request, ActionListener<AcknowledgedResponse> listener);
 }

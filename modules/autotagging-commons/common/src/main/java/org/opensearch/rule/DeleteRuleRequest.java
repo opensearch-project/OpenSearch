@@ -10,6 +10,7 @@ package org.opensearch.rule;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.rule.autotagging.FeatureType;
@@ -19,9 +20,10 @@ import java.io.IOException;
 /**
  * A request to delete a Rule by ID
  * Example:
- * curl -XDELETE "localhost:9200/_wlm/rule/{id}"
+ * curl -XDELETE "localhost:9200/_rules/{featureType}/ruleId}"
  * @opensearch.experimental
  */
+@ExperimentalApi
 public class DeleteRuleRequest extends ActionRequest {
     private final String ruleId;
     private final FeatureType featureType;
@@ -51,7 +53,7 @@ public class DeleteRuleRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(ruleId);
-        out.writeString(featureType.getName());
+        featureType.writeTo(out);
     }
 
     @Override

@@ -9,13 +9,13 @@
 package org.opensearch.rule.action;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.rule.DeleteRuleResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 
 /**
  * Action type for deleting a Rule
  * @opensearch.experimental
  */
-public class DeleteRuleAction extends ActionType<DeleteRuleResponse> {
+public class DeleteRuleAction extends ActionType<AcknowledgedResponse> {
 
     /**
      * An instance of DeleteRuleAction
@@ -31,6 +31,6 @@ public class DeleteRuleAction extends ActionType<DeleteRuleResponse> {
      * Default constructor
      */
     private DeleteRuleAction() {
-        super(NAME, DeleteRuleResponse::new);
+        super(NAME, AcknowledgedResponse::new);
     }
 }

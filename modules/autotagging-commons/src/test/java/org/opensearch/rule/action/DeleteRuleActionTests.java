@@ -11,6 +11,8 @@ package org.opensearch.rule.action;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
+
 public class DeleteRuleActionTests extends OpenSearchTestCase {
     public void testGetName() {
         assertEquals("cluster:admin/opensearch/rule/_delete", DeleteRuleAction.NAME);
@@ -18,5 +20,10 @@ public class DeleteRuleActionTests extends OpenSearchTestCase {
 
     public void testGetResponseReader() {
         assertTrue(DeleteRuleAction.INSTANCE.getResponseReader() instanceof Writeable.Reader);
+        try {
+            assertNotNull(DeleteRuleAction.INSTANCE.getResponseReader().read(null));
+        } catch (IOException e) {
+            fail("IOException thrown during test: " + e.getMessage());
+        }
     }
 }

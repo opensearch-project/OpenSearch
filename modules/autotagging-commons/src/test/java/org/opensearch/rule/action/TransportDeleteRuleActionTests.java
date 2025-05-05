@@ -16,7 +16,12 @@ import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportDeleteRuleActionTests extends OpenSearchTestCase {
     TransportDeleteRuleAction sut;

@@ -11,16 +11,16 @@ package org.opensearch.rule.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteRequest;
-import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rule.DeleteRuleRequest;
-import org.opensearch.rule.DeleteRuleResponse;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
@@ -139,15 +139,15 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     }
 
     @Override
-    public void deleteRule(DeleteRuleRequest request, ActionListener<DeleteRuleResponse> listener) {
+    public void deleteRule(DeleteRuleRequest request, ActionListener<AcknowledgedResponse> listener) {
         try (ThreadContext.StoredContext context = getContext()) {
             DeleteRequest deleteRequest = new DeleteRequest(indexName).id(request.getRuleId());
             client.delete(deleteRequest, ActionListener.wrap(deleteResponse -> {
-                boolean acknowledged = deleteResponse.getResult() == DeleteResponse.Result.DELETED;
+                boolean acknowledged = deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
                 if (!acknowledged) {
                     logger.warn("Rule with ID " + request.getRuleId() + " was not found or already deleted.");
                 }
-                listener.onResponse(new DeleteRuleResponse(acknowledged));
+                listener.onResponse(new AcknowledgedResponse(acknowledged));
             }, e -> {
                 if (e instanceof DocumentMissingException) {
                     logger.error("Rule with ID " + request.getRuleId() + " not found.");

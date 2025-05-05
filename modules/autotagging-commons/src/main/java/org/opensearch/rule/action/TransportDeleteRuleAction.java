@@ -10,10 +10,10 @@ package org.opensearch.rule.action;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.rule.DeleteRuleRequest;
-import org.opensearch.rule.DeleteRuleResponse;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RulePersistenceServiceRegistry;
 import org.opensearch.tasks.Task;
@@ -23,7 +23,7 @@ import org.opensearch.transport.TransportService;
  * Transport action to delete Rules
  * @opensearch.experimental
  */
-public class TransportDeleteRuleAction extends HandledTransportAction<DeleteRuleRequest, DeleteRuleResponse> {
+public class TransportDeleteRuleAction extends HandledTransportAction<DeleteRuleRequest, AcknowledgedResponse> {
 
     private final RulePersistenceServiceRegistry rulePersistenceServiceRegistry;
 
@@ -45,9 +45,8 @@ public class TransportDeleteRuleAction extends HandledTransportAction<DeleteRule
     }
 
     @Override
-    protected void doExecute(Task task, DeleteRuleRequest request, ActionListener<DeleteRuleResponse> listener) {
+    protected void doExecute(Task task, DeleteRuleRequest request, ActionListener<AcknowledgedResponse> listener) {
         RulePersistenceService rulePersistenceService = rulePersistenceServiceRegistry.getRulePersistenceService(request.getFeatureType());
-        rulePersistenceService.deleteRule(request, listener);
         rulePersistenceService.deleteRule(request, listener);
     }
 }
