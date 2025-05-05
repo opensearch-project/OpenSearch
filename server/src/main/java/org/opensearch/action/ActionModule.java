@@ -653,8 +653,10 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
         actions.register(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
-        actions.register(GetTermVersionAction.INSTANCE, TransportGetTermVersionAction.class);
-        actions.register(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
+        if (FeatureFlags.isEnabled(FeatureFlags.CLUSTERLESS_FLAG) == false) {
+            actions.register(GetTermVersionAction.INSTANCE, TransportGetTermVersionAction.class);
+            actions.register(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
+        }
         actions.register(ClusterUpdateSettingsAction.INSTANCE, TransportClusterUpdateSettingsAction.class);
         actions.register(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);
         actions.register(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
@@ -677,7 +679,9 @@ public class ActionModule extends AbstractModule {
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(CatShardsAction.INSTANCE, TransportCatShardsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
-        actions.register(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
+        if (FeatureFlags.isEnabled(FeatureFlags.CLUSTERLESS_FLAG) == false) {
+            actions.register(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
+        }
         actions.register(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
         actions.register(ResizeAction.INSTANCE, TransportResizeAction.class);
         actions.register(RolloverAction.INSTANCE, TransportRolloverAction.class);
@@ -790,11 +794,12 @@ public class ActionModule extends AbstractModule {
         actions.register(RetentionLeaseActions.Remove.INSTANCE, RetentionLeaseActions.Remove.TransportAction.class);
 
         // Dangling indices
-        actions.register(ListDanglingIndicesAction.INSTANCE, TransportListDanglingIndicesAction.class);
-        actions.register(ImportDanglingIndexAction.INSTANCE, TransportImportDanglingIndexAction.class);
-        actions.register(DeleteDanglingIndexAction.INSTANCE, TransportDeleteDanglingIndexAction.class);
-        actions.register(FindDanglingIndexAction.INSTANCE, TransportFindDanglingIndexAction.class);
-
+        if (FeatureFlags.isEnabled(FeatureFlags.CLUSTERLESS_FLAG) == false) {
+            actions.register(ListDanglingIndicesAction.INSTANCE, TransportListDanglingIndicesAction.class);
+            actions.register(ImportDanglingIndexAction.INSTANCE, TransportImportDanglingIndexAction.class);
+            actions.register(DeleteDanglingIndexAction.INSTANCE, TransportDeleteDanglingIndexAction.class);
+            actions.register(FindDanglingIndexAction.INSTANCE, TransportFindDanglingIndexAction.class);
+        }
         // point in time actions
         actions.register(CreatePitAction.INSTANCE, TransportCreatePitAction.class);
         actions.register(DeletePitAction.INSTANCE, TransportDeletePitAction.class);

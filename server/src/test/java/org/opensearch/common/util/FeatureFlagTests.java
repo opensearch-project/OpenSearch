@@ -9,8 +9,13 @@
 package org.opensearch.common.util;
 
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.settings.FeatureFlagSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.lang.reflect.Field;
+import java.util.Set;
 
 import static org.opensearch.common.util.FeatureFlags.FEATURE_FLAG_PREFIX;
 
@@ -40,6 +45,35 @@ public class FeatureFlagTests extends OpenSearchTestCase {
         assertTrue(testFlagsImpl.isEnabled(TEST_FLAG));
         testFlagsImpl.initializeFeatureFlags(Settings.builder().put(TEST_FLAG, false).build());
         assertFalse(testFlagsImpl.isEnabled(TEST_FLAG));
+    }
+
+    /**
+     * Checks that all feature flags declared in the FeatureFlags class are registered in the map in
+     * FeatureFlagsImpl. (It's so easy to forget to register a new feature flag!)
+     */
+    @SuppressWarnings("unchecked")
+    public void testFeatureFlagsAreAllRegistered() {
+        FeatureFlags.FeatureFlagsImpl testFlagsImpl = new FeatureFlags.FeatureFlagsImpl();
+        testFlagsImpl.initializeFeatureFlags(Settings.EMPTY);
+        Set<Setting<Boolean>> registeredFeatureFlagKeys = testFlagsImpl.featureFlags.keySet();
+        Field[] fields = FeatureFlags.class.getFields();
+        for (Field field : fields) {
+            if (field.getType() == Setting.class) {
+                try {
+                    Setting<Boolean> setting = (Setting<Boolean>) field.get(null);
+                    assertTrue(
+                        "Feature flag " + setting.getKey() + " is not registered in FeatureFlagsImpl",
+                        registeredFeatureFlagKeys.contains(setting)
+                    );
+                    assertTrue(
+                        "Feature flag " + setting.getKey() + " is not registered in FeatureFlagSettings",
+                        FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS.contains(setting)
+                    );
+                } catch (IllegalAccessException e) {
+                    fail("Failed to access field: " + field.getName());
+                }
+            }
+        }
     }
 
     @SuppressForbidden(reason = "Testing system property functionality")

@@ -51,6 +51,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
@@ -105,7 +106,9 @@ public class ClusterService extends AbstractLifecycleComponent {
         this(
             settings,
             clusterSettings,
-            new ClusterManagerService(settings, clusterSettings, threadPool, clusterManagerMetrics),
+            FeatureFlags.isEnabled(FeatureFlags.CLUSTERLESS_FLAG)
+                ? null
+                : new ClusterManagerService(settings, clusterSettings, threadPool, clusterManagerMetrics),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, clusterManagerMetrics)
         );
     }
@@ -144,18 +147,24 @@ public class ClusterService extends AbstractLifecycleComponent {
     @Override
     protected synchronized void doStart() {
         clusterApplierService.start();
-        clusterManagerService.start();
+        if (clusterManagerService != null) {
+            clusterManagerService.start();
+        }
     }
 
     @Override
     protected synchronized void doStop() {
-        clusterManagerService.stop();
+        if (clusterManagerService != null) {
+            clusterManagerService.stop();
+        }
         clusterApplierService.stop();
     }
 
     @Override
     protected synchronized void doClose() {
-        clusterManagerService.close();
+        if (clusterManagerService != null) {
+            clusterManagerService.close();
+        }
         clusterApplierService.close();
     }
 
@@ -305,7 +314,10 @@ public class ClusterService extends AbstractLifecycleComponent {
      * @return throttling task key which needs to be passed while submitting task to cluster manager
      */
     public ClusterManagerTaskThrottler.ThrottlingKey registerClusterManagerTask(ClusterManagerTask task, boolean throttlingEnabled) {
-        return clusterManagerService.registerClusterManagerTask(task, throttlingEnabled);
+        if (clusterManagerService != null) {
+            return clusterManagerService.registerClusterManagerTask(task, throttlingEnabled);
+        }
+        return null;
     }
 
     /**
@@ -372,6 +384,11 @@ public class ClusterService extends AbstractLifecycleComponent {
         final ClusterStateTaskConfig config,
         final ClusterStateTaskExecutor<T> executor
     ) {
+        if (clusterManagerService == null) {
+            throw new UnsupportedOperationException(
+                "Cannot submit cluster state update tasks when cluster manager service is not available"
+            );
+        }
         clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
     }
 }

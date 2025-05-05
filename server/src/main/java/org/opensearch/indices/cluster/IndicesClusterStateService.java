@@ -44,6 +44,7 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource.Type;
 import org.opensearch.cluster.routing.RoutingNode;
@@ -242,7 +243,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.recoveryTargetService = recoveryTargetService;
-        this.shardStateAction = shardStateAction;
+        this.shardStateAction = clusterService.getClusterManagerService() == null ? null : shardStateAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
         this.repositoriesService = repositoriesService;
         this.primaryReplicaSyncer = primaryReplicaSyncer;
@@ -830,7 +831,39 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     public void handleRecoveryDone(ReplicationState state, ShardRouting shardRouting, long primaryTerm) {
         RecoveryState recoveryState = (RecoveryState) state;
-        shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + recoveryState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
+        if (shardStateAction != null) {
+            shardStateAction.shardStarted(
+                shardRouting,
+                primaryTerm,
+                "after " + recoveryState.getRecoverySource(),
+                SHARD_STATE_ACTION_LISTENER
+            );
+        } else {
+            // We're running in "clusterless" mode. Apply the state change directly to the local cluster state.
+            ClusterState clusterState = clusterService.state();
+            RoutingTable routingTable = clusterState.getRoutingTable();
+            IndexRoutingTable indexRoutingTable = routingTable.index(shardRouting.index());
+
+            ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterState);
+            RoutingTable.Builder routingTableBuilder = RoutingTable.builder(routingTable);
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(shardRouting.index());
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                if (indexShardRoutingTable.shardId().equals(shardRouting.shardId())) {
+                    IndexShardRoutingTable.Builder indexShardRoutingTableBuilder = new IndexShardRoutingTable.Builder(
+                        indexShardRoutingTable
+                    );
+                    indexShardRoutingTableBuilder.removeShard(shardRouting);
+                    indexShardRoutingTableBuilder.addShard(shardRouting.moveToStarted());
+                    indexRoutingTableBuilder.addIndexShard(indexShardRoutingTableBuilder.build());
+                } else {
+                    indexRoutingTableBuilder.addIndexShard(indexShardRoutingTable);
+                }
+            }
+            routingTableBuilder.add(indexRoutingTableBuilder);
+            clusterStateBuilder.routingTable(routingTableBuilder.build());
+            clusterService.getClusterApplierService()
+                .onNewClusterState("shard-started " + shardRouting.shardId(), clusterStateBuilder::build, (s, e) -> {});
+        }
     }
 
     private void failAndRemoveShard(
