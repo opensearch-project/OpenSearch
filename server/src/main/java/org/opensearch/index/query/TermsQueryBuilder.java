@@ -433,6 +433,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         String fieldName = null;
         List<Object> values = null;
         TermsLookup termsLookup = null;
+        QueryBuilder nestedQuery = null;
+
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -468,7 +470,42 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                     );
                 }
                 fieldName = currentFieldName;
-                termsLookup = TermsLookup.parseTermsLookup(parser);
+                // Parse the nested object for termsLookup or query
+                String index = null;
+                String id = null;
+                String path = null;
+
+
+                XContentParser.Token innerToken;
+                String innerFieldName = null;
+                while ((innerToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (innerToken == XContentParser.Token.FIELD_NAME) {
+                        innerFieldName = parser.currentName();
+                    } else if (innerToken.isValue()) {
+                        if ("index".equals(innerFieldName)) {
+                            index = parser.text();
+                        } else if ("id".equals(innerFieldName)) {
+                            id = parser.text();
+                        } else if ("path".equals(innerFieldName)) {
+                            path = parser.text();
+                        } else {
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + TermsQueryBuilder.NAME + "] query does not support [" + innerFieldName + "]"
+                            );
+                        }
+                    } else if (innerToken == XContentParser.Token.START_OBJECT && "query".equals(innerFieldName)) {
+                        nestedQuery = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
+                    }
+                }
+
+                if (index != null || id != null || path != null || nestedQuery != null) {
+                    if (path == null) {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] missing required field [path]");
+                    }
+                    termsLookup = new TermsLookup(index, id, path, nestedQuery);
+                }
+                //termsLookup = TermsLookup.parseTermsLookup(parser);
             } else if (token.isValue()) {
                 if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
@@ -511,7 +548,16 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             }
         }
 
+        if (termsLookup != null) {
+            System.out.println("TermsLookup Details:");
+            System.out.println("Index: " + termsLookup.index());
+            System.out.println("ID: " + termsLookup.id());
+            System.out.println("Path: " + termsLookup.path());
+            System.out.println("Query: " + termsLookup.query());
+            termsLookup = new TermsLookup(termsLookup.index(), termsLookup.id(), termsLookup.path(), termsLookup.query());
+        }
         return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType);
+        //return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType);
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {
@@ -534,11 +580,17 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (termsLookup != null && termsLookup.query() != null) {
+            System.out.println("Executing subquery: " + termsLookup.query());
             QueryBuilder rewrittenQuery = termsLookup.query().rewrite(context);
+            //Query query = rewrittenQuery.toQuery(context);
+            //QueryBuilder query = termsLookup.query().rewrite(context);
+
             SearchResponse response = context.getClient().search(
                 new SearchRequest(termsLookup.index())
                     .source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(false))
             ).actionGet();
+
+            System.out.println("Subquery Response: " + response);
 
             List<Object> terms = new ArrayList<>();
             for (SearchHit hit : response.getHits().getHits()) {
@@ -624,19 +676,36 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         if (termsLookup != null && termsLookup.query() != null) {
             QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
             if (shardContext == null) {
-                throw new IllegalStateException("QueryShardContext is required for executing the query.");
+                return this;
+                //throw new IllegalStateException("QueryShardContext is required for rewriting the query.");
+                //throw new IllegalStateException("QueryShardContext is null. QueryRewriteContext: " + queryRewriteContext.toString());
+            }
+            // Rewrite the subquery using the shard context
+            QueryBuilder rewrittenQuery = termsLookup.query().rewrite(shardContext);
+            System.out.println("Rewritten Query: " + rewrittenQuery);
+
+            SearchResponse response;
+            try {
+                response = shardContext.getClient().search(
+                    new SearchRequest(termsLookup.index())
+                        .source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(false))
+                ).actionGet();
+
+                System.out.println("Extracted Terms: ");
+                for (SearchHit hit : response.getHits().getHits()) {
+                    System.out.println(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
+                }
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to execute subquery: " + e.getMessage(), e);
             }
 
-            Client client = shardContext.getClient();
-            SearchRequest searchRequest = new SearchRequest(termsLookup.index());
-            searchRequest.source(new SearchSourceBuilder().query(termsLookup.query()).fetchSource(false));
-            // SearchResponse response = client.search(searchRequest, RequestOptions.DEFAULT);
-            SearchResponse response = (SearchResponse) client.search(searchRequest);
-
+            // Extract terms from the response
             List<Object> terms = new ArrayList<>();
             for (SearchHit hit : response.getHits().getHits()) {
                 terms.addAll(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
             }
+
+            // Return a new TermsQueryBuilder with the fetched terms
             return new TermsQueryBuilder(fieldName, terms);
         }
 
@@ -676,6 +745,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
 
         return this;
-        // return super.doRewrite(queryRewriteContext);
+        //return super.doRewrite(queryRewriteContext);
     }
 }
