@@ -43,7 +43,6 @@ import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
-import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.admin.indices.view.ViewService;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
@@ -54,7 +53,6 @@ import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchTaskRequestOperationsListener;
 import org.opensearch.action.search.SearchTransportService;
-import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.bootstrap.BootstrapCheck;
@@ -81,6 +79,7 @@ import org.opensearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.opensearch.cluster.metadata.TemplateUpgradeService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.BatchedRerouteService;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
@@ -325,6 +324,7 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS_SETTING;
 import static org.opensearch.common.util.FeatureFlags.BACKGROUND_TASK_EXECUTION_EXPERIMENTAL;
+import static org.opensearch.common.util.FeatureFlags.CLUSTERLESS_FLAG;
 import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
@@ -792,7 +792,9 @@ public class Node implements Closeable {
                 plugin.setCircuitBreaker(breaker);
             });
             resourcesToClose.add(circuitBreakerService);
-            modules.add(new GatewayModule());
+            if (!FeatureFlags.isEnabled(CLUSTERLESS_FLAG)) {
+                modules.add(new GatewayModule());
+            }
 
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
@@ -1347,27 +1349,31 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-            final DiscoveryModule discoveryModule = new DiscoveryModule(
-                settings,
-                threadPool,
-                transportService,
-                namedWriteableRegistry,
-                networkService,
-                clusterService.getClusterManagerService(),
-                clusterService.getClusterApplierService(),
-                clusterService.getClusterSettings(),
-                pluginsService.filterPlugins(DiscoveryPlugin.class),
-                clusterModule.getAllocationService(),
-                environment.configDir(),
-                gatewayMetaState,
-                rerouteService,
-                fsHealthService,
-                persistedStateRegistry,
-                remoteStoreNodeService,
-                clusterManagerMetrics,
-                remoteClusterStateService
-            );
-
+            final DiscoveryModule discoveryModule;
+            if (FeatureFlags.isEnabled(CLUSTERLESS_FLAG)) {
+                discoveryModule = null;
+            } else {
+                discoveryModule = new DiscoveryModule(
+                    settings,
+                    threadPool,
+                    transportService,
+                    namedWriteableRegistry,
+                    networkService,
+                    clusterService.getClusterManagerService(),
+                    clusterService.getClusterApplierService(),
+                    clusterService.getClusterSettings(),
+                    pluginsService.filterPlugins(DiscoveryPlugin.class),
+                    clusterModule.getAllocationService(),
+                    environment.configDir(),
+                    gatewayMetaState,
+                    rerouteService,
+                    fsHealthService,
+                    persistedStateRegistry,
+                    remoteStoreNodeService,
+                    clusterManagerMetrics,
+                    remoteClusterStateService
+                );
+            }
             final SearchPipelineService searchPipelineService = new SearchPipelineService(
                 clusterService,
                 threadPool,
@@ -1392,7 +1398,7 @@ public class Node implements Closeable {
                 settings,
                 threadPool,
                 monitorService,
-                discoveryModule.getDiscovery(),
+                discoveryModule == null ? null : discoveryModule.getDiscovery(),
                 transportService,
                 indicesService,
                 pluginsService,
@@ -1535,7 +1541,9 @@ public class Node implements Closeable {
                 b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
                 b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
                 b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
-                b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
+                if (discoveryModule != null) {
+                    b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
+                }
                 b.bind(RemoteStoreSettings.class).toInstance(remoteStoreSettings);
                 {
                     b.bind(PeerRecoverySourceService.class)
@@ -1713,10 +1721,15 @@ public class Node implements Closeable {
         nodeConnectionsService.start();
         clusterService.setNodeConnectionsService(nodeConnectionsService);
 
-        injector.getInstance(GatewayService.class).start();
-        Discovery discovery = injector.getInstance(Discovery.class);
-        discovery.setNodeConnectionsService(nodeConnectionsService);
-        clusterService.getClusterManagerService().setClusterStatePublisher(discovery::publish);
+        final Discovery discovery;
+        if (FeatureFlags.isEnabled(CLUSTERLESS_FLAG)) {
+            discovery = null;
+        } else {
+            injector.getInstance(GatewayService.class).start();
+            discovery = injector.getInstance(Discovery.class);
+            discovery.setNodeConnectionsService(nodeConnectionsService);
+            clusterService.getClusterManagerService().setClusterStatePublisher(discovery);
+        }
 
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
@@ -1789,14 +1802,26 @@ public class Node implements Closeable {
         );
 
         clusterService.addStateApplier(transportService.getTaskManager());
-        // start after transport service so the local disco is known
-        discovery.start(); // start before cluster service so that it can set initial state on ClusterApplierService
+
+        if (discovery != null) {
+            // start after transport service so the local disco is known
+            discovery.start(); // start before cluster service so that it can set initial state on ClusterApplierService
+        } else {
+            // We're running in clusterless mode, so we manually set the initial state to only include this node.
+            DiscoveryNode localNode = localNodeFactory.getNode();
+            ClusterState bootstrapClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+                .nodes(DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).build())
+                .build();
+            clusterService.getClusterApplierService().setInitialState(bootstrapClusterState);
+        }
         clusterService.start();
         this.autoForceMergeManager.start();
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
-        discovery.startInitialJoin();
+        if (discovery != null) {
+            discovery.startInitialJoin();
+        }
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
 
@@ -1873,7 +1898,9 @@ public class Node implements Closeable {
         injector.getInstance(IndicesClusterStateService.class).stop();
         // close discovery early to not react to pings anymore.
         // This can confuse other nodes and delay things - mostly if we're the cluster manager and we're running tests.
-        injector.getInstance(Discovery.class).stop();
+        if (FeatureFlags.isEnabled(CLUSTERLESS_FLAG) == false) {
+            injector.getInstance(Discovery.class).stop();
+        }
         // we close indices first, so operations won't be allowed on it
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(NodeConnectionsService.class).stop();
@@ -1883,7 +1910,9 @@ public class Node implements Closeable {
         injector.getInstance(WorkloadGroupService.class).stop();
         nodeService.getMonitorService().stop();
         nodeService.getSearchBackpressureService().stop();
-        injector.getInstance(GatewayService.class).stop();
+        if (FeatureFlags.isEnabled(CLUSTERLESS_FLAG) == false) {
+            injector.getInstance(GatewayService.class).stop();
+        }
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
         nodeService.getTaskCancellationMonitoringService().stop();
@@ -1938,8 +1967,10 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(ClusterService.class));
         toClose.add(() -> stopWatch.stop().start("node_connections_service"));
         toClose.add(injector.getInstance(NodeConnectionsService.class));
-        toClose.add(() -> stopWatch.stop().start("discovery"));
-        toClose.add(injector.getInstance(Discovery.class));
+        if (FeatureFlags.isEnabled(CLUSTERLESS_FLAG) == false) {
+            toClose.add(() -> stopWatch.stop().start("discovery"));
+            toClose.add(injector.getInstance(Discovery.class));
+        }
         toClose.add(() -> stopWatch.stop().start("monitor"));
         toClose.add(nodeService.getMonitorService());
         toClose.add(nodeService.getSearchBackpressureService());
@@ -1949,8 +1980,10 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(NodeResourceUsageTracker.class));
         toClose.add(() -> stopWatch.stop().start("resource_usage_collector"));
         toClose.add(injector.getInstance(ResourceUsageCollectorService.class));
-        toClose.add(() -> stopWatch.stop().start("gateway"));
-        toClose.add(injector.getInstance(GatewayService.class));
+        if (FeatureFlags.isEnabled(CLUSTERLESS_FLAG) == false) {
+            toClose.add(() -> stopWatch.stop().start("gateway"));
+            toClose.add(injector.getInstance(GatewayService.class));
+        }
         toClose.add(() -> stopWatch.stop().start("search"));
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
