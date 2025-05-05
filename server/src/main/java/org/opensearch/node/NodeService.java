@@ -44,6 +44,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.discovery.Discovery;
@@ -245,6 +246,8 @@ public class NodeService implements Closeable {
         boolean cacheService,
         boolean remoteStoreNodeStats
     ) {
+        discoveryStats = discoveryStats && FeatureFlags.isEnabled(FeatureFlags.CLUSTERLESS_FLAG) == false;
+        clusterManagerThrottling = clusterManagerThrottling && FeatureFlags.isEnabled(FeatureFlags.CLUSTERLESS_FLAG) == false;
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(
