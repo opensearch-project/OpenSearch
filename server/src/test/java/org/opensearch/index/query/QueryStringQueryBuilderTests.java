@@ -73,6 +73,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MapperService;
@@ -1020,6 +1021,18 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
             .build();
         assertThat(expectedQuery, equalTo(query));
+    }
+
+    public void testNullFieldInFieldsArray() throws IOException {
+        String queryAsString = "{\n"
+            + "  \"query_string\" : {\n"
+            + "    \"query\" : \"test\",\n"
+            + "    \"fields\" : [ \"field1\", null, \"field2\" ]\n"
+            + "  }\n"
+            + "}";
+
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryAsString));
+        assertEquals("[query_string] field name in [fields] cannot be null", e.getMessage());
     }
 
     public void testToQueryTextParsing() throws IOException {
