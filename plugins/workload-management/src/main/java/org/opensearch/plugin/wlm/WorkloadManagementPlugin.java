@@ -49,10 +49,10 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.autotagging.FeatureValueValidator;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
-import org.opensearch.rule.storage.IndexBasedDuplicateRuleChecker;
 import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
 import org.opensearch.rule.storage.XContentRuleParser;
 import org.opensearch.script.ScriptService;
@@ -102,18 +102,18 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        FeatureTypeHolder.featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService));
+        FeatureValueValidator validator = WorkloadGroupFeatureValueValidator.getInstance(clusterService);
+        WorkloadGroupFeatureType.initializeFeatureValueValidator(validator);
         RulePersistenceServiceHolder.rulePersistenceService = new IndexStoredRulePersistenceService(
             INDEX_NAME,
             client,
             clusterService,
             MAX_RULES_PER_PAGE,
-            new XContentRuleParser(FeatureTypeHolder.featureType),
-            new IndexBasedRuleQueryMapper(),
-            new IndexBasedDuplicateRuleChecker()
+            new XContentRuleParser(WorkloadGroupFeatureType.getInstance()),
+            new IndexBasedRuleQueryMapper()
         );
         InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
-            FeatureTypeHolder.featureType,
+            WorkloadGroupFeatureType.getInstance(),
             DefaultAttributeValueStore::new
         );
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
@@ -175,14 +175,10 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
 
     @Override
     public FeatureType getFeatureType() {
-        return FeatureTypeHolder.featureType;
+        return WorkloadGroupFeatureType.getInstance();
     }
 
     static class RulePersistenceServiceHolder {
         private static RulePersistenceService rulePersistenceService;
-    }
-
-    static class FeatureTypeHolder {
-        private static FeatureType featureType;
     }
 }

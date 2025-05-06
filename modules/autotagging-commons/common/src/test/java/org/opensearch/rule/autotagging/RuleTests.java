@@ -114,11 +114,6 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         public Map<String, Attribute> getAllowedAttributesRegistry() {
             return ALLOWED_ATTRIBUTES;
         }
-
-        @Override
-        public FeatureValueValidator getFeatureValueValidator() {
-            return null;
-        }
     }
 
     static Rule buildRule(
