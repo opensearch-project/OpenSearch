@@ -54,11 +54,6 @@ public class RuleTestUtils {
                 MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO
             );
         }
-
-        @Override
-        public FeatureValueValidator getFeatureValueValidator() {
-            return null;
-        }
     }
 
     public enum MockRuleAttributes implements Attribute {

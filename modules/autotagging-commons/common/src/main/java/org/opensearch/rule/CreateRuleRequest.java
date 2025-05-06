@@ -52,11 +52,7 @@ public class CreateRuleRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         try {
-            FeatureValueValidator featureValueValidator = rule.getFeatureType().getFeatureValueValidator();
-            if (featureValueValidator == null) {
-                throw new IllegalStateException("FeatureValueValidator is not defined for feature type " + rule.getFeatureType().getName());
-            }
-            featureValueValidator.validate(rule.getFeatureValue());
+            rule.getFeatureType().getFeatureValueValidator().validate(rule.getFeatureValue());
             return null;
         } catch (Exception e) {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
