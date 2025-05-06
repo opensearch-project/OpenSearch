@@ -990,7 +990,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             Long dimensionValue = getDimensionValue(i, dimensionId);
             if (Objects.equals(dimensionValue, nodeDimensionValue) == false) {
                 addChildNode(node, i, dimensionId, nodeStartDocId, nodeDimensionValue);
-
                 nodeStartDocId = i;
                 nodeDimensionValue = dimensionValue;
             }
