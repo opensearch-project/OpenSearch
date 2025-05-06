@@ -104,7 +104,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
         var nodeRoutingPool = getNodePool(node);
         var shardRoutingPool = getShardPool(shardRouting, allocation);
         if (nodeRoutingPool != REMOTE_CAPABLE || shardRoutingPool != REMOTE_CAPABLE) {
-            return super.canAllocate(shardRouting, node, allocation);
+            return Decision.ALWAYS;
         }
 
         final Decision decision = earlyTerminate(node, allocation);
@@ -121,11 +121,11 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             allocation.routingTable()
         );
 
-        final long totalAddressableRemoteSize = calculateTotalAddressableRemoteSize(node, allocation);
+        final long totalAddressableSpace = calculateTotalAddressableSpace(node, allocation);
         final long currentNodeRemoteShardSize = calculateCurrentNodeRemoteShardSize(node, allocation, false);
-        final long freeSpace = totalAddressableRemoteSize - currentNodeRemoteShardSize;
+        final long freeSpace = totalAddressableSpace - currentNodeRemoteShardSize;
         final long freeSpaceAfterAllocation = freeSpace > shardSize ? freeSpace - shardSize : 0;
-        final long freeSpaceLowThreshold = calculateFreeSpaceLowThreshold(diskThresholdSettings, totalAddressableRemoteSize);
+        final long freeSpaceLowThreshold = calculateFreeSpaceLowThreshold(diskThresholdSettings, totalAddressableSpace);
 
         final ByteSizeValue freeSpaceLowThresholdInByteSize = new ByteSizeValue(freeSpaceLowThreshold);
         final ByteSizeValue freeSpaceInByteSize = new ByteSizeValue(freeSpace);
@@ -173,7 +173,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
         var nodeRoutingPool = getNodePool(node);
         var shardRoutingPool = getShardPool(shardRouting, allocation);
         if (nodeRoutingPool != REMOTE_CAPABLE || shardRoutingPool != REMOTE_CAPABLE) {
-            return super.canRemain(shardRouting, node, allocation);
+            return Decision.ALWAYS;
         }
 
         final Decision decision = earlyTerminate(node, allocation);
@@ -181,11 +181,11 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        final long totalAddressableRemoteSize = calculateTotalAddressableRemoteSize(node, allocation);
+        final long totalAddressableSpace = calculateTotalAddressableSpace(node, allocation);
         final long currentNodeRemoteShardSize = calculateCurrentNodeRemoteShardSize(node, allocation, true);
-        final long freeSpace = totalAddressableRemoteSize - currentNodeRemoteShardSize;
+        final long freeSpace = totalAddressableSpace - currentNodeRemoteShardSize;
 
-        final long freeSpaceHighThreshold = calculateFreeSpaceHighThreshold(diskThresholdSettings, totalAddressableRemoteSize);
+        final long freeSpaceHighThreshold = calculateFreeSpaceHighThreshold(diskThresholdSettings, totalAddressableSpace);
 
         final ByteSizeValue freeSpaceHighThresholdInByteSize = new ByteSizeValue(freeSpaceHighThreshold);
         final ByteSizeValue freeSpaceInByteSize = new ByteSizeValue(freeSpace);
@@ -216,11 +216,11 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
         );
     }
 
-    private long calculateFreeSpaceLowThreshold(DiskThresholdSettings diskThresholdSettings, long totalAddressableRemoteSize) {
+    private long calculateFreeSpaceLowThreshold(DiskThresholdSettings diskThresholdSettings, long totalAddressableSpace) {
         // Check for percentage-based threshold
         double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdLow();
         if (percentageThreshold > 0) {
-            return (long) (totalAddressableRemoteSize * percentageThreshold / 100.0);
+            return (long) (totalAddressableSpace * percentageThreshold / 100.0);
         }
 
         // Check for absolute bytes threshold
@@ -234,11 +234,11 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
         return 0;
     }
 
-    private long calculateFreeSpaceHighThreshold(DiskThresholdSettings diskThresholdSettings, long totalAddressableRemoteSize) {
+    private long calculateFreeSpaceHighThreshold(DiskThresholdSettings diskThresholdSettings, long totalAddressableSpace) {
         // Check for percentage-based threshold
         double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdHigh();
         if (percentageThreshold > 0) {
-            return (long) (totalAddressableRemoteSize * percentageThreshold / 100.0);
+            return (long) (totalAddressableSpace * percentageThreshold / 100.0);
         }
 
         // Check for absolute bytes threshold
@@ -276,7 +276,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
         return remoteShardSize;
     }
 
-    private long calculateTotalAddressableRemoteSize(RoutingNode node, RoutingAllocation allocation) {
+    private long calculateTotalAddressableSpace(RoutingNode node, RoutingAllocation allocation) {
         ClusterInfo clusterInfo = allocation.clusterInfo();
         // TODO: Change the default value to 5 instead of 0
         final double dataToFileCacheSizeRatio = fileCacheSettings.getRemoteDataRatio();
