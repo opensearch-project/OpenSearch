@@ -20,6 +20,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rule.DeleteRuleRequest;
 import org.opensearch.rule.action.DeleteRuleAction;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.List;
@@ -50,7 +51,8 @@ public class RestDeleteRuleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         final String ruleId = request.param("ruleId");
-        DeleteRuleRequest deleteRuleRequest = new DeleteRuleRequest(ruleId);
+        FeatureType featureType = FeatureType.from(request.param("featureType"));
+        DeleteRuleRequest deleteRuleRequest = new DeleteRuleRequest(ruleId, featureType);
         return channel -> client.execute(DeleteRuleAction.INSTANCE, deleteRuleRequest, deleteRuleResponse(channel));
     }
 
