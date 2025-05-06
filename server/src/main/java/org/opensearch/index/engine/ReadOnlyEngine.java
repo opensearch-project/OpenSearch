@@ -45,6 +45,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
@@ -354,6 +355,7 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(
         String source,
+        MapperService mapperService,
         long fromSeqNo,
         long toSeqNo,
         boolean requiredFullRange,
@@ -364,7 +366,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true)) {
+        try (Translog.Snapshot snapshot = newChangesSnapshot(source, null, fromSeqNo, toSeqNo, false, true)) {
             return snapshot.totalOperations();
         }
     }

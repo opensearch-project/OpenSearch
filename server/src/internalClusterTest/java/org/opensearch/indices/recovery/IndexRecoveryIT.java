@@ -76,6 +76,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
@@ -156,6 +157,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.action.DocWriteResponse.Result.CREATED;
 import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -2397,6 +2399,86 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                 .sum(),
             equalTo(0L)
         );
+    }
+
+    public void testOpBasedRecoveryWithDerivedSource() throws Exception {
+        internalCluster().startNodes(3);
+
+        final String indexName = "test";
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                    // make sure we trigger ops-based recovery
+                    .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+            )
+            .setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("foo")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+        ensureGreen(indexName);
+
+        // Perform some replicated operations so the replica isn't simply empty, because ops-based recovery isn't better in that case
+        final List<IndexRequestBuilder> requests = new ArrayList<>();
+        final int replicatedDocCount = scaledRandomIntBetween(25, 250);
+        while (requests.size() < replicatedDocCount) {
+            requests.add(client().prepareIndex(indexName).setSource("{\"foo\":\"bar\"}", XContentType.JSON));
+        }
+        indexRandom(true, requests);
+        if (randomBoolean()) {
+            flush(indexName);
+        }
+
+        String firstNodeToStop = randomFrom(internalCluster().getDataNodeNames());
+        Settings firstNodeToStopDataPathSettings = internalCluster().dataPathSettings(firstNodeToStop);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(firstNodeToStop));
+        String secondNodeToStop = randomFrom(internalCluster().getDataNodeNames());
+        Settings secondNodeToStopDataPathSettings = internalCluster().dataPathSettings(secondNodeToStop);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(secondNodeToStop));
+
+        final long desyncNanoTime = System.nanoTime();
+        // noinspection StatementWithEmptyBody
+        while (System.nanoTime() <= desyncNanoTime) {
+            // time passes
+        }
+
+        final int numNewDocs = scaledRandomIntBetween(25, 250);
+        for (int i = 0; i < numNewDocs; i++) {
+            client().prepareIndex(indexName)
+                .setSource("{\"foo\":\"bar\"}", XContentType.JSON)
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
+        }
+        // Flush twice to update the safe commit's local checkpoint
+        assertThat(client().admin().indices().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
+        assertThat(client().admin().indices().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+        internalCluster().startNode(randomFrom(firstNodeToStopDataPathSettings, secondNodeToStopDataPathSettings));
+        ensureGreen(indexName);
+
+        final RecoveryResponse recoveryResponse = client().admin().indices().recoveries(new RecoveryRequest(indexName)).get();
+        final List<RecoveryState> recoveryStates = recoveryResponse.shardRecoveryStates().get(indexName);
+        recoveryStates.removeIf(r -> r.getTimer().getStartNanoTime() <= desyncNanoTime);
+
+        assertThat(recoveryStates, hasSize(1));
+        assertThat(recoveryStates.get(0).getIndex().totalFileCount(), is(0));
+        assertThat(recoveryStates.get(0).getTranslog().recoveredOperations(), greaterThan(0));
     }
 
 }

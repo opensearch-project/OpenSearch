@@ -305,7 +305,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                         MediaTypeRegistry.xContentType(source),
                         fieldVisitor.routing()
                     );
-                    ParsedDocument doc = indexShard.mapperService().documentMapper().parse(sourceToParse);
+                    ParsedDocument doc = indexShard.mapperService().documentMapper().parseRequiredSourceField(sourceToParse);
                     assert doc.dynamicMappingsUpdate() == null : "mapping updates should not be required on already-indexed doc";
                     // update special fields
                     doc.updateSeqID(docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);

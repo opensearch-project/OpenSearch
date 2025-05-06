@@ -57,6 +57,7 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -127,6 +128,7 @@ import static org.opensearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.opensearch.index.IndexSettings.INDEX_DERIVED_SOURCE_SETTING;
 import static org.opensearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.opensearch.index.shard.IndexShardTestCase.recoverFromStore;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -811,6 +813,37 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         for (int i = 0; i < numOps; i++) {
             if (randomBoolean()) {
                 client().prepareIndex("index").setId(randomFrom("1", "2")).setSource("{}", MediaTypeRegistry.JSON).get();
+            } else {
+                client().prepareDelete("index", randomFrom("1", "2")).get();
+            }
+        }
+        IndexShard shard = indexService.getShard(0);
+        try (
+            Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, numOps - 1, true, randomBoolean());
+            Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()
+        ) {
+            List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
+            List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);
+            assertThat(opsFromLucene, equalTo(opsFromTranslog));
+        }
+    }
+
+    public void testShardChangesWithDerivedSource() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.translog.flush_threshold_size", "512mb") // do not flush
+            .put("index.soft_deletes.enabled", true)
+            .put(INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+            .build();
+        IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
+        int numOps = between(1, 10);
+        for (int i = 0; i < numOps; i++) {
+            if (randomBoolean()) {
+                client().prepareIndex("index")
+                    .setId(randomFrom("1", "2"))
+                    .setSource("{\"title\":\"derived_source\"}", XContentType.JSON)
+                    .get();
             } else {
                 client().prepareDelete("index", randomFrom("1", "2")).get();
             }

@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
@@ -39,15 +40,19 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.script.ScriptService;
 
+import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * The foundation OpenSearch mapper
@@ -290,6 +295,31 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * @param mappers a {@link MappingLookup} that can produce references to other mappers
      */
     public abstract void validate(MappingLookup mappers);
+
+    /**
+     * Validate whether this mapper supports derived source.
+     */
+    public void validateDerivedSource() {
+        throw new IllegalArgumentException(getDerivedSourceUnsupportedMessage(typeName(), name(), null));
+    }
+
+    protected static String getDerivedSourceUnsupportedMessage(String typeName, String fieldName, Map<String, Object> params) {
+        if (params == null || params.isEmpty()) {
+            return String.format(Locale.ROOT, "The [%s] type field [%s] doesn't support derived source", typeName, fieldName);
+        }
+        final String paramStr = params.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(", "));
+        return String.format(Locale.ROOT, "The [%s] type field [%s](%s) doesn't support derived source", typeName, fieldName, paramStr);
+    }
+
+    /**
+     * Fill derived source data.
+     * @param reader the leaf reader
+     * @param docID the relative doc id
+     * @param builder the part of source in this level
+     */
+    public void fillSource(LeafReader reader, int docID, XContentBuilder builder) throws IOException {
+        throw new UnsupportedOperationException("[" + typeName() + "] does not support derived source");
+    }
 
     /**
      * Check if settings have IndexMetadata.SETTING_INDEX_VERSION_CREATED setting.
