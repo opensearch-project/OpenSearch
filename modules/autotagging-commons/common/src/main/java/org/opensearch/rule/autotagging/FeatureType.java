@@ -50,7 +50,12 @@ public interface FeatureType extends Writeable {
     /**
      * returns the validator for feature value
      */
-    FeatureValueValidator getFeatureValueValidator();
+    default FeatureValueValidator getFeatureValueValidator() {
+        return new FeatureValueValidator() {
+            @Override
+            public void validate(String featureValue) {}
+        };
+    }
 
     /**
      * returns max attribute values

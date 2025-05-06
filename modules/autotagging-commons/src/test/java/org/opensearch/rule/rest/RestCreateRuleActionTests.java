@@ -19,7 +19,7 @@ public class RestCreateRuleActionTests extends OpenSearchTestCase {
 
     public void testRoutes() {
         var routes = action.routes();
-        assertEquals(2, routes.size());
-        assertTrue(routes.stream().anyMatch(r -> r.getPath().equals("_rules/{featureType}/")));
+        assertEquals(1, routes.size());
+        assertTrue(routes.stream().anyMatch(r -> r.getPath().equals("_rules/{featureType}")));
     }
 }

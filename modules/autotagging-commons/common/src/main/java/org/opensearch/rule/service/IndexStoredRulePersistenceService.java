@@ -25,12 +25,12 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.CreateRuleRequest;
 import org.opensearch.rule.CreateRuleResponse;
-import org.opensearch.rule.DuplicateRuleChecker;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleQueryMapper;
+import org.opensearch.rule.RuleUtils;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
@@ -59,7 +59,6 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final int maxRulesPerPage;
     private final RuleEntityParser parser;
     private final RuleQueryMapper<QueryBuilder> queryBuilder;
-    private final DuplicateRuleChecker ruleDuplicateChecker;
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
     private static final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
 
@@ -72,7 +71,6 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param maxRulesPerPage - The maximum number of rules that can be returned in a single get request.
      * @param parser
      * @param queryBuilder
-     * @param ruleDuplicateChecker
      */
     public IndexStoredRulePersistenceService(
         String indexName,
@@ -80,8 +78,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         ClusterService clusterService,
         int maxRulesPerPage,
         RuleEntityParser parser,
-        RuleQueryMapper<QueryBuilder> queryBuilder,
-        DuplicateRuleChecker ruleDuplicateChecker
+        RuleQueryMapper<QueryBuilder> queryBuilder
     ) {
         this.indexName = indexName;
         this.client = client;
@@ -89,7 +86,6 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         this.maxRulesPerPage = maxRulesPerPage;
         this.parser = parser;
         this.queryBuilder = queryBuilder;
-        this.ruleDuplicateChecker = ruleDuplicateChecker;
     }
 
     /**
@@ -132,7 +128,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                 if (cause instanceof ResourceAlreadyExistsException) {
                     validateAndPersist(rule, listener);
                 } else {
-                    logger.error("Failed to create index {}: {}", indexName, e.getMessage(), e);
+                    logger.error("Failed to create index {}: {}", indexName, e.getMessage());
                     listener.onFailure(e);
                 }
             }
@@ -161,7 +157,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
             getRuleFromIndex(null, query, null, new ActionListener<>() {
                 @Override
                 public void onResponse(GetRuleResponse getRuleResponse) {
-                    Optional<String> duplicateRuleId = ruleDuplicateChecker.getDuplicateRuleId(rule, getRuleResponse.getRules());
+                    Optional<String> duplicateRuleId = RuleUtils.getDuplicateRuleId(rule, getRuleResponse.getRules());
                     duplicateRuleId.ifPresentOrElse(
                         id -> listener.onFailure(new IllegalArgumentException("Duplicate rule exists under id " + id)),
                         () -> listener.onResponse(null)

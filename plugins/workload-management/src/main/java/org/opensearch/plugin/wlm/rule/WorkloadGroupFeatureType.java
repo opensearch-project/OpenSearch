@@ -31,13 +31,27 @@ public class WorkloadGroupFeatureType implements FeatureType {
         RuleAttribute.INDEX_PATTERN
     );
     private final FeatureValueValidator featureValueValidator;
+    private static WorkloadGroupFeatureType instance;
 
     /**
      * constructor for WorkloadGroupFeatureType
      * @param featureValueValidator
      */
-    public WorkloadGroupFeatureType(FeatureValueValidator featureValueValidator) {
+    private WorkloadGroupFeatureType(FeatureValueValidator featureValueValidator) {
         this.featureValueValidator = featureValueValidator;
+    }
+
+    public static void initializeFeatureValueValidator(FeatureValueValidator validator) {
+        if (instance == null) {
+            instance = new WorkloadGroupFeatureType(validator);
+        }
+    }
+
+    public static WorkloadGroupFeatureType getInstance() {
+        if (instance == null) {
+            throw new IllegalStateException("FeatureValueValidator is not initialized. Call initializeFeatureValueValidator() first.");
+        }
+        return instance;
     }
 
     @Override

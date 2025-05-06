@@ -50,7 +50,7 @@ public class RestCreateRuleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new RestHandler.Route(POST, "_rules/{featureType}/"), new RestHandler.Route(PUT, "_rules/{featureType}/"));
+        return List.of(new RestHandler.Route(PUT, "_rules/{featureType}"));
     }
 
     @Override
