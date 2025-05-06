@@ -444,11 +444,12 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
             return false;
         }
+
         // size 0 could be set for caching
         if (context.from() + context.size() == 0) {
             this.setSize(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
         } else {
-            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo() + 1));
+            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()));
         }
         if (context.request() != null && context.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
