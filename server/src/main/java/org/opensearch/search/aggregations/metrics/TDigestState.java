@@ -96,9 +96,9 @@ public class TDigestState extends MergingDigest {
                 for (int i = 0; i < n; i++) {
                     treeDigest.add(in.readDouble(), in.readVInt());
                 }
-                MergingDigest mergingDigest = new MergingDigest(compression);
-                mergingDigest.add(List.of(treeDigest));
-                return new TDigestState(compression, mergingDigest);
+                TDigestState state = new TDigestState(compression);
+                state.add(List.of(treeDigest));
+                return state;
             }
             return new TDigestState(compression);
         } else {
