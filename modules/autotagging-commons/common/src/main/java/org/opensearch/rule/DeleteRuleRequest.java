@@ -13,30 +13,26 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.rule.autotagging.FeatureType;
 
 import java.io.IOException;
 
 /**
  * A request to delete a Rule by ID
  * Example:
- * curl -XDELETE "localhost:9200/_rules/{featureType}/ruleId}"
+ * curl -XDELETE "localhost:9200/_rules/{featureType}/ruleId"
  * @opensearch.experimental
  */
 @ExperimentalApi
 public class DeleteRuleRequest extends ActionRequest {
     private final String ruleId;
-    private final FeatureType featureType;
 
     /**
      * Constructs a request to delete a rule.
      *
      * @param ruleId The ID of the rule to delete.
-     * @param featureType The feature type associated with the rule.
      */
-    public DeleteRuleRequest(String ruleId, FeatureType featureType) {
+    public DeleteRuleRequest(String ruleId) {
         this.ruleId = ruleId;
-        this.featureType = featureType;
     }
 
     /**
@@ -46,14 +42,12 @@ public class DeleteRuleRequest extends ActionRequest {
     public DeleteRuleRequest(StreamInput in) throws IOException {
         super(in);
         this.ruleId = in.readString();
-        this.featureType = FeatureType.from(in.readString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(ruleId);
-        featureType.writeTo(out);
     }
 
     @Override
@@ -73,14 +67,5 @@ public class DeleteRuleRequest extends ActionRequest {
      */
     public String getRuleId() {
         return ruleId;
-    }
-
-    /**
-     * Returns the feature type associated with the rule.
-     *
-     * @return The feature type.
-     */
-    public FeatureType getFeatureType() {
-        return featureType;
     }
 }

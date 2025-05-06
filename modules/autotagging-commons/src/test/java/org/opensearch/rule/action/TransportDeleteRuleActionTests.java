@@ -9,14 +9,16 @@
 package org.opensearch.rule.action;
 
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.rule.DeleteRuleRequest;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RulePersistenceServiceRegistry;
-import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -31,15 +33,19 @@ public class TransportDeleteRuleActionTests extends OpenSearchTestCase {
         TransportService transportService = mock(TransportService.class);
         ActionFilters actionFilters = mock(ActionFilters.class);
         RulePersistenceService rulePersistenceService = mock(RulePersistenceService.class);
-        DeleteRuleRequest deleteRuleRequest = mock(DeleteRuleRequest.class);
 
-        when(deleteRuleRequest.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
-        when(rulePersistenceServiceRegistry.getRulePersistenceService(any())).thenReturn(rulePersistenceService);
+        DeleteRuleRequest deleteRuleRequest = new DeleteRuleRequest("test-rule-id");
+
+        when(rulePersistenceServiceRegistry.getDefaultRulePersistenceService()).thenReturn(rulePersistenceService);
+
+        @SuppressWarnings("unchecked")
+        ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) mock(ActionListener.class);
+
         doNothing().when(rulePersistenceService).deleteRule(any(), any());
 
         sut = new TransportDeleteRuleAction(transportService, actionFilters, rulePersistenceServiceRegistry);
-        sut.doExecute(null, deleteRuleRequest, null);
+        sut.doExecute(null, deleteRuleRequest, listener);
 
-        verify(rulePersistenceService, times(1)).deleteRule(any(), any());
+        verify(rulePersistenceService, times(1)).deleteRule(eq(deleteRuleRequest), eq(listener));
     }
 }

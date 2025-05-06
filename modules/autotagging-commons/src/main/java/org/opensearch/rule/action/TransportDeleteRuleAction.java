@@ -46,7 +46,7 @@ public class TransportDeleteRuleAction extends HandledTransportAction<DeleteRule
 
     @Override
     protected void doExecute(Task task, DeleteRuleRequest request, ActionListener<AcknowledgedResponse> listener) {
-        RulePersistenceService rulePersistenceService = rulePersistenceServiceRegistry.getRulePersistenceService(request.getFeatureType());
+        RulePersistenceService rulePersistenceService = rulePersistenceServiceRegistry.getDefaultRulePersistenceService();
         rulePersistenceService.deleteRule(request, listener);
     }
 }

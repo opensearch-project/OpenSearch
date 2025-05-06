@@ -8,6 +8,9 @@
 
 package org.opensearch.rule.action;
 
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -18,12 +21,14 @@ public class DeleteRuleActionTests extends OpenSearchTestCase {
         assertEquals("cluster:admin/opensearch/rule/_delete", DeleteRuleAction.NAME);
     }
 
-    public void testGetResponseReader() {
+    public void testGetResponseReader() throws IOException {
         assertTrue(DeleteRuleAction.INSTANCE.getResponseReader() instanceof Writeable.Reader);
-        try {
-            assertNotNull(DeleteRuleAction.INSTANCE.getResponseReader().read(null));
-        } catch (IOException e) {
-            fail("IOException thrown during test: " + e.getMessage());
-        }
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeBoolean(true);  // acknowledged = true
+        StreamInput in = out.bytes().streamInput();
+
+        AcknowledgedResponse response = DeleteRuleAction.INSTANCE.getResponseReader().read(in);
+        assertTrue(response.isAcknowledged());
     }
 }

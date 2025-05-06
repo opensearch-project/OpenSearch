@@ -45,4 +45,18 @@ public class RulePersistenceServiceRegistry {
         }
         return rulePersistenceServices.get(featureType.getName());
     }
+
+    /**
+     * This method should only be used when exactly one persistence service is registered.
+     * It assumes either that all rules are handled by a single implementation or that
+     * the caller does not need to distinguish by feature type.
+     *
+     * @return the single registered {@link RulePersistenceService} instance
+     */
+    public RulePersistenceService getDefaultRulePersistenceService() {
+        if (rulePersistenceServices.size() == 1) {
+            return rulePersistenceServices.values().iterator().next();
+        }
+        throw new IllegalStateException("Multiple rule persistence services registered, cannot pick default.");
+    }
 }
