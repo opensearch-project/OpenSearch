@@ -287,8 +287,8 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
 
     private Decision earlyTerminate(RoutingNode node, RoutingAllocation allocation) {
         // Always allow allocation if the decider is disabled
-        if (diskThresholdSettings.isEnabled() == false) {
-            return allocation.decision(Decision.YES, NAME, "the disk threshold decider is disabled");
+        if (diskThresholdSettings.isWarmThresholdEnabled() == false) {
+            return allocation.decision(Decision.YES, NAME, "the warm disk threshold decider is disabled");
         }
 
         // Allow allocation regardless if only a single data node is available
@@ -316,6 +316,12 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             }
             return allocation.decision(Decision.YES, NAME, "File Cache Stat is unavailable");
         }
+
+        double remoteDataRatio = fileCacheSettings.getRemoteDataRatio();
+        if (remoteDataRatio == 0) {
+            return allocation.decision(Decision.YES, NAME, "Remote data ratio is set to 0, no limit on allocation");
+        }
+
         return null;
     }
 

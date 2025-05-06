@@ -169,7 +169,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // For this case WarmDiskThresholdDecider Decider will take decision
         if (REMOTE_CAPABLE.equals(getNodePool(node)) && REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
-            return super.canAllocate(shardRouting, node, allocation);
+            return Decision.ALWAYS;
         } else if (REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
             return Decision.NO;
         }
@@ -439,7 +439,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // For this case WarmDiskThresholdDecider Decider will take decision
         if (REMOTE_CAPABLE.equals(getNodePool(node)) && REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
-            return super.canAllocate(shardRouting, node, allocation);
+            return Decision.ALWAYS;
         } else if (REMOTE_CAPABLE.equals(getShardPool(shardRouting, allocation))) {
             return Decision.NO;
         }
