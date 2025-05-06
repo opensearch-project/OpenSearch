@@ -911,7 +911,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
             );
         }
-        checkStoredForDerivedSource();
+        checkDocValuesForDerivedSource();
     }
 
     /**

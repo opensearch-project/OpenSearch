@@ -253,7 +253,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 if (val == null) {
                     return null;
                 }
-                return fieldType().dateTimeFormatter().formatMillis(val);
+                return fieldType().dateTimeFormatter().format(resolution.toInstant(val).atZone(ZoneOffset.UTC));
             }
         }, new StoredFieldFetcher(mappedFieldType, simpleName()));
     }

@@ -38,12 +38,10 @@ public class SortedSetDocValuesFetcher extends FieldValueFetcher {
                 return values;
             }
             int valueCount = sortedSetDocValues.docValueCount();
-            if (valueCount > 0) {
-                long ord;
-                while (values.size() < valueCount && (ord = sortedSetDocValues.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
-                    BytesRef value = sortedSetDocValues.lookupOrd(ord);
-                    values.add(BytesRef.deepCopyOf(value));
-                }
+            for (long ord = sortedSetDocValues.nextOrd(), i = 0; ord != SortedSetDocValues.NO_MORE_DOCS && i < valueCount; ord =
+                sortedSetDocValues.nextOrd(), i++) {
+                BytesRef value = sortedSetDocValues.lookupOrd(ord);
+                values.add(BytesRef.deepCopyOf(value));
             }
         } catch (IOException e) {
             throw new IOException("Failed to read doc values for document " + docId + " in field " + mappedFieldType.name(), e);

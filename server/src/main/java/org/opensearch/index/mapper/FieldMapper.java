@@ -617,6 +617,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
+     * Validates if doc values is enabled for a field or not
+     */
+    void checkDocValuesForDerivedSource() {
+        if (!mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with doc values disabled");
+        }
+    }
+
+    /**
      * Validates if stored field is enabled for a field or not
      */
     void checkStoredForDerivedSource() {
