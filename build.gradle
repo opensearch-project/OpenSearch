@@ -66,7 +66,6 @@ apply from: 'gradle/ide.gradle'
 apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
 apply from: 'gradle/local-distribution.gradle'
-apply from: 'gradle/fips.gradle'
 apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
@@ -434,6 +433,9 @@ gradle.projectsEvaluated {
           dependsOn(project(':libs:agent-sm:agent').prepareAgent)
           jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
         }
+        if (BuildParams.inFipsJvm) {
+          task.jvmArgs += ["-Dorg.bouncycastle.fips.approved_only=true"]
+        }
       }
     }
 
@@ -702,6 +704,14 @@ allprojects {
   def checkPart2 = tasks.register('checkPart2')
   plugins.withId('lifecycle-base') {
     checkPart1.configure { dependsOn 'check' }
+  }
+
+  plugins.withId('opensearch.testclusters') {
+    testClusters.configureEach {
+      if (BuildParams.inFipsJvm) {
+        keystorePassword 'notarealpasswordphrase'
+      }
+    }
   }
 }
 

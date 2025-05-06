@@ -61,6 +61,7 @@ import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.cluster.ClusterModule;
@@ -298,8 +299,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     public static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
-
-    public static final String FIPS_SYSPROP = "tests.fips.enabled";
 
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -1804,7 +1803,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        return CryptoServicesRegistrar.isInApprovedOnlyMode();
     }
 
     /**

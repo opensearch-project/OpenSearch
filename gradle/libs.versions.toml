@@ -93,6 +93,11 @@ arrow                 = "18.1.0"
 flatbuffers           = "2.0.0"
 
 [libraries]
+bouncycastle-jce = { group = "org.bouncycastle", name = "bc-fips", version.ref = "bouncycastle_jce"}
+bouncycastle-tls = { group = "org.bouncycastle", name = "bctls-fips", version.ref = "bouncycastle_tls"}
+bouncycastle-pkix = { group = "org.bouncycastle", name = "bcpkix-fips", version.ref = "bouncycastle_pkix"}
+bouncycastle-pg = { group = "org.bouncycastle", name = "bcpg-fips", version.ref = "bouncycastle_pg"}
+bouncycastle-util = { group = "org.bouncycastle", name = "bcutil-fips", version.ref = "bouncycastle_util"}
 hamcrest = { group = "org.hamcrest", name = "hamcrest", version.ref = "hamcrest" }
 hdrhistogram = { group = "org.hdrhistogram", name = "HdrHistogram", version.ref = "hdrhistogram" }
 jakartaannotation = { group = "jakarta.annotation", name = "jakarta.annotation-api", version.ref = "jakarta_annotation" }
@@ -176,4 +181,12 @@ netty = [
 reactornetty = [
     "reactor-netty-core",
     "reactor-netty-http"
+]
+
+bouncycastle = [
+    "bouncycastle-jce",
+    "bouncycastle-tls",
+    "bouncycastle-pkix",
+    "bouncycastle-pg",
+    "bouncycastle-util"
 ]
