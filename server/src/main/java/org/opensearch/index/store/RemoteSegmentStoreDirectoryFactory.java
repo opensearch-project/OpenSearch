@@ -65,7 +65,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         throws IOException {
         assert Objects.nonNull(pathStrategy);
         try {
-            //noinspection resource
+            // noinspection resource
             Repository repository = repositoriesService.get().repository(repositoryName);
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
