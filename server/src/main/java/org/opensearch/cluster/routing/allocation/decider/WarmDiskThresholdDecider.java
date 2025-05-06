@@ -77,7 +77,7 @@ import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.EN
  * Both watermark settings are expressed in terms of used disk percentage, or
  * exact byte values for free space (like "500mb")
  * <p>
- * <code>cluster.routing.allocation.disk.threshold_enabled</code> is used to
+ * <code>cluster.routing.allocation.disk.warm_threshold_enabled</code> is used to
  * enable or disable this decider. It defaults to true (enabled).
  *
  * @opensearch.internal
