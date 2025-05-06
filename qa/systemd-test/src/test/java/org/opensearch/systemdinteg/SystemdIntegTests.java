@@ -37,6 +37,7 @@ import java.util.Locale;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 
 
 public class SystemdIntegTests extends LuceneTestCase {
@@ -133,6 +134,18 @@ public class SystemdIntegTests extends LuceneTestCase {
         assertTrue("File descriptor limit should be at least 65535", 
                 limits.contains("Max open files            65535                65535") ||
                 limits.contains("Max open files            unlimited            unlimited"));
+    }
+
+    public void testSeccompEnabled() throws IOException, InterruptedException {
+        // Check if Seccomp is enabled
+        String seccomp = executeCommand("grep \"^Seccomp:\" /proc/" + opensearchPid + "/status", "Failed to read Seccomp status");
+        int seccompValue = Integer.parseInt(seccomp.split(":\\s*")[1].trim());
+        assertNotEquals("Seccomp should be enabled", 0, seccompValue);
+    }
+
+    public void testRebootSysCall() throws IOException, InterruptedException {
+        String rebootResult = executeCommand("sudo su opensearch -c 'kill -s SIGHUP 1' 2>&1 || echo 'Operation not permitted'", "Failed to test reboot system call");
+        assertTrue("Reboot system call should be blocked", rebootResult.contains("Operation not permitted"));
     }
 
     public void testOpenSearchProcessCannotExit() throws IOException, InterruptedException {

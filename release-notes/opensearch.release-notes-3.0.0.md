@@ -25,6 +25,8 @@
 - Deprecate CamelCase PathHierarchy tokenizer name ([#10894](https://github.com/opensearch-project/OpenSearch/pull/10894))
 - Rename Class ending with Plugin to Module under modules dir ([#4042](https://github.com/opensearch-project/OpenSearch/pull/4042))
 - Remove deprecated `batch_size` parameter from `_bulk` ([#14283](https://github.com/opensearch-project/OpenSearch/issues/14283))
+- Unset discovery nodes for every transport node actions request ([#17682](https://github.com/opensearch-project/OpenSearch/pull/17682))
+- Added cluster:monitor/shards permission for _cat/shards action ([#13966](https://github.com/opensearch-project/OpenSearch/pull/13966))
 
 ### Added
 - Support for HTTP/2 (server-side) ([#3847](https://github.com/opensearch-project/OpenSearch/pull/3847))
@@ -96,7 +98,6 @@
 - Introduce mapping transformer to allow transform mappings during index create/update or index template create/update ([#17635](https://github.com/opensearch-project/OpenSearch/pull/17635))
 - Introduce new dynamic cluster setting to tune maxMergeAtOnce at cluster level ([#17774](https://github.com/opensearch-project/OpenSearch/pull/17774))
 - Add multi-threaded writer support in pull-based ingestion ([#17912](https://github.com/opensearch-project/OpenSearch/pull/17912))
-- Unset discovery nodes for every transport node actions request ([#17682](https://github.com/opensearch-project/OpenSearch/pull/17682))
 - [Star Tree] Support of Boolean Queries in Aggregations ([#17941](https://github.com/opensearch-project/OpenSearch/pull/17941))
 - Enabled default throttling for all tasks submitted to cluster manager ([#17711](https://github.com/opensearch-project/OpenSearch/pull/17711))
 
