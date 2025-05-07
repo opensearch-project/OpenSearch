@@ -137,7 +137,13 @@ public class PolicyFile extends java.security.Policy {
         while ((b = pe.name().indexOf("${{", startIndex)) != -1 && (e = pe.name().indexOf("}}", b)) != -1) {
             sb.append(pe.name(), startIndex, b);
             String value = pe.name().substring(b + 3, e);
-            sb.append("${{").append(value).append("}}");
+            String propertyValue = System.getProperty(value);
+            if (propertyValue != null) {
+                sb.append(propertyValue);
+            } else {
+                // replacement not found
+                sb.append("${{").append(value).append("}}");
+            }
             startIndex = e + 2;
         }
 

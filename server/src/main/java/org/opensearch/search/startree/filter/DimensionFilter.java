@@ -74,6 +74,10 @@ public interface DimensionFilter {
      */
     boolean matchDimValue(long ordinal, StarTreeValues starTreeValues);
 
+    default String getDimensionName() {
+        return null;
+    }
+
     /**
      * Represents how to match a value when comparing during StarTreeTraversal
      */

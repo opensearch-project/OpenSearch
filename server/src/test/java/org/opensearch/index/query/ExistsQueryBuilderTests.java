@@ -39,6 +39,9 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -47,10 +50,35 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBuilder> {
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("raw.keyword")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .startObject("derived")
+            .startObject("raw.derived_keyword")
+            .field("type", "keyword")
+            .startObject("script")
+            .field("source", "emit(doc['raw.keyword'].value)")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        mapperService.merge("_doc", new CompressedXContent(mapping.toString()), MapperService.MergeReason.MAPPING_UPDATE);
+    }
+
     @Override
     protected ExistsQueryBuilder doCreateTestQueryBuilder() {
         String fieldPattern;
@@ -143,5 +171,17 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
 
         assertEquals(json, 42.0, parsed.boost(), 0.0001);
         assertEquals(json, "user", parsed.fieldName());
+    }
+
+    public void testObjectFieldWithDerivedSubField() throws IOException {
+        QueryShardContext shardContext = createShardContext();
+        final ExistsQueryBuilder queryBuilder1 = new ExistsQueryBuilder("raw.derived_keyword");
+        expectThrows(UnsupportedOperationException.class, () -> queryBuilder1.toQuery(shardContext));
+        final ExistsQueryBuilder queryBuilder2 = new ExistsQueryBuilder("raw");
+        Query actual = queryBuilder2.toQuery(shardContext);
+        Query expected = new ConstantScoreQuery(
+            new BooleanQuery.Builder().add(new FieldExistsQuery("raw.keyword"), BooleanClause.Occur.SHOULD).build()
+        );
+        assertEquals(expected, actual);
     }
 }

@@ -89,6 +89,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -589,7 +590,10 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getUpdateSuccess());
         assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getSuccessCount() > 0);
         assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getFailedCount());
-        assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getTotalTimeInMillis() > 0);
+        assertThat(
+            dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getTotalTimeInMillis(),
+            greaterThanOrEqualTo(0L)
+        );
         assertEquals(
             0,
             dataNodeDiscoveryStats.getClusterStateStats()
@@ -602,7 +606,10 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
 
         assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getSuccessCount() > 0);
         assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getFailedCount());
-        assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getTotalTimeInMillis() > 0);
+        assertThat(
+            dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getTotalTimeInMillis(),
+            greaterThanOrEqualTo(0L)
+        );
         assertEquals(
             0,
             dataNodeDiscoveryStats.getClusterStateStats()

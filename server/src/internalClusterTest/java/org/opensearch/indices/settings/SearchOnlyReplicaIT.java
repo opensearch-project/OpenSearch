@@ -152,10 +152,15 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         String searchNode = internalCluster().startSearchOnlyNode();
         ensureGreen(TEST_INDEX);
         // Restart Search Node
-        internalCluster().restartNode(searchNode);
-        // Ensure search shard is unassigned
-        ensureYellowAndNoInitializingShards(TEST_INDEX);
-        assertActiveSearchShards(0);
+        internalCluster().restartNode(searchNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                // Ensure search shard is unassigned
+                ensureYellowAndNoInitializingShards(TEST_INDEX);
+                assertActiveSearchShards(0);
+                return super.onNodeStopped(nodeName);
+            }
+        });
         // Ensure search shard is recovered
         ensureGreen(TEST_INDEX);
         assertActiveSearchShards(1);

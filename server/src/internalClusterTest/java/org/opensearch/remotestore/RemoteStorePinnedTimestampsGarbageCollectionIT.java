@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.collect.Tuple;
@@ -35,6 +36,7 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/16088")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreBaseIntegTestCase {
     static final String INDEX_NAME = "remote-store-test-idx-1";

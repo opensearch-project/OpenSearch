@@ -261,6 +261,7 @@ final class SystemCallFilter {
         m.put("aarch64", new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277));
         m.put("s390x", new Arch(0x80000016, 0xFFFFFFFF, 2, 190, 11, 354, 348));
         m.put("ppc64le", new Arch(0xC0000015, 0xFFFFFFFF, 2, 189, 11, 362, 358));
+        m.put("riscv64", new Arch(0xC00000F3, 0xFFFFFFFF, 1079, 1071, 221, 281, 277));
         ARCHITECTURES = Collections.unmodifiableMap(m);
     }
 

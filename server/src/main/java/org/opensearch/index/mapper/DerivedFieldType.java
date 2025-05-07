@@ -477,7 +477,7 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
 
     @Override
     public Query existsQuery(QueryShardContext context) {
-        throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support exist queries");
+        throw new UnsupportedOperationException("Field [" + name() + "] of type [" + typeName() + "] does not support exist queries");
     }
 
     @Override

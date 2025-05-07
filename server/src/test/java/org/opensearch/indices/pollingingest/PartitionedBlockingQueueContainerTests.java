@@ -92,7 +92,7 @@ public class PartitionedBlockingQueueContainerTests extends OpenSearchTestCase {
         // start processor threads and verify updates are processed
         blockingQueueContainer.startProcessorThreads();
         updatesLatch.await();
-        assertEquals(2, blockingQueueContainer.getTotalProcessedCount());
+        assertEquals(2, blockingQueueContainer.getMessageProcessorMetrics().processedCounter().count());
         verify(processor, times(2)).process(any(), any());
     }
 
