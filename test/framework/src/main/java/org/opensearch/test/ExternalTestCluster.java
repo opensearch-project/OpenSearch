@@ -109,7 +109,7 @@ public final class ExternalTestCluster extends TestCluster {
         boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
 
         if (addMockTcpTransport) {
-            if (pluginInfos.stream().anyMatch(p -> p.getClassname().equals(MockNioTransportPlugin.class.getName()))) {
+            if (pluginInfos.stream().noneMatch(p -> p.getClassname().equals(MockNioTransportPlugin.class.getName()))) {
                 additionalPluginClasses.add(MockNioTransportPlugin.class);
             }
         }
