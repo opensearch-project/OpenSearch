@@ -160,6 +160,7 @@ import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
+import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
 import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -895,6 +896,22 @@ public class Node implements Closeable {
                 });
             directoryFactories.putAll(builtInDirectoryFactories);
 
+            final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories = new HashMap<>();
+            pluginsService.filterPlugins(IndexStorePlugin.class)
+                .stream()
+                .map(IndexStorePlugin::getCompositeDirectoryFactories)
+                .flatMap(m -> m.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                .forEach((k, v) -> {
+                    if (k.equals("default")) {
+                        throw new IllegalStateException(
+                            "registered composite index store type [" + k + "] conflicts with a built-in default type"
+                        );
+                    }
+                    compositeDirectoryFactories.put(k, v);
+                });
+            compositeDirectoryFactories.put("default", new DefaultCompositeDirectoryFactory());
+
             final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
                 IndexStorePlugin.class
             )
@@ -953,6 +970,7 @@ public class Node implements Closeable {
                 metaStateService,
                 engineFactoryProviders,
                 Map.copyOf(directoryFactories),
+                Map.copyOf(compositeDirectoryFactories),
                 searchModule.getValuesSourceRegistry(),
                 recoveryStateFactories,
                 remoteDirectoryFactory,
