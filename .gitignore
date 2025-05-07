@@ -9,6 +9,7 @@ out/
 
 # include shared intellij config
 !.idea/inspectionProfiles/Project_Default.xml
+!.idea/runConfigurations/Debug_OpenSearch.xml
 !.idea/vcs.xml
 !.idea/icon.svg
 
