@@ -1,4 +1,8 @@
-"field alias with regex pattern search":
+setup:
+  - skip:
+      version: " - 2.99.99"
+      reason: "regex query over field alias support is in 3.x"
+
   - do:
       indices.create:
         index: test_index
@@ -23,6 +27,8 @@
           {"index":{"_index":"test_index","_id":"2"}}
           {"test":"world"}
 
+---
+"regex search on normal field":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -35,6 +41,8 @@
   - match: {hits.total: 1}
   - match: {hits.hits.0._id: "1"}
 
+---
+"regex search on alias field":
   - do:
       search:
         rest_total_hits_as_int: true
