@@ -8,11 +8,13 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.Version;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Map;
+import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -48,8 +50,31 @@ public class ClasspathPluginIT extends OpenSearchIntegTestCase {
     }
 
     @Override
-    protected Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins() {
-        return Map.of(SampleExtendingPlugin.class, SampleExtensiblePlugin.class);
+    protected Collection<PluginInfo> pluginInfos() {
+        return List.of(
+            new PluginInfo(
+                SampleExtensiblePlugin.class.getName(),
+                "classpath plugin",
+                "NA",
+                Version.CURRENT,
+                "1.8",
+                SampleExtensiblePlugin.class.getName(),
+                null,
+                Collections.emptyList(),
+                false
+            ),
+            new PluginInfo(
+                SampleExtendingPlugin.class.getName(),
+                "classpath plugin",
+                "NA",
+                Version.CURRENT,
+                "1.8",
+                SampleExtendingPlugin.class.getName(),
+                null,
+                List.of(SampleExtensiblePlugin.class.getName()),
+                false
+            )
+        );
     }
 
     public void testPluginExtensionWithClasspathPlugins() throws IOException {

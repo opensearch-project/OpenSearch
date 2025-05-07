@@ -516,8 +516,8 @@ public final class InternalTestCluster extends TestCluster {
         return plugins;
     }
 
-    public Map<Class<? extends Plugin>, Class<? extends Plugin>> getExtendedPlugins() {
-        return nodeConfigurationSource.extendedPlugins();
+    public Collection<PluginInfo> getPluginInfos() {
+        return nodeConfigurationSource.pluginInfos();
     }
 
     private static Settings getRandomNodeSettings(long seed) {
@@ -805,7 +805,7 @@ public final class InternalTestCluster extends TestCluster {
         assert Thread.holdsLock(this);
         ensureOpen();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
-        Map<Class<? extends Plugin>, Class<? extends Plugin>> extendedPlugins = getExtendedPlugins();
+        Collection<PluginInfo> pluginInfos = getPluginInfos();
         String name = settings.get("node.name");
 
         final NodeAndClient nodeAndClient = nodes.get(name);
@@ -820,28 +820,24 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
-        MockNode node = new MockNode(
-            settings,
-            plugins.stream()
-                .map(
-                    p -> new PluginInfo(
-                        p.getName(),
-                        "classpath plugin",
-                        "NA",
-                        Version.CURRENT,
-                        "1.8",
-                        p.getName(),
-                        null,
-                        (extendedPlugins != null && extendedPlugins.containsKey(p))
-                            ? List.of(extendedPlugins.get(p).getName())
-                            : Collections.emptyList(),
-                        false
-                    )
+
+        List<PluginInfo> allPluginInfos = plugins.stream()
+            .map(
+                p -> new PluginInfo(
+                    p.getName(),
+                    "classpath plugin",
+                    "NA",
+                    Version.CURRENT,
+                    "1.8",
+                    p.getName(),
+                    null,
+                    Collections.emptyList(),
+                    false
                 )
-                .collect(Collectors.toList()),
-            nodeConfigurationSource.nodeConfigPath(nodeId),
-            forbidPrivateIndexSettings
-        );
+            )
+            .collect(Collectors.toList());
+        allPluginInfos.addAll(pluginInfos);
+        MockNode node = new MockNode(settings, allPluginInfos, nodeConfigurationSource.nodeConfigPath(nodeId), forbidPrivateIndexSettings);
         node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
