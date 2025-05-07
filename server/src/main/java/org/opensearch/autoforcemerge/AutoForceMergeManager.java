@@ -126,7 +126,7 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
                     shard.forceMerge(new ForceMergeRequest().maxNumSegments(forceMergeManagerSettings.getSegmentCount()));
                     logger.debug("Merging is completed successfully for the shard {}", shard.shardId());
                 } catch (IOException e) {
-                    logger.error("Error during force merge for shard {}", shard.shardId(), e);
+                    logger.error("Error during force merge for shard {}\nException: {}", shard.shardId(), e);
                 }
             }, threadPool.executor(ThreadPool.Names.FORCE_MERGE));
             logger.debug("Successfully triggered force merge for shard {}", shard.shardId());
