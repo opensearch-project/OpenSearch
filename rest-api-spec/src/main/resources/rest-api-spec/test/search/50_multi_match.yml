@@ -1,7 +1,4 @@
-"Cross fields do not return negative scores":
-  - skip:
-      version: " - 2.99.99"
-      reason: "This fix is in 2.15. Until we do the BWC dance, we need to skip all pre-3.0, though."
+setup:
   - do:
       index:
         index: test
@@ -19,6 +16,12 @@
         body: { "color" : "orange red yellow purple" }
   - do:
       indices.refresh: { }
+
+---
+"Cross fields do not return negative scores":
+  - skip:
+      version: " - 2.14.99"
+      reason: "This fix is in 2.15.0"
   - do:
       search:
         index: test
@@ -33,3 +36,22 @@
   - match: { hits.total.value: 3 }
   - match: { hits.hits.0._id: "2" }
   - gt: { hits.hits.2._score: 0.0 }
+
+---
+"Query string with null field throws 400":
+  - skip:
+      version: " - 3.0.99"
+      reason: "This fix is in 3.1.0"
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: "red"
+              fields: ["color", null, "shape"]
+
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - match: { error.reason: "[query_string] field name in [fields] cannot be null" }
