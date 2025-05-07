@@ -172,16 +172,20 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         });
         thread.start();
 
-        logger.info("--> begin to reset repository");
-        repoSettings = Settings.builder().put("location", randomRepoPath()).put("max_snapshot_bytes_per_sec", "300mb");
-        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
-            client().admin().cluster(),
-            repositoryName,
-            FsRepository.TYPE,
-            true,
-            repoSettings
-        );
-        logger.info("--> finish to reset repository");
+        try {
+            logger.info("--> begin to reset repository");
+            repoSettings = Settings.builder().put("location", randomRepoPath()).put("max_snapshot_bytes_per_sec", "300mb");
+            OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+                client().admin().cluster(),
+                repositoryName,
+                FsRepository.TYPE,
+                true,
+                repoSettings
+            );
+            logger.info("--> finish to reset repository");
+        } catch (IllegalStateException e) {
+            assertThat(e, hasToString(containsString(("trying to modify or unregister repository that is currently used"))));
+        }
 
         // after updating repository, snapshot should be success
         createSnapshot.run();

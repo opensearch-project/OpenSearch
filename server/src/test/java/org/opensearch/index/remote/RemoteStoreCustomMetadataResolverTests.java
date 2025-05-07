@@ -29,7 +29,6 @@ import static org.mockito.Mockito.when;
 public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
 
     RepositoriesService repositoriesService = mock(RepositoriesService.class);
-    Settings settings = Settings.EMPTY;
 
     public void testGetPathStrategyMinVersionOlder() {
         Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), randomFrom(PathType.values())).build();
@@ -138,6 +137,12 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
             () -> repositoriesService,
             settings
         );
+        assertEquals(PathType.HASHED_PREFIX, resolver.getPathStrategy().getType());
+        assertNotNull(resolver.getPathStrategy().getHashAlgorithm());
+        assertEquals(PathHashAlgorithm.FNV_1A_COMPOSITE_1, resolver.getPathStrategy().getHashAlgorithm());
+
+        // Set FIXED with null hash algorithm
+        clusterSettings.applySettings(Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), PathType.FIXED).build());
         assertEquals(PathType.FIXED, resolver.getPathStrategy().getType());
         assertNull(resolver.getPathStrategy().getHashAlgorithm());
 

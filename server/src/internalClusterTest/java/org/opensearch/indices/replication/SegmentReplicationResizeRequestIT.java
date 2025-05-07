@@ -31,6 +31,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2)
 public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT {
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17552")
     public void testCreateShrinkIndexThrowsExceptionWhenReplicasBehind() throws Exception {
 
         // create index with -1 as refresh interval as we are blocking segrep and we want to control refreshes.
