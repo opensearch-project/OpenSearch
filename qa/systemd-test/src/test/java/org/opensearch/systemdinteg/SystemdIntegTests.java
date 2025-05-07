@@ -37,6 +37,7 @@ import java.util.Locale;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 
 
 public class SystemdIntegTests extends LuceneTestCase {
@@ -137,8 +138,9 @@ public class SystemdIntegTests extends LuceneTestCase {
 
     public void testSeccompEnabled() throws IOException, InterruptedException {
         // Check if Seccomp is enabled
-        String seccomp = executeCommand("sudo su -c 'grep Seccomp /proc/" + opensearchPid + "/status'", "Failed to read Seccomp status");
-        assertFalse("Seccomp should be enabled", seccomp.contains("0"));
+        String seccomp = executeCommand("grep \"^Seccomp:\" /proc/" + opensearchPid + "/status", "Failed to read Seccomp status");
+        int seccompValue = Integer.parseInt(seccomp.split(":\\s*")[1].trim());
+        assertNotEquals("Seccomp should be enabled", 0, seccompValue);
     }
 
     public void testRebootSysCall() throws IOException, InterruptedException {
