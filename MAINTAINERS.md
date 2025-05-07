@@ -31,6 +31,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Sarat Vemulapalli | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |
 | Shweta Thareja    | [shwetathareja](https://github.com/shwetathareja)       | Amazon      |
 | Sorabh Hamirwasia | [sohami](https://github.com/sohami)                     | Amazon      |
+| Yupeng Fu         | [yupeng9](https://github.com/yupeng9)                   | Uber        |
 | Vacha Shah        | [VachaShah](https://github.com/VachaShah)               | Amazon      |
 
 ## Emeritus
