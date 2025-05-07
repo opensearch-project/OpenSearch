@@ -68,8 +68,6 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), false)
             .build();
-
-        // Cluster setup
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
         String dataNode = internalTestCluster.startDataOnlyNodes(1, clusterSettings).getFirst();
@@ -136,13 +134,10 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
     }
 
     public void testAutoForceMergeTriggeringBasicWithOneShard() throws Exception {
-
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
             .build();
-
-        // Cluster setup
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
         String dataNode = internalTestCluster.startDataOnlyNodes(1, clusterSettings).getFirst();
@@ -152,30 +147,18 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
         assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_1).setSettings(settings).get());
-
-        // Each ingestion request creates a segment here
         for (int i = 0; i < INGESTION_COUNT; i++) {
             indexBulk(INDEX_NAME_1, NUM_DOCS_IN_BULK);
             flushAndRefresh(INDEX_NAME_1);
         }
         IndexShard shard = getIndexShard(dataNode, INDEX_NAME_1);
         assertNotNull(shard);
-
-        // Before stats
         SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false);
-
-        // This is to make sure auto force merge action gets triggered multiple times ang gets successful at least once.
         Thread.sleep(TimeValue.parseTimeValue(SCHEDULER_INTERVAL, "test").getMillis() * 3);
-        // refresh to clear old segments
         flushAndRefresh(INDEX_NAME_1);
-
-        // After stats
         SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false);
         assertTrue((int) segmentsStatsBefore.getCount() > segmentsStatsAfter.getCount());
         assertEquals((int) SEGMENT_COUNT, segmentsStatsAfter.getCount());
-
-        // Deleting the index (so that ref count drops to zero for all the files) and then pruning the cache to clear it to avoid any file
-        // leaks
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
     }
 
@@ -185,8 +168,6 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
             .build();
-
-        // Cluster setup
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
         String dataNode = internalTestCluster.startDataOnlyNodes(1, clusterSettings).getFirst();
@@ -215,8 +196,6 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
                 )
                 .get()
         );
-
-        // Each ingestion request creates a segment here
         for (int i = 0; i < INGESTION_COUNT; i++) {
             indexBulk(INDEX_NAME_1, NUM_DOCS_IN_BULK);
             flushAndRefresh(INDEX_NAME_1);
@@ -245,12 +224,10 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
             segmentsStatsForShard1Before.getCount() + segmentsStatsForShard2Before.getCount() + segmentsStatsForShard3Before.getCount()
                 + segmentsStatsForShard4Before.getCount() + segmentsStatsForShard5Before.getCount()
         );
-
         assertTrue(totalSegments.get() > 5);
-
-        // This is to make sure auto force merge action gets triggered multiple times ang gets successful at least once.
         Thread.sleep(TimeValue.parseTimeValue(SCHEDULER_INTERVAL, "test").getMillis() * 7);
-        // After stats
+        flushAndRefresh(INDEX_NAME_1);
+        flushAndRefresh(INDEX_NAME_2);
         SegmentsStats segmentsStatsForShard1After = shard1.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard2After = shard2.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard3After = shard3.segmentStats(false, false);
@@ -260,13 +237,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
             segmentsStatsForShard1After.getCount() + segmentsStatsForShard2After.getCount() + segmentsStatsForShard3After.getCount()
                 + segmentsStatsForShard4After.getCount() + segmentsStatsForShard5After.getCount()
         );
-        // refresh to clear old segments
-        flushAndRefresh(INDEX_NAME_1);
-        flushAndRefresh(INDEX_NAME_2);
         assertEquals(5, totalSegments.get());
-
-        // Deleting the index (so that ref count drops to zero for all the files) and then pruning the cache to clear it to avoid any file
-        // leaks
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_2).get());
     }
