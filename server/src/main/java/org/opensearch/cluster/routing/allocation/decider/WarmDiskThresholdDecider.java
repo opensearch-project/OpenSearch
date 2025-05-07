@@ -257,7 +257,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             .filter(
                 shard -> shard.primary()
                     && REMOTE_CAPABLE.equals(getShardPool(shard, allocation))
-                    && (!subtractLeavingShards || !shard.relocating())
+                    && (subtractLeavingShards == false || shard.relocating() == false)
             )
             .collect(Collectors.toList());
 
