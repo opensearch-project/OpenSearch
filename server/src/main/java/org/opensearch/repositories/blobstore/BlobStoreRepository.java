@@ -4568,7 +4568,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             SnapshotId snapshotId = snapshotInfo.snapshotId();
             if (snapshotInfo.getPinnedTimestamp() != 0) {
                 return () -> IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0, 0, "1");
-            } else if (snapshotInfo.isRemoteStoreIndexShallowCopyEnabled()) {
+            } else if (Boolean.TRUE.equals(snapshotInfo.isRemoteStoreIndexShallowCopyEnabled())) {
                 if (shardContainer.blobExists(REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()))) {
                     return REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(
                         shardContainer,
