@@ -337,7 +337,8 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return indexService.getShard(0);
     }
 
-    protected IndexShard getIndexShardFromShardId(String dataNode, String indexName, Integer shardId) throws ExecutionException, InterruptedException {
+    protected IndexShard getIndexShardFromShardId(String dataNode, String indexName, Integer shardId) throws ExecutionException,
+        InterruptedException {
         String clusterManagerName = internalCluster().getClusterManagerName();
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNode);
         GetIndexResponse getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
