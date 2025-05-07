@@ -10,7 +10,6 @@ package org.opensearch.index.store.remote.filecache;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.index.store.remote.utils.cache.CacheUsage;
 import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -25,34 +24,74 @@ public class FileCacheStatsTests extends OpenSearchTestCase {
         final long replaced = randomLongBetween(0, 10000);
         final long hits = randomLongBetween(0, 10000);
         final long miss = randomLongBetween(0, 10000);
-        return new CacheStats(hits, miss, 0, removed, replaced, 0, evicted);
-    }
+        final long usage = randomLongBetween(10000, BYTES_IN_GB);
+        final long activeUsage = randomLongBetween(10000, BYTES_IN_GB);
+        final long fullFileHitCount = randomLongBetween(0, 10000);
+        final long fullFileRemoveCount = randomLongBetween(0, 10000);
+        final long fullFileRemoveWeight = randomLongBetween(10000, BYTES_IN_GB);
+        final long fullFileReplaceCount = randomLongBetween(0, 10000);
+        final long fullFileEvictionCount = randomLongBetween(0, 10000);
+        final long fullFileEvictionWeight = randomLongBetween(10000, BYTES_IN_GB);
+        final long fullFileUsage = randomLongBetween(0, 10000);
+        final long fullFileActiveUsage = randomLongBetween(0, 10000);
 
-    public static CacheUsage getMockCacheUsage(long total) {
-        final long used = randomLongBetween(100, total);
-        final long active = randomLongBetween(10, used);
-        return new CacheUsage(used, active);
+        return new CacheStats(
+            hits,
+            miss,
+            0,
+            removed,
+            replaced,
+            0,
+            evicted,
+            usage,
+            activeUsage,
+            fullFileHitCount,
+            fullFileRemoveCount,
+            fullFileRemoveWeight,
+            fullFileReplaceCount,
+            fullFileEvictionCount,
+            fullFileEvictionWeight,
+            fullFileUsage,
+            fullFileActiveUsage
+        );
     }
 
     public static long getMockCacheCapacity() {
         return randomLongBetween(10 * BYTES_IN_GB, 1000 * BYTES_IN_GB);
     }
 
-    public static FileCacheStats getFileCacheStats(final long fileCacheCapacity, final CacheStats stats, final CacheUsage usage) {
+    public static FileCacheStats getFileCacheStats(final long fileCacheCapacity, final CacheStats stats) throws IOException {
         return new FileCacheStats(
             System.currentTimeMillis(),
-            usage.activeUsage(),
+            stats.activeUsage(),
             fileCacheCapacity,
-            usage.usage(),
+            stats.usage(),
             stats.evictionWeight(),
             stats.hitCount(),
-            stats.missCount()
+            stats.missCount(),
+            getMockFullFileCacheStats()
         );
     }
 
-    public static FileCacheStats getMockFileCacheStats() {
+    public static FullFileCacheStats getMockFullFileCacheStats() {
+        final long active = randomLongBetween(100000, BYTES_IN_GB);
+        final long used = randomLongBetween(100000, BYTES_IN_GB);
+        final long evicted = randomLongBetween(0, getMockCacheStats().fullFileStats().getEvictionWeight());
+        final long hit = randomLongBetween(0, 10);
+        return new FullFileCacheStats(active, used, evicted, hit);
+    }
+
+    public static FileCacheStats getMockFileCacheStats() throws IOException {
         final long fcSize = getMockCacheCapacity();
-        return getFileCacheStats(fcSize, getMockCacheStats(), getMockCacheUsage(fcSize));
+        return getFileCacheStats(fcSize, getMockCacheStats());
+    }
+
+    public static void validateFullFileStats(FullFileCacheStats original, FullFileCacheStats deserialized) {
+        assertEquals(original.getHits(), deserialized.getHits());
+        assertEquals(original.getActive(), deserialized.getActive());
+        assertEquals(original.getUsed(), deserialized.getUsed());
+        assertEquals(original.getEvicted(), deserialized.getEvicted());
+        assertEquals(original.getActivePercent(), deserialized.getActivePercent());
     }
 
     public static void validateFileCacheStats(FileCacheStats original, FileCacheStats deserialized) {
@@ -64,6 +103,7 @@ public class FileCacheStatsTests extends OpenSearchTestCase {
         assertEquals(original.getEvicted(), deserialized.getEvicted());
         assertEquals(original.getCacheHits(), deserialized.getCacheHits());
         assertEquals(original.getCacheMisses(), deserialized.getCacheMisses());
+        validateFullFileStats(original.fullFileCacheStats(), deserialized.fullFileCacheStats());
     }
 
     public void testFileCacheStatsSerialization() throws IOException {

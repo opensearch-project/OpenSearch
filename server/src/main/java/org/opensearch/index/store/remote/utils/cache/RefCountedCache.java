@@ -98,7 +98,14 @@ public interface RefCountedCache<K, V> {
      *
      * @return the combined weight of the values in this cache
      */
-    CacheUsage usage();
+    long usage();
+
+    /**
+     * Returns the active usage of this cache.
+     *
+     * @return the combined active weight of the values in this cache.
+     */
+    long activeUsage();
 
     /**
      * Returns a current snapshot of this cache's cumulative statistics. All statistics are
