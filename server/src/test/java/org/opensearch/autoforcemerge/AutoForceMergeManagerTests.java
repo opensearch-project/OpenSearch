@@ -465,12 +465,11 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
                 Settings.builder()
                     .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
                     .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
-                    .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "3s")
+                    .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "1s")
                     .put(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), "1s")
                     .build()
             );
         autoForceMergeManager.getTask().runInternal();
-        Thread.sleep(TimeValue.timeValueSeconds(3).getMillis());
         verify(shard1, atLeastOnce()).forceMerge(any());
         verify(shard2, atLeastOnce()).forceMerge(any());
 

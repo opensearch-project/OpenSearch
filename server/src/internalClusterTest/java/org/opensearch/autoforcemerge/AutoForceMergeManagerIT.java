@@ -26,6 +26,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
@@ -91,7 +92,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false);
 
         // This is to make sure auto force merge action gets triggered multiple times ang gets successful at least once.
-        Thread.sleep(TimeValue.parseTimeValue(SCHEDULER_INTERVAL, "test").getMillis() * 2);
+        Thread.sleep(TimeValue.parseTimeValue(SCHEDULER_INTERVAL, "test").getMillis() * 3);
         // refresh to clear old segments
         flushAndRefresh(INDEX_NAME_1);
 
@@ -127,7 +128,6 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         assertNotNull(shard);
         SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false);
         Thread.sleep(TimeValue.parseTimeValue(SCHEDULER_INTERVAL, "test").getMillis() * 3);
-        flushAndRefresh(INDEX_NAME_1);
         SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false);
         assertEquals(segmentsStatsBefore.getCount(), segmentsStatsAfter.getCount());
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
@@ -154,8 +154,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         IndexShard shard = getIndexShard(dataNode, INDEX_NAME_1);
         assertNotNull(shard);
         SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false);
-        Thread.sleep(TimeValue.parseTimeValue(SCHEDULER_INTERVAL, "test").getMillis() * 3);
-        flushAndRefresh(INDEX_NAME_1);
+        waitUntil(() -> shard.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
         SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false);
         assertTrue((int) segmentsStatsBefore.getCount() > segmentsStatsAfter.getCount());
         assertEquals((int) SEGMENT_COUNT, segmentsStatsAfter.getCount());
@@ -225,9 +224,11 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
                 + segmentsStatsForShard4Before.getCount() + segmentsStatsForShard5Before.getCount()
         );
         assertTrue(totalSegments.get() > 5);
-        Thread.sleep(TimeValue.parseTimeValue(SCHEDULER_INTERVAL, "test").getMillis() * 7);
-        flushAndRefresh(INDEX_NAME_1);
-        flushAndRefresh(INDEX_NAME_2);
+        waitUntil(() -> shard1.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
+        waitUntil(() -> shard2.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
+        waitUntil(() -> shard3.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
+        waitUntil(() -> shard4.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
+        waitUntil(() -> shard5.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
         SegmentsStats segmentsStatsForShard1After = shard1.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard2After = shard2.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard3After = shard3.segmentStats(false, false);
