@@ -516,10 +516,6 @@ public final class InternalTestCluster extends TestCluster {
         return plugins;
     }
 
-    public Collection<PluginInfo> getPluginInfos() {
-        return nodeConfigurationSource.pluginInfos();
-    }
-
     private static Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.builder();
@@ -805,7 +801,7 @@ public final class InternalTestCluster extends TestCluster {
         assert Thread.holdsLock(this);
         ensureOpen();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
-        Collection<PluginInfo> pluginInfos = getPluginInfos();
+        Collection<PluginInfo> pluginInfos = nodeConfigurationSource.additionalNodePlugins();
         String name = settings.get("node.name");
 
         final NodeAndClient nodeAndClient = nodes.get(name);
@@ -1099,10 +1095,9 @@ public final class InternalTestCluster extends TestCluster {
                 .put(newSettings)
                 .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                 .build();
-            Collection<PluginInfo> plugins = node.getClasspathPlugins();
             node = new MockNode(
                 finalSettings,
-                plugins,
+                node.getClasspathPlugins(),
                 nodeConfigurationSource.nodeConfigPath((int) newIdSeed),
                 forbidPrivateIndexSettings
             );

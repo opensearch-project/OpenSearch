@@ -2008,7 +2008,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     /**
      * Returns a collection of plugins that should be loaded on each node.
      */
-    protected Collection<PluginInfo> pluginInfos() {
+    protected Collection<PluginInfo> additionalNodePlugins() {
         return Collections.emptyList();
     }
 
@@ -2135,8 +2135,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             }
 
             @Override
-            public Collection<PluginInfo> pluginInfos() {
-                return OpenSearchIntegTestCase.this.pluginInfos();
+            public Collection<PluginInfo> additionalNodePlugins() {
+                return OpenSearchIntegTestCase.this.additionalNodePlugins();
             }
         };
     }

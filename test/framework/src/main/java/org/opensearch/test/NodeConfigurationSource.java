@@ -66,7 +66,7 @@ public abstract class NodeConfigurationSource {
     }
 
     /** Returns plugins that should be loaded on the node */
-    public Collection<PluginInfo> pluginInfos() {
+    public Collection<PluginInfo> additionalNodePlugins() {
         return Collections.emptyList();
     }
 }

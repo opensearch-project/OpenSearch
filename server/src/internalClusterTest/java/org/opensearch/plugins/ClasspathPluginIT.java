@@ -15,8 +15,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,13 +42,7 @@ public class ClasspathPluginIT extends OpenSearchIntegTestCase {
     };
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(SampleExtensiblePlugin.class, SampleExtendingPlugin.class))
-            .collect(Collectors.toList());
-    }
-
-    @Override
-    protected Collection<PluginInfo> pluginInfos() {
+    protected Collection<PluginInfo> additionalNodePlugins() {
         return List.of(
             new PluginInfo(
                 SampleExtensiblePlugin.class.getName(),
