@@ -287,12 +287,19 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         String date2 = "2016-04-28T11:33:52";
         long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
-        Query expected = new ApproximatePointRangeQuery(
+        ApproximatePointRangeQuery approximatePointRangeQuery = new ApproximatePointRangeQuery(
             "field",
             pack(new long[] { instant1 }).bytes,
             pack(new long[] { instant2 }).bytes,
             new long[] { instant1 }.length,
             ApproximatePointRangeQuery.LONG_FORMAT
+        );
+        Query expected = new ApproximateScoreQuery(
+            new IndexOrDocValuesQuery(
+                LongPoint.newRangeQuery("field", instant1, instant2),
+                SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
+            ),
+            approximatePointRangeQuery
         );
         Query rangeQuery = ft.rangeQuery(date1, date2, true, true, null, null, null, context);
         assertTrue(rangeQuery instanceof ApproximateScoreQuery);
