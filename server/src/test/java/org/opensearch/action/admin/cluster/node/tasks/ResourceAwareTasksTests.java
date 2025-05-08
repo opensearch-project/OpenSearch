@@ -179,9 +179,9 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                 @SuppressForbidden(reason = "ThreadMXBean#getThreadAllocatedBytes")
                 protected void doRun() {
                     taskTestContext.memoryConsumptionWhenExecutionStarts = threadMXBean.getThreadAllocatedBytes(
-                        Thread.currentThread().getId()
+                        Thread.currentThread().threadId()
                     );
-                    threadId.set(Thread.currentThread().getId());
+                    threadId.set(Thread.currentThread().threadId());
 
                     // operationStartValidator will be called just before the task execution.
                     if (taskTestContext.operationStartValidator != null) {
