@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 2.99.99"
-      reason: "regex query over field alias support is in 3.x"
+      version: " - 3.0.99"
+      reason: "regex query over field alias support starts 3.1"
 
   - do:
       indices.create:
