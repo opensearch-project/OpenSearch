@@ -8,6 +8,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -25,6 +26,7 @@ import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.time.DateMathParser;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -72,6 +74,26 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
     private static ConstantKeywordFieldMapper toType(FieldMapper in) {
         return (ConstantKeywordFieldMapper) in;
+    }
+
+    @Override
+    public void canDeriveSource() {
+        if (this.copyTo() != null && !this.copyTo().copyToFields().isEmpty()) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with copy_to parameter set");
+        }
+    }
+
+    /**
+     * For each doc, it will return constant value defined in field mapping
+     * <p>
+     * Note: Doc for which, field in absent, deriveSource will still consider the still to be present, and it will
+     *       return the same.
+     */
+    @Override
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        if (value != null) {
+            builder.field(name(), value);
+        }
     }
 
     /**
