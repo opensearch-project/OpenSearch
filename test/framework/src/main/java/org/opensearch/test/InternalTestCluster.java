@@ -801,7 +801,7 @@ public final class InternalTestCluster extends TestCluster {
         assert Thread.holdsLock(this);
         ensureOpen();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
-        Collection<PluginInfo> pluginInfos = nodeConfigurationSource.additionalNodePlugins();
+        Collection<PluginInfo> additionalNodePlugins = nodeConfigurationSource.additionalNodePlugins();
         String name = settings.get("node.name");
 
         final NodeAndClient nodeAndClient = nodes.get(name);
@@ -817,7 +817,7 @@ public final class InternalTestCluster extends TestCluster {
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
 
-        List<PluginInfo> allPluginInfos = plugins.stream()
+        List<PluginInfo> pluginInfos = plugins.stream()
             .map(
                 p -> new PluginInfo(
                     p.getName(),
@@ -832,8 +832,8 @@ public final class InternalTestCluster extends TestCluster {
                 )
             )
             .collect(Collectors.toList());
-        allPluginInfos.addAll(pluginInfos);
-        MockNode node = new MockNode(settings, allPluginInfos, nodeConfigurationSource.nodeConfigPath(nodeId), forbidPrivateIndexSettings);
+        pluginInfos.addAll(additionalNodePlugins);
+        MockNode node = new MockNode(settings, pluginInfos, nodeConfigurationSource.nodeConfigPath(nodeId), forbidPrivateIndexSettings);
         node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
