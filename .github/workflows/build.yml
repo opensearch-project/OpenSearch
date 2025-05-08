@@ -35,10 +35,6 @@ on:
         description: "ID used to identify the workflow uniquely."
         type: string
         required: false
-      previous_version:
-        description: "Previous version of the package."
-        type: string
-        default: "4.11.2"
   workflow_call:
     inputs:
       revision:
@@ -68,10 +64,6 @@ on:
       id:
         type: string
         required: false
-      previous_version:
-        description: "Previous version of the package."
-        type: string
-        default: "4.11.2"
     secrets:
       CI_INTERNAL_DEVELOPMENT_BUCKET_USER_ACCESS_KEY:
         required: true
@@ -100,13 +92,14 @@ permissions:
 #   | https://docs.github.com/en/actions/learn-github-actions/expressions#example
 
 jobs:
-  matrix:
-    name: Set up matrix
+  setup:
+    name: Set up variables
     runs-on: ubuntu-24.04
     outputs:
-      matrix: ${{ steps.setup.outputs.matrix }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      previous_version: ${{ steps.previous_release.outputs.previous_version }}
     steps:
-      - id: setup
+      - id: matrix
         run: |
           matrix=$(jq -cn \
               --argjson distribution '${{ inputs.distribution }}' \
@@ -114,13 +107,24 @@ jobs:
               '{distribution: $distribution, architecture: $architecture}'
           )
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v4
+      - id: previous_release
+        name: Get latest Wazuh release from GitHub
+        run: |
+          CURRENT="$(bash packaging_scripts/product_version.sh)"
+          PREVIOUS=$(curl -s https://api.github.com/repos/wazuh/wazuh/releases | jq -r '.[].tag_name' | grep -vE 'alpha|beta|rc' | sed 's/^v//' | grep -E '^4\.[0-9]+\.[0-9]+$' | \
+          grep -v "^${CURRENT}$" | sort -V | awk -v current="$CURRENT" '$0 < current' | tail -n1)
+
+          echo "Current version: $CURRENT"
+          echo "Latest release detected: $PREVIOUS"
+          echo "previous_version=$PREVIOUS" >> $GITHUB_OUTPUT
 
   build:
-    needs: [matrix]
+    needs: [setup]
     runs-on: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'ubuntu-24.04' }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -227,7 +231,7 @@ jobs:
           ${{ steps.setup_rpm_env.outputs.ssh_command }} 'sudo yum remove wazuh-indexer -y'
 
       - name: Test RPM package update stopping the indexer
-        if: ${{ matrix.distribution == 'rpm' && (matrix.architecture == 'x64' || (inputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
+        if: ${{ matrix.distribution == 'rpm' && (matrix.architecture == 'x64' || (needs.setup.outputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
         run: |
           # This step sends the package to the Allocator machine and the script to install a previous version
           # Then installs the previous version, stops the indexer and installs the new version
@@ -235,13 +239,13 @@ jobs:
           ${{ steps.setup_rpm_env.outputs.scp_command }} artifacts/dist/${{ steps.package.outputs.name }} ${{ steps.setup_rpm_env.outputs.ansible_user }}@${{ steps.setup_rpm_env.outputs.ansible_host }}:/home/${{ steps.setup_rpm_env.outputs.ansible_user }}/
           ${{ steps.setup_rpm_env.outputs.scp_command }} packaging_scripts/indexer_node_install.sh ${{ steps.setup_rpm_env.outputs.ansible_user }}@${{ steps.setup_rpm_env.outputs.ansible_host }}:/home/${{ steps.setup_rpm_env.outputs.ansible_user }}/
           ${{ steps.setup_rpm_env.outputs.ssh_command }} << EOF
-          sudo bash /home/${{ steps.setup_rpm_env.outputs.ansible_user }}/indexer_node_install.sh ${{ inputs.previous_version }}
+          sudo bash /home/${{ steps.setup_rpm_env.outputs.ansible_user }}/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
           sudo systemctl stop wazuh-indexer
           sudo yum localinstall "/home/${{ steps.setup_rpm_env.outputs.ansible_user }}/${{ steps.package.outputs.name }}" -y
           EOF
 
       - name: Test RPM package update without stopping the indexer
-        if: ${{ matrix.distribution == 'rpm' && (matrix.architecture == 'x64' || (inputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
+        if: ${{ matrix.distribution == 'rpm' && (matrix.architecture == 'x64' || (needs.setup.outputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
         run: |
           # This step sends the package to the Allocator machine and the script to install a previous version
           # Then installs the previous version and installs the new version without stopping the indexer
@@ -250,7 +254,7 @@ jobs:
           ${{ steps.setup_rpm_env.outputs.scp_command }} artifacts/dist/${{ steps.package.outputs.name }} ${{ steps.setup_rpm_env.outputs.ansible_user }}@${{ steps.setup_rpm_env.outputs.ansible_host }}:/home/${{ steps.setup_rpm_env.outputs.ansible_user }}/
           ${{ steps.setup_rpm_env.outputs.scp_command }} packaging_scripts/indexer_node_install.sh ${{ steps.setup_rpm_env.outputs.ansible_user }}@${{ steps.setup_rpm_env.outputs.ansible_host }}:/home/${{ steps.setup_rpm_env.outputs.ansible_user }}/
           ${{ steps.setup_rpm_env.outputs.ssh_command }} << EOF
-          sudo bash /home/${{ steps.setup_rpm_env.outputs.ansible_user }}/indexer_node_install.sh ${{ inputs.previous_version }}
+          sudo bash /home/${{ steps.setup_rpm_env.outputs.ansible_user }}/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
           sudo yum localinstall "/home/${{ steps.setup_rpm_env.outputs.ansible_user }}/${{ steps.package.outputs.name }}" -y
           EOF
 
@@ -267,19 +271,19 @@ jobs:
           sudo apt-get remove --purge wazuh-indexer -y
 
       - name: Test DEB package update stopping the indexer
-        if: ${{ matrix.distribution == 'deb' && (matrix.architecture == 'x64' || (inputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
+        if: ${{ matrix.distribution == 'deb' && (matrix.architecture == 'x64' || (needs.setup.outputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
         run: |
-          sudo bash packaging_scripts/indexer_node_install.sh ${{ inputs.previous_version }}
+          sudo bash packaging_scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
           sudo systemctl stop wazuh-indexer
           sudo dpkg -i "artifacts/dist/${{ steps.package.outputs.name }}"
 
           sudo apt-get remove --purge wazuh-indexer -y
 
       - name: Test DEB package update without stopping the indexer
-        if: ${{ matrix.distribution == 'deb' && (matrix.architecture == 'x64' || (inputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
+        if: ${{ matrix.distribution == 'deb' && (matrix.architecture == 'x64' || (needs.setup.outputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
         run: |
 
-          sudo bash packaging_scripts/indexer_node_install.sh ${{ inputs.previous_version }}
+          sudo bash packaging_scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
           sudo dpkg -i "artifacts/dist/${{ steps.package.outputs.name }}"
 
       - name: Upload artifact
