@@ -790,9 +790,9 @@ public class QueryStringQueryParser extends XQueryParser {
             }
             if (forceAnalyzer != null) {
                 setAnalyzer(forceAnalyzer);
-                return super.getRegexpQuery(field, termStr);
             }
-            termStr = getAnalyzer().normalize(field, termStr).utf8ToString();
+            // query string query normalizes search value
+            termStr = getAnalyzer().normalize(currentFieldType.name(), termStr).utf8ToString();
             return currentFieldType.regexpQuery(termStr, RegExp.ALL, 0, getDeterminizeWorkLimit(), getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
