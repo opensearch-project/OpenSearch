@@ -12,7 +12,6 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.rule.DeleteRuleRequest;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RulePersistenceServiceRegistry;
-import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
@@ -33,7 +32,7 @@ public class TransportDeleteRuleActionTests extends OpenSearchTestCase {
         RulePersistenceService rulePersistenceService = mock(RulePersistenceService.class);
         DeleteRuleRequest deleteRuleRequest = mock(DeleteRuleRequest.class);
 
-        when(deleteRuleRequest.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        when(deleteRuleRequest.getFeatureType()).thenReturn(null);
         when(rulePersistenceServiceRegistry.getRulePersistenceService(any())).thenReturn(rulePersistenceService);
         doNothing().when(rulePersistenceService).deleteRule(any(), any());
 
