@@ -27,7 +27,6 @@
 %define data_dir %{_sharedstatedir}/%{name}
 %define log_dir %{_localstatedir}/log/%{name}
 %define pid_dir %{_localstatedir}/run/%{name}
-%define tmp_dir %{data_dir}/tmp
 %define state_file %{config_dir}/.was_active
 %{!?_version: %define _version 0.0.0 }
 %{!?_architecture: %define _architecture x86_64 }
@@ -67,7 +66,6 @@ cd %{_topdir} && pwd
 # Create necessary directories
 mkdir -p %{buildroot}%{pid_dir}
 mkdir -p %{buildroot}%{product_dir}/plugins
-mkdir -p %{buildroot}%{tmp_dir}
 
 # Install directories/files
 cp -a etc usr var %{buildroot}
@@ -231,6 +229,11 @@ else
     echo " sudo systemctl start %{name}.service"
 fi
 
+# Remove legacy VERSION file on upgrade
+if [ -f %{product_dir}/VERSION ]; then
+    rm -f %{product_dir}/VERSION
+fi
+
 exit 0
 
 %preun
@@ -294,9 +297,11 @@ exit 0
 %changelog
 * Wed Jun 11 2025 support <info@wazuh.com> - 4.13.0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-13-0.html
+* Wed May 14 2025 support <info@wazuh.com> - 4.12.2
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-12-2.html
 * Wed May 14 2025 support <info@wazuh.com> - 4.12.1
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-12-1.html
-* Wed Apr 30 2025 support <info@wazuh.com> - 4.12.0
+* Wed May 07 2025 support <info@wazuh.com> - 4.12.0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-12-0.html
 * Tue Apr 01 2025 support <info@wazuh.com> - 4.11.2
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-11-2.html

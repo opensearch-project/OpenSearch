@@ -1,5 +1,6 @@
 # build files
 artifacts/
+.devscripts
 *.deb
 *.rpm
 *.zip
@@ -9,6 +10,7 @@ integrations/amazon-security-lake/package
 
 .java
 .m2
+maven
 
 # intellij files
 .idea/

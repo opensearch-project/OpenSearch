@@ -19,7 +19,6 @@ config_dir=/etc/${name}
 data_dir=/var/lib/${name}
 log_dir=/var/log/${name}
 pid_dir=/run/${name}
-tmp_dir=${data_dir}/tmp
 state_file=${config_dir}/.was_active
 
 # Set owner
@@ -28,7 +27,6 @@ chown -R ${name}:${name} ${config_dir}
 chown -R ${name}:${name} ${log_dir}
 chown -R ${name}:${name} ${data_dir}
 chown -R ${name}:${name} ${pid_dir}
-chown -R ${name}:${name} ${tmp_dir}
 
 # Reload systemd
 command -v systemctl >/dev/null && systemctl daemon-reload

@@ -14,11 +14,6 @@ set -e
 name="wazuh-indexer"
 config_dir=/etc/${name}
 state_file=${config_dir}/.was_active
-data_dir=/var/lib/${name}
-tmp_dir=${data_dir}/tmp
-
-# Create needed directories
-mkdir -p ${tmp_dir}
 
 echo "Running Wazuh Indexer Pre-Installation Script"
 
