@@ -154,6 +154,7 @@ import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
@@ -2004,6 +2005,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return Collections.emptyList();
     }
 
+    /**
+     * Returns a collection of plugins that should be loaded on each node.
+     */
+    protected Collection<PluginInfo> additionalNodePlugins() {
+        return Collections.emptyList();
+    }
+
     private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
@@ -2124,6 +2132,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 return OpenSearchIntegTestCase.this.nodePlugins();
+            }
+
+            @Override
+            public Collection<PluginInfo> additionalNodePlugins() {
+                return OpenSearchIntegTestCase.this.additionalNodePlugins();
             }
         };
     }

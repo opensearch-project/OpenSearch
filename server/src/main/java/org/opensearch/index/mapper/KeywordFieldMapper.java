@@ -269,6 +269,39 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        if (this.ignoreAbove != Integer.MAX_VALUE || !Objects.equals(this.normalizerName, "default")) {
+            throw new UnsupportedOperationException(
+                "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
+            );
+        }
+        checkStoredAndDocValuesForDerivedSource();
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Support:
+     *    1. If "ignore_above" is set in the field mapping, then we won't be supporting derived source for now,
+     *       considering for these cases we will need to have explicit stored field.
+     *    2. If "normalizer" is set in the field mapping, then also we won't support derived source, as with
+     *       normalizer it is hard to regenerate original source
+     * <p>
+     * Considerations:
+     *    1. When using doc values, for multi value field, result would be deduplicated and in sorted order
+     *    2. When using stored field, order and duplicate values would be preserved
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(
+            mappedFieldType,
+            new SortedSetDocValuesFetcher(mappedFieldType, simpleName()),
+            new StoredFieldFetcher(mappedFieldType, simpleName())
+        );
+    }
+
     /**
      * Field type for keyword fields
      *

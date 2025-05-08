@@ -33,6 +33,7 @@ package org.opensearch.test;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -61,6 +62,11 @@ public abstract class NodeConfigurationSource {
 
     /** Returns plugins that should be loaded on the node */
     public Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.emptyList();
+    }
+
+    /** Returns plugins that should be loaded on the node */
+    public Collection<PluginInfo> additionalNodePlugins() {
         return Collections.emptyList();
     }
 }

@@ -412,4 +412,34 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        checkStoredAndDocValuesForDerivedSource();
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     *
+     * <p>
+     * Considerations:
+     *    1. Result will be in boolean type and not in the provided string value type at time of ingestion,
+     *       i.e. [false, "false", ""] will become boolean false
+     *    2. When using doc values, for multi value field, result will be in sorted order, i.e. at start there will
+     *       be 0 or more false and at end there will be 0 or more true
+     *    2. When using stored field, for multi value field order would be preserved
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
+            @Override
+            public Object convert(Object value) {
+                Long val = (Long) value;
+                if (val == null) {
+                    return null;
+                }
+                return val == 1;
+            }
+        }, new StoredFieldFetcher(mappedFieldType, simpleName()));
+    }
 }
