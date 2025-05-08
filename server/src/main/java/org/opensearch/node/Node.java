@@ -217,6 +217,7 @@ import org.opensearch.plugins.MetadataUpgrader;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
@@ -470,11 +471,7 @@ public class Node implements Closeable {
      * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
      *                                   test framework for tests that rely on being able to set private settings
      */
-    protected Node(
-        final Environment initialEnvironment,
-        Collection<Class<? extends Plugin>> classpathPlugins,
-        boolean forbidPrivateIndexSettings
-    ) {
+    protected Node(final Environment initialEnvironment, Collection<PluginInfo> classpathPlugins, boolean forbidPrivateIndexSettings) {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
         try {
