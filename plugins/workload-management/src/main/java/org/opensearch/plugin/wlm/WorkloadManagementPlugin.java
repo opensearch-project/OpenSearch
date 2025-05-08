@@ -63,6 +63,7 @@ import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.rule.RuleUtils;
 import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.autotagging.FeatureValueValidator;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
 import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
@@ -123,6 +124,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             DefaultAttributeValueStore::new
         );
         InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(attributeValueStoreFactory);
+        rulePersistenceService = new IndexStoredRulePersistenceService(
         rulePersistenceService = new IndexStoredRulePersistenceService(
             INDEX_NAME,
             client,
@@ -210,12 +212,15 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     }
 
     @Override
-    public Supplier<RuleRoutingService> getRuleRoutingServiceSupplier() {
-        return () -> ruleRoutingService;
+    public FeatureType getFeatureType() {
+        return FeatureTypeHolder.featureType;
     }
 
-    @Override
-    public Supplier<FeatureType> getFeatureTypeSupplier() {
-        return () -> featureType;
+    static class RulePersistenceServiceHolder {
+        private static RulePersistenceService rulePersistenceService;
+    }
+
+    static class FeatureTypeHolder {
+        private static FeatureType featureType;
     }
 }
