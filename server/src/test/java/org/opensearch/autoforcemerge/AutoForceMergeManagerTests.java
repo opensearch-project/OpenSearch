@@ -22,8 +22,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -36,7 +34,6 @@ import org.opensearch.monitor.jvm.JvmService;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsService;
 import org.opensearch.monitor.os.OsStats;
-import org.opensearch.node.Node;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -46,19 +43,22 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -71,13 +71,16 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
     private OsStats.Cpu cpu;
     private JvmStats.Mem mem;
-    private Settings settings;
 
     private final String DATA_NODE_1 = "DATA_NODE_1";
     private final String DATA_NODE_2 = "DATA_NODE_2";
     private final String WARM_NODE_1 = "WARM_NODE_1";
     private final String WARM_NODE_2 = "WARM_NODE_2";
-    private final String TEST_INDEX = "TEST_INDEX_1";
+    private final String TEST_INDEX_1 = "TEST_INDEX_1";
+    private final String TEST_INDEX_2 = "TEST_INDEX_2";
+
+    private final String SCHEDULER_INTERVAL = "1s";
+    private final String MERGE_DELAY = "1s";
 
     @Before
     public void setUp() throws Exception {
@@ -102,73 +105,49 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
 
     @After
     public void tearDown() throws Exception {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         super.tearDown();
     }
 
     // ConfigurationValidator Tests
-    public void testConfigurationValidatorWithDataNodeAndNonRemoteStore() {
-        DiscoveryNode dataNode = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
-        settings = Settings.builder()
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), false)
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "1s")
-            .build();
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.localNode()).thenReturn(dataNode);
-
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(
-            threadPool,
-            osService,
-            jvmService,
-            indicesService,
-            clusterService
+    public void testConfigurationValidatorWithFeatureDisabled() {
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(false, false, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getConfigurationValidator().validate().isAllowed());
+        autoForceMergeManager.close();
+    }
+
+    public void testConfigurationValidatorWithDataNodeAndNonRemoteStore() {
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, false, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        autoForceMergeManager.getTask().runInternal();
+        assertFalse(autoForceMergeManager.getConfigurationValidator().validate().isAllowed());
+        autoForceMergeManager.close();
     }
 
     public void testConfigurationValidatorWithDataNodeAndRemoteStore() {
-        DiscoveryNode dataNode = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
-        Settings settings = Settings.builder()
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "1s")
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
-            .build();
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.localNode()).thenReturn(dataNode);
-
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(
-            threadPool,
-            osService,
-            jvmService,
-            indicesService,
-            clusterService
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
         assertTrue(autoForceMergeManager.getConfigurationValidator().validate().isAllowed());
+        autoForceMergeManager.close();
     }
 
     public void testConfigurationValidatorWithNonDataNode() {
-        DiscoveryNode warmNode = getNodeWithRoles(WARM_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.WARM_ROLE));
-        Settings settings = Settings.builder()
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "1s")
-            .build();
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.localNode()).thenReturn(warmNode);
-
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(
-            threadPool,
-            osService,
-            jvmService,
-            indicesService,
-            clusterService
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(WARM_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.WARM_ROLE))
         );
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getConfigurationValidator().validate().isAllowed());
+        autoForceMergeManager.close();
     }
 
     // NodeValidator Tests
@@ -182,200 +161,137 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         );
         when(threadPool.stats()).thenReturn(stats);
 
-        DiscoveryNode dataNode = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
-        Settings settings = Settings.builder()
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "1s")
-            .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 80)
-            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 70)
-            .build();
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.localNode()).thenReturn(dataNode);
-
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(threadPool,
-            osService, jvmService, indicesService, clusterService);
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         autoForceMergeManager.start();
         assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        autoForceMergeManager.close();
     }
 
     public void testNodeValidatorWithHighCPU() {
-        when(cpu.getPercent()).thenReturn((short) 90);
-        DiscoveryNode dataNode = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
-        Settings settings = Settings.builder()
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "1s")
+        when(cpu.getPercent()).thenReturn((short) 95);
+        DiscoveryNode dataNode1 = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        DiscoveryNode warmNode1 = getNodeWithRoles(WARM_NODE_1, Set.of(DiscoveryNodeRole.WARM_ROLE));
+        ClusterState clusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(dataNode1)
+                    .add(warmNode1)
+                    .localNodeId(dataNode1.getId())
+                    .clusterManagerNodeId(dataNode1.getId())
+            )
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.localNode()).thenReturn(dataNode);
-
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(threadPool,
-            osService, jvmService, indicesService, clusterService);
+        when(clusterService.state()).thenReturn(clusterState);
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), dataNode1);
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        autoForceMergeManager.getTask().runInternal();
+        autoForceMergeManager.close();
     }
 
     public void testNodeValidatorWithHighJVMUsage() {
         when(cpu.getPercent()).thenReturn((short) 50);
         when(mem.getHeapUsedPercent()).thenReturn((short) 90);
-
-        DiscoveryNode dataNode = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
-        Settings settings = Settings.builder()
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "1s")
-            .build();
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.localNode()).thenReturn(dataNode);
-
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(threadPool,
-            osService, jvmService, indicesService, clusterService);
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        autoForceMergeManager.close();
     }
 
     public void testNodeValidatorWithInsufficientForceMergeThreads() {
         when(cpu.getPercent()).thenReturn((short) 50);
         when(mem.getHeapUsedPercent()).thenReturn((short) 50);
-
         ThreadPoolStats stats = new ThreadPoolStats(
             Arrays.asList(new ThreadPoolStats.Stats(
                 ThreadPool.Names.FORCE_MERGE, 1, 1, 1, 0, 1, 0, -1
             ))
         );
         when(threadPool.stats()).thenReturn(stats);
-
-        DiscoveryNode dataNode = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
-        Settings settings = Settings.builder()
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "1s")
-            .build();
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.localNode()).thenReturn(dataNode);
-
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(threadPool,
-            osService, jvmService, indicesService, clusterService);
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
+        autoForceMergeManager.close();
     }
 
     // ShardValidator Tests
     public void testShardValidatorWithValidShard() {
-        clusterSetup();
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(
-            threadPool,
-            osService,
-            jvmService,
-            indicesService,
-            clusterService
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
-        IndexShard shard = mock(IndexShard.class);
-        ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-        when(shard.shardId()).thenReturn(shardId);
         TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(6).getMillis());
-        when(shard.state()).thenReturn(IndexShardState.STARTED);
-        when(shard.translogStats()).thenReturn(translogStats);
-        SegmentsStats segmentsStats = new SegmentsStats();
-        segmentsStats.add(2);
-        when(shard.segmentStats(false, false)).thenReturn(segmentsStats);
-        when(shard.indexSettings()).thenReturn(getNewIndexSettings(TEST_INDEX));
+        IndexShard shard = getShard(TEST_INDEX_1, translogStats, 2);
         assertTrue(autoForceMergeManager.getShardValidator().validate(shard).isAllowed());
+        autoForceMergeManager.close();
+    }
+
+    public void testShardValidatorWithShardNotInStartedState() {
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(6).getMillis());
+        IndexShard shard = getShard(TEST_INDEX_1, translogStats, 2);
+        when(shard.state()).thenReturn(IndexShardState.RECOVERING);
+        assertFalse(autoForceMergeManager.getShardValidator().validate(shard).isAllowed());
+        autoForceMergeManager.close();
     }
 
     public void testShardValidatorWithForbiddenAutoForceMergesSetting() {
-        clusterSetup();
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(
-            threadPool,
-            osService,
-            jvmService,
-            indicesService,
-            clusterService
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
-        IndexShard shard = mock(IndexShard.class);
-        ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-        when(shard.shardId()).thenReturn(shardId);
-        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(5).getMillis());
-        when(shard.translogStats()).thenReturn(translogStats);
-        SegmentsStats segmentsStats = new SegmentsStats();
-        segmentsStats.add(1);
-        IndexSettings indexSettings = getNewIndexSettings(TEST_INDEX);
-        indexSettings.setAllowAutoForcemerges(false);
+        IndexShard shard = getShard(TEST_INDEX_1, mock(TranslogStats.class), 1);
+        IndexSettings indexSettings = getNewIndexSettings(TEST_INDEX_1);
+        indexSettings.setAutoForcemergeEnabled(false);
         when(shard.indexSettings()).thenReturn(indexSettings);
-        when(shard.segmentStats(false, false)).thenReturn(segmentsStats);
-        assertEquals(false, autoForceMergeManager.getShardValidator().validate(shard).isAllowed());
+        assertFalse(autoForceMergeManager.getShardValidator().validate(shard).isAllowed());
+        autoForceMergeManager.close();
     }
 
     public void testShardValidatorWithLowSegmentCount() {
-        clusterSetup();
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(
-            threadPool,
-            osService,
-            jvmService,
-            indicesService,
-            clusterService
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
-        IndexShard shard = mock(IndexShard.class);
-        ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-        when(shard.shardId()).thenReturn(shardId);
         TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(5).getMillis());
-        when(shard.translogStats()).thenReturn(translogStats);
-        SegmentsStats segmentsStats = new SegmentsStats();
-        segmentsStats.add(1);
-        when(shard.indexSettings()).thenReturn(getNewIndexSettings(TEST_INDEX));
-        when(shard.segmentStats(false, false)).thenReturn(segmentsStats);
+        IndexShard shard = getShard(TEST_INDEX_1, translogStats, 1);
         assertFalse(autoForceMergeManager.getShardValidator().validate(shard).isAllowed());
+        autoForceMergeManager.close();
     }
 
     public void testShardValidatorWithRecentTranslog() {
-        clusterSetup();
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(
-            threadPool,
-            osService,
-            jvmService,
-            indicesService,
-            clusterService
+        Map<String, Object> additionalSettings = new HashMap<>();
+        additionalSettings.put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "2s");
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, additionalSettings),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
-        IndexShard shard = mock(IndexShard.class);
-        ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-        when(shard.shardId()).thenReturn(shardId);
         TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(1).getMillis());
-        when(shard.translogStats()).thenReturn(translogStats);
-        SegmentsStats segmentsStats = new SegmentsStats();
-        segmentsStats.add(2);
-        when(shard.indexSettings()).thenReturn(getNewIndexSettings(TEST_INDEX));
-        when(shard.segmentStats(false, false)).thenReturn(segmentsStats);
+        IndexShard shard = getShard(TEST_INDEX_1, translogStats, 2);
         assertFalse(autoForceMergeManager.getShardValidator().validate(shard).isAllowed());
+        autoForceMergeManager.close();
     }
 
     public void testShardValidatorWithoutShard() {
-        clusterSetup();
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(
-            threadPool,
-            osService,
-            jvmService,
-            indicesService,
-            clusterService
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getShardValidator().validate().isAllowed());
+        autoForceMergeManager.close();
     }
 
     public void testForceMergeOperationOnWarmDisabledCluster() {
         DiscoveryNode dataNode1 = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
         DiscoveryNode dataNode2 = getNodeWithRoles(DATA_NODE_2, Set.of(DiscoveryNodeRole.DATA_ROLE));
-        Settings settings = Settings.builder()
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "5s")
-            .build();
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.localNode()).thenReturn(dataNode1);
         ClusterState clusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(
                 DiscoveryNodes.builder()
@@ -387,32 +303,72 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         when(clusterService.state()).thenReturn(clusterState);
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(
-            threadPool,
-            osService,
-            jvmService,
-            indicesService,
-            clusterService
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            dataNode1
         );
         autoForceMergeManager.start();
         autoForceMergeManager.getTask().runInternal();
         verify(cpu, never()).getPercent();
+        autoForceMergeManager.close();
     }
 
-    public void testForceMergeOperationOnDataNodeOfWarmEnabledCluster() throws IOException, InterruptedException {
+    public void testForceMergeOperationOnDataNodeWithFailingMerges() throws IOException {
         DiscoveryNode dataNode1 = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
         DiscoveryNode dataNode2 = getNodeWithRoles(DATA_NODE_2, Set.of(DiscoveryNodeRole.DATA_ROLE));
         DiscoveryNode warmNode1 = getNodeWithRoles(WARM_NODE_1, Set.of(DiscoveryNodeRole.WARM_ROLE));
         DiscoveryNode warmNode2 = getNodeWithRoles(WARM_NODE_2, Set.of(DiscoveryNodeRole.WARM_ROLE));
-        Settings settings = Settings.builder()
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "3s")
-            .put(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), "1s")
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
+        ClusterState clusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(dataNode1)
+                    .add(dataNode2)
+                    .add(warmNode1)
+                    .add(warmNode2)
+                    .localNodeId(dataNode1.getId())
+                    .clusterManagerNodeId(dataNode1.getId())
+            )
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.localNode()).thenReturn(dataNode1);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(cpu.getPercent()).thenReturn((short) 50);
+        when(mem.getHeapUsedPercent()).thenReturn((short) 50);
+
+        int forceMergeThreads = 4;
+        ExecutorService executorService = Executors.newFixedThreadPool(forceMergeThreads);
+        when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
+        ThreadPoolStats stats = new ThreadPoolStats(
+            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, forceMergeThreads, 0, 0, 0, forceMergeThreads, 0, -1))
+        );
+        when(threadPool.stats()).thenReturn(stats);
+
+        IndexService indexService1 = mock(IndexService.class);
+        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(6).getMillis());
+        IndexShard shard1 = getShard(TEST_INDEX_1, translogStats, 2);
+        List<IndexShard> indexShards1 = List.of(shard1);
+        when(indexService1.spliterator()).thenReturn(indexShards1.spliterator());
+        List<IndexService> indexServices = List.of(indexService1);
+        when(indicesService.spliterator()).thenReturn(indexServices.spliterator());
+        when(shard1.indexSettings()).thenReturn(getNewIndexSettings(TEST_INDEX_1));
+        when(shard1.state()).thenReturn(IndexShardState.STARTED);
+
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            dataNode1
+        );
+        autoForceMergeManager.start();
+        doThrow(new IOException("Testing")).when(shard1).forceMerge(any());
+        autoForceMergeManager.getTask().runInternal();
+        verify(shard1, times(1)).forceMerge(any());
+        autoForceMergeManager.close();
+        executorService.shutdown();
+    }
+
+    public void testForceMergeOperationOnDataNodeOfWarmEnabledCluster() throws IOException {
+        DiscoveryNode dataNode1 = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        DiscoveryNode dataNode2 = getNodeWithRoles(DATA_NODE_2, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        DiscoveryNode warmNode1 = getNodeWithRoles(WARM_NODE_1, Set.of(DiscoveryNodeRole.WARM_ROLE));
+        DiscoveryNode warmNode2 = getNodeWithRoles(WARM_NODE_2, Set.of(DiscoveryNodeRole.WARM_ROLE));
         ClusterState clusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(
                 DiscoveryNodes.builder()
@@ -436,43 +392,80 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         );
         when(threadPool.stats()).thenReturn(stats);
         IndexService indexService1 = mock(IndexService.class);
-        IndexShard shard1 = getShard("Index1");
+        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(1).getMillis());
+        IndexShard shard1 = getShard(TEST_INDEX_1, translogStats, 2);
         List<IndexShard> indexShards1 = List.of(shard1);
         when(indexService1.spliterator()).thenReturn(indexShards1.spliterator());
         IndexService indexService2 = mock(IndexService.class);
-        IndexShard shard2 = getShard("Index2");
+        IndexShard shard2 = getShard(TEST_INDEX_2, translogStats, 2);
         List<IndexShard> indexShards2 = List.of(shard2);
         when(indexService2.spliterator()).thenReturn(indexShards2.spliterator());
         List<IndexService> indexServices = Arrays.asList(indexService1, indexService2);
         when(indicesService.spliterator()).thenReturn(indexServices.spliterator());
-        when(shard1.indexSettings()).thenReturn(getNewIndexSettings("Index1"));
+        when(shard1.indexSettings()).thenReturn(getNewIndexSettings(TEST_INDEX_1));
         when(shard1.state()).thenReturn(IndexShardState.STARTED);
-        when(shard2.indexSettings()).thenReturn(getNewIndexSettings("Index2"));
+        when(shard2.indexSettings()).thenReturn(getNewIndexSettings(TEST_INDEX_2));
         when(shard2.state()).thenReturn(IndexShardState.STARTED);
 
-        AutoForceMergeManager autoForceMergeManager = new AutoForceMergeManager(
-            threadPool,
-            osService,
-            jvmService,
-            indicesService,
-            clusterService
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            dataNode1
         );
         autoForceMergeManager.start();
-        ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
-
-        clusterService.getClusterSettings()
-            .applySettings(
-                Settings.builder()
-                    .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-                    .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
-                    .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "1s")
-                    .put(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), "1s")
-                    .build()
-            );
         autoForceMergeManager.getTask().runInternal();
         verify(shard1, atLeastOnce()).forceMerge(any());
         verify(shard2, atLeastOnce()).forceMerge(any());
+        autoForceMergeManager.close();
+        executorService.shutdown();
+    }
 
+    public void testForceMergeOperationOnDataNodeWithThreadInterruption() throws InterruptedException {
+        DiscoveryNode dataNode1 = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        DiscoveryNode dataNode2 = getNodeWithRoles(DATA_NODE_2, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        DiscoveryNode warmNode1 = getNodeWithRoles(WARM_NODE_1, Set.of(DiscoveryNodeRole.WARM_ROLE));
+        DiscoveryNode warmNode2 = getNodeWithRoles(WARM_NODE_2, Set.of(DiscoveryNodeRole.WARM_ROLE));
+        ClusterState clusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(dataNode1)
+                    .add(dataNode2)
+                    .add(warmNode1)
+                    .add(warmNode2)
+                    .localNodeId(dataNode1.getId())
+                    .clusterManagerNodeId(dataNode1.getId())
+            )
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(cpu.getPercent()).thenReturn((short) 50);
+        when(mem.getHeapUsedPercent()).thenReturn((short) 50);
+
+        int forceMergeThreads = 4;
+        ExecutorService executorService = Executors.newFixedThreadPool(forceMergeThreads);
+        when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
+        ThreadPoolStats stats = new ThreadPoolStats(
+            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, forceMergeThreads, 0, 0, 0, forceMergeThreads, 0, -1))
+        );
+        when(threadPool.stats()).thenReturn(stats);
+
+        IndexService indexService1 = mock(IndexService.class);
+        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(1).getMillis());
+        List<IndexShard> indexShards1 = List.of(getShard(TEST_INDEX_1, translogStats, 2));
+        when(indexService1.spliterator()).thenReturn(indexShards1.spliterator());
+        List<IndexService> indexServices = List.of(indexService1);
+        when(indicesService.spliterator()).thenReturn(indexServices.spliterator());
+
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            dataNode1
+        );
+        autoForceMergeManager.start();
+        Thread testThread = new Thread(() -> autoForceMergeManager.getTask().runInternal());
+        testThread.start();
+        Thread.sleep(1000L);
+        testThread.interrupt();
+        assertTrue(testThread.isInterrupted());
+        autoForceMergeManager.close();
         executorService.shutdown();
     }
 
@@ -480,29 +473,33 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         return new DiscoveryNode(name, buildNewFakeTransportAddress(), new HashMap<>(), Sets.newHashSet(roles), Version.CURRENT);
     }
 
-    private void clusterSetup() {
-        DiscoveryNode dataNode = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
-        Settings settings = Settings.builder()
-            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "5s")
-            .build();
+    private AutoForceMergeManager clusterSetupWithNode(Settings settings, DiscoveryNode node) {
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.localNode()).thenReturn(dataNode);
+        when(clusterService.localNode()).thenReturn(node);
+
+        return new AutoForceMergeManager(
+            threadPool,
+            osService,
+            jvmService,
+            indicesService,
+            clusterService
+        );
     }
 
-    private IndexShard getShard(String indexName) {
+    private IndexShard getShard(String indexName, TranslogStats translogStats, Integer segmentCount) {
         IndexShard shard = mock(IndexShard.class);
         ShardId shardId1 = new ShardId(indexName, "_na_", 0);
-        when(shard.shardId()).thenReturn(shardId1);
-        TranslogStats translogStats1 = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(6).getMillis());
-        when(shard.translogStats()).thenReturn(translogStats1);
-        SegmentsStats segmentsStats1 = new SegmentsStats();
-        segmentsStats1.add(2);
-        when(shard.segmentStats(false, false)).thenReturn(segmentsStats1);
+        SegmentsStats segmentsStats = new SegmentsStats();
+        segmentsStats.add(segmentCount);
         ShardRouting shardRouting = mock(ShardRouting.class);
+        when(shard.shardId()).thenReturn(shardId1);
+        when(shard.translogStats()).thenReturn(translogStats);
+        when(shard.segmentStats(false, false)).thenReturn(segmentsStats);
         when(shard.routingEntry()).thenReturn(shardRouting);
         when(shardRouting.primary()).thenReturn(true);
+        when(shard.state()).thenReturn(IndexShardState.STARTED);
+        when(shard.indexSettings()).thenReturn(getNewIndexSettings(TEST_INDEX_1));
         return shard;
     }
 
@@ -519,5 +516,29 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             ),
             Settings.EMPTY
         );
+    }
+
+    private Settings getConfiguredClusterSettings(Boolean featureEnabled, Boolean remoteEnabled, Map<String, Object> additionalSettings) {
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), featureEnabled)
+            .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), remoteEnabled)
+            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), SCHEDULER_INTERVAL)
+            .put(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), MERGE_DELAY);
+        if (additionalSettings != null) {
+            additionalSettings.forEach((key, value) -> {
+                if (value != null) {
+                    switch (value) {
+                        case Boolean b -> settingsBuilder.put(key, b);
+                        case Integer i -> settingsBuilder.put(key, i);
+                        case Long l -> settingsBuilder.put(key, l);
+                        case Double v -> settingsBuilder.put(key, v);
+                        case String s -> settingsBuilder.put(key, s);
+                        case TimeValue timeValue -> settingsBuilder.put(key, timeValue);
+                        default -> settingsBuilder.put(key, value.toString());
+                    }
+                }
+            });
+        }
+        return settingsBuilder.build();
     }
 }

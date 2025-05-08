@@ -804,7 +804,7 @@ public final class IndexSettings {
     private volatile String remoteStoreTranslogRepository;
     private volatile String remoteStoreRepository;
     private int remoteTranslogKeepExtraGen;
-    private boolean allowAutoForcemerges;
+    private boolean autoForcemergeEnabled;
     private Version extendedCompatibilitySnapshotVersion;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
@@ -1194,8 +1194,8 @@ public final class IndexSettings {
             this::setRemoteTranslogUploadBufferInterval
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
-        this.allowAutoForcemerges = INDEX_ALLOW_AUTO_FORCE_MERGES.get(settings);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_ALLOW_AUTO_FORCE_MERGES, this::setAllowAutoForcemerges);
+        this.autoForcemergeEnabled = scopedSettings.get(INDEX_ALLOW_AUTO_FORCE_MERGES);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_ALLOW_AUTO_FORCE_MERGES, this::setAutoForcemergeEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING, this::setEnableFuzzySetForDocId);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
@@ -1556,8 +1556,12 @@ public final class IndexSettings {
         this.remoteTranslogKeepExtraGen = extraGen;
     }
 
-    public void setAllowAutoForcemerges(boolean allowAutoForcemerges) {
-        this.allowAutoForcemerges = allowAutoForcemerges;
+    public void setAutoForcemergeEnabled(boolean autoForcemergeEnabled) {
+        this.autoForcemergeEnabled = autoForcemergeEnabled;
+    }
+
+    public boolean isAutoForcemergeEnabled() {
+        return this.autoForcemergeEnabled;
     }
 
     /**

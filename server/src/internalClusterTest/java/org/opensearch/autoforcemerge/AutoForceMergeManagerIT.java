@@ -154,7 +154,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         IndexShard shard = getIndexShard(dataNode, INDEX_NAME_1);
         assertNotNull(shard);
         SegmentsStats segmentsStatsBefore = shard.segmentStats(false, false);
-        waitUntil(() -> shard.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
+        waitUntil(() -> shard.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
         SegmentsStats segmentsStatsAfter = shard.segmentStats(false, false);
         assertTrue((int) segmentsStatsBefore.getCount() > segmentsStatsAfter.getCount());
         assertEquals((int) SEGMENT_COUNT, segmentsStatsAfter.getCount());
@@ -224,11 +224,11 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
                 + segmentsStatsForShard4Before.getCount() + segmentsStatsForShard5Before.getCount()
         );
         assertTrue(totalSegments.get() > 5);
-        waitUntil(() -> shard1.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
-        waitUntil(() -> shard2.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
-        waitUntil(() -> shard3.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
-        waitUntil(() -> shard4.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
-        waitUntil(() -> shard5.segmentStats(false, false).getCount() == SEGMENT_COUNT, 3, TimeUnit.MINUTES);
+        waitUntil(() -> shard1.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        waitUntil(() -> shard2.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        waitUntil(() -> shard3.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        waitUntil(() -> shard4.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
+        waitUntil(() -> shard5.segmentStats(false, false).getCount() == SEGMENT_COUNT, 1, TimeUnit.MINUTES);
         SegmentsStats segmentsStatsForShard1After = shard1.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard2After = shard2.segmentStats(false, false);
         SegmentsStats segmentsStatsForShard3After = shard3.segmentStats(false, false);

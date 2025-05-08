@@ -279,10 +279,6 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
 
         @Override
         public ValidationResult validate(IndexShard shard) {
-            if (shard == null) {
-                logger.debug("No shard found.");
-                return new ValidationResult(false);
-            }
             if (shard.state() != IndexShardState.STARTED) {
                 logger.debug("Shard({}) skipped: Shard is not in started state.", shard.shardId());
                 return new ValidationResult(false);
@@ -317,7 +313,7 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
 
         private boolean isIndexWarmCandidate(IndexShard shard) {
             IndexSettings indexSettings = shard.indexSettings();
-            return indexSettings.getScopedSettings().get(IndexSettings.INDEX_ALLOW_AUTO_FORCE_MERGES);
+            return indexSettings.isAutoForcemergeEnabled();
         }
     }
 
