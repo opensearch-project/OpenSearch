@@ -37,6 +37,7 @@ import org.opensearch.plugin.wlm.rest.RestDeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
+import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureValueValidator;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
@@ -46,6 +47,7 @@ import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.autotagging.FeatureValueValidator;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
 import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
@@ -64,6 +66,7 @@ import java.util.function.Supplier;
  * Plugin class for WorkloadManagement
  */
 public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin, RuleFrameworkExtension {
+
     /**
      * The name of the index where rules are stored.
      */
@@ -94,11 +97,14 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        FeatureValueValidator validator = WorkloadGroupFeatureValueValidator.getInstance(clusterService);
+        WorkloadGroupFeatureType.initializeFeatureValueValidator(validator);
         RulePersistenceServiceHolder.rulePersistenceService = new IndexStoredRulePersistenceService(
             INDEX_NAME,
             client,
+            clusterService,
             MAX_RULES_PER_PAGE,
-            new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE),
+            new XContentRuleParser(WorkloadGroupFeatureType.getInstance()),
             new IndexBasedRuleQueryMapper()
         );
         return Collections.emptyList();
@@ -154,7 +160,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
 
     @Override
     public FeatureType getFeatureType() {
-        return WorkloadGroupFeatureType.INSTANCE;
+        return WorkloadGroupFeatureType.getInstance();
     }
 
     static class RulePersistenceServiceHolder {

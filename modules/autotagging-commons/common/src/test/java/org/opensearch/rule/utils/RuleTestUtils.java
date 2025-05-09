@@ -11,6 +11,7 @@ package org.opensearch.rule.utils;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.autotagging.FeatureValueValidator;
 
 import java.util.Map;
 import java.util.Set;
@@ -36,7 +37,7 @@ public class RuleTestUtils {
         private MockRuleFeatureType() {}
 
         static {
-            INSTANCE.registerFeatureType();
+            AutoTaggingRegistry.registerFeatureType(INSTANCE);
         }
 
         @Override
@@ -52,11 +53,6 @@ public class RuleTestUtils {
                 ATTRIBUTE_VALUE_TWO,
                 MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO
             );
-        }
-
-        @Override
-        public void registerFeatureType() {
-            AutoTaggingRegistry.registerFeatureType(INSTANCE);
         }
     }
 

@@ -10,8 +10,8 @@ package org.opensearch.plugin.wlm.rule;
 
 import org.opensearch.rule.RuleAttribute;
 import org.opensearch.rule.autotagging.Attribute;
-import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.autotagging.FeatureValueValidator;
 
 import java.util.Map;
 
@@ -20,10 +20,6 @@ import java.util.Map;
  * @opensearch.experimental
  */
 public class WorkloadGroupFeatureType implements FeatureType {
-    /**
-     * The instance for WorkloadGroupFeatureType
-     */
-    public static final WorkloadGroupFeatureType INSTANCE = new WorkloadGroupFeatureType();
     /**
      * Name for WorkloadGroupFeatureType
      */
@@ -34,8 +30,29 @@ public class WorkloadGroupFeatureType implements FeatureType {
         RuleAttribute.INDEX_PATTERN.getName(),
         RuleAttribute.INDEX_PATTERN
     );
+    private final FeatureValueValidator featureValueValidator;
+    private static WorkloadGroupFeatureType instance;
 
-    private WorkloadGroupFeatureType() {}
+    /**
+     * constructor for WorkloadGroupFeatureType
+     * @param featureValueValidator
+     */
+    private WorkloadGroupFeatureType(FeatureValueValidator featureValueValidator) {
+        this.featureValueValidator = featureValueValidator;
+    }
+
+    public static void initializeFeatureValueValidator(FeatureValueValidator validator) {
+        if (instance == null) {
+            instance = new WorkloadGroupFeatureType(validator);
+        }
+    }
+
+    public static WorkloadGroupFeatureType getInstance() {
+        if (instance == null) {
+            throw new IllegalStateException("FeatureValueValidator is not initialized. Call initializeFeatureValueValidator() first.");
+        }
+        return instance;
+    }
 
     @Override
     public String getName() {
@@ -58,7 +75,7 @@ public class WorkloadGroupFeatureType implements FeatureType {
     }
 
     @Override
-    public void registerFeatureType() {
-        AutoTaggingRegistry.registerFeatureType(INSTANCE);
+    public FeatureValueValidator getFeatureValueValidator() {
+        return featureValueValidator;
     }
 }
