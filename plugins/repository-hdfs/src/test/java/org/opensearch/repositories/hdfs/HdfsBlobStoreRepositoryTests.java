@@ -33,11 +33,13 @@ package org.opensearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -65,5 +67,59 @@ public class HdfsBlobStoreRepositoryTests extends OpenSearchBlobStoreRepositoryI
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(HdfsPlugin.class);
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testContainerCreationAndDeletion() throws IOException {
+        super.testContainerCreationAndDeletion();
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testDeleteBlobs() throws IOException {
+        super.testDeleteBlobs();
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testIndicesDeletedFromRepository() throws Exception {
+        super.testIndicesDeletedFromRepository();
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testList() throws IOException {
+        super.testList();
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testMultipleSnapshotAndRollback() throws Exception {
+        super.testMultipleSnapshotAndRollback();
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testReadNonExistingPath() throws IOException {
+        super.testReadNonExistingPath();
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testReadRange() throws IOException {
+        super.testReadRange();
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testSnapshotAndRestore() throws Exception {
+        super.testSnapshotAndRestore();
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
+    @Override
+    public void testWriteRead() throws IOException {
+        super.testWriteRead();
     }
 }
