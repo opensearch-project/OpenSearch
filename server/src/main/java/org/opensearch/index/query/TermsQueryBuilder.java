@@ -470,42 +470,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                     );
                 }
                 fieldName = currentFieldName;
-                // Parse the nested object for termsLookup or query
-                String index = null;
-                String id = null;
-                String path = null;
-
-
-                XContentParser.Token innerToken;
-                String innerFieldName = null;
-                while ((innerToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (innerToken == XContentParser.Token.FIELD_NAME) {
-                        innerFieldName = parser.currentName();
-                    } else if (innerToken.isValue()) {
-                        if ("index".equals(innerFieldName)) {
-                            index = parser.text();
-                        } else if ("id".equals(innerFieldName)) {
-                            id = parser.text();
-                        } else if ("path".equals(innerFieldName)) {
-                            path = parser.text();
-                        } else {
-                            throw new ParsingException(
-                                parser.getTokenLocation(),
-                                "[" + TermsQueryBuilder.NAME + "] query does not support [" + innerFieldName + "]"
-                            );
-                        }
-                    } else if (innerToken == XContentParser.Token.START_OBJECT && "query".equals(innerFieldName)) {
-                        nestedQuery = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
-                    }
-                }
-
-                if (index != null || id != null || path != null || nestedQuery != null) {
-                    if (path == null) {
-                        throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] missing required field [path]");
-                    }
-                    termsLookup = new TermsLookup(index, id, path, nestedQuery);
-                }
-                //termsLookup = TermsLookup.parseTermsLookup(parser);
+                termsLookup = TermsLookup.parseTermsLookup(parser);
             } else if (token.isValue()) {
                 if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();

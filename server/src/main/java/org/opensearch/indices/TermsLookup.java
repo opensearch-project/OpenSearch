@@ -66,6 +66,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     private String routing;
     private QueryBuilder query;
 
+    public TermsLookup(String index, String id, String path) {
+        this(index, id, path, null); // Delegate to the existing constructor
+    }
     public TermsLookup(String index, String id, String path, QueryBuilder query) {
         if (Strings.isEmpty(index)) {
             throw new IllegalArgumentException("index cannot be null or empty for TermsLookup");
@@ -108,8 +111,10 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             store = in.readBoolean();
         }
-        if (in.readBoolean()) {
-            query = in.readOptionalWriteable(inStream -> inStream.readNamedWriteable(QueryBuilder.class));
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.readBoolean()) {
+                query = in.readOptionalWriteable(inStream -> inStream.readNamedWriteable(QueryBuilder.class));
+            }
         }
     }
 
@@ -125,12 +130,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeBoolean(store);
         }
-        if (query != null) {
-            out.writeBoolean(true);
-            out.writeOptionalWriteable(query);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(query);
     }
 
     public String path() {
@@ -181,18 +181,10 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         String path = (String) args[2];
         QueryBuilder query = (QueryBuilder) args[3]; // Optional query
 
-        // Ensure either `id` or `query` is provided, but not both
-        if (id == null && query == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query.");
-        }
-        if (id != null && query != null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
-        }
         return new TermsLookup(index, id, path, query);
     });
     static {
         PARSER.declareString(constructorArg(), new ParseField("index")); // Required
-        //PARSER.declareString(constructorArg(), new ParseField("id")); // Optional
         PARSER.declareString(optionalConstructorArg(), new ParseField("id")); // Optional
         PARSER.declareString(constructorArg(), new ParseField("path")); // Required
         PARSER.declareObject(optionalConstructorArg(), (parser, context) -> {
