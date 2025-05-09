@@ -9,6 +9,7 @@
 package org.opensearch.plugin.wlm;
 
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.support.ActionFilter;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -44,10 +45,12 @@ import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
+import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
 import org.opensearch.rule.storage.XContentRuleParser;
 import org.opensearch.script.ScriptService;
@@ -75,6 +78,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
 
     private final RulePersistenceServiceHolder rulePersistenceServiceHolder = new RulePersistenceServiceHolder();
 
+    private AutoTaggingActionFilter autoTaggingActionFilter;
+
     /**
      * Default constructor
      */
@@ -101,7 +106,17 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE),
             new IndexBasedRuleQueryMapper()
         );
+        InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
+            WorkloadGroupFeatureType.INSTANCE,
+            DefaultAttributeValueStore::new
+        );
+        autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
         return Collections.emptyList();
+    }
+
+    @Override
+    public List<ActionFilter> getActionFilters() {
+        return List.of(autoTaggingActionFilter);
     }
 
     @Override
