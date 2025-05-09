@@ -76,7 +76,6 @@ public interface RefCountedCache<K, V> {
      */
     void decRef(K key);
 
-
     /**
      * get the reference count for key {@code key}.
      */
