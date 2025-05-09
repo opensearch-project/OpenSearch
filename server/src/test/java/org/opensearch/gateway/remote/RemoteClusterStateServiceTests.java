@@ -1337,7 +1337,23 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 true
             )
         );
-        assertEquals("Timed out waiting to read cluster state from remote within timeout " + readTimeOut + "s", exception.getMessage());
+        // All lists and maps are passed as empty, while other boolean variables are set to true.
+        // So, for readClusterStateInParallel() total read tasks would be 7
+        int expectedTotalReadTasks = 7;
+        int expectedTasksTimedOut = 7;
+        int expectedTasksFailed = 0;
+
+        assertEquals(
+            String.format(
+                Locale.ROOT,
+                "Timed out waiting to read total [%s] tasks for cluster state from remote within " +
+                    "timeout of [%ss]. Could not read [%s] tasks while [%s] tasks failed to be read",
+                expectedTotalReadTasks,
+                readTimeOut,
+                expectedTasksTimedOut,
+                expectedTasksFailed
+            ),
+            exception.getMessage());
     }
 
     public void testReadClusterStateInParallel_ExceptionDuringRead() throws IOException {

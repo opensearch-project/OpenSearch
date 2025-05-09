@@ -8,8 +8,13 @@
 
 package org.opensearch.common.remote;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -29,11 +34,23 @@ import java.util.concurrent.ExecutorService;
  */
 public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEntity<T>> implements RemoteWritableEntityStore<T, U> {
 
+    private static final Logger logger = LogManager.getLogger(RemoteWriteableEntityBlobStore.class);
     private final BlobStoreTransferService transferService;
     private final BlobStoreRepository blobStoreRepository;
     private final String clusterName;
     private final ExecutorService executorService;
     private final String pathToken;
+    /**
+     * To be used for identifying and logging read tasks/entities which take considerably more time in getting completed.
+     * Threshold corresponds to the total time spent in reading the blob along with deserializing the i/p stream.
+     */
+    public static final Setting<TimeValue> REMOTE_STORE_SLOW_READ_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
+        "cluster.remote_store.slow_read_logging_threshold",
+        TimeValue.timeValueSeconds(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    private volatile TimeValue slowReadLoggingThreshold;
 
     public RemoteWriteableEntityBlobStore(
         final BlobStoreTransferService blobStoreTransferService,
@@ -41,13 +58,20 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
         final String clusterName,
         final ThreadPool threadPool,
         final String executor,
-        final String pathToken
+        final String pathToken,
+        final ClusterSettings clusterSettings
     ) {
         this.transferService = blobStoreTransferService;
         this.blobStoreRepository = blobStoreRepository;
         this.clusterName = clusterName;
         this.executorService = threadPool.executor(executor);
         this.pathToken = pathToken;
+        this.slowReadLoggingThreshold = clusterSettings.get(REMOTE_STORE_SLOW_READ_LOGGING_THRESHOLD_SETTING);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_STORE_SLOW_READ_LOGGING_THRESHOLD_SETTING, this::setSlowReadLoggingThreshold);
+    }
+
+    private void setSlowReadLoggingThreshold(TimeValue slowReadLoggingThreshold) {
+        this.slowReadLoggingThreshold = slowReadLoggingThreshold;
     }
 
     @Override
@@ -71,10 +95,13 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
 
     @Override
     public T read(final U entity) throws IOException {
-        // TODO Add timing logs and tracing
         assert entity.getFullBlobName() != null;
+        final long readStartTimeNS = System.nanoTime();
         try (InputStream inputStream = transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName())) {
-            return entity.deserialize(inputStream);
+            final long deserializeStartTimeNS = System.nanoTime();
+            T deserializedBlobEntity = entity.deserialize(inputStream);
+            warnAboutSlowReadIfNeeded(entity, deserializeStartTimeNS, readStartTimeNS);
+            return deserializedBlobEntity;
         }
     }
 
@@ -122,4 +149,18 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
         return Base64.getUrlEncoder().withoutPadding().encodeToString(content.getBytes(StandardCharsets.UTF_8));
     }
 
+    private void warnAboutSlowReadIfNeeded(final U entity, final long deserializeStartTimeNS, final long readStartTimeNS) {
+        long totalReadTimeMS = Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - readStartTimeNS));
+        long serdeTimeMS = Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - deserializeStartTimeNS));
+        if (totalReadTimeMS > slowReadLoggingThreshold.getMillis()) {
+            logger.warn(
+                "entity [{}] for [{}] took [{}] for serde out of total read time [{}] which is above the total warn threshold of [{}]",
+                entity.getClass().getSimpleName(),
+                entity.getBlobFileName(),
+                serdeTimeMS,
+                totalReadTimeMS,
+                slowReadLoggingThreshold
+            );
+        }
+    }
 }

@@ -92,7 +92,8 @@ public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityMana
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();

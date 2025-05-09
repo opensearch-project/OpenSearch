@@ -1114,7 +1114,8 @@ public class RemoteClusterStateService implements Closeable {
             blobStoreRepository,
             blobStoreTransferService,
             namedWriteableRegistry,
-            threadpool
+            threadpool,
+            clusterSettings
         );
 
         remoteRoutingTableService.start();
@@ -1394,7 +1395,15 @@ public class RemoteClusterStateService implements Closeable {
         try {
             if (latch.await(this.remoteStateReadTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
                 RemoteStateTransferException exception = new RemoteStateTransferException(
-                    "Timed out waiting to read cluster state from remote within timeout " + this.remoteStateReadTimeout
+                    String.format(
+                        Locale.ROOT,
+                        "Timed out waiting to read total [%s] tasks for cluster state from remote within " +
+                            "timeout of [%s]. Could not read [%s] tasks while [%s] tasks failed to be read",
+                        totalReadTasks,
+                        this.remoteStateReadTimeout,
+                        latch.getCount(),
+                        exceptionList.size()
+                    )
                 );
                 exceptionList.forEach(exception::addSuppressed);
                 throw exception;

@@ -91,7 +91,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -102,7 +103,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -113,7 +115,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -124,7 +127,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -135,7 +139,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -146,7 +151,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         this.remoteWritableEntityStores.put(
@@ -157,7 +163,8 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
                 clusterName,
                 threadpool,
                 ThreadPool.Names.REMOTE_STATE_READ,
-                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+                RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+                clusterSettings
             )
         );
         clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING, this::setGlobalMetadataUploadTimeout);
