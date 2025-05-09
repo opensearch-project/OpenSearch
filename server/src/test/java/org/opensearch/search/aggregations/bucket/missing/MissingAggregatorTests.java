@@ -33,7 +33,9 @@
 package org.opensearch.search.aggregations.bucket.missing;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -103,6 +105,23 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             assertEquals(0, internalMissing.getDocCount());
             assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
         }, singleton(fieldType));
+
+        // Running the same test but while indexing the field name. Because this is the
+        // only way to precompute the aggregation.
+        testCase(newMatchAllQuery(), builder, writer -> {
+            for (int i = 0; i < numDocs; i++) {
+                final long randomLong = randomLong();
+                writer.addDocument(
+                    Set.of(
+                        new SortedNumericDocValuesField(fieldType.name(), randomLong),
+                        new StringField(fieldType.name(), String.valueOf(randomLong), Store.NO)
+                    )
+                );
+            }
+        }, internalMissing -> {
+            assertEquals(0, internalMissing.getDocCount());
+            assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+        }, singleton(fieldType));
     }
 
     public void testMatchAllDocs() throws IOException {
@@ -116,6 +135,23 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
                 writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+            }
+        }, internalMissing -> {
+            assertEquals(numDocs, internalMissing.getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+        }, List.of(aggFieldType, anotherFieldType));
+
+        // Running the same test but while indexing the field name. Because this is the
+        // only way to precompute the aggregation.
+        testCase(newMatchAllQuery(), builder, writer -> {
+            for (int i = 0; i < numDocs; i++) {
+                final long randomLong = randomLong();
+                writer.addDocument(
+                    Set.of(
+                        new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                        new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                    )
+                );
             }
         }, internalMissing -> {
             assertEquals(numDocs, internalMissing.getDocCount());
@@ -137,6 +173,43 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 docs.add(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
             } else {
                 docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                docsMissingAggField++;
+            }
+        }
+        final int finalDocsMissingAggField = docsMissingAggField;
+
+        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+            assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+        }, List.of(aggFieldType, anotherFieldType));
+    }
+
+    public void testMatchSparseIndexedFields() throws IOException {
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
+
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(aggFieldType.name());
+
+        final int numDocs = randomIntBetween(100, 200);
+        int docsMissingAggField = 0;
+        final List<Set<IndexableField>> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            if (randomBoolean()) {
+                final long randomLong = randomLong();
+                docs.add(
+                    Set.of(
+                        new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
+                        new StringField(aggFieldType.name(), String.valueOf(randomLong), Store.NO)
+                    )
+                );
+            } else {
+                final long randomLong = randomLong();
+                docs.add(
+                    Set.of(
+                        new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                        new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                    )
+                );
                 docsMissingAggField++;
             }
         }
@@ -178,6 +251,42 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }, Arrays.asList(aggFieldType, anotherFieldType));
     }
 
+    public void testMatchSparseRangeIndexedField() throws IOException {
+        final RangeType rangeType = RangeType.DOUBLE;
+        final MappedFieldType aggFieldType = new RangeFieldMapper.RangeFieldType("agg_field", rangeType);
+        final MappedFieldType anotherFieldType = new RangeFieldMapper.RangeFieldType("another_field", rangeType);
+
+        final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
+        final BytesRef encodedRange = rangeType.encodeRanges(singleton(range));
+        final BinaryDocValuesField encodedRangeField = new BinaryDocValuesField(aggFieldType.name(), encodedRange);
+
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(aggFieldType.name());
+
+        final int numDocs = randomIntBetween(100, 200);
+        int docsMissingAggField = 0;
+        final List<Set<IndexableField>> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            if (randomBoolean()) {
+                docs.add(singleton(encodedRangeField));
+            } else {
+                final long randomLong = randomLong();
+                docs.add(
+                    Set.of(
+                        new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                        new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                    )
+                );
+                docsMissingAggField++;
+            }
+        }
+        final int finalDocsMissingAggField = docsMissingAggField;
+
+        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+            assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+        }, Arrays.asList(aggFieldType, anotherFieldType));
+    }
+
     public void testUnmappedWithoutMissingParam() throws IOException {
         final int numDocs = randomIntBetween(10, 20);
         final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
@@ -187,6 +296,28 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
                 writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+            }
+        }, internalMissing -> {
+            assertEquals(numDocs, internalMissing.getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+        }, singleton(aggFieldType));
+    }
+
+    public void testUnmappedWithoutMissingParamIndexedField() throws IOException {
+        final int numDocs = randomIntBetween(10, 20);
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field("unknown_field");
+
+        testCase(newMatchAllQuery(), builder, writer -> {
+            for (int i = 0; i < numDocs; i++) {
+                final long randomLong = randomLong();
+                writer.addDocument(
+                    Set.of(
+                        new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
+                        new StringField(aggFieldType.name(), String.valueOf(randomLong), Store.NO)
+                    )
+                );
             }
         }, internalMissing -> {
             assertEquals(numDocs, internalMissing.getDocCount());
@@ -210,6 +341,28 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }, singleton(aggFieldType));
     }
 
+    public void testUnmappedWithMissingParamIndexedField() throws IOException {
+        final int numDocs = randomIntBetween(10, 20);
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field("unknown_field").missing(randomLong());
+
+        testCase(newMatchAllQuery(), builder, writer -> {
+            for (int i = 0; i < numDocs; i++) {
+                final long randomLong = randomLong();
+                writer.addDocument(
+                    Set.of(
+                        new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
+                        new StringField(aggFieldType.name(), String.valueOf(randomLong), Store.NO)
+                    )
+                );
+            }
+        }, internalMissing -> {
+            assertEquals(0, internalMissing.getDocCount());
+            assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+        }, singleton(aggFieldType));
+    }
+
     public void testMissingParam() throws IOException {
         final int numDocs = randomIntBetween(10, 20);
 
@@ -221,6 +374,30 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
                 writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+            }
+        }, internalMissing -> {
+            assertEquals(0, internalMissing.getDocCount());
+            assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
+        }, List.of(aggFieldType, anotherFieldType));
+    }
+
+    public void testMissingParamIndexedField() throws IOException {
+        final int numDocs = randomIntBetween(10, 20);
+
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
+
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(aggFieldType.name()).missing(randomLong());
+
+        testCase(newMatchAllQuery(), builder, writer -> {
+            for (int i = 0; i < numDocs; i++) {
+                final long randomLong = randomLong();
+                writer.addDocument(
+                    Set.of(
+                        new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                        new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                    )
+                );
             }
         }, internalMissing -> {
             assertEquals(0, internalMissing.getDocCount());
@@ -259,12 +436,54 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }, List.of(aggFieldType, anotherFieldType));
     }
 
+    public void testMultiValuedIndexedField() throws IOException {
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
+
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(aggFieldType.name());
+
+        final int numDocs = randomIntBetween(100, 200);
+        int docsMissingAggField = 0;
+        final List<Set<IndexableField>> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            if (randomBoolean()) {
+                final long randomLong = randomLong();
+                docs.add(
+                    Set.of(
+                        new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
+                        new SortedNumericDocValuesField(aggFieldType.name(), randomLong + 1),
+                        new StringField(aggFieldType.name(), String.valueOf(randomLong), Store.NO),
+                        new StringField(aggFieldType.name(), String.valueOf(randomLong + 1), Store.NO)
+
+                    )
+                );
+            } else {
+                final long randomLong = randomLong();
+                docs.add(
+                    Set.of(
+                        new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                        new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                    )
+                );
+                docsMissingAggField++;
+            }
+        }
+        final int finalDocsMissingAggField = docsMissingAggField;
+
+        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+            assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+        }, List.of(aggFieldType, anotherFieldType));
+    }
+
     public void testSingleValuedFieldWithValueScript() throws IOException {
         valueScriptTestCase(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, emptyMap()));
+        valueScriptTestCaseIndexed(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, emptyMap()));
     }
 
     public void testSingleValuedFieldWithValueScriptWithParams() throws IOException {
         valueScriptTestCase(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_PARAMS, singletonMap("inc", 10)));
+        valueScriptTestCaseIndexed(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_PARAMS, singletonMap("inc", 10)));
     }
 
     private void valueScriptTestCase(Script script) throws IOException {
@@ -292,14 +511,55 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }, List.of(aggFieldType, anotherFieldType));
     }
 
+    private void valueScriptTestCaseIndexed(Script script) throws IOException {
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
+
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(aggFieldType.name()).script(script);
+
+        final int numDocs = randomIntBetween(100, 200);
+        int docsMissingAggField = 0;
+        final List<Set<IndexableField>> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            final long randomLong = randomLong();
+            if (randomBoolean()) {
+                docs.add(
+                    Set.of(
+                        new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
+                        new StringField(aggFieldType.name(), String.valueOf(randomLong), Store.NO)
+                    )
+                );
+            } else {
+                docs.add(
+                    Set.of(
+                        new SortedNumericDocValuesField(anotherFieldType.name(), randomLong),
+                        new StringField(anotherFieldType.name(), String.valueOf(randomLong), Store.NO)
+                    )
+                );
+                docsMissingAggField++;
+            }
+        }
+        final int finalDocsMissingField = docsMissingAggField;
+
+        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+            assertEquals(finalDocsMissingField, internalMissing.getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+        }, List.of(aggFieldType, anotherFieldType));
+    }
+
     public void testMultiValuedFieldWithFieldScriptWithParams() throws IOException {
         final long threshold = 10;
         final Map<String, Object> params = Map.of("field", "agg_field", "threshold", threshold);
         fieldScriptTestCase(new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_PARAMS, params), threshold);
+        fieldScriptTestCaseIndexed(new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_PARAMS, params), threshold);
     }
 
     public void testMultiValuedFieldWithFieldScript() throws IOException {
         fieldScriptTestCase(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT, singletonMap("field", "agg_field")),
+            DEFAULT_THRESHOLD_PARAM
+        );
+        fieldScriptTestCaseIndexed(
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT, singletonMap("field", "agg_field")),
             DEFAULT_THRESHOLD_PARAM
         );
@@ -323,6 +583,37 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 Set.of(
                     new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
                     new SortedNumericDocValuesField(aggFieldType.name(), secondValue)
+                )
+            );
+        }
+        final int finalDocsBelowThreshold = docsBelowThreshold;
+
+        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+            assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
+        }, singleton(aggFieldType));
+    }
+
+    private void fieldScriptTestCaseIndexed(Script script, long threshold) throws IOException {
+        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
+
+        final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").script(script);
+
+        final int numDocs = randomIntBetween(100, 200);
+        int docsBelowThreshold = 0;
+        final List<Set<IndexableField>> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            final long firstValue = randomLongBetween(0, 100);
+            final long secondValue = firstValue + 1;
+            if (firstValue < threshold && secondValue < threshold) {
+                docsBelowThreshold++;
+            }
+            docs.add(
+                Set.of(
+                    new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
+                    new StringField(aggFieldType.name(), String.valueOf(firstValue), Store.NO),
+                    new SortedNumericDocValuesField(aggFieldType.name(), secondValue),
+                    new StringField(aggFieldType.name(), String.valueOf(secondValue), Store.NO)
                 )
             );
         }

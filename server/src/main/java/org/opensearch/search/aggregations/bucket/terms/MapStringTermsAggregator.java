@@ -32,7 +32,10 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
@@ -75,8 +78,35 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     private final CollectorSource collectorSource;
     private final ResultStrategy<?, ?> resultStrategy;
+    private Weight weight;
     private final BytesKeyedBucketOrds bucketOrds;
     private final IncludeExclude.StringFilter includeExclude;
+    protected final String fieldName;
+
+    public MapStringTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        CollectorSource collectorSource,
+        Function<MapStringTermsAggregator, ResultStrategy<?, ?>> resultStrategy,
+        BucketOrder order,
+        DocValueFormat format,
+        BucketCountThresholds bucketCountThresholds,
+        IncludeExclude.StringFilter includeExclude,
+        SearchContext context,
+        Aggregator parent,
+        SubAggCollectionMode collectionMode,
+        boolean showTermDocCountError,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata,
+        String fieldName
+    ) throws IOException {
+        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
+        this.collectorSource = collectorSource;
+        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
+        this.includeExclude = includeExclude;
+        bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        this.fieldName = fieldName;
+    }
 
     public MapStringTermsAggregator(
         String name,
@@ -99,6 +129,20 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.includeExclude = includeExclude;
         bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        if (collectorSource instanceof ValuesSourceCollectorSource) {
+            ValuesSource valuesCollectorSource = ((ValuesSourceCollectorSource) collectorSource).getValuesSource();
+            if (valuesCollectorSource instanceof ValuesSource.Bytes.FieldData) {
+                this.fieldName = ((ValuesSource.Bytes.FieldData) valuesCollectorSource).getIndexFieldName();
+            } else {
+                this.fieldName = null;
+            }
+        } else {
+            this.fieldName = null;
+        }
+    }
+
+    public void setWeight(Weight weight) {
+        this.weight = weight;
     }
 
     @Override
@@ -128,6 +172,51 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 }
             )
         );
+    }
+
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (subAggregators.length > 0 || includeExclude != null || fieldName == null) {
+            // The optimization does not work when there are subaggregations or if there is a filter.
+            // The query has to be a match all, otherwise
+            return false;
+        }
+
+        // The optimization could only be used if there are no deleted documents and the top-level
+        // query matches all documents in the segment.
+        if (weight == null) {
+            return false;
+        } else {
+            if (weight.count(ctx) == 0) {
+                return true;
+            } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
+                return false;
+            }
+        }
+
+        Terms stringTerms = ctx.reader().terms(fieldName);
+        if (stringTerms == null) {
+            // Field is not indexed.
+            return false;
+        }
+
+        TermsEnum stringTermsEnum = stringTerms.iterator();
+        BytesRef stringTerm = stringTermsEnum.next();
+
+        // Here, we will iterate over all the terms in the segment and add the counts into the bucket.
+        while (stringTerm != null) {
+            long bucketOrdinal = bucketOrds.add(0L, stringTerm);
+            if (bucketOrdinal < 0) { // already seen
+                bucketOrdinal = -1 - bucketOrdinal;
+            }
+            int amount = stringTermsEnum.docFreq();
+            if (resultStrategy instanceof SignificantTermsResults) {
+                ((SignificantTermsResults) resultStrategy).updateSubsetSizes(0L, amount);
+            }
+            incrementBucketDocCount(bucketOrdinal, amount);
+            stringTerm = stringTermsEnum.next();
+        }
+        return true;
     }
 
     @Override
@@ -194,6 +283,10 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         @Override
         public boolean needsScores() {
             return valuesSource.needsScores();
+        }
+
+        public ValuesSource getValuesSource() {
+            return valuesSource;
         }
 
         @Override
@@ -499,6 +592,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         @Override
         String describe() {
             return "significant_terms";
+        }
+
+        public void updateSubsetSizes(long owningBucketOrd, int amount) {
+            subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
+            subsetSizes.increment(owningBucketOrd, amount);
         }
 
         @Override

@@ -31,7 +31,9 @@
 
 package org.opensearch.search.aggregations.bucket.missing;
 
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Weight;
 import org.opensearch.index.fielddata.DocValueBits;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -46,7 +48,9 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Aggregate all docs that are missing a value.
@@ -55,7 +59,9 @@ import java.util.Map;
  */
 public class MissingAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
+    private Weight weight;
     private final ValuesSource valuesSource;
+    protected final String fieldName;
 
     public MissingAggregator(
         String name,
@@ -69,6 +75,21 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
         super(name, factories, aggregationContext, parent, cardinality, metadata);
         // TODO: Stop using nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
+        if (valuesSource instanceof ValuesSource.Bytes.FieldData) {
+            this.fieldName = ((ValuesSource.Bytes.FieldData) valuesSource).getIndexFieldName();
+        } else if (valuesSource instanceof ValuesSource.Numeric.FieldData) {
+            this.fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
+        } else if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals.FieldData) {
+            this.fieldName = ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName();
+        } else if (valuesSource instanceof ValuesSource.Range) {
+            this.fieldName = ((ValuesSource.Range) valuesSource).getIndexFieldName();
+        } else {
+            this.fieldName = null;
+        }
+    }
+
+    public void setWeight(Weight weight) {
+        this.weight = weight;
     }
 
     @Override
@@ -92,6 +113,44 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
                 }
             }
         };
+    }
+
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (subAggregators.length > 0 || fieldName == null) {
+            // The optimization does not work when there are subaggregations or if there is a filter.
+            // The query has to be a match all, otherwise
+            return false;
+        }
+
+        // The optimization could only be used if there are no deleted documents and the top-level
+        // query matches all documents in the segment.
+        if (weight == null) {
+            return false;
+        } else {
+            if (weight.count(ctx) == 0) {
+                return true;
+            } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
+                return false;
+            }
+        }
+
+        Set<String> indexedFields = new HashSet<>(FieldInfos.getIndexedFields(ctx.reader()));
+
+        // This will only work if the field name is indexed because otherwise, the reader would not
+        // have kept track of the doc count of the fieldname.
+        if (indexedFields.contains(fieldName) == false) {
+            return false;
+        }
+        long docCountWithFieldName = ctx.reader().getDocCount(fieldName);
+        int totalDocCount = ctx.reader().maxDoc();
+
+        // The missing aggregation bucket will count the number of documents where the field name is
+        // either null or not present in that document. We are subtracting the documents where the field
+        // value is valid.
+        incrementBucketDocCount(0, totalDocCount - docCountWithFieldName);
+
+        return true;
     }
 
     @Override

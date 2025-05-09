@@ -73,6 +73,8 @@ import java.io.IOException;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 
+import static java.util.Collections.sort;
+
 /**
  * Base class for a ValuesSource; the primitive data for an agg
  *
@@ -120,6 +122,10 @@ public abstract class ValuesSource {
         public Range(IndexFieldData<?> indexFieldData, RangeType rangeType) {
             this.indexFieldData = indexFieldData;
             this.rangeType = rangeType;
+        }
+
+        public String getIndexFieldName() {
+            return this.indexFieldData.getFieldName();
         }
 
         @Override
@@ -302,6 +308,10 @@ public abstract class ValuesSource {
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
+            }
+
+            public String getIndexFieldName() {
+                return this.indexFieldData.getFieldName();
             }
 
         }
