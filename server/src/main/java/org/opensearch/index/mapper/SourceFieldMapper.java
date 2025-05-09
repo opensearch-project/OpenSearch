@@ -278,6 +278,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
+        if (context.indexSettings().isDerivedSourceEnabled()) {
+            return;
+        }
         BytesReference originalSource = context.sourceToParse().source();
         MediaType contentType = context.sourceToParse().getMediaType();
         final BytesReference adaptedSource = applyFilters(originalSource, contentType);
