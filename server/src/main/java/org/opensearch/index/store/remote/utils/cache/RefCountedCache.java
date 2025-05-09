@@ -76,6 +76,12 @@ public interface RefCountedCache<K, V> {
      */
     void decRef(K key);
 
+
+    /**
+     * get the reference count for key {@code key}.
+     */
+    Integer getRef(K key);
+
     /**
      * Removes all cache entries with a reference count of zero, regardless of current capacity.
      *
