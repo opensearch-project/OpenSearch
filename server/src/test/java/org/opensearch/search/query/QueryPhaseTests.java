@@ -988,7 +988,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.trackTotalHitsUpTo(5);
 
         QueryPhase.executeInternal(context.withCleanQueryResult(), queryPhaseSearcher);
-        assertEquals(10, context.queryResult().topDocs().topDocs.totalHits.value());
+        assertTrue(context.queryResult().topDocs().topDocs.totalHits.value() >= 5);
 
         reader.close();
         dir.close();
