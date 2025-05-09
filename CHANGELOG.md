@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Dependencies
 - Update Apache HttpClient5 and HttpCore5 (CVE-2025-27820) ([#18152](https://github.com/opensearch-project/OpenSearch/pull/18152))
 - Bump `netty` from 4.1.118.Final to 4.1.121.Final ([#18192](https://github.com/opensearch-project/OpenSearch/pull/18192))
+- Bump `reactor-netty` from 1.2.4 to 1.2.5 ([#18243](https://github.com/opensearch-project/OpenSearch/pull/18243))
+- Bump `reactor` from 3.5.20 to 3.7.5 ([#18243](https://github.com/opensearch-project/OpenSearch/pull/18243))
 
 ### Deprecated
 
