@@ -64,7 +64,7 @@ final class TempDirectory {
             path = Paths.get(System.getProperty("java.io.tmpdir"), "opensearch");
             Files.createDirectories(path);
         } else {
-            path = Launchers.createTempDirectory("opensearch-");
+            path = Launchers.createTempDirectory(Paths.get(System.getProperty("java.io.tmpdir")), "opensearch-");
         }
         Launchers.outPrintln(path.toString());
     }
