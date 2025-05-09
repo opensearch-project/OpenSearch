@@ -33,6 +33,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-configuration2` from 2.11.0 to 2.12.0 ([#18103](https://github.com/opensearch-project/OpenSearch/pull/18103))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.0.2 to 10.2 ([#18104](https://github.com/opensearch-project/OpenSearch/pull/18104))
 - Bump `org.apache.commons:commons-text` from 1.13.0 to 1.13.1 ([#18102](https://github.com/opensearch-project/OpenSearch/pull/18102))
+- Bump `reactor-netty` from 1.2.4 to 1.2.5 ([#18243](https://github.com/opensearch-project/OpenSearch/pull/18243))
+- Bump `reactor` from 3.5.20 to 3.7.5 ([#18243](https://github.com/opensearch-project/OpenSearch/pull/18243))
 
 ### Deprecated
 
