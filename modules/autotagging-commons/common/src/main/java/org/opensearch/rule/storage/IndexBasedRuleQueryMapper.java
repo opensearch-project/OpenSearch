@@ -38,6 +38,7 @@ public class IndexBasedRuleQueryMapper implements RuleQueryMapper<QueryBuilder> 
         final Map<Attribute, Set<String>> attributeFilters = request.getAttributeFilters();
         final String id = request.getId();
 
+        boolQuery.filter(QueryBuilders.existsQuery(request.getFeatureType().getName()));
         if (id != null) {
             return boolQuery.must(QueryBuilders.termQuery(_ID_STRING, id));
         }

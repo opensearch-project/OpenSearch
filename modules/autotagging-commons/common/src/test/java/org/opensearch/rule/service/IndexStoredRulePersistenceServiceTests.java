@@ -60,6 +60,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         QueryBuilder queryBuilder = mock(QueryBuilder.class);
         RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
         RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
+        ClusterService clusterService = mock(ClusterService.class);
         Rule mockRule = mock(Rule.class);
 
         when(mockRuleEntityParser.parse(anyString())).thenReturn(mockRule);
@@ -72,9 +73,11 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
             TEST_INDEX_NAME,
             client,
+            clusterService,
             MAX_VALUES_PER_PAGE,
             mockRuleEntityParser,
-            mockRuleQueryMapper
+            mockRuleQueryMapper,
+            null
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
@@ -105,6 +108,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         when(getRuleRequest.getId()).thenReturn(_ID_ONE);
         QueryBuilder queryBuilder = mock(QueryBuilder.class);
         RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
+        ClusterService clusterService = mock(ClusterService.class);
         RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
         Rule mockRule = mock(Rule.class);
 
@@ -118,9 +122,11 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
             TEST_INDEX_NAME,
             client,
+            clusterService,
             MAX_VALUES_PER_PAGE,
             mockRuleEntityParser,
-            mockRuleQueryMapper
+            mockRuleQueryMapper,
+            null
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);

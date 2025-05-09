@@ -12,23 +12,34 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleQueryMapper;
+import org.opensearch.rule.RuleUtils;
+import org.opensearch.rule.UpdateRuleRequest;
+import org.opensearch.rule.UpdateRuleResponse;
+import org.opensearch.rule.UpdatedRuleBuilder;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.opensearch.rule.autotagging.Rule._ID_STRING;
@@ -43,32 +54,41 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      */
     private final String indexName;
     private final Client client;
+    private final ClusterService clusterService;
     private final int maxRulesPerPage;
     private final RuleEntityParser parser;
     private final RuleQueryMapper<QueryBuilder> queryBuilder;
+    private final UpdatedRuleBuilder updatedRuleBuilder;
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
+    private static final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
 
     /**
      * Constructs an instance of {@link IndexStoredRulePersistenceService} with the specified parameters.
      * This service handles persistence and retrieval of stored rules within an OpenSearch index.
      * @param indexName - The name of the OpenSearch index where the rules are stored.
      * @param client - The OpenSearch client used to interact with the OpenSearch cluster.
+     * @param clusterService
      * @param maxRulesPerPage - The maximum number of rules that can be returned in a single get request.
      * @param parser
      * @param queryBuilder
+     * @param updatedRuleBuilder
      */
     public IndexStoredRulePersistenceService(
         String indexName,
         Client client,
+        ClusterService clusterService,
         int maxRulesPerPage,
         RuleEntityParser parser,
-        RuleQueryMapper<QueryBuilder> queryBuilder
+        RuleQueryMapper<QueryBuilder> queryBuilder,
+        UpdatedRuleBuilder updatedRuleBuilder
     ) {
         this.indexName = indexName;
         this.client = client;
+        this.clusterService = clusterService;
         this.maxRulesPerPage = maxRulesPerPage;
         this.parser = parser;
         this.queryBuilder = queryBuilder;
+        this.updatedRuleBuilder = updatedRuleBuilder;
     }
 
     /**
@@ -77,8 +97,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param listener the listener for GetRuleResponse.
      */
     public void getRule(GetRuleRequest getRuleRequest, ActionListener<GetRuleResponse> listener) {
-        final QueryBuilder getQueryBuilder = queryBuilder.from(getRuleRequest)
-            .filter(QueryBuilders.existsQuery(getRuleRequest.getFeatureType().getName()));
+        final QueryBuilder getQueryBuilder = queryBuilder.from(getRuleRequest);
         getRuleFromIndex(getRuleRequest.getId(), getQueryBuilder, getRuleRequest.getSearchAfter(), listener);
     }
 
@@ -127,6 +146,89 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         Map<String, Rule> ruleMap = hits.stream().collect(Collectors.toMap(SearchHit::getId, hit -> parser.parse(hit.getSourceAsString())));
         String nextSearchAfter = hits.isEmpty() ? null : hits.get(hits.size() - 1).getId();
         listener.onResponse(new GetRuleResponse(ruleMap, nextSearchAfter));
+    }
+
+    /**
+     * Entry point for the update rule api logic in persistence service.
+     * @param request - The UpdateRuleRequest
+     * @param listener - ActionListener for UpdateRuleResponse
+     */
+    public void updateRule(UpdateRuleRequest request, ActionListener<UpdateRuleResponse> listener) {
+        String ruleId = request.get_id();
+        FeatureType featureType = request.getFeatureType();
+        try (ThreadContext.StoredContext context = getContext()) {
+            QueryBuilder query = queryBuilder.from(new GetRuleRequest(ruleId, new HashMap<>(), null, featureType));
+            getRuleFromIndex(ruleId, query, null, new ActionListener<>() {
+                @Override
+                public void onResponse(GetRuleResponse getRuleResponse) {
+                    if (getRuleResponse == null || getRuleResponse.getRules().isEmpty()) {
+                        listener.onFailure(new ResourceNotFoundException("Rule with ID " + ruleId + " not found."));
+                        return;
+                    }
+                    Rule updatedRule = updatedRuleBuilder.apply(getRuleResponse.getRules().get(ruleId), request);
+                    validateNoDuplicateRule(
+                        updatedRule,
+                        ActionListener.wrap(unused -> persistUpdatedRule(ruleId, updatedRule, listener), listener::onFailure)
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
+    }
+
+    /**
+     * Validates that no duplicate rule exists with the same attribute map.
+     * If a conflict is found, fails the listener
+     * @param rule - the rule we check duplicate against
+     * @param listener - listener for validateNoDuplicateRule response
+     */
+    private void validateNoDuplicateRule(Rule rule, ActionListener<Void> listener) {
+        try (ThreadContext.StoredContext ctx = getContext()) {
+            QueryBuilder query = queryBuilder.from(new GetRuleRequest(null, rule.getAttributeMap(), null, rule.getFeatureType()));
+            getRuleFromIndex(null, query, null, new ActionListener<>() {
+                @Override
+                public void onResponse(GetRuleResponse getRuleResponse) {
+                    Optional<String> duplicateRuleId = RuleUtils.getDuplicateRuleId(rule, getRuleResponse.getRules());
+                    duplicateRuleId.ifPresentOrElse(
+                        id -> listener.onFailure(new IllegalArgumentException("Duplicate rule exists under id " + id)),
+                        () -> listener.onResponse(null)
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
+    }
+
+    /**
+     * Persist the updated rule in index
+     * @param ruleId - the rule id to update
+     * @param updatedRule - the rule we update to
+     * @param listener - ActionListener for UpdateRuleResponse
+     */
+    private void persistUpdatedRule(String ruleId, Rule updatedRule, ActionListener<UpdateRuleResponse> listener) {
+        try (ThreadContext.StoredContext context = getContext()) {
+            UpdateRequest updateRequest = new UpdateRequest(indexName, ruleId).doc(
+                updatedRule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+            );
+            client.update(
+                updateRequest,
+                ActionListener.wrap(updateResponse -> { listener.onResponse(new UpdateRuleResponse(ruleId, updatedRule)); }, e -> {
+                    logger.error("Failed to update Rule object due to error: {}", e.getMessage());
+                    listener.onFailure(e);
+                })
+            );
+        } catch (IOException e) {
+            logger.error("Error updating rule in index: {}", indexName);
+            listener.onFailure(new RuntimeException("Failed to update rule to index."));
+        }
     }
 
     private ThreadContext.StoredContext getContext() {
