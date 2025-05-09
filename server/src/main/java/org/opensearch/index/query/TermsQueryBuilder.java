@@ -39,6 +39,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -57,6 +59,8 @@ import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.indices.TermsLookup;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
@@ -429,6 +433,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         String fieldName = null;
         List<Object> values = null;
         TermsLookup termsLookup = null;
+        QueryBuilder nestedQuery = null;
+
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -507,7 +513,16 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             }
         }
 
+        if (termsLookup != null) {
+            System.out.println("TermsLookup Details:");
+            System.out.println("Index: " + termsLookup.index());
+            System.out.println("ID: " + termsLookup.id());
+            System.out.println("Path: " + termsLookup.path());
+            System.out.println("Query: " + termsLookup.query());
+            termsLookup = new TermsLookup(termsLookup.index(), termsLookup.id(), termsLookup.path(), termsLookup.query());
+        }
         return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType);
+        //return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType);
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {
@@ -529,6 +544,26 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (termsLookup != null && termsLookup.query() != null) {
+            System.out.println("Executing subquery: " + termsLookup.query());
+            QueryBuilder rewrittenQuery = termsLookup.query().rewrite(context);
+            //Query query = rewrittenQuery.toQuery(context);
+            //QueryBuilder query = termsLookup.query().rewrite(context);
+
+            SearchResponse response = context.getClient().search(
+                new SearchRequest(termsLookup.index())
+                    .source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(false))
+            ).actionGet();
+
+            System.out.println("Subquery Response: " + response);
+
+            List<Object> terms = new ArrayList<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                terms.addAll(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
+            }
+            return context.fieldMapper(fieldName).termsQuery(terms, context);
+        }
+
         if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
@@ -550,6 +585,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
+
         if (valueType == ValueType.BITMAP) {
             if (values.size() == 1 && values.get(0) instanceof BytesArray) {
                 if (fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
@@ -601,7 +637,43 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (termsLookup != null && termsLookup.query() != null) {
+            QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
+            if (shardContext == null) {
+                return this;
+                //throw new IllegalStateException("QueryShardContext is required for rewriting the query.");
+                //throw new IllegalStateException("QueryShardContext is null. QueryRewriteContext: " + queryRewriteContext.toString());
+            }
+            // Rewrite the subquery using the shard context
+            QueryBuilder rewrittenQuery = termsLookup.query().rewrite(shardContext);
+            System.out.println("Rewritten Query: " + rewrittenQuery);
+
+            SearchResponse response;
+            try {
+                response = shardContext.getClient().search(
+                    new SearchRequest(termsLookup.index())
+                        .source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(false))
+                ).actionGet();
+
+                System.out.println("Extracted Terms: ");
+                for (SearchHit hit : response.getHits().getHits()) {
+                    System.out.println(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
+                }
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to execute subquery: " + e.getMessage(), e);
+            }
+
+            // Extract terms from the response
+            List<Object> terms = new ArrayList<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                terms.addAll(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
+            }
+
+            // Return a new TermsQueryBuilder with the fetched terms
+            return new TermsQueryBuilder(fieldName, terms);
+        }
+
         if (supplier != null) {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get(), valueType);
         } else if (this.termsLookup != null) {
@@ -638,5 +710,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
 
         return this;
+        //return super.doRewrite(queryRewriteContext);
     }
 }
