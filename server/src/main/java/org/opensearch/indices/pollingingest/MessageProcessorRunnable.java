@@ -152,7 +152,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
          * Visible for testing. Get the engine operation from the message.
          * @param shardUpdateMessage an update message containing payload and pointer for the update
          * @param messageProcessorMetrics message processor metrics
-         * @return the engine operation
+         * @return the message operation
          */
         protected MessageOperation getOperation(ShardUpdateMessage shardUpdateMessage, MessageProcessorMetrics messageProcessorMetrics)
             throws IOException {
