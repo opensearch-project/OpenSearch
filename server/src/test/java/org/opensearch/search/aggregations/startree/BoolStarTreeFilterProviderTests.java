@@ -11,6 +11,7 @@ package org.opensearch.search.aggregations.startree;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.OrdinalDimension;
@@ -34,6 +35,7 @@ import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 import org.opensearch.search.startree.filter.provider.StarTreeFilterProvider;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -44,6 +46,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -51,6 +54,7 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
     private SearchContext searchContext;
     private MapperService mapperService;
     private CompositeDataCubeFieldType compositeFieldType;
+    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
 
     @Before
     public void setup() {
@@ -106,6 +110,12 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
                 )
             )
         );
+        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
+    }
+
+    @After
+    public void teardown() throws IOException {
+        fflock.close();
     }
 
     public void testSimpleMustWithMultipleDimensions() throws IOException {

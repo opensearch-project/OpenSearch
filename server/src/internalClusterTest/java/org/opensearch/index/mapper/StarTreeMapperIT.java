@@ -15,7 +15,6 @@ import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
@@ -579,11 +578,6 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
             return "ip";
         }
         return "numeric_dv";
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.STAR_TREE_INDEX, "true").build();
     }
 
     @Before
