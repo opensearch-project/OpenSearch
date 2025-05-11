@@ -45,6 +45,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationBuilder.LeafOnly<MatrixStatsAggregationBuilder> {
     public static final String NAME = "matrix_stats";
@@ -74,20 +75,17 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+        this.multiValueMode = in.readEnum(MultiValueMode.class);
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeEnum(multiValueMode);
     }
 
     public MatrixStatsAggregationBuilder multiValueMode(MultiValueMode multiValueMode) {
         this.multiValueMode = multiValueMode;
         return this;
-    }
-
-    public MultiValueMode multiValueMode() {
-        return this.multiValueMode;
     }
 
     @Override
@@ -109,5 +107,19 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+        MatrixStatsAggregationBuilder other = (MatrixStatsAggregationBuilder) obj;
+        return multiValueMode == other.multiValueMode;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), multiValueMode);
     }
 }
