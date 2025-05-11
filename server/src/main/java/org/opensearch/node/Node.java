@@ -2039,9 +2039,7 @@ public class Node implements Closeable {
         List<BootstrapCheck> bootstrapChecks
     ) throws NodeValidationException {}
 
-    /**
-     * Writes a file to the logs dir containing the ports for the given transport type
-     */
+    /** Writes a file to the logs dir containing the ports for the given transport type */
     private void writePortsFile(String type, BoundTransportAddress boundAddress) {
         Path tmpPortsFile = environment.logsDir().resolve(type + ".ports.tmp");
         try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, StandardCharsets.UTF_8)) {
@@ -2069,7 +2067,6 @@ public class Node implements Closeable {
 
     /**
      * Creates a new {@link CircuitBreakerService} based on the settings provided.
-     *
      * @see #BREAKER_TYPE_KEY
      */
     public static CircuitBreakerService createCircuitBreakerService(
@@ -2145,7 +2142,6 @@ public class Node implements Closeable {
 
     /**
      * Get Custom Name Resolvers list based on a Discovery Plugins list
-     *
      * @param discoveryPlugins Discovery plugins list
      */
     private List<NetworkService.CustomNameResolver> getCustomNameResolvers(List<DiscoveryPlugin> discoveryPlugins) {
@@ -2159,9 +2155,7 @@ public class Node implements Closeable {
         return customNameResolvers;
     }
 
-    /**
-     * Constructs a ClusterInfoService which may be mocked for tests.
-     */
+    /** Constructs a ClusterInfoService which may be mocked for tests. */
     protected ClusterInfoService newClusterInfoService(
         Settings settings,
         ClusterService clusterService,
@@ -2176,9 +2170,7 @@ public class Node implements Closeable {
         return service;
     }
 
-    /**
-     * Constructs a {@link org.opensearch.http.HttpServerTransport} which may be mocked for tests.
-     */
+    /** Constructs a {@link org.opensearch.http.HttpServerTransport} which may be mocked for tests. */
     protected HttpServerTransport newHttpTransport(NetworkModule networkModule) {
         return networkModule.getHttpServerTransportSupplier().get();
     }
