@@ -783,8 +783,8 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    public static final Setting<Boolean> INDEX_ALLOW_AUTO_FORCE_MERGES = Setting.boolSetting(
-        "index.auto_force_merges",
+    public static final Setting<Boolean> INDEX_AUTO_FORCE_MERGES_ENABLED = Setting.boolSetting(
+        "index.auto_force_merge.enabled",
         true,
         Property.Dynamic,
         Property.IndexScope
@@ -1194,8 +1194,8 @@ public final class IndexSettings {
             this::setRemoteTranslogUploadBufferInterval
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
-        this.autoForcemergeEnabled = scopedSettings.get(INDEX_ALLOW_AUTO_FORCE_MERGES);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_ALLOW_AUTO_FORCE_MERGES, this::setAutoForcemergeEnabled);
+        this.autoForcemergeEnabled = scopedSettings.get(INDEX_AUTO_FORCE_MERGES_ENABLED);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_AUTO_FORCE_MERGES_ENABLED, this::setAutoForcemergeEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING, this::setEnableFuzzySetForDocId);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,

@@ -369,7 +369,6 @@ public class Node implements Closeable {
      * Note that this does not control whether the node stores actual indices (see
      * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
      * and {@link #NODE_MASTER_SETTING} must also be false.
-     *
      */
     public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting(
         "node.local_storage",
@@ -1169,13 +1168,7 @@ public class Node implements Closeable {
                 workloadGroupService
             );
 
-            this.autoForceMergeManager = new AutoForceMergeManager(
-                threadPool,
-                monitorService.osService(),
-                monitorService.jvmService(),
-                indicesService,
-                clusterService
-            );
+            this.autoForceMergeManager = new AutoForceMergeManager(threadPool, monitorService, indicesService, clusterService);
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
                 .stream()
@@ -1887,9 +1880,7 @@ public class Node implements Closeable {
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
         nodeService.getTaskCancellationMonitoringService().stop();
-        if (autoForceMergeManager.lifecycleState() != Lifecycle.State.STOPPED) {
-            autoForceMergeManager.stop();
-        }
+        autoForceMergeManager.stop();
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
@@ -1989,9 +1980,7 @@ public class Node implements Closeable {
         if (logger.isTraceEnabled()) {
             toClose.add(() -> logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint()));
         }
-        if (autoForceMergeManager.lifecycleState() != Lifecycle.State.STOPPED) {
-            autoForceMergeManager.stop();
-        }
+        autoForceMergeManager.stop();
         IOUtils.close(toClose);
         logger.info("closed");
     }
@@ -2050,7 +2039,9 @@ public class Node implements Closeable {
         List<BootstrapCheck> bootstrapChecks
     ) throws NodeValidationException {}
 
-    /** Writes a file to the logs dir containing the ports for the given transport type */
+    /**
+     * Writes a file to the logs dir containing the ports for the given transport type
+     */
     private void writePortsFile(String type, BoundTransportAddress boundAddress) {
         Path tmpPortsFile = environment.logsDir().resolve(type + ".ports.tmp");
         try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, StandardCharsets.UTF_8)) {
@@ -2078,6 +2069,7 @@ public class Node implements Closeable {
 
     /**
      * Creates a new {@link CircuitBreakerService} based on the settings provided.
+     *
      * @see #BREAKER_TYPE_KEY
      */
     public static CircuitBreakerService createCircuitBreakerService(
@@ -2153,6 +2145,7 @@ public class Node implements Closeable {
 
     /**
      * Get Custom Name Resolvers list based on a Discovery Plugins list
+     *
      * @param discoveryPlugins Discovery plugins list
      */
     private List<NetworkService.CustomNameResolver> getCustomNameResolvers(List<DiscoveryPlugin> discoveryPlugins) {
@@ -2166,7 +2159,9 @@ public class Node implements Closeable {
         return customNameResolvers;
     }
 
-    /** Constructs a ClusterInfoService which may be mocked for tests. */
+    /**
+     * Constructs a ClusterInfoService which may be mocked for tests.
+     */
     protected ClusterInfoService newClusterInfoService(
         Settings settings,
         ClusterService clusterService,
@@ -2181,7 +2176,9 @@ public class Node implements Closeable {
         return service;
     }
 
-    /** Constructs a {@link org.opensearch.http.HttpServerTransport} which may be mocked for tests. */
+    /**
+     * Constructs a {@link org.opensearch.http.HttpServerTransport} which may be mocked for tests.
+     */
     protected HttpServerTransport newHttpTransport(NetworkModule networkModule) {
         return networkModule.getHttpServerTransportSupplier().get();
     }

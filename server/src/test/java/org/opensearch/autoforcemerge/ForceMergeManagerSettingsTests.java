@@ -26,34 +26,37 @@ public class ForceMergeManagerSettingsTests extends OpenSearchTestCase {
     private ClusterSettings clusterSettings;
     private Settings settings;
     private ForceMergeManagerSettings forceMergeManagerSettings;
-    private AutoForceMergeManager autoForceMergeManager;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        autoForceMergeManager = mock(AutoForceMergeManager.class);
-
-        // Initialize with default settings
         settings = Settings.builder().build();
-
         clusterSettings = new ClusterSettings(
             settings,
             Set.of(
                 ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING,
+                ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL,
+                ForceMergeManagerSettings.TRANSLOG_AGE_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE,
-                ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL,
                 ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER
             )
         );
+        Consumer<TimeValue> modifySchedulerInterval = new Consumer<>() {
+            private TimeValue schedulerInterval;
 
-        Consumer<TimeValue> mockConsumer = mock(Consumer.class);
+            @Override
+            public void accept(TimeValue timeValue) {
+                this.schedulerInterval = timeValue;
+            }
+        };
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(settings);
-        forceMergeManagerSettings = new ForceMergeManagerSettings(clusterService, mockConsumer);
+        forceMergeManagerSettings = new ForceMergeManagerSettings(clusterService, modifySchedulerInterval);
     }
 
     public void testDefaultSettings() {
@@ -79,15 +82,12 @@ public class ForceMergeManagerSettingsTests extends OpenSearchTestCase {
     }
 
     public void testInvalidSettings() {
-        // Test negative segment threshold
         expectThrows(IllegalArgumentException.class, () -> {
             Settings invalidSettings = Settings.builder()
                 .put(ForceMergeManagerSettings.SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE.getKey(), -1)
                 .build();
             clusterSettings.applySettings(invalidSettings);
         });
-
-        // Test invalid CPU threshold
         expectThrows(IllegalArgumentException.class, () -> {
             Settings invalidSettings = Settings.builder()
                 .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 101.0)
@@ -98,14 +98,16 @@ public class ForceMergeManagerSettingsTests extends OpenSearchTestCase {
 
     public void testTimeValueSettings() {
         Settings newSettings = Settings.builder()
-            .put(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), "15s")
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), "10m")
+            .put(ForceMergeManagerSettings.TRANSLOG_AGE_AUTO_FORCE_MERGE.getKey(), "10m")
+            .put(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), "15s")
             .build();
 
         clusterSettings.applySettings(newSettings);
 
-        assertEquals(forceMergeManagerSettings.getForcemergeDelay(), TimeValue.timeValueSeconds(15));
         assertEquals(forceMergeManagerSettings.getSchedulerInterval(), TimeValue.timeValueMinutes(10));
+        assertEquals(forceMergeManagerSettings.getTranslogAge(), TimeValue.timeValueMinutes(10));
+        assertEquals(forceMergeManagerSettings.getForcemergeDelay(), TimeValue.timeValueSeconds(15));
     }
 
     public void testThreadSettings() {
@@ -119,12 +121,14 @@ public class ForceMergeManagerSettingsTests extends OpenSearchTestCase {
     public void testThresholdSettings() {
         Settings newSettings = Settings.builder()
             .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 60.0)
-            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 50.0)
+            .put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 70.0)
+            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 70.0)
             .build();
 
         clusterSettings.applySettings(newSettings);
         assertEquals(60.0, forceMergeManagerSettings.getCpuThreshold(), 0.0);
-        assertEquals(50.0, forceMergeManagerSettings.getJvmThreshold(), 0.0);
+        assertEquals(70.0, forceMergeManagerSettings.getDiskThreshold(), 0.0);
+        assertEquals(70.0, forceMergeManagerSettings.getJvmThreshold(), 0.0);
     }
 
 }

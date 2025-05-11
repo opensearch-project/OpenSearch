@@ -41,6 +41,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
     private static final int NUM_DOCS_IN_BULK = 1000;
     private static final int INGESTION_COUNT = 3;
     private static final String SCHEDULER_INTERVAL = "1s";
+    private static final String TRANSLOG_AGE = "1s";
     private static final String MERGE_DELAY = "1s";
     private static final Integer SEGMENT_COUNT = 1;
 
@@ -58,6 +59,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
             .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
             .put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 32)
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), SCHEDULER_INTERVAL)
+            .put(ForceMergeManagerSettings.TRANSLOG_AGE_AUTO_FORCE_MERGE.getKey(), TRANSLOG_AGE)
             .put(ForceMergeManagerSettings.SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE.getKey(), SEGMENT_COUNT)
             .put(ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.getKey(), MERGE_DELAY)
             .build();
@@ -117,7 +119,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_ALLOW_AUTO_FORCE_MERGES.getKey(), false)
+            .put(IndexSettings.INDEX_AUTO_FORCE_MERGES_ENABLED.getKey(), false)
             .build();
         assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_1).setSettings(settings).get());
         for (int i = 0; i < INGESTION_COUNT; i++) {

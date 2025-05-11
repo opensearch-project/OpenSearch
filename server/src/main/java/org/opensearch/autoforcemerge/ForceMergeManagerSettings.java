@@ -26,16 +26,19 @@ public class ForceMergeManagerSettings {
     private Integer segmentCount;
     private TimeValue forcemergeDelay;
     private TimeValue schedulerInterval;
+    private TimeValue translogAge;
     private Double cpuThreshold;
+    private Double diskThreshold;
     private Double jvmThreshold;
     private Integer concurrencyMultiplier;
     private Boolean autoForceMergeFeatureEnabled;
+    private final Consumer<TimeValue> modifySchedulerInterval;
 
     /**
      * Setting to enable Auto Force Merge (default: false)
      */
     public static final Setting<Boolean> AUTO_FORCE_MERGE_SETTING = Setting.boolSetting(
-        "cluster.auto_force_merge_feature.enabled",
+        "cluster.auto_force_merge.enabled",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -45,7 +48,7 @@ public class ForceMergeManagerSettings {
      * Setting for segment count threshold that triggers force merge (default: 1).
      */
     public static final Setting<Integer> SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE = Setting.intSetting(
-        "node.auto.force_merge.segment.count",
+        "node.auto_force_merge.segment.count",
         1,
         1,
         Setting.Property.Dynamic,
@@ -56,10 +59,10 @@ public class ForceMergeManagerSettings {
      * Setting for wait time between force merge operations (default: 10s).
      */
     public static final Setting<TimeValue> MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE = Setting.timeSetting(
-        "node.auto.force_merge.merge_delay",
+        "node.auto_force_merge.merge_delay",
         TimeValue.timeValueSeconds(10),
         TimeValue.timeValueSeconds(1),
-        TimeValue.timeValueSeconds(15),
+        TimeValue.timeValueSeconds(60),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -68,7 +71,19 @@ public class ForceMergeManagerSettings {
      * Setting for scheduler interval (default: 30 minutes).
      */
     public static final Setting<TimeValue> AUTO_FORCE_MERGE_SCHEDULER_INTERVAL = Setting.timeSetting(
-        "node.auto.force_merge.scheduler.interval",
+        "node.auto_force_merge.scheduler.interval",
+        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueHours(24),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Setting for scheduler interval (default: 30 minutes).
+     */
+    public static final Setting<TimeValue> TRANSLOG_AGE_AUTO_FORCE_MERGE = Setting.timeSetting(
+        "node.auto_force_merge.translog.age",
         TimeValue.timeValueMinutes(30),
         TimeValue.timeValueSeconds(1),
         TimeValue.timeValueHours(24),
@@ -80,8 +95,20 @@ public class ForceMergeManagerSettings {
      * Setting for cpu threshold. (default: 80)
      */
     public static final Setting<Double> CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE = Setting.doubleSetting(
-        "node.auto.force_merge.cpu.threshold",
+        "node.auto_force_merge.cpu.threshold",
         80.0,
+        10,
+        100,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Setting for memory threshold. (default: 90)
+     */
+    public static final Setting<Double> DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE = Setting.doubleSetting(
+        "node.auto_force_merge.disk.threshold",
+        90.0,
         10,
         100,
         Setting.Property.Dynamic,
@@ -92,7 +119,7 @@ public class ForceMergeManagerSettings {
      * Setting for jvm threshold. (default: 70)
      */
     public static final Setting<Double> JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE = Setting.doubleSetting(
-        "node.auto.force_merge.jvm.threshold",
+        "node.auto_force_merge.jvm.threshold",
         90.0,
         10,
         100,
@@ -104,7 +131,7 @@ public class ForceMergeManagerSettings {
      * Setting for thread pool multiplier to determine concurrent force merge operations (default: 2).
      */
     public static final Setting<Integer> CONCURRENCY_MULTIPLIER = Setting.intSetting(
-        "node.auto.force_merge.threads.concurrency_multiplier",
+        "node.auto_force_merge.threads.concurrency_multiplier",
         2,
         2,
         5,
@@ -118,17 +145,21 @@ public class ForceMergeManagerSettings {
     public ForceMergeManagerSettings(ClusterService clusterService, Consumer<TimeValue> modifySchedulerInterval) {
         Settings settings = clusterService.getSettings();
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        this.modifySchedulerInterval = modifySchedulerInterval;
         this.autoForceMergeFeatureEnabled = AUTO_FORCE_MERGE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(AUTO_FORCE_MERGE_SETTING, this::setAutoForceMergeFeatureEnabled);
-        this.segmentCount = SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE, this::setSegmentCount);
-        this.forcemergeDelay = MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE, this::setForcemergeDelay);
-        clusterSettings.addSettingsUpdateConsumer(MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE, modifySchedulerInterval);
         this.schedulerInterval = AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.get(settings);
         clusterSettings.addSettingsUpdateConsumer(AUTO_FORCE_MERGE_SCHEDULER_INTERVAL, this::setSchedulerInterval);
+        this.forcemergeDelay = MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE, this::setForcemergeDelay);
+        this.translogAge = TRANSLOG_AGE_AUTO_FORCE_MERGE.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(TRANSLOG_AGE_AUTO_FORCE_MERGE, this::setTranslogAge);
+        this.segmentCount = SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE, this::setSegmentCount);
         this.cpuThreshold = CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE, this::setCpuThreshold);
+        this.diskThreshold = DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE, this::setDiskThreshold);
         this.jvmThreshold = JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE, this::setJvmThreshold);
         this.concurrencyMultiplier = CONCURRENCY_MULTIPLIER.get(settings);
@@ -151,6 +182,14 @@ public class ForceMergeManagerSettings {
         return this.segmentCount;
     }
 
+    public TimeValue getTranslogAge() {
+        return this.translogAge;
+    }
+
+    public void setTranslogAge(TimeValue translogAge) {
+        this.translogAge = translogAge;
+    }
+
     public void setForcemergeDelay(TimeValue forcemergeDelay) {
         this.forcemergeDelay = forcemergeDelay;
     }
@@ -161,6 +200,7 @@ public class ForceMergeManagerSettings {
 
     public void setSchedulerInterval(TimeValue schedulerInterval) {
         this.schedulerInterval = schedulerInterval;
+        this.modifySchedulerInterval.accept(schedulerInterval);
     }
 
     public TimeValue getSchedulerInterval() {
@@ -173,6 +213,14 @@ public class ForceMergeManagerSettings {
 
     public Double getCpuThreshold() {
         return this.cpuThreshold;
+    }
+
+    public void setDiskThreshold(Double diskThreshold) {
+        this.diskThreshold = diskThreshold;
+    }
+
+    public Double getDiskThreshold() {
+        return this.diskThreshold;
     }
 
     public void setJvmThreshold(Double jvmThreshold) {
