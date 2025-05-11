@@ -122,8 +122,8 @@ public class ShardRouting implements Writeable, ToXContentObject {
 
     protected ShardRouting(
         ShardId shardId,
-        String relocatingNodeId,
         String currentNodeId,
+        String relocatingNodeId,
         boolean primary,
         ShardRoutingState shardRoutingState,
         RecoverySource recoverySource,
@@ -133,8 +133,8 @@ public class ShardRouting implements Writeable, ToXContentObject {
     ) {
         this(
             shardId,
-            relocatingNodeId,
             currentNodeId,
+            relocatingNodeId,
             primary,
             false,
             shardRoutingState,
