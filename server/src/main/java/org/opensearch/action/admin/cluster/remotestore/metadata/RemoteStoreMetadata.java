@@ -10,6 +10,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+
 /**
  * Response model that holds the remote store metadata (segment and translog) for a shard.
  *
@@ -21,11 +22,7 @@ public class RemoteStoreMetadata implements Writeable, ToXContentFragment {
     private final Map<String, Object> translog;
     private final ShardRouting shardRouting;
 
-    public RemoteStoreMetadata(
-        Map<String, Object> segments,
-        Map<String, Object> translog,
-        ShardRouting shardRouting
-    ) {
+    public RemoteStoreMetadata(Map<String, Object> segments, Map<String, Object> translog, ShardRouting shardRouting) {
         this.segments = segments;
         this.translog = translog;
         this.shardRouting = shardRouting;
@@ -47,7 +44,7 @@ public class RemoteStoreMetadata implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        
+
         builder.startObject("segments");
         for (Map.Entry<String, Object> entry : segments.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());

@@ -6,6 +6,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+
 /**
  * Request object for fetching remote store metadata of shards for a given index.
  *

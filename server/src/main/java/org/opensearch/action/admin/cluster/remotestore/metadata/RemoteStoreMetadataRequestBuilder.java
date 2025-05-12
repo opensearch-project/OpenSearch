@@ -6,49 +6,49 @@
  * compatible open source license.
  */
 
- package org.opensearch.action.admin.cluster.remotestore.metadata;
+package org.opensearch.action.admin.cluster.remotestore.metadata;
 
- import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
- import org.opensearch.common.annotation.PublicApi;
- import org.opensearch.common.unit.TimeValue;
- import org.opensearch.transport.client.OpenSearchClient;
- 
- /**
-  * Builder for RemoteStoreMetadataRequest
-  *
-  * @opensearch.api
-  */
- @PublicApi(since = "3.0.0")
- public class RemoteStoreMetadataRequestBuilder extends BroadcastOperationRequestBuilder<
-     RemoteStoreMetadataRequest,
-     RemoteStoreMetadataResponse,
-     RemoteStoreMetadataRequestBuilder> {
- 
-     public RemoteStoreMetadataRequestBuilder(OpenSearchClient client, RemoteStoreMetadataAction action) {
-         super(client, action, new RemoteStoreMetadataRequest());
-     }
- 
-     /**
-      * Sets timeout of request.
-      */
-     public final RemoteStoreMetadataRequestBuilder setTimeout(TimeValue timeout) {
-         request.timeout(timeout);
-         return this;
-     }
- 
-     /**
-      * Sets shards preference of request.
-      */
-     public final RemoteStoreMetadataRequestBuilder setShards(String... shards) {
-         request.shards(shards);
-         return this;
-     }
- 
-     /**
-      * Sets local shards preference of request.
-      */
-     public final RemoteStoreMetadataRequestBuilder setLocal(boolean local) {
-         request.local(local);
-         return this;
-     }
- }
+import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.transport.client.OpenSearchClient;
+
+/**
+ * Builder for RemoteStoreMetadataRequest
+ *
+ * @opensearch.api
+ */
+@PublicApi(since = "3.0.0")
+public class RemoteStoreMetadataRequestBuilder extends BroadcastOperationRequestBuilder<
+    RemoteStoreMetadataRequest,
+    RemoteStoreMetadataResponse,
+    RemoteStoreMetadataRequestBuilder> {
+
+    public RemoteStoreMetadataRequestBuilder(OpenSearchClient client, RemoteStoreMetadataAction action) {
+        super(client, action, new RemoteStoreMetadataRequest());
+    }
+
+    /**
+     * Sets timeout of request.
+     */
+    public final RemoteStoreMetadataRequestBuilder setTimeout(TimeValue timeout) {
+        request.timeout(timeout);
+        return this;
+    }
+
+    /**
+     * Sets shards preference of request.
+     */
+    public final RemoteStoreMetadataRequestBuilder setShards(String... shards) {
+        request.shards(shards);
+        return this;
+    }
+
+    /**
+     * Sets local shards preference of request.
+     */
+    public final RemoteStoreMetadataRequestBuilder setLocal(boolean local) {
+        request.local(local);
+        return this;
+    }
+}

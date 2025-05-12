@@ -35,7 +35,13 @@ import java.io.InputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -77,7 +83,7 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
     protected void doExecute(Task task, RemoteStoreMetadataRequest request, ActionListener<RemoteStoreMetadataResponse> listener) {
         try {
             ClusterState state = clusterService.state();
-            
+
             // Check blocks
             ClusterBlockException blockException = checkBlocks(state, request);
             if (blockException != null) {
@@ -88,14 +94,13 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
             // Resolve concrete indices
             String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
             if (concreteIndices.length == 0) {
-                listener.onResponse(new RemoteStoreMetadataResponse(
-                    new RemoteStoreMetadata[0], 0, 0, 0, Collections.emptyList()));
+                listener.onResponse(new RemoteStoreMetadataResponse(new RemoteStoreMetadata[0], 0, 0, 0, Collections.emptyList()));
                 return;
             }
 
             // Get relevant shards
             List<ShardRouting> selectedShards = getSelectedShards(state, request, concreteIndices);
-            
+
             // Process each shard
             List<RemoteStoreMetadata> responses = new ArrayList<>();
             AtomicInteger successfulShards = new AtomicInteger(0);
@@ -109,10 +114,9 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
                     successfulShards.incrementAndGet();
                 } catch (Exception e) {
                     failedShards.incrementAndGet();
-                    shardFailures.add(new DefaultShardOperationFailedException(
-                        shardRouting.shardId().getIndexName(),
-                        shardRouting.shardId().getId(),
-                        e));
+                    shardFailures.add(
+                        new DefaultShardOperationFailedException(shardRouting.shardId().getIndexName(), shardRouting.shardId().getId(), e)
+                    );
                 }
             }
 
@@ -123,7 +127,7 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
                 failedShards.get(),
                 shardFailures
             );
-            
+
             listener.onResponse(response);
 
         } catch (Exception e) {
@@ -141,22 +145,23 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
-    private List<ShardRouting> getSelectedShards(
-        ClusterState clusterState,
-        RemoteStoreMetadataRequest request,
-        String[] concreteIndices
-    ) {
+    private List<ShardRouting> getSelectedShards(ClusterState clusterState, RemoteStoreMetadataRequest request, String[] concreteIndices) {
         return clusterState.routingTable()
             .allShards(concreteIndices)
             .getShardRoutings()
             .stream()
-            .filter(shardRouting -> request.shards().length == 0 ||
-                Arrays.asList(request.shards()).contains(Integer.toString(shardRouting.shardId().id())))
-            .filter(shardRouting -> !request.local() ||
-                Objects.equals(shardRouting.currentNodeId(), clusterState.getNodes().getLocalNodeId()))
-            .filter(shardRouting -> Boolean.parseBoolean(
-                clusterState.getMetadata().index(shardRouting.index())
-                    .getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED)))
+            .filter(
+                shardRouting -> request.shards().length == 0
+                    || Arrays.asList(request.shards()).contains(Integer.toString(shardRouting.shardId().id()))
+            )
+            .filter(
+                shardRouting -> !request.local() || Objects.equals(shardRouting.currentNodeId(), clusterState.getNodes().getLocalNodeId())
+            )
+            .filter(
+                shardRouting -> Boolean.parseBoolean(
+                    clusterState.getMetadata().index(shardRouting.index()).getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED)
+                )
+            )
             .collect(Collectors.toList());
     }
 
@@ -168,9 +173,7 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
             throw new ShardNotFoundException(indexShard.shardId());
         }
 
-        String repoLocation = clusterService.localNode()
-            .getAttributes()
-            .get("remote_store.repository.my-repository.settings.location");
+        String repoLocation = clusterService.localNode().getAttributes().get("remote_store.repository.my-repository.settings.location");
 
         String indexUUID = shardRouting.index().getUUID();
         int shardId = shardRouting.shardId().id();
@@ -191,8 +194,10 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, "metadata__*")) {
             for (Path metadataFile : stream) {
-                try (InputStream in = Files.newInputStream(metadataFile);
-                     IndexInput idxIn = new ByteArrayIndexInput(metadataFile.getFileName().toString(), in.readAllBytes())) {
+                try (
+                    InputStream in = Files.newInputStream(metadataFile);
+                    IndexInput idxIn = new ByteArrayIndexInput(metadataFile.getFileName().toString(), in.readAllBytes())
+                ) {
 
                     RemoteSegmentMetadata segMetadata = metadataStreamWrapper.readStream(idxIn);
                     Map<String, Object> fileMetadata = new HashMap<>();
@@ -212,15 +217,25 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
 
                     if (segMetadata.getReplicationCheckpoint() != null) {
                         var cp = segMetadata.getReplicationCheckpoint();
-                        fileMetadata.put("replication_checkpoint", Map.of(
-                            "shard_id", cp.getShardId().toString(),
-                            "primary_term", cp.getPrimaryTerm(),
-                            "generation", cp.getSegmentsGen(),
-                            "version", cp.getSegmentInfosVersion(),
-                            "length", cp.getLength(),
-                            "codec", cp.getCodec(),
-                            "created_timestamp", cp.getCreatedTimeStamp()
-                        ));
+                        fileMetadata.put(
+                            "replication_checkpoint",
+                            Map.of(
+                                "shard_id",
+                                cp.getShardId().toString(),
+                                "primary_term",
+                                cp.getPrimaryTerm(),
+                                "generation",
+                                cp.getSegmentsGen(),
+                                "version",
+                                cp.getSegmentInfosVersion(),
+                                "length",
+                                cp.getLength(),
+                                "codec",
+                                cp.getCodec(),
+                                "created_timestamp",
+                                cp.getCreatedTimeStamp()
+                            )
+                        );
                     }
 
                     fileMetadata.put("generation", segMetadata.getGeneration());
@@ -239,8 +254,10 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, "metadata__*")) {
             for (Path metadataFile : stream) {
-                try (InputStream inputStream = Files.newInputStream(metadataFile);
-                     BytesStreamInput input = new BytesStreamInput(inputStream.readAllBytes())) {
+                try (
+                    InputStream inputStream = Files.newInputStream(metadataFile);
+                    BytesStreamInput input = new BytesStreamInput(inputStream.readAllBytes())
+                ) {
 
                     Map<String, Object> fileMetadata = new HashMap<>();
                     String[] parts = metadataFile.getFileName().toString().split(TranslogTransferMetadata.METADATA_SEPARATOR);
@@ -256,12 +273,19 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
                     long generation = input.readLong();
                     long minTranslogGen = input.readLong();
                     Map<String, String> genToTermMap = input.readMap(StreamInput::readString, StreamInput::readString);
-                    fileMetadata.put("content", Map.of(
-                        "primary_term", primaryTerm,
-                        "generation", generation,
-                        "min_translog_generation", minTranslogGen,
-                        "generation_to_term_mapping", genToTermMap
-                    ));
+                    fileMetadata.put(
+                        "content",
+                        Map.of(
+                            "primary_term",
+                            primaryTerm,
+                            "generation",
+                            generation,
+                            "min_translog_generation",
+                            minTranslogGen,
+                            "generation_to_term_mapping",
+                            genToTermMap
+                        )
+                    );
                     metadata.put(metadataFile.getFileName().toString(), fileMetadata);
                 }
             }

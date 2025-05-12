@@ -958,16 +958,17 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void remoteStoreMetadata(final RemoteStoreMetadataRequest request, final ActionListener<RemoteStoreMetadataResponse> listener) {
+        public void remoteStoreMetadata(
+            final RemoteStoreMetadataRequest request,
+            final ActionListener<RemoteStoreMetadataResponse> listener
+        ) {
             execute(RemoteStoreMetadataAction.INSTANCE, request, listener);
         }
 
         @Override
         public RemoteStoreMetadataRequestBuilder prepareRemoteStoreMetadata(String index, String shardId) {
-            RemoteStoreMetadataRequestBuilder builder = new RemoteStoreMetadataRequestBuilder(
-                this,
-                RemoteStoreMetadataAction.INSTANCE
-            ).setIndices(index);
+            RemoteStoreMetadataRequestBuilder builder = new RemoteStoreMetadataRequestBuilder(this, RemoteStoreMetadataAction.INSTANCE)
+                .setIndices(index);
             if (shardId != null) {
                 builder.setShards(shardId);
             }
