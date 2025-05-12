@@ -7,4 +7,4 @@
  */
 
 /** Base Auto Force Merge Manager Service package for tracking triggering automatic force merges. */
-package org.opensearch.autoforcemerge;
+package org.opensearch.index.autoforcemerge;

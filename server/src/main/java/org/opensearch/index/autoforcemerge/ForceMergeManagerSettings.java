@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.autoforcemerge;
+package org.opensearch.index.autoforcemerge;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;

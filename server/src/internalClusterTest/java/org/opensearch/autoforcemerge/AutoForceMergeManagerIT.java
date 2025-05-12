@@ -17,6 +17,8 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.autoforcemerge.ForceMergeManagerSettings;
+
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
