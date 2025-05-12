@@ -35,12 +35,14 @@ package org.opensearch.indexing;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.indices.InvalidIndexNameException;
@@ -78,15 +80,18 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
      */
 
     public void testAutoGenerateIdNoDuplicates() throws Exception {
+        final var testIndex = "test";
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
             Exception firstError = null;
-            createIndex("test");
+            createIndex(testIndex);
+            var refRsp = client().admin().indices().refresh(new RefreshRequest(testIndex)).actionGet();
+            assertSame(RestStatus.OK, refRsp.getStatus());
             int numOfDocs = randomIntBetween(10, 100);
             logger.info("indexing [{}] docs", numOfDocs);
             List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
             for (int j = 0; j < numOfDocs; j++) {
-                builders.add(client().prepareIndex("test").setSource("field", "value_" + j));
+                builders.add(client().prepareIndex(testIndex).setSource("field", "value_" + j));
             }
             indexRandom(true, builders);
             logger.info("verifying indexed content");
@@ -94,7 +99,7 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             for (int j = 0; j < numOfChecks; j++) {
                 try {
                     logger.debug("running search with all types");
-                    SearchResponse response = client().prepareSearch("test").get();
+                    SearchResponse response = client().prepareSearch(testIndex).get();
                     if (response.getHits().getTotalHits().value() != numOfDocs) {
                         final String message = "Count is "
                             + response.getHits().getTotalHits().value()
@@ -113,7 +118,7 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                 }
                 try {
                     logger.debug("running search with a specific type");
-                    SearchResponse response = client().prepareSearch("test").get();
+                    SearchResponse response = client().prepareSearch(testIndex).get();
                     if (response.getHits().getTotalHits().value() != numOfDocs) {
                         final String message = "Count is "
                             + response.getHits().getTotalHits().value()
@@ -134,7 +139,7 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             if (firstError != null) {
                 fail(firstError.getMessage());
             }
-            internalCluster().wipeIndices("test");
+            internalCluster().wipeIndices(testIndex);
         }
     }
 
