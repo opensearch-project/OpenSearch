@@ -46,6 +46,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -204,13 +205,14 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 return;
             }
             if (indexShard.routingEntry().primary() == false || indexShard.isPrimaryMode() == false) {
-                listener.onFailure(new IllegalArgumentException(String.format("%s is not primary", shardId)));
+                listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT, "%s is not primary", shardId)));
                 return;
             }
             if (indexShard.getOperationPrimaryTerm() > request.getCheckpoint().getPrimaryTerm()) {
                 listener.onFailure(
                     new IllegalArgumentException(
                         String.format(
+                            Locale.ROOT,
                             "request primary term %d is lower than %d",
                             request.getCheckpoint().getPrimaryTerm(),
                             indexShard.getOperationPrimaryTerm()

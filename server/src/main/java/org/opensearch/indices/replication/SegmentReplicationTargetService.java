@@ -52,6 +52,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -703,7 +704,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                             )
                         );
                         channel.sendResponse(
-                            new IllegalArgumentException(String.format("merged segment %s already exist", receivedCheckpoint))
+                            new IllegalArgumentException(String.format(Locale.ROOT, "merged segment %s already exist", receivedCheckpoint))
                         );
                         return;
                     }
