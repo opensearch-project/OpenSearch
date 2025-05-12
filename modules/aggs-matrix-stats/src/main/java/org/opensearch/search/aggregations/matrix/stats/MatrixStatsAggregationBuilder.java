@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.matrix.stats;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContent;
@@ -75,12 +76,18 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        this.multiValueMode = in.readEnum(MultiValueMode.class);
+        if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
+            this.multiValueMode = in.readEnum(MultiValueMode.class);
+        } else {
+            this.multiValueMode = MultiValueMode.AVG;
+        }
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeEnum(multiValueMode);
+        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+            out.writeEnum(multiValueMode);
+        }
     }
 
     public MatrixStatsAggregationBuilder multiValueMode(MultiValueMode multiValueMode) {
