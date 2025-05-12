@@ -41,6 +41,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.Version;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.plugins.SearchPlugin;
@@ -48,6 +51,7 @@ import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.matrix.MatrixAggregationModulePlugin;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -156,6 +160,25 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 assertNotEquals("AVG and MIN mode should yield different means", avg, min, 0.0001);
             }
         }
+    }
+
+    public void testSerializationDeserialization() throws IOException {
+        MatrixStatsAggregationBuilder original = new MatrixStatsAggregationBuilder("test").fields(Collections.singletonList("field"))
+            .multiValueMode(MultiValueMode.MIN);
+
+        // Serialize
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_1_0);  // 직렬화 시점의 버전
+        original.writeTo(out);
+
+        // Deserialize
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.V_3_1_0);   // 역직렬화 시점의 버전
+        MatrixStatsAggregationBuilder deserialized = new MatrixStatsAggregationBuilder(in);
+
+        assertEquals(original.getName(), deserialized.getName());
+        assertEquals(original.fields(), deserialized.fields());
+        assertEquals(original.multiValueMode(), deserialized.multiValueMode());
     }
 
     @Override
