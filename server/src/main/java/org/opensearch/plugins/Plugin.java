@@ -193,6 +193,13 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
+     * Returns a list of additional {@link org.opensearch.common.util.FeatureFlags} settings for this plugin.
+     */
+    public List<Setting<Boolean>> getFeatureFlags() {
+        return Collections.emptyList();
+    }
+
+    /**
      * Returns a list of additional settings filter for this plugin
      */
     public List<String> getSettingsFilter() {
