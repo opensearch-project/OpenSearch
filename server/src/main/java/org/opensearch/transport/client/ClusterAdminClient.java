@@ -74,6 +74,9 @@ import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStor
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequest;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequest;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequestBuilder;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataResponse;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
@@ -332,6 +335,10 @@ public interface ClusterAdminClient extends OpenSearchClient {
     void remoteStoreStats(RemoteStoreStatsRequest request, ActionListener<RemoteStoreStatsResponse> listener);
 
     RemoteStoreStatsRequestBuilder prepareRemoteStoreStats(String index, String shardId);
+
+    void remoteStoreMetadata(RemoteStoreMetadataRequest request, ActionListener<RemoteStoreMetadataResponse> listener);
+
+    RemoteStoreMetadataRequestBuilder prepareRemoteStoreMetadata(String index, String shardId);
 
     /**
      * Returns top N hot-threads samples per node. The hot-threads are only

@@ -39,6 +39,17 @@ testClusters {
     testDistribution = 'archive'
     if (numZones > 1) numberOfZones = numZones
     if (numNodes > 1) numberOfNodes = numNodes
+     setting 'node.attr.remote_store.segment.repository', 'my-repository'
+    setting 'node.attr.remote_store.translog.repository', 'my-repository'
+    setting 'node.attr.remote_store.state.repository', 'my-repository'
+    setting 'node.attr.remote_store.repository.my-repository.type', 'fs'
+    setting 'path.repo', '/Users/sukriiti/remote-store-data'
+    setting 'node.attr.remote_store.repository.my-repository.settings.location', '/Users/sukriiti/remote-store-data'
+    // setting 'opensearch.experimental.feature.tiered_remote_index.enabled', 'true'
+//    setting 'opensearch.experimental.feature.pluggable.caching.enabled', 'true'
+    setting 'node.search.cache.size', '10gb'
+    setting 'node.roles', 'ingest,remote_cluster_client,data,cluster_manager'
+    
     if (findProperty("installedPlugins")) {
       installedPlugins = Eval.me(installedPlugins)
       for (String p : installedPlugins) {
