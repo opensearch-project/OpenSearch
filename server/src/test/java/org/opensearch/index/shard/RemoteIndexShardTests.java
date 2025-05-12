@@ -45,7 +45,6 @@ import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -632,7 +631,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
     @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     @Override
-    @Ignore
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18255")
     public void testMergedSegmentReplication() throws Exception {
         // TODO: wait for remote store to support merged segment warmer
         super.testMergedSegmentReplication();
