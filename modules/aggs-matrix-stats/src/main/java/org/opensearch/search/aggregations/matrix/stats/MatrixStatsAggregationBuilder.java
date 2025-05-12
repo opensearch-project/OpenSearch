@@ -95,6 +95,10 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
         return this;
     }
 
+    public MultiValueMode multiValueMode() {
+        return this.multiValueMode;
+    }
+
     @Override
     protected MatrixStatsAggregatorFactory innerBuild(
         QueryShardContext queryShardContext,
