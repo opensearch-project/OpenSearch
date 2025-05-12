@@ -86,6 +86,10 @@ import org.opensearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataAction;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequest;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequestBuilder;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreAction;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
@@ -951,6 +955,24 @@ public abstract class AbstractClient implements Client {
                 remoteStoreStatsRequestBuilder.setShards(shardId);
             }
             return remoteStoreStatsRequestBuilder;
+        }
+
+        @Override
+        public void remoteStoreMetadata(
+            final RemoteStoreMetadataRequest request,
+            final ActionListener<RemoteStoreMetadataResponse> listener
+        ) {
+            execute(RemoteStoreMetadataAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public RemoteStoreMetadataRequestBuilder prepareRemoteStoreMetadata(String index, String shardId) {
+            RemoteStoreMetadataRequestBuilder builder = new RemoteStoreMetadataRequestBuilder(this, RemoteStoreMetadataAction.INSTANCE)
+                .setIndices(index);
+            if (shardId != null) {
+                builder.setShards(shardId);
+            }
+            return builder;
         }
 
         @Override

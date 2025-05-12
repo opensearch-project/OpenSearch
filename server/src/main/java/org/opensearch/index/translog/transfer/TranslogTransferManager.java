@@ -18,6 +18,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.Loggers;
@@ -29,6 +30,8 @@ import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogReader;
+import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.threadpool.ThreadPool;
@@ -41,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -108,6 +112,42 @@ public class TranslogTransferManager {
 
     public ShardId getShardId() {
         return this.shardId;
+    }
+
+    /**
+     * Reads the latest N translog metadata files from remote store using filename parsing.
+     *
+     * @param count Number of metadata files to read
+     * @param listener Listener that receives the list of TranslogTransferMetadata
+     */
+    public void readLatestNMetadataFiles(int count, ActionListener<Map<String, TranslogTransferMetadata>> listener) {
+        transferService.listAllInSortedOrder(
+            remoteMetadataTransferPath,
+            TranslogTransferMetadata.METADATA_PREFIX,
+            count,
+            ActionListener.wrap(metadataFiles -> {
+                Map<String, TranslogTransferMetadata> result = new LinkedHashMap<>();
+                for (BlobMetadata metadata : metadataFiles) {
+                    String fileName = metadata.name();
+                    try {
+                        long primaryTerm = TranslogTransferMetadata.getPrimaryTermFromFileName(fileName);
+                        long generation = TranslogTransferMetadata.getMaxGenerationFromFileName(fileName);
+                        Tuple<Long, Long> minMax = TranslogTransferMetadata.getMinMaxTranslogGenerationFromFilename(fileName);
+                        long minGen = (minMax != null) ? minMax.v1() : generation;
+
+                        TranslogTransferMetadata meta = new TranslogTransferMetadata(primaryTerm, generation, minGen, 1);
+                        result.put(fileName, meta);
+                    } catch (Exception e) {
+                        logger.warn("Failed to parse translog metadata file [{}]", fileName);
+                        logger.debug("Exception: ", e);
+                    }
+                }
+                listener.onResponse(result);
+            }, e -> {
+                logger.error("Failed to fetch translog metadata files", e);
+                listener.onFailure(new IOException("Failed to fetch translog metadata files", e));
+            })
+        );
     }
 
     public boolean transferSnapshot(TransferSnapshot transferSnapshot, TranslogTransferListener translogTransferListener)
