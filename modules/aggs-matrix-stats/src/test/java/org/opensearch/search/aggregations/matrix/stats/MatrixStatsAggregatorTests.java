@@ -44,6 +44,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.matrix.MatrixAggregationModulePlugin;
 
@@ -122,6 +123,37 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 InternalMatrixStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ftA, ftB);
                 multiPassStats.assertNearlyEqual(stats);
                 assertTrue(MatrixAggregationInspectionHelper.hasValue(stats));
+            }
+        }
+    }
+
+    public void testMultiValueModeAffectsResult() throws Exception {
+        String field = "grades";
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(field, NumberFieldMapper.NumberType.DOUBLE);
+
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            Document doc = new Document();
+            doc.add(new SortedNumericDocValuesField(field, NumericUtils.doubleToSortableLong(1.0)));
+            doc.add(new SortedNumericDocValuesField(field, NumericUtils.doubleToSortableLong(3.0)));
+            doc.add(new SortedNumericDocValuesField(field, NumericUtils.doubleToSortableLong(5.0)));
+            indexWriter.addDocument(doc);
+
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                MatrixStatsAggregationBuilder avgAgg = new MatrixStatsAggregationBuilder("avg_agg").fields(Collections.singletonList(field))
+                    .multiValueMode(MultiValueMode.AVG);
+
+                MatrixStatsAggregationBuilder minAgg = new MatrixStatsAggregationBuilder("min_agg").fields(Collections.singletonList(field))
+                    .multiValueMode(MultiValueMode.MIN);
+
+                InternalMatrixStats avgStats = searchAndReduce(searcher, new MatchAllDocsQuery(), avgAgg, ft);
+                InternalMatrixStats minStats = searchAndReduce(searcher, new MatchAllDocsQuery(), minAgg, ft);
+
+                double avg = avgStats.getMean(field);
+                double min = minStats.getMean(field);
+
+                assertNotEquals("AVG and MIN mode should yield different means", avg, min, 0.0001);
             }
         }
     }
