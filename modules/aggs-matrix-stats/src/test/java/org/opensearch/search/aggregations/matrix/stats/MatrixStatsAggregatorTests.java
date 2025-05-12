@@ -196,6 +196,25 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
         assertEquals(MultiValueMode.AVG, deserialized.multiValueMode());  // fallback 확인
     }
 
+    public void testEqualsAndHashCode() {
+        MatrixStatsAggregationBuilder agg1 = new MatrixStatsAggregationBuilder("agg").fields(Collections.singletonList("field"))
+            .multiValueMode(MultiValueMode.AVG);
+
+        MatrixStatsAggregationBuilder agg2 = new MatrixStatsAggregationBuilder("agg").fields(Collections.singletonList("field"))
+            .multiValueMode(MultiValueMode.AVG);
+
+        MatrixStatsAggregationBuilder agg3 = new MatrixStatsAggregationBuilder("agg").fields(Collections.singletonList("field"))
+            .multiValueMode(MultiValueMode.MIN);
+
+        // equals
+        assertEquals(agg1, agg2);
+        assertNotEquals(agg1, agg3);
+
+        // hashCode
+        assertEquals(agg1.hashCode(), agg2.hashCode());
+        assertNotEquals(agg1.hashCode(), agg3.hashCode());
+    }
+
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
         return Collections.singletonList(new MatrixAggregationModulePlugin());
