@@ -8,13 +8,13 @@
 
 package org.opensearch.plugin.wlm.rule;
 
-import org.junit.Before;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.rule.RuleAttribute;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureValueValidator;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.Map;
 

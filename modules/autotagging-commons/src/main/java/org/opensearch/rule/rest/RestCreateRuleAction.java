@@ -29,7 +29,6 @@ import org.joda.time.Instant;
 import java.io.IOException;
 import java.util.List;
 
-import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 import static org.opensearch.rule.rest.RestGetRuleAction.FEATURE_TYPE;
 
