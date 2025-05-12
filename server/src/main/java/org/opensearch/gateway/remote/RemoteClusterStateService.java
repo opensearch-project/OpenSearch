@@ -84,6 +84,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -1203,6 +1204,51 @@ public class RemoteClusterStateService implements Closeable {
         boolean readIndexRoutingTableDiff,
         boolean includeEphemeral
     ) {
+        return readClusterStateInParallel(
+            previousState,
+            manifest,
+            clusterUUID,
+            localNodeId,
+            indicesToRead,
+            customToRead,
+            readCoordinationMetadata,
+            readSettingsMetadata,
+            readTransientSettingsMetadata,
+            readTemplatesMetadata,
+            readDiscoveryNodes,
+            readClusterBlocks,
+            indicesRoutingToRead,
+            readHashesOfConsistentSettings,
+            clusterStateCustomToRead,
+            readIndexRoutingTableDiff,
+            includeEphemeral,
+            (metadataBuilder) -> {},
+            (routingTable) -> {}
+        );
+    }
+
+    // package private for testing
+    ClusterState readClusterStateInParallel(
+        ClusterState previousState,
+        ClusterMetadataManifest manifest,
+        String clusterUUID,
+        String localNodeId,
+        List<UploadedIndexMetadata> indicesToRead,
+        Map<String, UploadedMetadataAttribute> customToRead,
+        boolean readCoordinationMetadata,
+        boolean readSettingsMetadata,
+        boolean readTransientSettingsMetadata,
+        boolean readTemplatesMetadata,
+        boolean readDiscoveryNodes,
+        boolean readClusterBlocks,
+        List<UploadedIndexMetadata> indicesRoutingToRead,
+        boolean readHashesOfConsistentSettings,
+        Map<String, UploadedMetadataAttribute> clusterStateCustomToRead,
+        boolean readIndexRoutingTableDiff,
+        boolean includeEphemeral,
+        Consumer<Metadata.Builder> metadataTransformer,
+        Consumer<RoutingTable> routingTableTransformer
+    ) {
         int totalReadTasks = indicesToRead.size() + customToRead.size() + (readCoordinationMetadata ? 1 : 0) + (readSettingsMetadata
             ? 1
             : 0) + (readTemplatesMetadata ? 1 : 0) + (readDiscoveryNodes ? 1 : 0) + (readClusterBlocks ? 1 : 0)
@@ -1467,11 +1513,10 @@ public class RemoteClusterStateService implements Closeable {
         });
 
         metadataBuilder.indices(indexMetadataMap);
+        metadataTransformer.accept(metadataBuilder);
         if (readDiscoveryNodes) {
             clusterStateBuilder.nodes(discoveryNodesBuilder.get().localNodeId(localNodeId));
         }
-
-        clusterStateBuilder.metadata(metadataBuilder).version(manifest.getStateVersion()).stateUUID(manifest.getStateUUID());
 
         readIndexRoutingTableResults.forEach(
             indexRoutingTable -> indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable)
@@ -1481,8 +1526,12 @@ public class RemoteClusterStateService implements Closeable {
         if (routingTableDiff != null) {
             newRoutingTable = routingTableDiff.apply(previousState.getRoutingTable());
         }
-        clusterStateBuilder.routingTable(newRoutingTable);
+        routingTableTransformer.accept(newRoutingTable);
 
+        clusterStateBuilder.metadata(metadataBuilder)
+            .routingTable(newRoutingTable)
+            .version(manifest.getStateVersion())
+            .stateUUID(manifest.getStateUUID());
         return clusterStateBuilder.build();
     }
 
@@ -1638,21 +1687,29 @@ public class RemoteClusterStateService implements Closeable {
                 manifest.getDiffManifest() != null
                     && manifest.getDiffManifest().getIndicesRoutingDiffPath() != null
                     && !manifest.getDiffManifest().getIndicesRoutingDiffPath().isEmpty(),
-                includeEphemeral
+                includeEphemeral,
+                (metadataBuilder) -> {
+                    // remove the deleted indices from the metadata
+                    for (String index : diff.getIndicesDeleted()) {
+                        metadataBuilder.remove(index);
+                    }
+                    // remove the deleted metadata customs from the metadata
+                    if (diff.getCustomMetadataDeleted() != null) {
+                        for (String customType : diff.getCustomMetadataDeleted()) {
+                            metadataBuilder.removeCustom(customType);
+                        }
+                    }
+                },
+                (routingTable) -> {
+                    Map<String, IndexRoutingTable> indexRoutingTables = routingTable.getIndicesRouting();
+                    if (manifest.getCodecVersion() == CODEC_V2 || manifest.getCodecVersion() == CODEC_V3) {
+                        for (String indexName : diff.getIndicesRoutingDeleted()) {
+                            indexRoutingTables.remove(indexName);
+                        }
+                    }
+                }
             );
             ClusterState.Builder clusterStateBuilder = ClusterState.builder(updatedClusterState);
-            Metadata.Builder metadataBuilder = Metadata.builder(updatedClusterState.metadata());
-            // remove the deleted indices from the metadata
-            for (String index : diff.getIndicesDeleted()) {
-                metadataBuilder.remove(index);
-            }
-            // remove the deleted metadata customs from the metadata
-            if (diff.getCustomMetadataDeleted() != null) {
-                for (String customType : diff.getCustomMetadataDeleted()) {
-                    metadataBuilder.removeCustom(customType);
-                }
-            }
-
             // remove the deleted cluster state customs from the metadata
             if (diff.getClusterStateCustomDeleted() != null) {
                 for (String customType : diff.getClusterStateCustomDeleted()) {
@@ -1660,19 +1717,10 @@ public class RemoteClusterStateService implements Closeable {
                 }
             }
 
-            HashMap<String, IndexRoutingTable> indexRoutingTables = new HashMap<>(
-                updatedClusterState.getRoutingTable().getIndicesRouting()
-            );
-            if (manifest.getCodecVersion() == CODEC_V2 || manifest.getCodecVersion() == CODEC_V3) {
-                for (String indexName : diff.getIndicesRoutingDeleted()) {
-                    indexRoutingTables.remove(indexName);
-                }
-            }
-
             ClusterState clusterState = clusterStateBuilder.stateUUID(manifest.getStateUUID())
                 .version(manifest.getStateVersion())
-                .metadata(metadataBuilder)
-                .routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indexRoutingTables))
+                .metadata(updatedClusterState.metadata())
+                .routingTable(updatedClusterState.routingTable())
                 .build();
             if (!remoteClusterStateValidationMode.equals(RemoteClusterStateValidationMode.NONE)
                 && manifest.getClusterStateChecksum() != null) {
