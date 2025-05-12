@@ -21,7 +21,7 @@ import static org.opensearch.cluster.routing.RoutingPool.LOCAL_ONLY;
 import static org.opensearch.cluster.routing.RoutingPool.REMOTE_CAPABLE;
 import static org.opensearch.cluster.routing.RoutingPool.getIndexPool;
 import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG;
-import static org.opensearch.index.IndexModule.INDEX_STORE_LOCALITY_SETTING;
+import static org.opensearch.index.IndexModule.IS_WARM_INDEX_SETTING;
 
 public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase {
 
@@ -81,8 +81,9 @@ public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase 
         clusterState = updateIndexMetadataForTiering(
             clusterState,
             localIndices,
+            remoteIndices,
             IndexModule.TieringState.HOT_TO_WARM.name(),
-            IndexModule.DataLocalityType.PARTIAL.name()
+            true
         );
         // trigger shard relocation
         clusterState = allocateShardsAndBalance(clusterState, service);
@@ -101,13 +102,60 @@ public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase 
     }
 
     @LockFeatureFlag(WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
+    public void testShardsWithWarmToHotTiering() throws Exception {
+        int localOnlyNodes = 60;
+        int remoteCapableNodes = 13;
+        int localIndices = 0;
+        int remoteIndices = 10; // 5 primary, 1 replica
+
+        // Create a cluster with warm only roles (dedicated setup) and remote index is of type warm only.
+        ClusterState clusterState = createInitialCluster(localOnlyNodes, remoteCapableNodes, true, localIndices, remoteIndices, true);
+        AllocationService service = this.createRemoteCapableAllocationService();
+
+        // assign shards to respective nodes
+        clusterState = allocateShardsAndBalance(clusterState, service);
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        RoutingAllocation allocation = getRoutingAllocation(clusterState, routingNodes);
+        assertEquals(0, routingNodes.unassigned().size());
+
+        for (ShardRouting shard : clusterState.getRoutingTable().allShards()) {
+            assertTrue(shard.relocating() || shard.started());
+            RoutingPool shardPool = RoutingPool.getShardPool(shard, allocation);
+            RoutingNode node = routingNodes.node(shard.currentNodeId());
+            RoutingPool nodePool = RoutingPool.getNodePool(node);
+            assertEquals(REMOTE_CAPABLE, shardPool);
+            assertEquals(REMOTE_CAPABLE, nodePool);
+        }
+
+        // put indices in the hot to warm tiering state
+        clusterState = updateIndexMetadataForTiering(
+            clusterState,
+            localIndices,
+            remoteIndices,
+            IndexModule.TieringState.WARM_TO_HOT.name(),
+            false
+        );
+        // trigger shard relocation
+        clusterState = allocateShardsAndBalance(clusterState, service);
+        routingNodes = clusterState.getRoutingNodes();
+        allocation = getRoutingAllocation(clusterState, routingNodes);
+        assertEquals(0, routingNodes.unassigned().size());
+
+        for (ShardRouting shard : clusterState.getRoutingTable().allShards()) {
+            assertBusy(() -> { assertFalse(shard.unassigned()); });
+            RoutingNode node = routingNodes.node(shard.currentNodeId());
+            RoutingPool nodePool = RoutingPool.getNodePool(node);
+            RoutingPool shardPool = RoutingPool.getShardPool(shard, allocation);
+            assertEquals(LOCAL_ONLY, shardPool);
+            assertEquals(nodePool, shardPool);
+        }
+    }
+
+    @LockFeatureFlag(WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)
     public void testShardPoolForPartialIndices() {
         String index = "test-index";
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(
-                settings(Version.CURRENT).put(INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL.name())
-                    .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
-            )
+            .settings(settings(Version.CURRENT).put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true))
             .numberOfShards(PRIMARIES)
             .numberOfReplicas(REPLICAS)
             .build();
@@ -119,7 +167,7 @@ public class ShardsTieringAllocationTests extends TieringAllocationBaseTestCase 
     public void testShardPoolForFullIndices() {
         String index = "test-index";
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(settings(Version.CURRENT).put(INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.FULL.name()))
+            .settings(settings(Version.CURRENT).put(IS_WARM_INDEX_SETTING.getKey(), false))
             .numberOfShards(PRIMARIES)
             .numberOfReplicas(REPLICAS)
             .build();

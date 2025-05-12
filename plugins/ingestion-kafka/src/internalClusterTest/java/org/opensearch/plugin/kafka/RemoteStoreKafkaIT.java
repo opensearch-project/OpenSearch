@@ -22,6 +22,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Requests;
@@ -135,6 +136,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         // malformed message
         produceData("2", "", "");
         produceData("3", "name3", "25");
+        produceData("{\"_op_type\":\"invalid\",\"_source\":{\"name\":\"name4\", \"age\": 25}}");
+        produceData("5", "name5", "25");
 
         internalCluster().startClusterManagerOnlyNode();
         final String node = internalCluster().startDataOnlyNode();
@@ -147,6 +150,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.type", "kafka")
                 .put("ingestion_source.error_strategy", "block")
                 .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.internal_queue_size", "1000")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("index.replication.type", "SEGMENT")
@@ -165,7 +169,15 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             .get();
         waitForState(() -> "drop".equalsIgnoreCase(getSettings(indexName, "index.ingestion_source.error_strategy")));
         resumeIngestion(indexName);
-        waitForSearchableDocs(2, Arrays.asList(node));
+        waitForSearchableDocs(3, Arrays.asList(node));
+
+        PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(stats);
+        assertThat(stats.getMessageProcessorStats().totalFailedCount(), is(1L));
+        assertThat(stats.getMessageProcessorStats().totalFailuresDroppedCount(), is(1L));
+        assertThat(stats.getConsumerStats().totalConsumerErrorCount(), is(0L));
+        assertThat(stats.getConsumerStats().totalPollerMessageDroppedCount(), is(1L));
     }
 
     public void testPauseAndResumeIngestion() throws Exception {
@@ -186,8 +198,9 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertTrue(pauseResponse.isShardsAcknowledged());
         waitForState(() -> {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return Arrays.stream(ingestionState.getShardStates())
-                .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+            return ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
         });
 
         // verify ingestion state is persisted
@@ -372,6 +385,13 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             assertThat(rangeQueryResponse.getHits().getTotalHits().value(), is(2L));
             return true;
         });
+
+        // validate processor stats
+        PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(stats);
+        assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(11L));
+        assertThat(stats.getMessageProcessorStats().totalVersionConflictsCount(), is(3L));
     }
 
     public void testExternalVersioningWithDisabledGCDeletes() throws Exception {

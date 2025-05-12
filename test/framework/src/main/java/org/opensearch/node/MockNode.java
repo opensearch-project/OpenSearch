@@ -32,6 +32,7 @@
 
 package org.opensearch.node;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.MockInternalClusterInfoService;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -50,6 +51,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -76,6 +78,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A node for testing which allows:
@@ -86,23 +89,20 @@ import java.util.function.Function;
  */
 public class MockNode extends Node {
 
-    private final Collection<Class<? extends Plugin>> classpathPlugins;
+    private final Collection<PluginInfo> classpathPlugins;
 
-    public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, true);
-    }
-
-    public MockNode(
-        final Settings settings,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
+    private MockNode(
+        final Environment environment,
+        final Collection<PluginInfo> classpathPlugins,
         final boolean forbidPrivateIndexSettings
     ) {
-        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
+        super(environment, classpathPlugins, forbidPrivateIndexSettings);
+        this.classpathPlugins = classpathPlugins;
     }
 
     public MockNode(
         final Settings settings,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
+        final Collection<PluginInfo> classpathPlugins,
         final Path configPath,
         final boolean forbidPrivateIndexSettings
     ) {
@@ -113,19 +113,32 @@ public class MockNode extends Node {
         );
     }
 
-    private MockNode(
-        final Environment environment,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
-    ) {
-        super(environment, classpathPlugins, forbidPrivateIndexSettings);
-        this.classpathPlugins = classpathPlugins;
+    public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
+        this(
+            InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), null, () -> "mock_ node"),
+            classpathPlugins.stream()
+                .map(
+                    p -> new PluginInfo(
+                        p.getName(),
+                        "classpath plugin",
+                        "NA",
+                        Version.CURRENT,
+                        "1.8",
+                        p.getName(),
+                        null,
+                        Collections.emptyList(),
+                        false
+                    )
+                )
+                .collect(Collectors.toList()),
+            true
+        );
     }
 
     /**
      * The classpath plugins this node was constructed with.
      */
-    public Collection<Class<? extends Plugin>> getClasspathPlugins() {
+    public Collection<PluginInfo> getClasspathPlugins() {
         return classpathPlugins;
     }
 

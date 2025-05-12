@@ -178,6 +178,28 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         return new Builder(n, ignoreMalformedByDefault, c.indexVersionCreated());
     });
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        checkStoredAndDocValuesForDerivedSource();
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Considerations:
+     *    1. When using doc values, for multi value field, result would be deduplicated and in sorted order
+     *    2. When using stored field, order and duplicate values would be preserved
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(
+            mappedFieldType,
+            new SortedSetDocValuesFetcher(mappedFieldType, simpleName()),
+            new StoredFieldFetcher(mappedFieldType, simpleName())
+        );
+    }
+
     /**
      * Field type for IP fields
      *
