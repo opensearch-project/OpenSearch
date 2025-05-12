@@ -324,6 +324,10 @@ public class BlobStoreTransferService implements TransferService {
         blobStore.blobContainer((BlobPath) path).listBlobsByPrefixInSortedOrder(filenamePrefix, limit, LEXICOGRAPHIC, listener);
     }
 
+    public List<BlobMetadata> listAllInSortedOrder(Iterable<String> path, String filenamePrefix, int limit) throws IOException {
+        return blobStore.blobContainer((BlobPath) path).listBlobsByPrefixInSortedOrder(filenamePrefix, limit, LEXICOGRAPHIC);
+    }
+
     public void listAllInSortedOrderAsync(
         String threadpoolName,
         Iterable<String> path,
