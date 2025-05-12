@@ -67,6 +67,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final int maxRulesPerPage;
     private final RuleEntityParser parser;
     private final RuleQueryMapper<QueryBuilder> queryBuilder;
+    private final Object lock = new Object();
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
     private static final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
 
@@ -107,7 +108,9 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
             if (!clusterService.state().metadata().hasIndex(indexName)) {
                 createIndex(listener, request.getRule());
             } else {
-                validateAndPersist(request.getRule(), listener);
+                synchronized (lock) {
+                    validateAndPersist(request.getRule(), listener);
+                }
             }
         }
     }
@@ -126,7 +129,9 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                     logger.error("Index creation not acknowledged: {}", indexName);
                     listener.onFailure(new IllegalStateException(indexName + " index creation failed and rule cannot be persisted"));
                 } else {
-                    validateAndPersist(rule, listener);
+                    synchronized (lock) {
+                        validateAndPersist(rule, listener);
+                    }
                 }
             }
 
@@ -134,7 +139,9 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
             public void onFailure(Exception e) {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof ResourceAlreadyExistsException) {
-                    validateAndPersist(rule, listener);
+                    synchronized (lock) {
+                        validateAndPersist(rule, listener);
+                    }
                 } else {
                     logger.error("Failed to create index {}: {}", indexName, e.getMessage());
                     listener.onFailure(e);

@@ -41,12 +41,20 @@ public class WorkloadGroupFeatureType implements FeatureType {
         this.featureValueValidator = featureValueValidator;
     }
 
+    /**
+     * Initializes the singleton instance of WorkloadGroupFeatureType.
+     * This method should be called once before calling {@link #getInstance()}.
+     * @param validator the FeatureValueValidator to be used for initialization
+     */
     public static void initializeFeatureValueValidator(FeatureValueValidator validator) {
         if (instance == null) {
             instance = new WorkloadGroupFeatureType(validator);
         }
     }
 
+    /**
+     * Returns the singleton instance of {@link WorkloadGroupFeatureType}.
+     */
     public static WorkloadGroupFeatureType getInstance() {
         if (instance == null) {
             throw new IllegalStateException("FeatureValueValidator is not initialized. Call initializeFeatureValueValidator() first.");

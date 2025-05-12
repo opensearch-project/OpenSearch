@@ -12,7 +12,6 @@ import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
-import org.opensearch.rule.autotagging.FeatureValueValidator;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.test.OpenSearchTestCase;
@@ -138,10 +137,10 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
             return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
         }
 
-//        @Override
-//        public FeatureValueValidator getFeatureValueValidator() {
-//            return null;
-//        }
+        // @Override
+        // public FeatureValueValidator getFeatureValueValidator() {
+        // return null;
+        // }
     }
 
     public enum TestAttribute implements Attribute {

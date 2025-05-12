@@ -12,7 +12,6 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.rule.autotagging.FeatureValueValidator;
 import org.opensearch.rule.autotagging.Rule;
 
 import java.io.IOException;

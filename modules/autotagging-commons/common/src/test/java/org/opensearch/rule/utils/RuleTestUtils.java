@@ -11,7 +11,6 @@ package org.opensearch.rule.utils;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
-import org.opensearch.rule.autotagging.FeatureValueValidator;
 
 import java.util.Map;
 import java.util.Set;
