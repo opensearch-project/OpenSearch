@@ -10,8 +10,10 @@ package org.opensearch.rule.service;
 
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -19,7 +21,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.rule.DeleteRuleRequest;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
@@ -40,7 +44,9 @@ import org.mockito.ArgumentCaptor;
 import static org.opensearch.rule.XContentRuleParserTests.VALID_JSON;
 import static org.opensearch.rule.utils.RuleTestUtils.TEST_INDEX_NAME;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -167,9 +173,6 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         String ruleId = "test-rule-id";
         DeleteRuleRequest request = new DeleteRuleRequest(ruleId, RuleTestUtils.MockRuleFeatureType.INSTANCE);
 
-        DeleteResponse mockDeleteResponse = mock(DeleteResponse.class);
-        when(mockDeleteResponse.getResult()).thenReturn(DeleteResponse.Result.DELETED);
-
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -184,17 +187,15 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         );
 
         ArgumentCaptor<DeleteRequest> requestCaptor = ArgumentCaptor.forClass(DeleteRequest.class);
-        ArgumentCaptor<ActionListener<DeleteResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
-        ActionListener<DeleteRuleResponse> listener = mock(ActionListener.class);
+        ArgumentCaptor<ActionListener<AcknowledgedResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
 
-        rulePersistenceService.deleteRule(request, listener);
-        verify(client).delete(requestCaptor.capture(), listenerCaptor.capture());
+        rulePersistenceService.deleteRule(request, listenerCaptor.capture());
+        verify(client).delete(requestCaptor.capture(), any());
 
         assertEquals(ruleId, requestCaptor.getValue().id());
 
-        // simulate success response
-        listenerCaptor.getValue().onResponse(mockDeleteResponse);
-        verify(listener).onResponse(argThat(resp -> resp.isAcknowledged()));
+        listenerCaptor.getValue().onResponse(new AcknowledgedResponse(true));
+        verify(listenerCaptor.getValue()).onResponse(argThat(AcknowledgedResponse::isAcknowledged));
     }
 
     public void testDeleteRule_notFound() {
@@ -214,13 +215,14 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
             mock(RuleQueryMapper.class)
         );
 
-        ArgumentCaptor<ActionListener<DeleteResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
-        ActionListener<DeleteRuleResponse> listener = mock(ActionListener.class);
+        ArgumentCaptor<DeleteRequest> requestCaptor = ArgumentCaptor.forClass(DeleteRequest.class);
+        ArgumentCaptor<ActionListener<AcknowledgedResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
 
-        rulePersistenceService.deleteRule(request, listener);
-        verify(client).delete(any(DeleteRequest.class), listenerCaptor.capture());
+        rulePersistenceService.deleteRule(request, listenerCaptor.capture());
+        verify(client).delete(requestCaptor.capture(), any());
 
-        listenerCaptor.getValue().onFailure(new DocumentMissingException(null, TEST_INDEX_NAME, ruleId));
-        verify(listener).onFailure(any(ResourceNotFoundException.class));
+        listenerCaptor.getValue().onFailure(new DocumentMissingException(null, ruleId));
+
+        verify(listenerCaptor.getValue()).onFailure(any(ResourceNotFoundException.class));
     }
 }
