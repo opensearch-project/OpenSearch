@@ -181,6 +181,21 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
         assertEquals(original.multiValueMode(), deserialized.multiValueMode());
     }
 
+    public void testDeserializationFallbackToAvg() throws IOException {
+        MatrixStatsAggregationBuilder original = new MatrixStatsAggregationBuilder("test").fields(Collections.singletonList("field"));
+
+        // Serialize with V_2_3_0 (fallback required)
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_2_3_0);
+        original.writeTo(out);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.V_2_3_0);
+        MatrixStatsAggregationBuilder deserialized = new MatrixStatsAggregationBuilder(in);
+
+        assertEquals(MultiValueMode.AVG, deserialized.multiValueMode());  // fallback 확인
+    }
+
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
         return Collections.singletonList(new MatrixAggregationModulePlugin());
