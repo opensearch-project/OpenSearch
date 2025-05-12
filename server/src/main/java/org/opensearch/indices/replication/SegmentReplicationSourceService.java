@@ -21,12 +21,20 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.shard.IndexShardNotStartedException;
+import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.MultiChunkTransfer;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
 import org.opensearch.indices.replication.common.ReplicationTimer;
@@ -64,6 +72,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         public static final String GET_CHECKPOINT_INFO = "internal:index/shard/replication/get_checkpoint_info";
         public static final String GET_SEGMENT_FILES = "internal:index/shard/replication/get_segment_files";
         public static final String UPDATE_VISIBLE_CHECKPOINT = "internal:index/shard/replication/update_visible_checkpoint";
+        public static final String GET_MERGED_SEGMENT_FILES = "internal:index/shard/replication/get_merged_segment_files";
     }
 
     private final OngoingSegmentReplications ongoingSegmentReplications;
@@ -95,6 +104,12 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             ThreadPool.Names.GENERIC,
             UpdateVisibleCheckpointRequest::new,
             new UpdateVisibleCheckpointRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            Actions.GET_MERGED_SEGMENT_FILES,
+            ThreadPool.Names.GENERIC,
+            GetSegmentFilesRequest::new,
+            new GetMergedSegmentFilesRequestHandler()
         );
     }
 
@@ -162,6 +177,94 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             } catch (Exception e) {
                 channel.sendResponse(e);
             }
+        }
+    }
+
+    private class GetMergedSegmentFilesRequestHandler implements TransportRequestHandler<GetSegmentFilesRequest> {
+        @Override
+        public void messageReceived(GetSegmentFilesRequest request, TransportChannel channel, Task task) throws Exception {
+            ActionListener<GetSegmentFilesResponse> listener = new ChannelActionListener<>(
+                channel,
+                Actions.GET_MERGED_SEGMENT_FILES,
+                request
+            );
+            final ShardId shardId = request.getCheckpoint().getShardId();
+            IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            if (indexService == null) {
+                listener.onFailure(new IndexNotFoundException(shardId.getIndexName()));
+                return;
+            }
+            IndexShard indexShard = indexService.getShard(shardId.id());
+            if (indexShard == null || indexShard.state().equals(IndexShardState.CLOSED)) {
+                listener.onFailure(new IndexShardClosedException(shardId));
+                return;
+            }
+            if (indexShard.state().equals(IndexShardState.STARTED) == false) {
+                listener.onFailure(new IndexShardNotStartedException(shardId, indexShard.state()));
+                return;
+            }
+            if (indexShard.routingEntry().primary() == false || indexShard.isPrimaryMode() == false) {
+                listener.onFailure(new IllegalArgumentException(String.format("%s is not primary", shardId)));
+                return;
+            }
+            if (indexShard.getOperationPrimaryTerm() > request.getCheckpoint().getPrimaryTerm()) {
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        String.format(
+                            "request primary term %d is lower than %d",
+                            request.getCheckpoint().getPrimaryTerm(),
+                            indexShard.getOperationPrimaryTerm()
+                        )
+                    )
+                );
+                return;
+            }
+
+            RemoteSegmentFileChunkWriter mergedSegmentFileChunkWriter = new RemoteSegmentFileChunkWriter(
+                request.getReplicationId(),
+                indexShard.getRecoverySettings(),
+                new RetryableTransportClient(
+                    transportService,
+                    request.getTargetNode(),
+                    indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout(),
+                    logger
+                ),
+                request.getCheckpoint().getShardId(),
+                SegmentReplicationTargetService.Actions.MERGED_SEGMENT_FILE_CHUNK,
+                new AtomicLong(0),
+                (throttleTime) -> {},
+                indexShard.getRecoverySettings()::mergedSegmentReplicationRateLimiter
+            );
+
+            SegmentFileTransferHandler mergedSegmentFileTransferHandler = new SegmentFileTransferHandler(
+                indexShard,
+                request.getTargetNode(),
+                mergedSegmentFileChunkWriter,
+                logger,
+                indexShard.getThreadPool(),
+                new CancellableThreads(),
+                Math.toIntExact(indexShard.getRecoverySettings().getChunkSize().getBytes()),
+                indexShard.getRecoverySettings().getMaxConcurrentFileChunks()
+            );
+
+            final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = mergedSegmentFileTransferHandler
+                .createTransfer(
+                    indexShard.store(),
+                    request.getCheckpoint().getMetadataMap().values().toArray(new StoreFileMetadata[0]),
+                    () -> 0,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            listener.onResponse(new GetSegmentFilesResponse(request.getFilesToFetch()));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }
+                );
+            transfer.start();
         }
     }
 

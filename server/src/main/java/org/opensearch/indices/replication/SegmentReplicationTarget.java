@@ -50,9 +50,9 @@ import java.util.stream.Collectors;
  */
 public class SegmentReplicationTarget extends ReplicationTarget {
 
-    private final ReplicationCheckpoint checkpoint;
-    private final SegmentReplicationSource source;
-    private final SegmentReplicationState state;
+    protected final ReplicationCheckpoint checkpoint;
+    protected final SegmentReplicationSource source;
+    protected final SegmentReplicationState state;
     protected final MultiFileWriter multiFileWriter;
 
     public final static String REPLICATION_PREFIX = "replication.";
@@ -200,7 +200,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         }, listener::onFailure);
     }
 
-    private List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo) throws IOException {
+    protected List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo) throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
 
@@ -282,7 +282,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
      * @param fileName Name of the file being downloaded
      * @param bytesRecovered Number of bytes recovered
      */
-    private void updateFileRecoveryBytes(String fileName, long bytesRecovered) {
+    protected void updateFileRecoveryBytes(String fileName, long bytesRecovered) {
         ReplicationLuceneIndex index = state.getIndex();
         if (index != null) {
             index.addRecoveredBytesToFile(fileName, bytesRecovered);

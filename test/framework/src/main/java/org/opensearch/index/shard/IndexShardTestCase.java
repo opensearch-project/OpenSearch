@@ -39,10 +39,12 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
+import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.TransportReplicationAction;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -79,6 +81,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.Environment;
@@ -135,11 +138,13 @@ import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
 import org.opensearch.indices.replication.GetSegmentFilesResponse;
+import org.opensearch.indices.replication.MergedSegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.PublishMergedSegmentRequest;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
@@ -156,8 +161,10 @@ import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.Snapshot;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -194,7 +201,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -693,6 +702,41 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             // This is fine since we are not testing the node stats now
             Function<ShardId, ReplicationStats> mockReplicationStatsProvider = mock(Function.class);
             when(mockReplicationStatsProvider.apply(any())).thenReturn(new ReplicationStats(800, 800, 500));
+
+            // mock transport service for merged segment warmer
+            CapturingTransport transport = new CapturingTransport();
+            TransportService transportService = transport.createTransportService(
+                Settings.EMPTY,
+                mock(ThreadPool.class),
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                boundAddress -> new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT),
+                null,
+                Collections.emptySet(),
+                NoopTracer.INSTANCE
+            );
+            transportService.start();
+            transportService.acceptIncomingRequests();
+            TransportService spyTransportService = spy(transportService);
+            doAnswer(invocation -> {
+                ActionListenerResponseHandler<TransportResponse.Empty> handler = invocation.getArgument(3);
+                handler.handleResponse(TransportResponse.Empty.INSTANCE);
+                return mock(TransportResponse.class);
+            }).when(spyTransportService)
+                .sendRequest(
+                    any(DiscoveryNode.class),
+                    eq(SegmentReplicationTargetService.Actions.PUBLISH_MERGED_SEGMENT),
+                    any(PublishMergedSegmentRequest.class),
+                    any()
+                );
+
+            // mock cluster service for merged segment warmer
+            DiscoveryNodes spyDiscoveryNodes = spy(discoveryNodes);
+            doAnswer(invocation -> mock(DiscoveryNode.class)).when(spyDiscoveryNodes).get(any());
+            ClusterState clusterState = mock(ClusterState.class);
+            when(clusterState.nodes()).thenReturn(spyDiscoveryNodes);
+            ClusterService spyClusterService = spy(clusterService);
+            doAnswer(invocation -> clusterState).when(spyClusterService).state();
+
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -724,7 +768,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 false,
                 discoveryNodes,
                 mockReplicationStatsProvider,
-                new MergedSegmentWarmerFactory(null, null, null),
+                new MergedSegmentWarmerFactory(spyTransportService, new RecoverySettings(nodeSettings, clusterSettings), spyClusterService),
                 false,
                 () -> Boolean.FALSE,
                 indexSettings::getRefreshInterval,
@@ -1548,6 +1592,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             final SegmentReplicationSource replicationSource = getSegmentReplicationSource(
                 primaryShard,
                 (repId) -> targetService.get(repId),
+                (repId) -> targetService.getMergedSegmentReplicationRef(repId),
                 postGetFilesRunnable
             );
             when(sourceFactory.get(any())).thenReturn(replicationSource);
@@ -1630,9 +1675,47 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     /**
+     * Get listener on started merged segment replication event which verifies replica shard store with primary's after completion
+     * @param primaryShard - source of segment replication
+     * @param replicaShard - target of segment replication
+     * @param primaryMetadata - primary shard metadata before start of segment replication
+     * @param latch - Latch which allows consumers of this utility to ensure segment replication completed successfully
+     * @return Returns SegmentReplicationTargetService.SegmentReplicationListener
+     */
+    public SegmentReplicationTargetService.SegmentReplicationListener getMergedSegmentTargetListener(
+        IndexShard primaryShard,
+        IndexShard replicaShard,
+        Map<String, StoreFileMetadata> primaryMetadata,
+        CountDownLatch latch
+    ) {
+        return new SegmentReplicationTargetService.SegmentReplicationListener() {
+            @Override
+            public void onReplicationDone(SegmentReplicationState state) {
+                try {
+                    // After the pre-copy merged segment is completed, the merged segment is not yet visible in the replica shard, so it is
+                    // necessary to obtain the entire file list through listAll().
+                    Set<String> replicaFiles = Arrays.stream(replicaShard.store().directory().listAll()).collect(Collectors.toSet());
+                    assertTrue(replicaFiles.containsAll(primaryMetadata.keySet()));
+                } catch (Exception e) {
+                    throw ExceptionsHelper.convertToRuntime(e);
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                logger.error("Unexpected replication failure in test", e);
+                Assert.fail("test replication should not fail: " + e);
+            }
+        };
+    }
+
+    /**
      * Utility method which creates a segment replication source, which copies files from primary shard to target shard
      * @param primaryShard Primary IndexShard - source of segment replication
      * @param getTargetFunc - provides replication target from target service using replication id
+     * @param getMergedSegmentTargetFunc - provides merged segment replication target from target service using replication id
      * @param postGetFilesRunnable - Consumer which is executed after file copy operation. This can be used to stub operations
      *                             which are desired right after files are copied. e.g. To work with temp files
      * @return Return SegmentReplicationSource
@@ -1640,6 +1723,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     public SegmentReplicationSource getSegmentReplicationSource(
         IndexShard primaryShard,
         Function<Long, ReplicationCollection.ReplicationRef<SegmentReplicationTarget>> getTargetFunc,
+        Function<Long, ReplicationCollection.ReplicationRef<MergedSegmentReplicationTarget>> getMergedSegmentTargetFunc,
         Consumer<IndexShard> postGetFilesRunnable
     ) {
         return new TestReplicationSource() {
@@ -1670,6 +1754,27 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             ) {
                 try (
                     final ReplicationCollection.ReplicationRef<SegmentReplicationTarget> replicationRef = getTargetFunc.apply(replicationId)
+                ) {
+                    writeFileChunks(replicationRef.get(), primaryShard, filesToFetch.toArray(new StoreFileMetadata[] {}));
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                }
+                postGetFilesRunnable.accept(indexShard);
+                listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+            }
+
+            @Override
+            public void getMergedSegmentFiles(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                List<StoreFileMetadata> filesToFetch,
+                IndexShard indexShard,
+                BiConsumer<String, Long> fileProgressTracker,
+                ActionListener<GetSegmentFilesResponse> listener
+            ) {
+                try (
+                    final ReplicationCollection.ReplicationRef<MergedSegmentReplicationTarget> replicationRef = getMergedSegmentTargetFunc
+                        .apply(replicationId)
                 ) {
                     writeFileChunks(replicationRef.get(), primaryShard, filesToFetch.toArray(new StoreFileMetadata[] {}));
                 } catch (IOException e) {
@@ -1712,6 +1817,35 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         countDownLatch.await(30, TimeUnit.SECONDS);
         assertEquals("Replication should complete successfully", 0, countDownLatch.getCount());
         return ids;
+    }
+
+    /**
+     * Segment Replication specific test method - Replicate merged segments to a list of replicas from a given primary.
+     * This test will use a real {@link SegmentReplicationTarget} for each replica with a mock {@link SegmentReplicationSource} that
+     * writes all segments directly to the target.
+     * @param primaryShard - {@link IndexShard} The current primary shard.
+     * @param replicaShards - Replicas that will be updated.
+     */
+    protected final void replicateMergedSegments(IndexShard primaryShard, List<IndexShard> replicaShards) throws IOException,
+        InterruptedException {
+        // Latch to block test execution until replica catches up
+        final CountDownLatch countDownLatch = new CountDownLatch(replicaShards.size());
+        // Get primary metadata to verify with replica's, used to ensure replica catches up
+        Map<String, StoreFileMetadata> primaryMetadata;
+        try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = primaryShard.getSegmentInfosSnapshot()) {
+            final SegmentInfos primarySegmentInfos = segmentInfosSnapshot.get();
+            primaryMetadata = primaryShard.store().getSegmentMetadataMap(primarySegmentInfos);
+        }
+        for (IndexShard replica : replicaShards) {
+            final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
+            targetService.startMergedSegmentReplication(
+                replica,
+                primaryShard.getLatestReplicationCheckpoint(),
+                getMergedSegmentTargetListener(primaryShard, replica, primaryMetadata, countDownLatch)
+            );
+        }
+        countDownLatch.await(30, TimeUnit.SECONDS);
+        assertEquals("Replication merged segment should complete successfully", 0, countDownLatch.getCount());
     }
 
     private void writeFileChunks(SegmentReplicationTarget target, IndexShard primary, StoreFileMetadata[] files) throws IOException {

@@ -32,13 +32,33 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentReader;
+import org.opensearch.action.ActionListenerResponseHandler;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.PublishMergedSegmentRequest;
+import org.opensearch.indices.replication.checkpoint.ReplicationSegmentCheckpoint;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Implementation of a {@link IndexWriter.IndexReaderWarmer} when local on-disk segment replication is enabled.
@@ -46,18 +66,74 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class LocalMergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
+    private static final Logger logger = LogManager.getLogger(LocalMergedSegmentWarmer.class);
     private final TransportService transportService;
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;
+    private final IndexShard indexShard;
 
-    public LocalMergedSegmentWarmer(TransportService transportService, RecoverySettings recoverySettings, ClusterService clusterService) {
+    public LocalMergedSegmentWarmer(
+        TransportService transportService,
+        RecoverySettings recoverySettings,
+        ClusterService clusterService,
+        IndexShard indexShard
+    ) {
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
+        this.indexShard = indexShard;
     }
 
     @Override
     public void warm(LeafReader leafReader) throws IOException {
-        // TODO: node-node segment replication merged segment warmer
+        SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
+        ReplicationSegmentCheckpoint mergedSegment = indexShard.computeReplicationSegmentCheckpoint(segmentCommitInfo);
+        PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(mergedSegment);
+
+        DiscoveryNodes nodes = clusterService.state().nodes();
+        List<ShardRouting> replicaShards = indexShard.getReplicationGroup().getRoutingTable().replicaShards();
+        List<DiscoveryNode> activeReplicaNodes = replicaShards.stream()
+            .filter(ShardRouting::active)
+            .map(s -> nodes.get(s.currentNodeId()))
+            .toList();
+
+        if (activeReplicaNodes.isEmpty()) {
+            logger.trace("There are no active replicas, skip pre copy merged segment [{}]", segmentCommitInfo.info.name);
+            return;
+        }
+
+        CountDownLatch countDownLatch = new CountDownLatch(activeReplicaNodes.size());
+        AtomicInteger successfulCount = new AtomicInteger(0);
+        AtomicInteger failureCount = new AtomicInteger(0);
+        for (DiscoveryNode replicaNode : activeReplicaNodes) {
+            ActionListener<TransportResponse> listener = ActionListener.wrap(r -> {
+                successfulCount.incrementAndGet();
+                countDownLatch.countDown();
+            }, e -> {
+                failureCount.incrementAndGet();
+                countDownLatch.countDown();
+            });
+            transportService.sendRequest(
+                replicaNode,
+                SegmentReplicationTargetService.Actions.PUBLISH_MERGED_SEGMENT,
+                request,
+                new ActionListenerResponseHandler<>(listener, (in) -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC)
+            );
+        }
+        try {
+            countDownLatch.await(recoverySettings.getMergedSegmentReplicationTimeout().seconds(), TimeUnit.SECONDS);
+            logger.trace(
+                "pre copy merged segment [{}] to [{}] active replicas, [{}] successful, [{}] failed",
+                segmentCommitInfo.info.name,
+                activeReplicaNodes.size(),
+                successfulCount,
+                failureCount
+            );
+        } catch (InterruptedException e) {
+            logger.warn(
+                () -> new ParameterizedMessage("Interrupted while waiting for pre copy merged segment [{}]", segmentCommitInfo.info.name),
+                e
+            );
+        }
     }
 }

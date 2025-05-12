@@ -45,6 +45,7 @@ import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -60,6 +61,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.opensearch.common.util.FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG;
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILES;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -626,6 +628,14 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                 assertEquals(IndexShardSnapshotStatus.Stage.DONE, stage);
             });
         }
+    }
+
+    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    @Override
+    @Ignore
+    public void testMergedSegmentReplication() throws Exception {
+        // TODO: wait for remote store to support merged segment warmer
+        super.testMergedSegmentReplication();
     }
 
     private RemoteStoreReplicationSource getRemoteStoreReplicationSource(IndexShard shard, Runnable postGetFilesRunnable) {

@@ -9,6 +9,7 @@
 package org.opensearch.index.shard;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
@@ -26,6 +27,7 @@ import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -61,6 +63,7 @@ import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.ReplicationSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
@@ -95,6 +98,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.opensearch.common.util.FeatureFlags.MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG;
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -150,6 +154,35 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertFalse(replicaShard.getReplicationEngine().isEmpty());
             replicaShard.close("test", false, false);
             assertTrue(replicaShard.getReplicationEngine().isEmpty());
+        }
+    }
+
+    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    public void testMergedSegmentReplication() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+
+            // index and replicate segments to replica.
+            int numDocs = randomIntBetween(10, 20);
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+            replicateSegments(primaryShard, List.of(replicaShard));
+            shards.assertAllEqual(2 * numDocs);
+
+            primaryShard.forceMerge(new ForceMergeRequest("test").maxNumSegments(1));
+            replicateMergedSegments(primaryShard, List.of(replicaShard));
+            primaryShard.refresh("test");
+            assertEquals(1, primaryShard.segments(false).size());
+            // After the pre-copy merged segment is completed, the merged segment is not visible in the replica, and the number of segments
+            // in the replica shard is still 2.
+            assertEquals(2, replicaShard.segments(false).size());
         }
     }
 
@@ -961,6 +994,30 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 .getLatestSegmentInfosAndCheckpoint();
             try (final GatedCloseable<SegmentInfos> closeable = latestSegmentInfosAndCheckpoint.v1()) {
                 assertEquals(latestReplicationCheckpoint, primaryShard.computeReplicationCheckpoint(closeable.get()));
+            }
+        }
+    }
+
+    public void testComputeReplicationSegmentCheckpoint() throws Exception {
+        try (ReplicationGroup shards = createGroup(0, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir())) {
+            final IndexShard primaryShard = shards.getPrimary();
+            shards.startAll();
+            shards.indexDocs(10);
+            shards.refresh("test");
+            shards.flush();
+            SegmentInfos segmentInfos = Lucene.readSegmentInfos(primaryShard.store().directory());
+            for (SegmentCommitInfo segmentCommitInfo : segmentInfos) {
+                Map<String, StoreFileMetadata> segmentMetadataMap = primaryShard.store().getSegmentMetadataMap(segmentCommitInfo);
+                ReplicationSegmentCheckpoint expectedCheckpoint = new ReplicationSegmentCheckpoint(
+                    primaryShard.shardId,
+                    primaryShard.getOperationPrimaryTerm(),
+                    segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
+                    primaryShard.getDefaultCodecName(),
+                    segmentMetadataMap,
+                    segmentCommitInfo.info.name
+                );
+                ReplicationSegmentCheckpoint checkpoint = primaryShard.computeReplicationSegmentCheckpoint(segmentCommitInfo);
+                assertEquals(expectedCheckpoint, checkpoint);
             }
         }
     }

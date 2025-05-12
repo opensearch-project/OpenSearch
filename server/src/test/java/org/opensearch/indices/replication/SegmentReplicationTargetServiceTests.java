@@ -52,6 +52,7 @@ import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.EmptyTransportResponseHandler;
+import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 import org.junit.Assert;
@@ -183,6 +184,29 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     public void testsSuccessfulReplication_listenerCompletes() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         sut.startReplication(
+            replicaShard,
+            primaryShard.getLatestReplicationCheckpoint(),
+            new SegmentReplicationTargetService.SegmentReplicationListener() {
+                @Override
+                public void onReplicationDone(SegmentReplicationState state) {
+                    assertEquals(SegmentReplicationState.Stage.DONE, state.getStage());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                    logger.error("Unexpected error", e);
+                    Assert.fail("Test should succeed");
+                }
+            }
+        );
+        latch.await(2, TimeUnit.SECONDS);
+        assertEquals(0, latch.getCount());
+    }
+
+    public void testsSuccessfulMergeSegmentReplication_listenerCompletes() throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        sut.startMergedSegmentReplication(
             replicaShard,
             primaryShard.getLatestReplicationCheckpoint(),
             new SegmentReplicationTargetService.SegmentReplicationListener() {
@@ -445,9 +469,59 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         verify(serviceSpy, times(1)).startReplication(eq(replicaShard), any(), any());
     }
 
+    public void testMergedSegmentReplicating_HigherPrimaryTermReceived() throws IOException {
+        SegmentReplicationTargetService serviceSpy = spy(sut);
+        SegmentReplicationSource source = new TestReplicationSource() {
+            @Override
+            public void getCheckpointMetadata(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                ActionListener<CheckpointInfoResponse> listener
+            ) {}
+
+            @Override
+            public void getSegmentFiles(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                List<StoreFileMetadata> filesToFetch,
+                IndexShard indexShard,
+                BiConsumer<String, Long> fileProgressTracker,
+                ActionListener<GetSegmentFilesResponse> listener
+            ) {
+                Assert.fail("Unreachable");
+            }
+        };
+        final MergedSegmentReplicationTarget targetSpy = spy(
+            new MergedSegmentReplicationTarget(
+                replicaShard,
+                checkpoint,
+                source,
+                mock(SegmentReplicationTargetService.SegmentReplicationListener.class)
+            )
+        );
+        doReturn(List.of(targetSpy)).when(serviceSpy).getMergedSegmentReplicationTarget(any());
+        serviceSpy.onNewMergedSegmentCheckpoint(newPrimaryCheckpoint, replicaShard, mock(TransportChannel.class));
+        // ensure the old target is cancelled. and new iteration kicks off.
+        verify(targetSpy, times(1)).cancel("Cancelling stuck merged segment target after new primary");
+        verify(serviceSpy, times(1)).startMergedSegmentReplication(eq(replicaShard), any(), any());
+    }
+
     public void testNewCheckpointBehindCurrentCheckpoint() {
         SegmentReplicationTargetService spy = spy(sut);
         spy.onNewCheckpoint(checkpoint, replicaShard);
+        verify(spy, times(0)).startReplication(any(), any(), any());
+    }
+
+    public void testNewMergedSegmentCheckpointBehindCurrentCheckpoint() throws IOException {
+        SegmentReplicationTargetService spy = spy(sut);
+        ReplicationCheckpoint oldCheckpoint = new ReplicationCheckpoint(
+            replicaShard.shardId(),
+            replicaShard.getOperationPrimaryTerm() - 1,
+            0L,
+            0L,
+            replicaShard.getLatestReplicationCheckpoint().getCodec()
+        );
+        spy.onNewMergedSegmentCheckpoint(oldCheckpoint, replicaShard, mock(TransportChannel.class));
         verify(spy, times(0)).startReplication(any(), any(), any());
     }
 
@@ -456,6 +530,9 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         IndexShard shard = newShard(false);
         spy.onNewCheckpoint(checkpoint, shard);
         verify(spy, times(0)).startReplication(any(), any(), any());
+
+        spy.onNewMergedSegmentCheckpoint(checkpoint, shard, mock(TransportChannel.class));
+        verify(spy, times(0)).startMergedSegmentReplication(any(), any(), any());
         closeShards(shard);
     }
 
@@ -472,6 +549,10 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
         // Verify that checkpoint is not processed as shard is in PrimaryMode.
         verify(spy, times(0)).startReplication(any(), any(), any());
+
+        spy.onNewMergedSegmentCheckpoint(aheadCheckpoint, spyShard, mock(TransportChannel.class));
+        verify(spy, times(0)).startMergedSegmentReplication(any(), any(), any());
+
         closeShards(primaryShard);
     }
 
@@ -549,6 +630,9 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         closeShards(replicaShard);
         SegmentReplicationTargetService spy = spy(sut);
         spy.onNewCheckpoint(aheadCheckpoint, replicaShard);
+        verify(spy, times(0)).updateLatestReceivedCheckpoint(any(), any());
+
+        spy.onNewMergedSegmentCheckpoint(aheadCheckpoint, replicaShard, mock(TransportChannel.class));
         verify(spy, times(0)).updateLatestReceivedCheckpoint(any(), any());
     }
 
