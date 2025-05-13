@@ -168,12 +168,12 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
 
         // Serialize
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.V_3_1_0);  // 직렬화 시점의 버전
+        out.setVersion(Version.V_3_1_0);
         original.writeTo(out);
 
         // Deserialize
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(Version.V_3_1_0);   // 역직렬화 시점의 버전
+        in.setVersion(Version.V_3_1_0);
         MatrixStatsAggregationBuilder deserialized = new MatrixStatsAggregationBuilder(in);
 
         assertEquals(original.getName(), deserialized.getName());
@@ -193,7 +193,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
         in.setVersion(Version.V_2_3_0);
         MatrixStatsAggregationBuilder deserialized = new MatrixStatsAggregationBuilder(in);
 
-        assertEquals(MultiValueMode.AVG, deserialized.multiValueMode());  // fallback 확인
+        assertEquals(MultiValueMode.AVG, deserialized.multiValueMode());
     }
 
     public void testEqualsAndHashCode() {

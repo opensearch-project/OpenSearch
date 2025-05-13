@@ -76,7 +76,7 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
             this.multiValueMode = in.readEnum(MultiValueMode.class);
         } else {
             this.multiValueMode = MultiValueMode.AVG;
