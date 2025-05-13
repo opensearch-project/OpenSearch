@@ -21,7 +21,10 @@ remove_multi_fields() {
   jq 'del(
     .mappings.properties.host.properties.os.properties.full.fields,
     .mappings.properties.host.properties.os.properties.name.fields,
-    .mappings.properties.vulnerability.properties.description.fields
+    .mappings.properties.vulnerability.properties.description.fields,
+    .mappings.properties.process.properties.command_line.fields,
+    .mappings.properties.process.properties.name.fields,
+    .mappings.properties.file.properties.path.fields
   )' "$IN_FILE" > "$OUT_FILE"
 }
 
