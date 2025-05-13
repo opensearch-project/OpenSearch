@@ -506,6 +506,46 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         verify(serviceSpy, times(1)).startMergedSegmentReplication(eq(replicaShard), any(), any());
     }
 
+    public void testMergedSegmentReplicating_MergedSegmentAlreadyExist() throws IOException {
+        SegmentReplicationTargetService serviceSpy = spy(sut);
+        SegmentReplicationSource source = new TestReplicationSource() {
+            @Override
+            public void getCheckpointMetadata(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                ActionListener<CheckpointInfoResponse> listener
+            ) {}
+
+            @Override
+            public void getSegmentFiles(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                List<StoreFileMetadata> filesToFetch,
+                IndexShard indexShard,
+                BiConsumer<String, Long> fileProgressTracker,
+                ActionListener<GetSegmentFilesResponse> listener
+            ) {
+                Assert.fail("Unreachable");
+            }
+        };
+        final MergedSegmentReplicationTarget targetSpy = spy(
+            new MergedSegmentReplicationTarget(
+                replicaShard,
+                checkpoint,
+                source,
+                mock(SegmentReplicationTargetService.SegmentReplicationListener.class)
+            )
+        );
+        doReturn(List.of(targetSpy)).when(serviceSpy).getMergedSegmentReplicationTarget(any());
+        // already exist
+        serviceSpy.onNewMergedSegmentCheckpoint(checkpoint, replicaShard, mock(TransportChannel.class));
+        verify(serviceSpy, times(0)).startMergedSegmentReplication(eq(replicaShard), any(), any());
+
+        // new merged segment
+        serviceSpy.onNewMergedSegmentCheckpoint(newPrimaryCheckpoint, replicaShard, mock(TransportChannel.class));
+        verify(serviceSpy, times(1)).startMergedSegmentReplication(eq(replicaShard), any(), any());
+    }
+
     public void testNewCheckpointBehindCurrentCheckpoint() {
         SegmentReplicationTargetService spy = spy(sut);
         spy.onNewCheckpoint(checkpoint, replicaShard);
