@@ -44,6 +44,7 @@ dependencies {
   api('com.maxmind.db:maxmind-db:3.1.1')
   api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}")
+  api("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}")
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
 }
