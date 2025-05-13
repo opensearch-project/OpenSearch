@@ -105,6 +105,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.hamcrest.Matchers.empty;
@@ -129,7 +130,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ParameterizedStaticS
         super(nodeSettings);
     }
 
-    public  AbstractSnapshotIntegTestCase() {
+    public AbstractSnapshotIntegTestCase() {
         super(Settings.EMPTY);
     }
 
@@ -530,14 +531,19 @@ public abstract class AbstractSnapshotIntegTestCase extends ParameterizedStaticS
     }
 
     protected Settings getRemoteStoreBackedIndexSettings() {
-        return Settings.builder()
+        Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
             .put("index.refresh_interval", "300s")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .build();
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+
+        if (WRITABLE_WARM_INDEX_SETTING.get(settings)) {
+            settingsBuilder.put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true);
+        }
+
+        return settingsBuilder.build();
     }
 
     protected Settings.Builder snapshotRepoSettingsForShallowCopy(Path path) {

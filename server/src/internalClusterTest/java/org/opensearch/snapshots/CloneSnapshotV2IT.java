@@ -31,6 +31,9 @@
 
 package org.opensearch.snapshots;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -45,8 +48,11 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.node.Node;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -55,23 +61,59 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
 
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+// TODO : Delete Index in teardown and prune cache to remove Index Files
+@LuceneTestCase.SuppressFileSystems("*")
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
+
+    public CloneSnapshotV2IT(Settings nodeSettings) {
+        super(nodeSettings);
+    }
+
+    /*
+Disabling MockFSIndexStore plugin as the MockFSDirectoryFactory wraps the FSDirectory over a OpenSearchMockDirectoryWrapper which extends FilterDirectory (whereas FSDirectory extends BaseDirectory)
+As a result of this wrapping the local directory of Composite Directory does not satisfy the assertion that local directory must be of type FSDirectory
+ */
+    @Override
+    protected boolean addMockIndexStorePlugin() {
+        return !WRITABLE_WARM_INDEX_SETTING.get(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+                new Object[] { Settings.builder().put(WRITABLE_WARM_INDEX_SETTING.getKey(), false).build() },
+                new Object[] { Settings.builder().put(WRITABLE_WARM_INDEX_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
+                .build();
+    }
 
     public void testCloneShallowCopyV2() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
         internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataAndWarmNodes(1, snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataAndWarmNodes(1, snapshotV2Settings(remoteStoreRepoPath));
 
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -179,8 +221,8 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
         internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataAndWarmNodes(1, snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataAndWarmNodes(1, snapshotV2Settings(remoteStoreRepoPath));
 
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -291,8 +333,8 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
         internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataAndWarmNodes(1, snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataAndWarmNodes(1, snapshotV2Settings(remoteStoreRepoPath));
 
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -444,8 +486,8 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         final Path remoteStoreRepoPath = randomRepoPath();
 
         internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataAndWarmNodes(1, snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataAndWarmNodes(1, snapshotV2Settings(remoteStoreRepoPath));
 
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";

@@ -13,6 +13,7 @@ import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRespo
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
@@ -24,9 +25,19 @@ import org.junit.Before;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
 
+import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
 import static org.opensearch.repositories.fs.ReloadableFsRepository.REPOSITORIES_FAILRATE_SETTING;
 
 public abstract class RemoteSnapshotIT extends AbstractSnapshotIntegTestCase {
+
+    public RemoteSnapshotIT(Settings nodeSettings) {
+        super(nodeSettings);
+    }
+
+    public RemoteSnapshotIT(){
+        super();
+    }
+
     protected static final String BASE_REMOTE_REPO = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
     protected Path remoteRepoPath;
 
@@ -61,6 +72,9 @@ public abstract class RemoteSnapshotIT extends AbstractSnapshotIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s");
+        if (WRITABLE_WARM_INDEX_SETTING.get(settings)) {
+            settingsBuilder.put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true);
+        }
         return settingsBuilder;
     }
 
