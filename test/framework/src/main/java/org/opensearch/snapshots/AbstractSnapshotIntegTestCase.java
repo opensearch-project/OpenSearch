@@ -80,7 +80,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.snapshots.mockstore.MockRepository;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
@@ -113,7 +113,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestCase {
+public abstract class AbstractSnapshotIntegTestCase extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     protected final static String TEST_REMOTE_STORE_REPO_SUFFIX = "__rs";
     private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
@@ -124,6 +124,14 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         .put("thread_pool.snapshot.core", 5)
         .put("thread_pool.snapshot.max", 5)
         .build();
+
+    public AbstractSnapshotIntegTestCase(Settings nodeSettings) {
+        super(nodeSettings);
+    }
+
+    public  AbstractSnapshotIntegTestCase() {
+        super(Settings.EMPTY);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
