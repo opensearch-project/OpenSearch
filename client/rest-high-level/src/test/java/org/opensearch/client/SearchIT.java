@@ -78,6 +78,7 @@ import org.opensearch.script.mustache.MultiSearchTemplateResponse;
 import org.opensearch.script.mustache.MultiSearchTemplateResponse.Item;
 import org.opensearch.script.mustache.SearchTemplateRequest;
 import org.opensearch.script.mustache.SearchTemplateResponse;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -1825,6 +1826,40 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
         assertEquals(3, countResponse.getCount());
+    }
+
+    public void testMatrixStatsMultiValueModeEffect() throws IOException {
+        Request createIndex = new Request(HttpPut.METHOD_NAME, "/test_multi");
+        client().performRequest(createIndex);
+
+        Request doc = new Request(HttpPut.METHOD_NAME, "/test_multi/_doc/1");
+        doc.setJsonEntity("{ \"num\": [10, 30], \"num2\": [40, 60] }");
+        client().performRequest(doc);
+
+        client().performRequest(new Request(HttpPost.METHOD_NAME, "/test_multi/_refresh"));
+
+        SearchRequest avgRequest = new SearchRequest("test_multi");
+        avgRequest.source(
+            new SearchSourceBuilder().aggregation(
+                new MatrixStatsAggregationBuilder("agg").fields(Arrays.asList("num", "num2")).multiValueMode(MultiValueMode.AVG)
+            ).size(0)
+        );
+
+        SearchRequest minRequest = new SearchRequest("test_multi");
+        minRequest.source(
+            new SearchSourceBuilder().aggregation(
+                new MatrixStatsAggregationBuilder("agg").fields(Arrays.asList("num", "num2")).multiValueMode(MultiValueMode.MIN)
+            ).size(0)
+        );
+
+        SearchResponse avgResponse = execute(avgRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        SearchResponse minResponse = execute(minRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+
+        MatrixStats avgStats = avgResponse.getAggregations().get("agg");
+        MatrixStats minStats = minResponse.getAggregations().get("agg");
+
+        assertNotEquals(avgStats.getMean("num"), minStats.getMean("num"));
+        assertNotEquals(avgStats.getMean("num2"), minStats.getMean("num2"));
     }
 
     private static void assertCountHeader(CountResponse countResponse) {
