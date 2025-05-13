@@ -14,17 +14,23 @@ package org.opensearch.ingest;
  */
 public final class IngestDocumentWrapper {
     private final int slot;
+    private final int innerSlot;
     private IngestDocument ingestDocument;
     private Exception exception;
 
-    public IngestDocumentWrapper(int slot, IngestDocument ingestDocument, Exception ex) {
+    public IngestDocumentWrapper(int slot, int innerSlot, IngestDocument ingestDocument, Exception ex) {
         this.slot = slot;
+        this.innerSlot = innerSlot;
         this.ingestDocument = ingestDocument;
         this.exception = ex;
     }
 
     public int getSlot() {
         return this.slot;
+    }
+
+    public int getInnerSlot() {
+        return this.innerSlot;
     }
 
     public IngestDocument getIngestDocument() {

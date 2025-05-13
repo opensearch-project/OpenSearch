@@ -564,6 +564,13 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
         IndexRequest indexRequest1 = new IndexRequest(indexRequestIndexName).id("id1").source(emptyMap());
         IndexRequest indexRequest2 = new IndexRequest(indexRequestIndexName).id("id2").source(emptyMap());
         IndexRequest indexRequest3 = new IndexRequest(indexRequestIndexName).id("id3").source(emptyMap());
+
+        IndexRequest indexRequestForNormalUpdate = new IndexRequest(indexRequestIndexName).id("id4").source(emptyMap());
+
+        IndexRequest indexRequestDocForNormalUpsert = new IndexRequest(indexRequestIndexName).id("id5").source(emptyMap());
+        IndexRequest indexRequestUpsertForNormalUpsert = new IndexRequest(indexRequestIndexName).id("id6").source(emptyMap());
+
+        // Build update requests
         UpdateRequest upsertRequest = new UpdateRequest(updateRequestIndexName, "id1").upsert(indexRequest1).script(mockScript("1"));
         UpdateRequest docAsUpsertRequest = new UpdateRequest(updateRequestIndexName, "id2").doc(indexRequest2).docAsUpsert(true);
         // this test only covers the mechanics that scripted bulk upserts will execute a default pipeline. However, in practice scripted
@@ -571,13 +578,28 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
         UpdateRequest scriptedUpsert = new UpdateRequest(updateRequestIndexName, "id2").upsert(indexRequest3)
             .script(mockScript("1"))
             .scriptedUpsert(true);
-        bulkRequest.add(upsertRequest).add(docAsUpsertRequest).add(scriptedUpsert);
+        UpdateRequest regularUpdate = new UpdateRequest(updateRequestIndexName, "id4").doc(indexRequestForNormalUpdate);
+        UpdateRequest upsertWithDocAndUpsertRequest = new UpdateRequest(updateRequestIndexName, "id4")
+            .doc(indexRequestDocForNormalUpsert)
+            .upsert(indexRequestUpsertForNormalUpsert);
+
+
+        // Add update requests
+        bulkRequest.add(upsertRequest)
+            .add(docAsUpsertRequest)
+            .add(scriptedUpsert)
+            .add(regularUpdate)
+            .add(upsertWithDocAndUpsertRequest);
 
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
         assertNull(indexRequest1.getPipeline());
         assertNull(indexRequest2.getPipeline());
         assertNull(indexRequest3.getPipeline());
+        assertNull(indexRequestForNormalUpdate.getPipeline());
+        assertNull(indexRequestDocForNormalUpsert.getPipeline());
+        assertNull(indexRequestUpsertForNormalUpsert.getPipeline());
+
         action.execute(null, bulkRequest, ActionListener.wrap(response -> {
             BulkItemResponse itemResponse = response.iterator().next();
             assertThat(itemResponse.getFailure().getMessage(), containsString("fake exception"));
@@ -602,13 +624,42 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
         assertEquals(indexRequest2.getPipeline(), "default_pipeline");
         assertEquals(indexRequest3.getPipeline(), "default_pipeline");
+        assertEquals(indexRequestForNormalUpdate.getPipeline(), IngestService.NOOP_PIPELINE_NAME);
+        assertEquals(indexRequestDocForNormalUpsert.getPipeline(), IngestService.NOOP_PIPELINE_NAME);
+        assertEquals(indexRequestUpsertForNormalUpsert.getPipeline(), "default_pipeline");
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
+
+        // Verify for different Update cases, we call the correct resolve
+        // An update request has two child update requests, DOC and UPSERT
+        // 1. DOC will only have system pipeline resolved. Exception is if docAsUpsert is true, DOC will have all pipelines resolved
+        // 2. UPSERT will have ALL pipelines resolved
+        verify(ingestService, times(1)).resolvePipelines(eq(upsertRequest), eq(indexRequest1), any());
+        verify(ingestService, never()).resolveSystemIngestPipeline(any(), eq(indexRequest1), any());
+
+        verify(ingestService, times(1)).resolvePipelines(eq(docAsUpsertRequest), eq(indexRequest2), any());
+        verify(ingestService, never()).resolveSystemIngestPipeline(any(), eq(indexRequest2), any());
+
+        verify(ingestService, times(1)).resolvePipelines(eq(scriptedUpsert), eq(indexRequest3), any());
+        verify(ingestService, never()).resolveSystemIngestPipeline(any(), eq(indexRequest3), any());
+
+        verify(ingestService, never()).resolvePipelines(any(), eq(indexRequestForNormalUpdate), any());
+        verify(ingestService, times(1)).resolveSystemIngestPipeline(any(), eq(indexRequestForNormalUpdate), any());
+
+        verify(ingestService, never()).resolvePipelines(any(), eq(indexRequestDocForNormalUpsert), any());
+        verify(ingestService, times(1)).resolveSystemIngestPipeline(eq(upsertWithDocAndUpsertRequest), eq(indexRequestDocForNormalUpsert), any());
+
+        verify(ingestService, times(1)).resolvePipelines(eq(upsertWithDocAndUpsertRequest), eq(indexRequestUpsertForNormalUpsert), any());
+        verify(ingestService, never()).resolveSystemIngestPipeline(any(), eq(indexRequestUpsertForNormalUpsert), any());
 
         // now check success of the transport bulk action
         indexRequest1.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         indexRequest3.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
+        indexRequestForNormalUpdate.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
+        indexRequestDocForNormalUpsert.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
+        indexRequestUpsertForNormalUpsert.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
+
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one

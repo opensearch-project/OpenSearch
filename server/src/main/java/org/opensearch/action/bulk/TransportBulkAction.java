@@ -110,6 +110,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
@@ -212,6 +213,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     /**
      * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are
      * modeled as {@link IndexRequest} inside the {@link UpdateRequest}. Ignores {@link org.opensearch.action.delete.DeleteRequest}'s
+     * Note: with the introduction of system ingest pipelines, we occasionally want to operate on all potential
+     * child index requests of UpdateRequests. In that case, use {@link UpdateRequest#getChildIndexRequests()} instead
      *
      * @param docWriteRequest The request to find the {@link IndexRequest}
      * @return the found {@link IndexRequest} or {@code null} if one can not be found.
@@ -248,11 +251,38 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final Metadata metadata = clusterService.state().getMetadata();
         final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-            IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
-            if (indexRequest != null) {
-                // Each index request needs to be evaluated, because this method also modifies the IndexRequest
-                boolean indexRequestHasPipeline = ingestService.resolvePipelines(actionRequest, indexRequest, metadata);
+            // Each index request needs to be evaluated, because this method also modifies the IndexRequest
+            if (actionRequest instanceof UpdateRequest updateRequest) {
+                // We execute all pipelines on upsert and docAsUpsert index requests (full update children)
+                // For all other update children, we only resolve system ingest pipelines.
+                // The cases are as follows:
+                // 1. If regular bulk update (no upsert), execute only system pipeline on doc (upsert will be null)
+                // 2. If regular upsert, execute all pipelines on upsert, execute only system pipeline on doc
+                // 3. If upsert with script, execute all pipelines on upsert (doc will be null)
+                // 4. If doc as upsert, execute all pipelines on doc (upsert will be null)
+                // 5. For regular update with script, no pipelines will be executed on doc (there is no doc to execute)
+                // Note that when execute pipelines on update existing docs, the full doc is NOT fetched from shard level.
+                // This means the pipeline is only executed on the partial doc, which may not contain all fields.
+                // System ingest pipelines and processors should handle these cases individually.
+                boolean indexRequestHasPipeline = false;
+                switch (updateRequest.getType()) {
+                    case NORMAL_UPDATE -> indexRequestHasPipeline |= ingestService.resolveSystemIngestPipeline(actionRequest, updateRequest.doc(), metadata);
+                    case NORMAL_UPSERT -> {
+                        indexRequestHasPipeline |= ingestService.resolveSystemIngestPipeline(actionRequest, updateRequest.doc(), metadata);
+                        indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, updateRequest.upsertRequest(), metadata);
+                    }
+                    case UPSERT_WITH_SCRIPT -> indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, updateRequest.upsertRequest(), metadata);
+                    case DOC_AS_UPSERT -> indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, updateRequest.doc(), metadata);
+                    // Pure scripted updates have no child index requests, so nothing is resolved.
+                }
                 hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
+            } else {
+                IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
+                // Skip resolving pipelines for delete requests
+                if (indexRequest != null) {
+                    boolean indexRequestHasPipeline = ingestService.resolvePipelines(actionRequest, indexRequest, metadata);
+                    hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
+                }
             }
 
             if (actionRequest instanceof IndexRequest) {
@@ -272,7 +302,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (Assertions.ENABLED) {
                     final boolean arePipelinesResolved = bulkRequest.requests()
                         .stream()
-                        .map(TransportBulkAction::getIndexWriteRequest)
+                        .flatMap(request -> {
+                            if (request instanceof UpdateRequest updateRequest) {
+                                return updateRequest.getChildIndexRequests().stream();
+                            }
+                            return Stream.of(getIndexWriteRequest(request));
+                        })
                         .filter(Objects::nonNull)
                         .allMatch(IndexRequest::isPipelineResolved);
                     assert arePipelinesResolved : bulkRequest;
@@ -968,7 +1003,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     /**
-     * A modifier for a bulk request
+     * Helper class that handles the results of ingest pipelines and other preprocessing for action requests
+     * from the original bulk request.
+     * During an execution of TransportBulkAction, after pre-processing, the non-failed remaining
+     * action requests from the original bulk request and converted into a new bulk request to be run in a new
+     * execution.
+     * We keep track of the mapping of the failures and new bulk request to their slots in the original bulk request
+     * in order to map the failed and succeeded action requests back to their original slots in the order of the
+     * original bulk request.
      *
      * @opensearch.internal
      */
@@ -1020,6 +1062,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
+        /**
+         * Wraps the original bulk request's action listener in a delegated listener that holds info and logic on
+         * how to map failed and successful bulk request children to their original slots
+         * @param ingestTookInMillis took time for ingest preprocessing
+         * @param actionListener the original action listener corresponding to the original bulk request
+         * @return
+         */
         ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
                 return ActionListener.map(
@@ -1030,6 +1079,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return ActionListener.delegateFailure(actionListener, (delegatedListener, response) -> {
                     BulkItemResponse[] items = response.getItems();
                     for (int i = 0; i < items.length; i++) {
+                        // Insert successful action requests into their original locations alongside the preprocessing
+                        // failures already added to itemResponses previously
                         itemResponses.add(originalSlots.get(i), response.getItems()[i]);
                     }
                     delegatedListener.onResponse(
@@ -1039,27 +1090,44 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
+        /**
+         * Marks an action request at a slot in the original bulk request as dropped during ingest pipeline execution
+         * @param slot the slot of the action request in the original bulk request
+         */
         synchronized void markItemAsDropped(int slot) {
+            // Fetching index request like this is okay even for update requests since we only care about
+            // the id, opType, and index, which is shared across child index requests
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
-            failedSlots.set(slot);
-            final String id = indexRequest.id() == null ? DROPPED_ITEM_WITH_AUTO_GENERATED_ID : indexRequest.id();
-            itemResponses.add(
-                new BulkItemResponse(
-                    slot,
-                    indexRequest.opType(),
-                    new UpdateResponse(
-                        new ShardId(indexRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
-                        id,
-                        SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                        indexRequest.version(),
-                        DocWriteResponse.Result.NOOP
+
+            // We will only fail/drop slots up to once and store the first failure to prevent overfilling itemResponses
+            if (failedSlots.get(slot) == false) {
+                failedSlots.set(slot);
+                final String id = indexRequest.id() == null ? DROPPED_ITEM_WITH_AUTO_GENERATED_ID : indexRequest.id();
+                itemResponses.add(
+                    new BulkItemResponse(
+                        slot,
+                        indexRequest.opType(),
+                        new UpdateResponse(
+                            new ShardId(indexRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
+                            id,
+                            SequenceNumbers.UNASSIGNED_SEQ_NO,
+                            SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                            indexRequest.version(),
+                            DocWriteResponse.Result.NOOP
+                        )
                     )
-                )
-            );
+                );
+            }
         }
 
+        /**
+         * Marks an action request at a slot in the original bulk request as failed during ingest pipeline execution
+         * @param slot the slot of the action request in the original bulk request
+         * @param e the associated exception with
+         */
         synchronized void markItemAsFailed(int slot, Exception e) {
+            // Using getIndexWriteRequest like this for action requests which are potentially update requests
+            // is okay in this scenario because we only care about id, opType, and index, which is shared across child index requests
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
             logger.debug(
                 String.format(
@@ -1076,15 +1144,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.
-            failedSlots.set(slot);
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
-                indexRequest.index(),
-                indexRequest.id(),
-                e,
-                BulkItemResponse.Failure.FailureSource.PIPELINE
-            );
-            itemResponses.add(new BulkItemResponse(slot, indexRequest.opType(), failure));
+            // We will only fail/drop slots up to once and store the first failure to prevent overfilling itemResponses
+            if (failedSlots.get(slot) == false) {
+                failedSlots.set(slot);
+                BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
+                    indexRequest.index(),
+                    indexRequest.id(),
+                    e,
+                    BulkItemResponse.Failure.FailureSource.PIPELINE
+                );
+                itemResponses.add(new BulkItemResponse(slot, indexRequest.opType(), failure));
+            }
         }
-
     }
 }
