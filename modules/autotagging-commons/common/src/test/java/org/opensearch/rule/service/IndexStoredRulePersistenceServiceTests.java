@@ -10,6 +10,7 @@ package org.opensearch.rule.service;
 
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
@@ -21,6 +22,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.DeleteRuleRequest;
@@ -187,15 +189,24 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         );
 
         ArgumentCaptor<DeleteRequest> requestCaptor = ArgumentCaptor.forClass(DeleteRequest.class);
-        ArgumentCaptor<ActionListener<AcknowledgedResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        ArgumentCaptor<ActionListener<org.opensearch.action.delete.DeleteResponse>> listenerCaptor = ArgumentCaptor.forClass(
+            ActionListener.class
+        );
 
-        rulePersistenceService.deleteRule(request, listenerCaptor.capture());
-        verify(client).delete(requestCaptor.capture(), any());
+        @SuppressWarnings("unchecked")
+        ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
 
+        rulePersistenceService.deleteRule(request, listener);
+
+        verify(client).delete(requestCaptor.capture(), listenerCaptor.capture());
         assertEquals(ruleId, requestCaptor.getValue().id());
 
-        listenerCaptor.getValue().onResponse(new AcknowledgedResponse(true));
-        verify(listenerCaptor.getValue()).onResponse(argThat(AcknowledgedResponse::isAcknowledged));
+        org.opensearch.action.delete.DeleteResponse deleteResponse = mock(org.opensearch.action.delete.DeleteResponse.class);
+        when(deleteResponse.getResult()).thenReturn(DocWriteResponse.Result.DELETED);
+
+        listenerCaptor.getValue().onResponse(deleteResponse);
+
+        verify(listener).onResponse(argThat(AcknowledgedResponse::isAcknowledged));
     }
 
     public void testDeleteRule_notFound() {
@@ -216,13 +227,20 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         );
 
         ArgumentCaptor<DeleteRequest> requestCaptor = ArgumentCaptor.forClass(DeleteRequest.class);
-        ArgumentCaptor<ActionListener<AcknowledgedResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        ArgumentCaptor<ActionListener<org.opensearch.action.delete.DeleteResponse>> listenerCaptor = ArgumentCaptor.forClass(
+            ActionListener.class
+        );
 
-        rulePersistenceService.deleteRule(request, listenerCaptor.capture());
-        verify(client).delete(requestCaptor.capture(), any());
+        @SuppressWarnings("unchecked")
+        ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
 
-        listenerCaptor.getValue().onFailure(new DocumentMissingException(null, ruleId));
+        rulePersistenceService.deleteRule(request, listener);
 
-        verify(listenerCaptor.getValue()).onFailure(any(ResourceNotFoundException.class));
+        verify(client).delete(requestCaptor.capture(), listenerCaptor.capture());
+        assertEquals(ruleId, requestCaptor.getValue().id());
+
+        listenerCaptor.getValue().onFailure(new DocumentMissingException(new ShardId(TEST_INDEX_NAME, "_na_", 0), ruleId));
+
+        verify(listener).onFailure(any(ResourceNotFoundException.class));
     }
 }
