@@ -15,7 +15,7 @@ import org.opensearch.common.annotation.PublicApi;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.0.0")
+@PublicApi(since = "3.1.0")
 public interface DocRequest {
     /**
      * Get the index that this request operates on
