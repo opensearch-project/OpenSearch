@@ -212,6 +212,7 @@ public class CompoundProcessor implements Processor {
                             documentsWithException.add(
                                 new IngestDocumentWrapper(
                                     resultDocumentWrapper.getSlot(),
+                                    resultDocumentWrapper.getInnerSlot(),
                                     originalDocumentWrapper.getIngestDocument(),
                                     compoundProcessorException
                                 )
@@ -244,7 +245,7 @@ public class CompoundProcessor implements Processor {
                                 doc.getIngestDocument(),
                                 (IngestProcessorException) doc.getException(),
                                 (result, ex) -> {
-                                    handler.accept(Collections.singletonList(new IngestDocumentWrapper(doc.getSlot(), result, ex)));
+                                    handler.accept(Collections.singletonList(new IngestDocumentWrapper(doc.getSlot(), doc.getInnerSlot(), result, ex)));
                                 }
                             )
                         );

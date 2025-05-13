@@ -67,6 +67,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -667,5 +668,68 @@ public class UpdateRequestTests extends OpenSearchTestCase {
                     + "doc[index {[test][null], source[{\"body\":\"bar\"}]}], scripted_upsert[false], detect_noop[true]}"
             )
         );
+    }
+
+    public void testGetType() {
+        UpdateRequest request = new UpdateRequest("test", "1");
+        assertEquals(request.getType(), UpdateRequest.Type.EMPTY);
+
+        IndexRequest docRequest = new IndexRequest("test").id("1");
+        IndexRequest upsertRequest = new IndexRequest("test").id("1");
+
+        request = new UpdateRequest("test", "1").doc(docRequest);
+        assertEquals(request.getType(), UpdateRequest.Type.NORMAL_UPDATE);
+
+        request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.field = \"foo\""));
+        assertEquals(request.getType(), UpdateRequest.Type.UPDATE_WITH_SCRIPT);
+
+        request = new UpdateRequest("test", "1").doc(docRequest).upsert(upsertRequest);
+        assertEquals(request.getType(), UpdateRequest.Type.NORMAL_UPSERT);
+
+        request = new UpdateRequest("test", "1").doc(docRequest).upsert(upsertRequest).script(mockInlineScript("ctx.field = \"foo\""));
+        assertEquals(request.getType(), UpdateRequest.Type.UPSERT_WITH_SCRIPT);
+
+        request = new UpdateRequest("test", "1").doc(docRequest).docAsUpsert(true);
+        assertEquals(request.getType(), UpdateRequest.Type.DOC_AS_UPSERT);
+    }
+
+    public void testGetChildIndexRequests() {
+        UpdateRequest request = new UpdateRequest("test", "1");
+        IndexRequest docRequest = new IndexRequest("test").id("1");
+        IndexRequest upsertRequest = new IndexRequest("test").id("1");
+
+        // Empty
+        List<IndexRequest> childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 0);
+
+        // Normal update
+        request = new UpdateRequest("test", "1").doc(docRequest);
+        childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 1);
+        assertEquals(childRequests.get(0), docRequest);
+
+        // Update with script
+        request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.field = \"foo\""));
+        childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 0);
+
+        // Normal upsert
+        request = new UpdateRequest("test", "1").doc(docRequest).upsert(upsertRequest);
+        childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 2);
+        assertEquals(childRequests.get(0), docRequest);
+        assertEquals(childRequests.get(1), upsertRequest);
+
+        // Upsert with script
+        request = new UpdateRequest("test", "1").upsert(upsertRequest).script(mockInlineScript("ctx.field = \"foo\""));
+        childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 1);
+        assertEquals(childRequests.get(0), upsertRequest);
+
+        // Doc as upsert
+        request = new UpdateRequest("test", "1").doc(docRequest).docAsUpsert(true);
+        childRequests = request.getChildIndexRequests();
+        assertEquals(childRequests.size(), 1);
+        assertEquals(childRequests.get(0), docRequest);
     }
 }
