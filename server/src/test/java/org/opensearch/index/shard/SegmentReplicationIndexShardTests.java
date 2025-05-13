@@ -201,6 +201,28 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
+    @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
+    public void testMergedSegmentReplicationWithZeroReplica() throws Exception {
+        try (ReplicationGroup shards = createGroup(0, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+
+            int numDocs = randomIntBetween(10, 20);
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+
+            shards.indexDocs(numDocs);
+            primaryShard.refresh("test");
+            flushShard(primaryShard);
+            shards.assertAllEqual(2 * numDocs);
+
+            primaryShard.forceMerge(new ForceMergeRequest("test").maxNumSegments(1));
+            primaryShard.refresh("test");
+            assertEquals(1, primaryShard.segments(false).size());
+        }
+    }
+
     /**
      * Test that latestReplicationCheckpoint returns null only for docrep enabled indices
      */
