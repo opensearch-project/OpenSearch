@@ -115,7 +115,12 @@ public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
                 assertTrue(ex.getMessage().contains("Failed to execute phase [create_pit]"));
-                validatePitStats("index", 0, 0);
+                // If the search must make a transport call to start the search then a
+                // PIT context may be temporarily created on a separate thread. The test
+                // will end up racing with the PIT decrement call and can very briefly
+                // observe non-zero PIT stats, so we poll here and wait for stats to eventually
+                // resolve to zero. In almost all cases the first call will observe zero stats.
+                assertBusy(() -> validatePitStats("index", 0, 0));
                 return super.onNodeStopped(nodeName);
             }
         });
