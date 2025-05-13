@@ -44,8 +44,6 @@ import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
 import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,7 +55,6 @@ import java.util.Map;
 
 import org.mockito.Mockito;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 
 public class StarTreeFilterTests extends AggregatorTestCase {
@@ -76,16 +73,6 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         DIMENSION_TYPE_MAP.put(SNDV, "integer");
         DIMENSION_TYPE_MAP.put(SDV, "integer");
         DIMENSION_TYPE_MAP.put(DV, "integer");
-    }
-
-    @Before
-    public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-    }
-
-    @After
-    public void teardown() throws IOException {
-        fflock.close();
     }
 
     protected Codec getCodec(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension) {
