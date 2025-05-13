@@ -29,16 +29,27 @@ public class ApproximateMatchAllQuery extends ApproximateQuery {
 
     @Override
     protected boolean canApproximate(SearchContext context) {
+        System.out.println("Entering the ApproximateMatchAllQuery canApproximate");
+        boolean finalResult;
         approximation = null;
         if (context == null) {
-            return false;
+            finalResult = false;
+            System.out.println("[1] The final result of ApproximateMatchAllQuery canApproximate is " + finalResult);
+            return finalResult;
+            // return false;
         }
         if (context.aggregations() != null) {
-            return false;
+            // return false;
+            finalResult = false;
+            System.out.println("[2] The final result of ApproximateMatchAllQuery canApproximate is " + finalResult);
+            return finalResult;
         }
         // Exclude approximation when "track_total_hits": true
         if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-            return false;
+            // return false;
+            finalResult = false;
+            System.out.println("[3] The final result of ApproximateMatchAllQuery canApproximate is " + finalResult);
+            return finalResult;
         }
 
         if (context.request() != null && context.request().source() != null && context.innerHits().getInnerHits().isEmpty()) {
@@ -49,20 +60,30 @@ public class ApproximateMatchAllQuery extends ApproximateQuery {
                 && !primarySortField.fieldName().equals(FieldSortBuilder.ID_FIELD_NAME)) {
                 MappedFieldType mappedFieldType = context.getQueryShardContext().fieldMapper(primarySortField.fieldName());
                 if (mappedFieldType == null) {
-                    return false;
+                    // return false;
+                    finalResult = false;
+                    System.out.println("[4] The final result of ApproximateMatchAllQuery canApproximate is " + finalResult);
+                    return finalResult;
                 }
                 Query rangeQuery = mappedFieldType.rangeQuery(null, null, false, false, null, null, null, context.getQueryShardContext());
                 if (rangeQuery instanceof ApproximateScoreQuery approximateScoreQuery) {
                     approximateScoreQuery.setContext(context);
                     if (approximateScoreQuery.resolvedQuery instanceof ApproximateQuery) {
                         approximation = (ApproximateQuery) approximateScoreQuery.resolvedQuery;
-                        return true;
+                        // return true;
+                        finalResult = true;
+                        System.out.println("[5] The final result of ApproximateMatchAllQuery canApproximate is " + finalResult);
+                        return finalResult;
                     }
                 }
             }
         }
-        return false;
+        // return false;
+        finalResult = false;
+        System.out.println("[6] The final result of ApproximateMatchAllQuery canApproximate is " + finalResult);
+        return finalResult;
     }
+
 
     @Override
     public String toString(String field) {

@@ -434,48 +434,71 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
     @Override
     public boolean canApproximate(SearchContext context) {
+        System.out.println("Entering the ApproximatePointRangeQuery canApproximate");
+        boolean finalResult;
         if (context == null) {
-            return false;
+            // return false;
+            finalResult = false;
+            System.out.println("[1] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
+            return finalResult;
         }
         if (context.aggregations() != null) {
-            return false;
+            // return false;
+            finalResult = false;
+            System.out.println("[2] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
+            return finalResult;
         }
         // Exclude approximation when "track_total_hits": true
         if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-            return false;
+            // return false;
+            finalResult = false;
+            System.out.println("[3] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
+            return finalResult;
         }
 
         // size 0 could be set for caching
         if (context.from() + context.size() == 0) {
             this.setSize(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
         } else {
-            // We add +1 to ensure we collect at least one more document than required. This guarantees correct relation value:
-            // - If we find exactly trackTotalHitsUpTo docs: relation = EQUAL_TO
-            // - If we find > trackTotalHitsUpTo docs: relation = GREATER_THAN_OR_EQUAL_TO
-            // With +1, we will consistently get GREATER_THAN_OR_EQUAL_TO relation.
-            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()) + 1);
+            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()));
         }
         if (context.request() != null && context.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
             if (primarySortField != null) {
                 if (!primarySortField.fieldName().equals(pointRangeQuery.getField())) {
-                    return false;
+                    // return false;
+                    finalResult = false;
+                    System.out.println("[4] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
+                    return finalResult;
                 }
                 if (primarySortField.missing() != null) {
                     // Cannot sort documents missing this field.
-                    return false;
+                    // return false;
+                    finalResult = false;
+                    System.out.println("[5] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
+                    return finalResult;
                 }
                 if (context.request().source().searchAfter() != null) {
                     // TODO: We *could* optimize searchAfter, especially when this is the only sort field, but existing pruning is pretty
                     // good.
-                    return false;
+                    // return false;
+                    finalResult = false;
+                    System.out.println("[6] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
+                    return finalResult;
                 }
                 this.setSortOrder(primarySortField.order());
             }
-            return context.request().source().terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER;
+            finalResult = context.request().source().terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER;
+            System.out.println("[7] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
+            return finalResult;
+            // return context.request().source().terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER;
         }
-        return true;
+        // return true;
+        finalResult = true;
+        System.out.println("[8] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
+        return finalResult;
     }
+
 
     @Override
     public final int hashCode() {

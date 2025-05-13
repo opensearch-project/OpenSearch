@@ -335,6 +335,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
         Query query = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+        System.out.println("the adjustPureNegative is " + adjustPureNegative);
         return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
     }
 

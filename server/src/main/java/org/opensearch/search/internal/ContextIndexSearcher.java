@@ -191,6 +191,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
+        System.out.println("The original.getClass() is " + original.getClass());
         if (original instanceof ApproximateScoreQuery) {
             ((ApproximateScoreQuery) original).setContext(searchContext);
         }
