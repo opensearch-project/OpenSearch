@@ -204,4 +204,12 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
         cleanup();
         setupKafka(numKafkaPartitions);
     }
+
+    protected void setWriteBlock(String indexName, boolean isWriteBlockEnabled) {
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.blocks.write", isWriteBlockEnabled))
+            .get();
+    }
 }

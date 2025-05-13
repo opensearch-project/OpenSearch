@@ -18,6 +18,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
@@ -158,7 +159,8 @@ public class EngineConfigFactory {
         TranslogFactory translogFactory,
         Comparator<LeafReader> leafSorter,
         Supplier<DocumentMapperForType> documentMapperForTypeSupplier,
-        IndexWriter.IndexReaderWarmer indexReaderWarmer
+        IndexWriter.IndexReaderWarmer indexReaderWarmer,
+        ClusterService clusterService
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
@@ -194,6 +196,7 @@ public class EngineConfigFactory {
             .leafSorter(leafSorter)
             .documentMapperForTypeSupplier(documentMapperForTypeSupplier)
             .indexReaderWarmer(indexReaderWarmer)
+            .clusterService(clusterService)
             .build();
     }
 

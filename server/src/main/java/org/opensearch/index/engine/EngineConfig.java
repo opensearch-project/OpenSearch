@@ -41,6 +41,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
@@ -113,6 +114,7 @@ public final class EngineConfig {
     private final BooleanSupplier startedPrimarySupplier;
     private final Comparator<LeafReader> leafSorter;
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
+    private final ClusterService clusterService;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -303,6 +305,7 @@ public final class EngineConfig {
         this.leafSorter = builder.leafSorter;
         this.documentMapperForTypeSupplier = builder.documentMapperForTypeSupplier;
         this.indexReaderWarmer = builder.indexReaderWarmer;
+        this.clusterService = builder.clusterService;
     }
 
     /**
@@ -577,6 +580,13 @@ public final class EngineConfig {
     }
 
     /**
+     * Returns the ClusterService instance.
+     */
+    public ClusterService getClusterService() {
+        return this.clusterService;
+    }
+
+    /**
      * Builder for EngineConfig class
      *
      * @opensearch.internal
@@ -611,6 +621,7 @@ public final class EngineConfig {
         private Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
         Comparator<LeafReader> leafSorter;
         private IndexWriter.IndexReaderWarmer indexReaderWarmer;
+        private ClusterService clusterService;
 
         public Builder shardId(ShardId shardId) {
             this.shardId = shardId;
@@ -754,6 +765,11 @@ public final class EngineConfig {
 
         public Builder indexReaderWarmer(IndexWriter.IndexReaderWarmer indexReaderWarmer) {
             this.indexReaderWarmer = indexReaderWarmer;
+            return this;
+        }
+
+        public Builder clusterService(ClusterService clusterService) {
+            this.clusterService = clusterService;
             return this;
         }
 
