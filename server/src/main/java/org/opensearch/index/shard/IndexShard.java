@@ -377,6 +377,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Supplier<TimeValue> refreshInterval;
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
+    private List<DiscoveryNode> activeReplicaNodes = new ArrayList<>();
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -475,7 +476,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPool::absoluteTimeInMillis,
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
             this::getSafeCommitInfo,
-            pendingReplicationActions,
+            new CompositeReplicationGroupListener(List.of(pendingReplicationActions, new IndexShardReplicationGroupListener(this))),
             isShardOnRemoteEnabledNode
         );
 
@@ -524,6 +525,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
             }
+        }
+    }
+
+    private record CompositeReplicationGroupListener(List<Consumer<ReplicationGroup>> consumers) implements Consumer<ReplicationGroup> {
+
+        @Override
+        public void accept(ReplicationGroup replicationGroup) {
+            consumers.forEach(c -> c.accept(replicationGroup));
         }
     }
 
@@ -5486,6 +5495,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Exclusively for testing, please do not use it elsewhere.
     public AsyncIOProcessor<Translog.Location> getTranslogSyncProcessor() {
         return translogSyncProcessor;
+    }
+
+    public DiscoveryNodes getDiscoveryNodes() {
+        return discoveryNodes;
+    }
+
+    public List<DiscoveryNode> getActiveReplicaNodes() {
+        return activeReplicaNodes;
+    }
+
+    public void setActiveReplicaNodes(List<DiscoveryNode> activeReplicaNodes) {
+        this.activeReplicaNodes = activeReplicaNodes;
     }
 
     enum ShardMigrationState {

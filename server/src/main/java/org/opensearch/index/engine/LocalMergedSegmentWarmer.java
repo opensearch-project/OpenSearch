@@ -41,8 +41,6 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.transport.TransportResponse;
@@ -90,13 +88,7 @@ public class LocalMergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
         ReplicationSegmentCheckpoint mergedSegment = indexShard.computeReplicationSegmentCheckpoint(segmentCommitInfo);
         PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(mergedSegment);
 
-        DiscoveryNodes nodes = clusterService.state().nodes();
-        List<ShardRouting> replicaShards = indexShard.getReplicationGroup().getRoutingTable().replicaShards();
-        List<DiscoveryNode> activeReplicaNodes = replicaShards.stream()
-            .filter(ShardRouting::active)
-            .map(s -> nodes.get(s.currentNodeId()))
-            .toList();
-
+        List<DiscoveryNode> activeReplicaNodes = indexShard.getActiveReplicaNodes();
         if (activeReplicaNodes.isEmpty()) {
             logger.trace("There are no active replicas, skip pre copy merged segment [{}]", segmentCommitInfo.info.name);
             return;

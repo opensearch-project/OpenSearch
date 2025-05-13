@@ -44,7 +44,6 @@ import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.TransportReplicationAction;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -729,14 +728,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     any()
                 );
 
-            // mock cluster service for merged segment warmer
-            DiscoveryNodes spyDiscoveryNodes = spy(discoveryNodes);
-            doAnswer(invocation -> mock(DiscoveryNode.class)).when(spyDiscoveryNodes).get(any());
-            ClusterState clusterState = mock(ClusterState.class);
-            when(clusterState.nodes()).thenReturn(spyDiscoveryNodes);
-            ClusterService spyClusterService = spy(clusterService);
-            doAnswer(invocation -> clusterState).when(spyClusterService).state();
-
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -768,7 +759,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 false,
                 discoveryNodes,
                 mockReplicationStatsProvider,
-                new MergedSegmentWarmerFactory(spyTransportService, new RecoverySettings(nodeSettings, clusterSettings), spyClusterService),
+                new MergedSegmentWarmerFactory(spyTransportService, new RecoverySettings(nodeSettings, clusterSettings), null),
                 false,
                 () -> Boolean.FALSE,
                 indexSettings::getRefreshInterval,

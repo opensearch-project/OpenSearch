@@ -131,6 +131,21 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         return settings;
     }
 
+    public void testUpdateActiveReplicaNodes() throws Exception {
+        try (ReplicationGroup shards = createGroup(0, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+            assertEquals(0, primaryShard.getActiveReplicaNodes().size());
+            IndexShard replicaShard = shards.addReplica();
+            assertEquals(0, primaryShard.getActiveReplicaNodes().size());
+            shards.startReplicas(0);
+            assertEquals(1, primaryShard.getActiveReplicaNodes().size());
+            shards.removeReplica(replicaShard);
+            closeShards(replicaShard);
+            assertEquals(0, primaryShard.getActiveReplicaNodes().size());
+        }
+    }
+
     /**
      * Validates happy path of segment replication where primary index docs which are replicated to replica shards. Assertions
      * made on doc count on both primary and replica.

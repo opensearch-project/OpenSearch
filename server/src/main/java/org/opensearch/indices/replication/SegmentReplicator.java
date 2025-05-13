@@ -142,7 +142,7 @@ public class SegmentReplicator {
             target.fail(e, false);
             return;
         }
-        logger.info(() -> new ParameterizedMessage("Added new merged segment replication to collection {}", target.description()));
+        logger.trace(() -> new ParameterizedMessage("Added new merged segment replication to collection {}", target.description()));
         // Currently, we have not counted the completion information of the pre-copy merged segment, so the completedReplications parameter
         // is null.
         threadPool.generic().execute(new ReplicationRunner(replicationId, onGoingMergedSegmentReplications, null));
@@ -313,14 +313,12 @@ public class SegmentReplicator {
         Map<ShardId, SegmentReplicationState> completedReplications
     ) {
         final SegmentReplicationTarget target;
-        logger.info("onGoingReplications size {}, id {}", onGoingReplications.size(), replicationId);
         try (
             ReplicationCollection.ReplicationRef<? extends SegmentReplicationTarget> replicationRef = onGoingReplications.get(replicationId)
         ) {
             // This check is for handling edge cases where the reference is removed before the ReplicationRunner is started by the
             // threadpool.
             if (replicationRef == null) {
-                logger.info("replicationRef is null");
                 return;
             }
             target = replicationRef.get();
