@@ -26,6 +26,7 @@
 - Rename Class ending with Plugin to Module under modules dir ([#4042](https://github.com/opensearch-project/OpenSearch/pull/4042))
 - Remove deprecated `batch_size` parameter from `_bulk` ([#14283](https://github.com/opensearch-project/OpenSearch/issues/14283))
 - Unset discovery nodes for every transport node actions request ([#17682](https://github.com/opensearch-project/OpenSearch/pull/17682))
+- Added cluster:monitor/shards permission for _cat/shards action ([#13966](https://github.com/opensearch-project/OpenSearch/pull/13966))
 
 ### Added
 - Support for HTTP/2 (server-side) ([#3847](https://github.com/opensearch-project/OpenSearch/pull/3847))
@@ -147,12 +148,12 @@
 - Refactor the `:server` module `org.opensearch.client` to `org.opensearch.transport.client` to eliminate top level split packages for JPMS support ([#17272](https://github.com/opensearch-project/OpenSearch/pull/17272))
 - Use Lucene `BM25Similarity` as default since the `LegacyBM25Similarity` is marked as deprecated ([#17306](https://github.com/opensearch-project/OpenSearch/pull/17306))
 - Wildcard field index only 3gram of the input data [#17349](https://github.com/opensearch-project/OpenSearch/pull/17349)
-- Use BC libraries to parse PEM files, increase key length, allow general use of known cryptographic binary extensions, remove unused BC dependencies ([#3420](https://github.com/opensearch-project/OpenSearch/pull/14912))
+- Use BC libraries to parse PEM files, increase key length, allow general use of known cryptographic binary extensions, remove unused BC dependencies ([#17393](https://github.com/opensearch-project/OpenSearch/pull/17393))
 - Add optional enum set read / write functionality to stream input / output ([#17556](https://github.com/opensearch-project/OpenSearch/pull/17556))
 - Convert transport-reactor-netty4 to use gradle version catalog [#17233](https://github.com/opensearch-project/OpenSearch/pull/17233)
 - Increase force merge threads to 1/8th of cores [#17255](https://github.com/opensearch-project/OpenSearch/pull/17255)
 - TieredSpilloverCache took-time threshold now guards heap tier as well as disk tier [#17190](https://github.com/opensearch-project/OpenSearch/pull/17190)
-- Migrate BC libs to their FIPS counterparts ([#14912](https://github.com/opensearch-project/OpenSearch/pull/14912))
+- Migrate BC libs to their FIPS counterparts ([#17507](https://github.com/opensearch-project/OpenSearch/pull/17507))
 - Increase the floor segment size to 16MB ([#17699](https://github.com/opensearch-project/OpenSearch/pull/17699))
 - Unwrap singleton DocValues in global ordinal value source of composite histogram aggregation ([#17740](https://github.com/opensearch-project/OpenSearch/pull/17740))
 - Unwrap singleton DocValues in date histogram aggregation. ([#17643](https://github.com/opensearch-project/OpenSearch/pull/17643))
