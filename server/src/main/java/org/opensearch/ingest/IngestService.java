@@ -274,7 +274,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (v2Template != null) {
                     systemIngestPipelineId = getSystemIngestPipelineForTemplateV2(v2Template, indexRequest);
                 } else {
-                    List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(metadata, indexRequest.index(), null);
+                    List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(
+                        metadata,
+                        indexRequest.index(),
+                        null
+                    );
                     systemIngestPipelineId = getSystemIngestPipelineForTemplateV1(templates, indexRequest);
                 }
             }
@@ -1412,10 +1416,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
                 for (IngestDocumentWrapper ingestDocumentWrapper : succeeded) {
                     SlotKey slotKey = new SlotKey(ingestDocumentWrapper.getSlot(), ingestDocumentWrapper.getInnerSlot());
-                    updateIndexRequestWithIngestDocument(
-                        slotToindexRequestMap.get(slotKey),
-                        ingestDocumentWrapper.getIngestDocument()
-                    );
+                    updateIndexRequestWithIngestDocument(slotToindexRequestMap.get(slotKey), ingestDocumentWrapper.getIngestDocument());
                 }
                 handler.accept(allResults);
             }
@@ -1662,7 +1663,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return new IngestDocumentWrapper(slot, innerSlot, toIngestDocument(indexRequest), null);
     }
 
-    private static List<IngestDocumentWrapper> toIngestDocumentWrappers(List<Integer> slots, List<Integer> innerSlots, List<IndexRequest> indexRequests) {
+    private static List<IngestDocumentWrapper> toIngestDocumentWrappers(
+        List<Integer> slots,
+        List<Integer> innerSlots,
+        List<IndexRequest> indexRequests
+    ) {
         List<IngestDocumentWrapper> ingestDocumentWrappers = new ArrayList<>();
         for (int i = 0; i < slots.size(); ++i) {
             ingestDocumentWrappers.add(toIngestDocumentWrapper(slots.get(i), innerSlots.get(i), indexRequests.get(i)));
@@ -1670,7 +1675,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return ingestDocumentWrappers;
     }
 
-    private static Map<SlotKey, IndexRequest> createSlotIndexRequestMap(List<Integer> slots, List<Integer> innerSlots, List<IndexRequest> indexRequests) {
+    private static Map<SlotKey, IndexRequest> createSlotIndexRequestMap(
+        List<Integer> slots,
+        List<Integer> innerSlots,
+        List<IndexRequest> indexRequests
+    ) {
         Map<SlotKey, IndexRequest> slotIndexRequestMap = new HashMap<>();
         for (int i = 0; i < slots.size(); ++i) {
             slotIndexRequestMap.put(new SlotKey(slots.get(i), innerSlots.get(i)), indexRequests.get(i));
@@ -1684,5 +1693,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param slot
      * @param innerSlot
      */
-    private record SlotKey(int slot, int innerSlot) {}
+    private record SlotKey(int slot, int innerSlot) {
+    }
 }

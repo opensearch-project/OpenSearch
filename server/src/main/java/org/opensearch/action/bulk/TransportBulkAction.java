@@ -266,13 +266,25 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 // System ingest pipelines and processors should handle these cases individually.
                 boolean indexRequestHasPipeline = false;
                 switch (updateRequest.getType()) {
-                    case NORMAL_UPDATE -> indexRequestHasPipeline |= ingestService.resolveSystemIngestPipeline(actionRequest, updateRequest.doc(), metadata);
+                    case NORMAL_UPDATE -> indexRequestHasPipeline |= ingestService.resolveSystemIngestPipeline(
+                        actionRequest,
+                        updateRequest.doc(),
+                        metadata
+                    );
                     case NORMAL_UPSERT -> {
                         indexRequestHasPipeline |= ingestService.resolveSystemIngestPipeline(actionRequest, updateRequest.doc(), metadata);
                         indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, updateRequest.upsertRequest(), metadata);
                     }
-                    case UPSERT_WITH_SCRIPT -> indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, updateRequest.upsertRequest(), metadata);
-                    case DOC_AS_UPSERT -> indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, updateRequest.doc(), metadata);
+                    case UPSERT_WITH_SCRIPT -> indexRequestHasPipeline |= ingestService.resolvePipelines(
+                        actionRequest,
+                        updateRequest.upsertRequest(),
+                        metadata
+                    );
+                    case DOC_AS_UPSERT -> indexRequestHasPipeline |= ingestService.resolvePipelines(
+                        actionRequest,
+                        updateRequest.doc(),
+                        metadata
+                    );
                     // Pure scripted updates have no child index requests, so nothing is resolved.
                 }
                 hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
@@ -300,16 +312,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // this path is never taken.
             try {
                 if (Assertions.ENABLED) {
-                    final boolean arePipelinesResolved = bulkRequest.requests()
-                        .stream()
-                        .flatMap(request -> {
-                            if (request instanceof UpdateRequest updateRequest) {
-                                return updateRequest.getChildIndexRequests().stream();
-                            }
-                            return Stream.of(getIndexWriteRequest(request));
-                        })
-                        .filter(Objects::nonNull)
-                        .allMatch(IndexRequest::isPipelineResolved);
+                    final boolean arePipelinesResolved = bulkRequest.requests().stream().flatMap(request -> {
+                        if (request instanceof UpdateRequest updateRequest) {
+                            return updateRequest.getChildIndexRequests().stream();
+                        }
+                        return Stream.of(getIndexWriteRequest(request));
+                    }).filter(Objects::nonNull).allMatch(IndexRequest::isPipelineResolved);
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {

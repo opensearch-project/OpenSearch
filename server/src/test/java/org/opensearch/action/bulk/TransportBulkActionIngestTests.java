@@ -579,17 +579,11 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
             .script(mockScript("1"))
             .scriptedUpsert(true);
         UpdateRequest regularUpdate = new UpdateRequest(updateRequestIndexName, "id4").doc(indexRequestForNormalUpdate);
-        UpdateRequest upsertWithDocAndUpsertRequest = new UpdateRequest(updateRequestIndexName, "id4")
-            .doc(indexRequestDocForNormalUpsert)
+        UpdateRequest upsertWithDocAndUpsertRequest = new UpdateRequest(updateRequestIndexName, "id4").doc(indexRequestDocForNormalUpsert)
             .upsert(indexRequestUpsertForNormalUpsert);
 
-
         // Add update requests
-        bulkRequest.add(upsertRequest)
-            .add(docAsUpsertRequest)
-            .add(scriptedUpsert)
-            .add(regularUpdate)
-            .add(upsertWithDocAndUpsertRequest);
+        bulkRequest.add(upsertRequest).add(docAsUpsertRequest).add(scriptedUpsert).add(regularUpdate).add(upsertWithDocAndUpsertRequest);
 
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
@@ -647,7 +641,11 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
         verify(ingestService, times(1)).resolveSystemIngestPipeline(any(), eq(indexRequestForNormalUpdate), any());
 
         verify(ingestService, never()).resolvePipelines(any(), eq(indexRequestDocForNormalUpsert), any());
-        verify(ingestService, times(1)).resolveSystemIngestPipeline(eq(upsertWithDocAndUpsertRequest), eq(indexRequestDocForNormalUpsert), any());
+        verify(ingestService, times(1)).resolveSystemIngestPipeline(
+            eq(upsertWithDocAndUpsertRequest),
+            eq(indexRequestDocForNormalUpsert),
+            any()
+        );
 
         verify(ingestService, times(1)).resolvePipelines(eq(upsertWithDocAndUpsertRequest), eq(indexRequestUpsertForNormalUpsert), any());
         verify(ingestService, never()).resolveSystemIngestPipeline(any(), eq(indexRequestUpsertForNormalUpsert), any());
@@ -656,9 +654,9 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
         indexRequest1.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         indexRequest3.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        indexRequestForNormalUpdate.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        indexRequestDocForNormalUpsert.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        indexRequestUpsertForNormalUpsert.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
+        indexRequestForNormalUpdate.setPipeline(IngestService.NOOP_PIPELINE_NAME);
+        indexRequestDocForNormalUpsert.setPipeline(IngestService.NOOP_PIPELINE_NAME);
+        indexRequestUpsertForNormalUpsert.setPipeline(IngestService.NOOP_PIPELINE_NAME);
 
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
