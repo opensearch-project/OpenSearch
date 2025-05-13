@@ -84,9 +84,11 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
         bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
         bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
         bulkRequest.add(new DeleteRequest(randomAlphaOfLength(5)));
-        bulkRequest.add(new UpdateRequest(randomAlphaOfLength(5), randomAlphaOfLength(5))
-            .doc(new IndexRequest(randomAlphaOfLength(5))
-                .source(Requests.INDEX_CONTENT_TYPE, "field1", "value1")));
+        bulkRequest.add(
+            new UpdateRequest(randomAlphaOfLength(5), randomAlphaOfLength(5)).doc(
+                new IndexRequest(randomAlphaOfLength(5)).source(Requests.INDEX_CONTENT_TYPE, "field1", "value1")
+            )
+        );
         // Test emulating auto_create_index=false
         indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, null);
         // Test emulating auto_create_index=true
@@ -102,9 +104,11 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
         bulkRequest.add(new IndexRequest("no"));
         bulkRequest.add(new IndexRequest("can't"));
         bulkRequest.add(new DeleteRequest("do").version(0).versionType(VersionType.EXTERNAL));
-        bulkRequest.add(new UpdateRequest("nothin", randomAlphaOfLength(5))
-            .doc(new IndexRequest(randomAlphaOfLength(5))
-                .source(Requests.INDEX_CONTENT_TYPE, "field1", "value1")));
+        bulkRequest.add(
+            new UpdateRequest("nothin", randomAlphaOfLength(5)).doc(
+                new IndexRequest(randomAlphaOfLength(5)).source(Requests.INDEX_CONTENT_TYPE, "field1", "value1")
+            )
+        );
         indicesThatCannotBeCreatedTestCase(new HashSet<>(Arrays.asList("no", "can't", "do", "nothin")), bulkRequest, index -> {
             throw new IndexNotFoundException("Can't make it because I say so");
         });

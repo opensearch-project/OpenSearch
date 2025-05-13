@@ -1054,7 +1054,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Inner enum to classify the type of update request.
      */
-    @PublicApi(since="3.1.0")
+    @PublicApi(since = "3.1.0")
     public enum Type {
         NORMAL_UPDATE,
         NORMAL_UPSERT,
