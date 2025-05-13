@@ -1316,8 +1316,7 @@ public class IngestServiceTests extends OpenSearchSingleNodeTestCase {
                 UpdateRequest updateRequest = new UpdateRequest("_index", "_id");
 
                 // We attach a child index request
-                IndexRequest indexRequest = new IndexRequest("_index").id("_id")
-                    .source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+                IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
                 updateRequest.doc(indexRequest);
                 bulkRequest.add(updateRequest);
             }
@@ -2213,17 +2212,10 @@ public class IngestServiceTests extends OpenSearchSingleNodeTestCase {
         final Map<Integer, List<Exception>> failureHandler = new HashMap<>();
         final Map<Thread, Exception> completionHandler = new HashMap<>();
         final List<Integer> dropHandler = new ArrayList<>();
-        ingestService.executeBulkRequest(
-            5,
-            bulkRequest.requests(),
-            (slot, exception) -> {
-                // Collect exceptions into a map of slots to list to inspect later
-                failureHandler.computeIfAbsent(slot, i -> new ArrayList<>()).add(exception);
-            },
-            completionHandler::put,
-            dropHandler::add,
-            Names.WRITE
-        );
+        ingestService.executeBulkRequest(5, bulkRequest.requests(), (slot, exception) -> {
+            // Collect exceptions into a map of slots to list to inspect later
+            failureHandler.computeIfAbsent(slot, i -> new ArrayList<>()).add(exception);
+        }, completionHandler::put, dropHandler::add, Names.WRITE);
 
         // The first and second slots should have failures
         assertEquals(Set.of(1, 2), failureHandler.keySet());
