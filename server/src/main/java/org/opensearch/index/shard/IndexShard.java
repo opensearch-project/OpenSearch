@@ -76,7 +76,7 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
-import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
@@ -376,7 +376,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Supplier<TimeValue> refreshInterval;
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
-    private final ClusterService clusterService;
+    private final ClusterApplierService clusterApplierService;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -414,7 +414,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         final Supplier<TimeValue> refreshInterval,
         final Object refreshMutex,
-        final ClusterService clusterService
+        final ClusterApplierService clusterApplierService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -521,7 +521,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.fixedRefreshIntervalSchedulingEnabled = fixedRefreshIntervalSchedulingEnabled;
         this.refreshInterval = refreshInterval;
         this.refreshMutex = Objects.requireNonNull(refreshMutex);
-        this.clusterService = clusterService;
+        this.clusterApplierService = clusterApplierService;
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
@@ -4132,7 +4132,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // timeseries
             () -> docMapper(),
             mergedSegmentWarmerFactory.get(this),
-            clusterService
+            clusterApplierService
         );
     }
 

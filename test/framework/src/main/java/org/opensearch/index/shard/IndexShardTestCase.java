@@ -729,7 +729,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 () -> Boolean.FALSE,
                 indexSettings::getRefreshInterval,
                 new Object(),
-                clusterService
+                clusterService.getClusterApplierService()
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

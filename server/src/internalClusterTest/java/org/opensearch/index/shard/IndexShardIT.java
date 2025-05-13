@@ -729,7 +729,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             OpenSearchTestCase::randomBoolean,
             () -> indexService.getIndexSettings().getRefreshInterval(),
             indexService.getRefreshMutex(),
-            clusterService
+            clusterService.getClusterApplierService()
         );
     }
 

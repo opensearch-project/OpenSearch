@@ -136,9 +136,9 @@ public class IngestionEngine extends InternalEngine {
 
         // Register the poller with the ClusterService for receiving cluster state updates.
         // Also initialize cluster write block state in the poller.
-        if (engineConfig.getClusterService() != null) {
-            engineConfig.getClusterService().addStateApplier(streamPoller);
-            boolean isWriteBlockEnabled = engineConfig.getClusterService()
+        if (engineConfig.getClusterApplierService() != null) {
+            engineConfig.getClusterApplierService().addListener(streamPoller);
+            boolean isWriteBlockEnabled = engineConfig.getClusterApplierService()
                 .state()
                 .blocks()
                 .indexBlocked(ClusterBlockLevel.WRITE, engineConfig.getIndexSettings().getIndex().getName());

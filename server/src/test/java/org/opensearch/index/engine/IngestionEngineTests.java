@@ -9,6 +9,7 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
+import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
@@ -114,6 +115,13 @@ public class IngestionEngineTests extends EngineTestCase {
             );
             Assert.assertEquals(2, persistedPointers.size());
         }
+
+        // validate ingestion state on successful engine creation
+        ShardIngestionState ingestionState = ingestionEngine.getIngestionState();
+        assertEquals("test", ingestionState.index());
+        assertEquals("DROP", ingestionState.errorPolicy());
+        assertFalse(ingestionState.isPollerPaused());
+        assertFalse(ingestionState.isWriteBlockEnabled());
     }
 
     public void testRecovery() throws IOException {

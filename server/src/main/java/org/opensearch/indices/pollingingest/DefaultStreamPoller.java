@@ -441,8 +441,12 @@ public class DefaultStreamPoller implements StreamPoller {
     }
 
     @Override
-    public void applyClusterState(final ClusterChangedEvent event) {
+    public void clusterChanged(ClusterChangedEvent event) {
         try {
+            if (event.blocksChanged() == false) {
+                return;
+            }
+
             final ClusterState state = event.state();
             isWriteBlockEnabled = state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName);
 

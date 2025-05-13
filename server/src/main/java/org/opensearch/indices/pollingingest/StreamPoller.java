@@ -8,7 +8,7 @@
 
 package org.opensearch.indices.pollingingest;
 
-import org.opensearch.cluster.ClusterStateApplier;
+import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IngestionShardPointer;
 
@@ -17,7 +17,7 @@ import java.io.Closeable;
 /**
  * A poller for reading messages from an ingestion shard. This is used in the ingestion engine.
  */
-public interface StreamPoller extends Closeable, ClusterStateApplier {
+public interface StreamPoller extends Closeable, ClusterStateListener {
 
     String BATCH_START = "batch_start";
 

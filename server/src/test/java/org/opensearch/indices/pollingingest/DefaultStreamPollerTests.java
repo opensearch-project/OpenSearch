@@ -504,14 +504,24 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             .build();
 
         ClusterChangedEvent event1 = new ClusterChangedEvent("test", state2, state1);
-        poller.applyClusterState(event1);
+        poller.clusterChanged(event1);
         assertTrue(poller.isWriteBlockEnabled());
 
         // remove write block
         ClusterState state3 = ClusterState.builder(ClusterName.DEFAULT).build();
         ClusterChangedEvent event2 = new ClusterChangedEvent("test", state3, state2);
-        poller.applyClusterState(event2);
+        poller.clusterChanged(event2);
         assertFalse(poller.isWriteBlockEnabled());
 
+        // test no block change
+        ClusterChangedEvent event3 = new ClusterChangedEvent("test", state3, state3);
+        poller.clusterChanged(event3);
+        assertFalse(poller.isWriteBlockEnabled());
+    }
+
+    public void testErrorApplyingClusterChange() {
+        ClusterChangedEvent event = mock(ClusterChangedEvent.class);
+        doThrow(new RuntimeException()).when(event).blocksChanged();
+        assertThrows(RuntimeException.class, () -> poller.clusterChanged(event));
     }
 }
