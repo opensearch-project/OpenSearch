@@ -114,7 +114,7 @@ public interface Processor {
         Consumer<List<IngestDocumentWrapper>> handler
     ) {
         execute(ingestDocumentWrapper.getIngestDocument(), (doc, ex) -> {
-            results.set(slot, new IngestDocumentWrapper(ingestDocumentWrapper.getSlot(), doc, ex));
+            results.set(slot, new IngestDocumentWrapper(ingestDocumentWrapper.getSlot(), ingestDocumentWrapper.getInnerSlot(), doc, ex));
             if (counter.decrementAndGet() == 0) {
                 handler.accept(results.asList());
             }
