@@ -20,31 +20,14 @@ import org.opensearch.rule.autotagging.FeatureValueValidator;
  */
 public class WorkloadGroupFeatureValueValidator implements FeatureValueValidator {
     private final ClusterService clusterService;
-    private static volatile WorkloadGroupFeatureValueValidator instance;
     private final Logger logger = LogManager.getLogger(WorkloadGroupFeatureValueValidator.class);
 
     /**
      * constructor for WorkloadGroupFeatureValueValidator
      * @param clusterService
      */
-    private WorkloadGroupFeatureValueValidator(ClusterService clusterService) {
+    public WorkloadGroupFeatureValueValidator(ClusterService clusterService) {
         this.clusterService = clusterService;
-    }
-
-    /**
-     * Returns the singleton instance of {@code WorkloadGroupFeatureValueValidator}, initializing it if necessary.
-     * Uses double-checked locking to ensure thread-safe lazy initialization.
-     * @param clusterService the {@link ClusterService} used to construct the validator if not already initialized
-     */
-    public static WorkloadGroupFeatureValueValidator getInstance(ClusterService clusterService) {
-        if (instance == null) {
-            synchronized (WorkloadGroupFeatureValueValidator.class) {
-                if (instance == null) {
-                    instance = new WorkloadGroupFeatureValueValidator(clusterService);
-                }
-            }
-        }
-        return instance;
     }
 
     @Override
