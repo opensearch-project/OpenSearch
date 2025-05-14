@@ -10,7 +10,9 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
 import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -41,7 +43,9 @@ import org.mockito.Mockito;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class IngestionEngineTests extends EngineTestCase {
 
@@ -51,6 +55,7 @@ public class IngestionEngineTests extends EngineTestCase {
     // the messages of the stream to ingest from
     private List<byte[]> messages;
     private EngineConfig engineConfig;
+    private ClusterApplierService clusterApplierService;
 
     @Override
     @Before
@@ -63,7 +68,9 @@ public class IngestionEngineTests extends EngineTestCase {
         messages = new ArrayList<>();
         publishData("{\"_id\":\"2\",\"_source\":{\"name\":\"bob\", \"age\": 24}}");
         publishData("{\"_id\":\"1\",\"_source\":{\"name\":\"alice\", \"age\": 20}}");
-        ingestionEngine = buildIngestionEngine(globalCheckpoint, ingestionEngineStore, indexSettings);
+        clusterApplierService = mock(ClusterApplierService.class);
+        when(clusterApplierService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        ingestionEngine = buildIngestionEngine(globalCheckpoint, ingestionEngineStore, indexSettings, clusterApplierService);
     }
 
     private void publishData(String message) {
@@ -134,7 +141,7 @@ public class IngestionEngineTests extends EngineTestCase {
         publishData("{\"_id\":\"3\",\"_source\":{\"name\":\"john\", \"age\": 30}}");
         publishData("{\"_id\":\"4\",\"_source\":{\"name\":\"jane\", \"age\": 25}}");
         ingestionEngine.close();
-        ingestionEngine = buildIngestionEngine(new AtomicLong(0), ingestionEngineStore, indexSettings);
+        ingestionEngine = buildIngestionEngine(new AtomicLong(0), ingestionEngineStore, indexSettings, clusterApplierService);
         waitForResults(ingestionEngine, 4);
     }
 
@@ -163,7 +170,7 @@ public class IngestionEngineTests extends EngineTestCase {
         // overwrite the config with ingestion engine settings
         String mapping = "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}";
         MapperService mapperService = createMapperService(mapping);
-        engineConfig = config(engineConfig, () -> new DocumentMapperForType(mapperService.documentMapper(), null));
+        engineConfig = config(engineConfig, () -> new DocumentMapperForType(mapperService.documentMapper(), null), clusterApplierService);
         try {
             new IngestionEngine(engineConfig, consumerFactory);
             fail("Expected EngineException to be thrown");
@@ -173,7 +180,12 @@ public class IngestionEngineTests extends EngineTestCase {
         }
     }
 
-    private IngestionEngine buildIngestionEngine(AtomicLong globalCheckpoint, Store store, IndexSettings settings) throws IOException {
+    private IngestionEngine buildIngestionEngine(
+        AtomicLong globalCheckpoint,
+        Store store,
+        IndexSettings settings,
+        ClusterApplierService clusterApplierService
+    ) throws IOException {
         FakeIngestionSource.FakeIngestionConsumerFactory consumerFactory = new FakeIngestionSource.FakeIngestionConsumerFactory(messages);
         if (engineConfig == null) {
             engineConfig = config(settings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
@@ -181,7 +193,7 @@ public class IngestionEngineTests extends EngineTestCase {
         // overwrite the config with ingestion engine settings
         String mapping = "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}";
         MapperService mapperService = createMapperService(mapping);
-        engineConfig = config(engineConfig, () -> new DocumentMapperForType(mapperService.documentMapper(), null));
+        engineConfig = config(engineConfig, () -> new DocumentMapperForType(mapperService.documentMapper(), null), clusterApplierService);
         if (!Lucene.indexExists(store.directory())) {
             store.createEmpty(engineConfig.getIndexSettings().getIndexVersionCreated().luceneVersion);
             final String translogUuid = Translog.createEmptyTranslog(
