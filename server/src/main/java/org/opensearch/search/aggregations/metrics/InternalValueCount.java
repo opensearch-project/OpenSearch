@@ -93,8 +93,9 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
                     valueCount += ((Number) value).longValue();
                 } else {
                     throw new IllegalArgumentException(
-                        "Expected numeric value from ScriptedMetric aggregation but got [" +
-                            (value == null ? "null" : value.getClass().getName()) + "]"
+                        "Expected numeric value from ScriptedMetric aggregation but got ["
+                            + (value == null ? "null" : value.getClass().getName())
+                            + "]"
                     );
                 }
             } else {
