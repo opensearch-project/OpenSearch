@@ -35,9 +35,7 @@ opensearchplugin {
 }
 
 dependencies {
-  api(project(":modules:reindex")) {
-    transitive = false
-  }
+  api project(path: ':modules:reindex')
 }
 
 testClusters.all {

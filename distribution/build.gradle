@@ -156,18 +156,6 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
       exclude '*/config/log4j2.properties'
       exclude 'config/log4j2.properties'
 
-      // prevents jarHell by excluding any known BCFIPS jars from module, since they already exists in general lib folder
-      if ( BuildParams.inFipsJvm ) {
-        exclude { details ->
-          def fileName = details.file.name
-          return fileName.startsWith("bc-fips") ||
-                  fileName.startsWith("bctls-fips") ||
-                  fileName.startsWith("bcutil-fips") ||
-                  fileName.startsWith("bcpkix-fips") ||
-                  fileName.startsWith("bcpg-fips")
-        }
-      }
-
       eachFile { details ->
         String name = module.plugins.hasPlugin('opensearch.opensearchplugin') ? module.opensearchplugin.name : module.opensearch_meta_plugin.name
         // Copy all non config/bin files
