@@ -69,6 +69,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     public TermsLookup(String index, String id, String path) {
         this(index, id, path, null); // Delegate to the existing constructor
     }
+
     public TermsLookup(String index, String id, String path, QueryBuilder query) {
         if (Strings.isEmpty(index)) {
             throw new IllegalArgumentException("index cannot be null or empty for TermsLookup");
@@ -77,7 +78,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             throw new IllegalArgumentException("path cannot be null or empty for TermsLookup");
         }
         if (id == null && query == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query.");
+            throw new IllegalArgumentException(
+                "[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query."
+            );
         }
         if (id != null && query != null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
@@ -210,7 +213,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("index", index);
-        //builder.field("id", id);
+        // builder.field("id", id);
         if (id != null) {
             builder.field("id", id);
         }

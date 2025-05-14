@@ -65,7 +65,16 @@ import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
-import java.util.*;
+import java.util.AbstractList;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -427,7 +436,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         TermsLookup termsLookup = null;
         QueryBuilder nestedQuery = null;
 
-
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
@@ -506,15 +514,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
 
         if (termsLookup != null) {
-            System.out.println("TermsLookup Details:");
-            System.out.println("Index: " + termsLookup.index());
-            System.out.println("ID: " + termsLookup.id());
-            System.out.println("Path: " + termsLookup.path());
-            System.out.println("Query: " + termsLookup.query());
             termsLookup = new TermsLookup(termsLookup.index(), termsLookup.id(), termsLookup.path(), termsLookup.query());
         }
         return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType);
-        //return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType);
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {
@@ -537,17 +539,16 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (termsLookup != null && termsLookup.query() != null) {
-            System.out.println("Executing subquery: " + termsLookup.query());
+            // System.out.println("Executing subquery: " + termsLookup.query());
             QueryBuilder rewrittenQuery = termsLookup.query().rewrite(context);
-            //Query query = rewrittenQuery.toQuery(context);
-            //QueryBuilder query = termsLookup.query().rewrite(context);
+            // Query query = rewrittenQuery.toQuery(context);
+            // QueryBuilder query = termsLookup.query().rewrite(context);
 
-            SearchResponse response = context.getClient().search(
-                new SearchRequest(termsLookup.index())
-                    .source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true))
-            ).actionGet();
+            SearchResponse response = context.getClient()
+                .search(new SearchRequest(termsLookup.index()).source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true)))
+                .actionGet();
 
-            System.out.println("Subquery Response: " + response);
+            // System.out.println("Subquery Response: " + response);
 
             List<Object> terms = new ArrayList<>();
             for (SearchHit hit : response.getHits().getHits()) {
@@ -637,14 +638,15 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             }
             // Rewrite the subquery using the shard context
             QueryBuilder rewrittenQuery = termsLookup.query().rewrite(shardContext);
-            System.out.println("Rewritten Query: " + rewrittenQuery);
+            // System.out.println("Rewritten Query: " + rewrittenQuery);
 
             SearchResponse response;
             try {
-                response = shardContext.getClient().search(
-                    new SearchRequest(termsLookup.index())
-                        .source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true))
-                ).actionGet();
+                response = shardContext.getClient()
+                    .search(
+                        new SearchRequest(termsLookup.index()).source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true))
+                    )
+                    .actionGet();
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to execute subquery: " + e.getMessage(), e);
             }
@@ -656,13 +658,14 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                     try {
                         List<Object> extracted = XContentMapValues.extractRawValues(termsLookup.path(), source);
                         terms.addAll(extracted);
-                        System.out.println("Extracted Terms: " + extracted);
+                        // System.out.println("Extracted Terms: " + extracted);
                     } catch (Exception ex) {
-                        System.err.println("Error extracting path '" + termsLookup.path() + "' from source: " + source);
-                        ex.printStackTrace();
+                        // System.err.println("Error extracting path '" + termsLookup.path() + "' from source: " + source);
+                        throw new IllegalStateException("Failed to execute subquery: " + ex.getMessage(), ex);
                     }
                 } else {
-                    System.err.println("Source is null for hit: " + hit);
+                    // System.err.println("Source is null for hit: " + hit);
+                    throw new IllegalStateException("Source is null for hit: " + hit);
                 }
             }
             // Return a new TermsQueryBuilder with the fetched terms
@@ -705,6 +708,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
 
         return this;
-        //return super.doRewrite(queryRewriteContext);
+        // return super.doRewrite(queryRewriteContext);
     }
 }
