@@ -63,8 +63,12 @@ test {
 }
 
 dependencies {
-  api project(":client:rest")
-  api project(":libs:opensearch-ssl-config")
+  api(project(":client:rest")) {
+    exclude group: 'org.bouncycastle'
+  }
+  api(project(":libs:opensearch-ssl-config")) {
+    exclude group: 'org.bouncycastle'
+  }
   // for http - testing reindex from remote
   testImplementation project(':modules:transport-netty4')
   // for parent/child testing

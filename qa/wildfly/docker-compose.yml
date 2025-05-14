@@ -19,6 +19,7 @@ services:
   opensearch:
     image: opensearch:test
     environment:
+      KEYSTORE_PASSWORD: ${KEYSTORE_PASSWORD}
       discovery.type: single-node
     ulimits:
       memlock:
