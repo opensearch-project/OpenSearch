@@ -37,23 +37,23 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
     /**
      * Setting name to control the refresh interval of synchronization service
      */
-    public static final String RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME = "wlm.rule.sync_refresh_interval";
+    public static final String RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME = "wlm.rule.sync_refresh_interval_ms";
     /**
      * Default value for refresh interval
      */
-    public static final long RULE_SYNC_REFRESH_INTERVAL_DEFAULT = 5000;
+    public static final long RULE_SYNC_REFRESH_INTERVAL_DEFAULT_MS = 5000;
     /**
      * Minimum value for refresh interval
      */
-    public static final int MIN_SYNC_REFRESH_INTERVAL = 1000;
+    public static final int MIN_SYNC_REFRESH_INTERVAL_MS = 1000;
 
     /**
      * Setting to control the run interval of synchronization service
      */
     public static final Setting<Long> RULE_SYNC_REFRESH_INTERVAL_SETTING = Setting.longSetting(
         RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME,
-        RULE_SYNC_REFRESH_INTERVAL_DEFAULT,
-        MIN_SYNC_REFRESH_INTERVAL,
+        RULE_SYNC_REFRESH_INTERVAL_DEFAULT_MS,
+        MIN_SYNC_REFRESH_INTERVAL_MS,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -150,9 +150,9 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
      * @param refreshInterval
      */
     public void setRefreshInterval(long refreshInterval) {
-        if (refreshInterval < MIN_SYNC_REFRESH_INTERVAL) {
-            logger.warn("Refresh interval must be at least 1000ms. Neglecting this change");
-            throw new IllegalArgumentException("Refresh interval must be at least 1000ms");
+        if (refreshInterval < MIN_SYNC_REFRESH_INTERVAL_MS) {
+            logger.warn("Refresh interval must be at least {}ms. Neglecting this change", MIN_SYNC_REFRESH_INTERVAL_MS);
+            throw new IllegalArgumentException("Refresh interval must be at least " + MIN_SYNC_REFRESH_INTERVAL_MS+ "ms");
         }
         this.refreshInterval = refreshInterval;
     }
