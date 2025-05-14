@@ -42,6 +42,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
 
     @Override
@@ -111,6 +114,32 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         if (avg.getCount() != 0) {
             assertEquals(avg.getValueAsString(), parsed.getValueAsString());
         }
+    }
+
+    public void testReduceWithScriptedMetric() {
+        String name = "test_scripted_metric";
+        DocValueFormat formatter = randomNumericDocValueFormat();
+        List<InternalAggregation> aggregations = new ArrayList<>();
+
+        // Add regular InternalAvg
+        aggregations.add(new InternalAvg(name, 50.0, 10L, formatter, null));
+
+        // Add ScriptedMetric with double array [sum, count]
+        InternalScriptedMetric scriptedMetric1 = mock(InternalScriptedMetric.class);
+        when(scriptedMetric1.getName()).thenReturn(name);
+        when(scriptedMetric1.aggregation()).thenReturn(new double[] { 100.0, 20.0 });
+        aggregations.add(scriptedMetric1);
+
+        InternalAvg avg = new InternalAvg(name, 0.0, 0L, formatter, null);
+        InternalAvg reduced = avg.reduce(aggregations, null);
+
+        // Expected values:
+        // From InternalAvg: sum=50.0, count=10
+        // From scriptedMetric1: sum=100.0, count=20
+        // Total: sum=150.0, count=30
+        assertEquals(30L, reduced.getCount());
+        assertEquals(150.0, reduced.getSum(), 0.0000001);
+        assertEquals(5.0, reduced.getValue(), 0.0000001);  // 150/30
     }
 
     @Override
