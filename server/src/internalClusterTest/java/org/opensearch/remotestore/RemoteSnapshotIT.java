@@ -34,7 +34,7 @@ public abstract class RemoteSnapshotIT extends AbstractSnapshotIntegTestCase {
         super(nodeSettings);
     }
 
-    public RemoteSnapshotIT(){
+    public RemoteSnapshotIT() {
         super();
     }
 

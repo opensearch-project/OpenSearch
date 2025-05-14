@@ -33,6 +33,7 @@ package org.opensearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.DocWriteResponse;
@@ -83,9 +84,9 @@ public class CloneSnapshotV2IT extends AbstractSnapshotIntegTestCase {
     }
 
     /*
-Disabling MockFSIndexStore plugin as the MockFSDirectoryFactory wraps the FSDirectory over a OpenSearchMockDirectoryWrapper which extends FilterDirectory (whereas FSDirectory extends BaseDirectory)
-As a result of this wrapping the local directory of Composite Directory does not satisfy the assertion that local directory must be of type FSDirectory
- */
+    Disabling MockFSIndexStore plugin as the MockFSDirectoryFactory wraps the FSDirectory over a OpenSearchMockDirectoryWrapper which extends FilterDirectory (whereas FSDirectory extends BaseDirectory)
+    As a result of this wrapping the local directory of Composite Directory does not satisfy the assertion that local directory must be of type FSDirectory
+    */
     @Override
     protected boolean addMockIndexStorePlugin() {
         return !WRITABLE_WARM_INDEX_SETTING.get(settings);
@@ -94,8 +95,8 @@ As a result of this wrapping the local directory of Composite Directory does not
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
-                new Object[] { Settings.builder().put(WRITABLE_WARM_INDEX_SETTING.getKey(), false).build() },
-                new Object[] { Settings.builder().put(WRITABLE_WARM_INDEX_SETTING.getKey(), true).build() }
+            new Object[] { Settings.builder().put(WRITABLE_WARM_INDEX_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(WRITABLE_WARM_INDEX_SETTING.getKey(), true).build() }
         );
     }
 
@@ -103,9 +104,9 @@ As a result of this wrapping the local directory of Composite Directory does not
     protected Settings nodeSettings(int nodeOrdinal) {
         ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
-                .build();
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
+            .build();
     }
 
     public void testCloneShallowCopyV2() throws Exception {
