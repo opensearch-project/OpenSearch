@@ -34,7 +34,6 @@ package org.opensearch.indices;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -50,8 +49,6 @@ import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
-import org.opensearch.client.Request;
-import org.opensearch.client.Response;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -68,10 +65,14 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
+import org.opensearch.search.aggregations.matrix.MatrixAggregationModulePlugin;
+import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
@@ -811,6 +812,69 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         assertTrue(stats.getMemorySizeInBytes() == 0);
     }
 
+    public void testMatrixStatsMultiValueModeEffect() throws Exception {
+        String index = "test_matrix_stats_multimode";
+        Client client = client();
+
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                )
+                .get()
+        );
+
+        client.prepareIndex(index).setId("1").setSource("num", List.of(10, 30), "num2", List.of(40, 60)).setWaitForActiveShards(1).get();
+        client.admin().indices().prepareRefresh(index).get();
+
+        MatrixStatsAggregationBuilder avgAgg = new MatrixStatsAggregationBuilder("agg_avg").fields(List.of("num", "num2"))
+            .multiValueMode(MultiValueMode.AVG);
+
+        client.prepareSearch(index).setSize(0).setRequestCache(true).addAggregation(avgAgg).get();
+
+        RequestCacheStats stats1 = getRequestCacheStats(client, index);
+        long hit1 = stats1.getHitCount();
+        long miss1 = stats1.getMissCount();
+
+        client.prepareSearch(index).setSize(0).setRequestCache(true).addAggregation(avgAgg).get();
+
+        RequestCacheStats stats2 = getRequestCacheStats(client, index);
+        long hit2 = stats2.getHitCount();
+        long miss2 = stats2.getMissCount();
+
+        MatrixStatsAggregationBuilder minAgg = new MatrixStatsAggregationBuilder("agg_min").fields(List.of("num", "num2"))
+            .multiValueMode(MultiValueMode.MIN);
+
+        client.prepareSearch(index).setSize(0).setRequestCache(true).addAggregation(minAgg).get();
+
+        RequestCacheStats stats3 = getRequestCacheStats(client, index);
+        long hit3 = stats3.getHitCount();
+        long miss3 = stats3.getMissCount();
+
+        client.prepareSearch(index).setSize(0).setRequestCache(true).addAggregation(minAgg).get();
+
+        RequestCacheStats stats4 = getRequestCacheStats(client, index);
+        long hit4 = stats4.getHitCount();
+        long miss4 = stats4.getMissCount();
+
+        assertEquals("Expected 1 cache miss for first AVG request", 1, miss1);
+        assertEquals("Expected 1 cache hit for second AVG request", hit1 + 1, hit2);
+        assertEquals("Expected 1 cache miss for first MIN request", miss1 + 1, miss3);
+        assertEquals("Expected 1 cache hit for second MIN request", hit2 + 1, hit4);
+        assertEquals("Expected no additional cache misses for second MIN request", miss3, miss4);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(MatrixAggregationModulePlugin.class);
+    }
+
     public void testTimedOutQuery() throws Exception {
         // A timed out query should be cached and then invalidated
         Client client = client();
@@ -862,68 +926,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);
         // The cache should be empty as the timed-out query was invalidated
         assertEquals(0, requestCacheStats.getMemorySizeInBytes());
-    }
-
-    public void testMatrixStatsMultiValueModeEffect() throws Exception {
-        String index = "test_multi";
-        Client client = client();
-
-        assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate(index)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                )
-                .get()
-        );
-
-        indexRandom(true, client.prepareIndex(index).setId("1").setSource("num", List.of(10, 30), "num2", List.of(40, 60)));
-        ensureSearchable(index);
-        forceMerge(client, index);
-
-        String avgRequestBody = """
-            {
-              "size": 0,
-              "aggs": {
-                "agg": {
-                  "matrix_stats": {
-                    "fields": ["num", "num2"],
-                    "multi_value_mode": "avg"
-                  }
-                }
-              }
-            }
-            """;
-        Request avgRequest = new Request("POST", "/" + index + "/_search");
-        avgRequest.setJsonEntity(avgRequestBody);
-        Response avgResponse = getRestClient().performRequest(avgRequest);
-
-        String minRequestBody = """
-            {
-              "size": 0,
-              "aggs": {
-                "agg": {
-                  "matrix_stats": {
-                    "fields": ["num", "num2"],
-                    "multi_value_mode": "min"
-                  }
-                }
-              }
-            }
-            """;
-        Request minRequest = new Request("POST", "/" + index + "/_search");
-        minRequest.setJsonEntity(minRequestBody);
-        Response minResponse = getRestClient().performRequest(minRequest);
-
-        String avgBody = EntityUtils.toString(avgResponse.getEntity());
-        String minBody = EntityUtils.toString(minResponse.getEntity());
-
-        assertNotEquals("MatrixStats with AVG and MIN should differ", avgBody, minBody);
     }
 
     private Path[] shardDirectory(String server, Index index, int shard) {
