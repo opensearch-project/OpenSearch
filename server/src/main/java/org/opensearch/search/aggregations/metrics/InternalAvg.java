@@ -116,16 +116,16 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
                     double[] values = (double[]) value;
                     if (values.length != 2) {
                         throw new IllegalArgumentException(
-                            "Expected double array with [sum, count] from ScriptedMetric but got array of length " +
-                                values.length
+                            "Expected double array with [sum, count] from ScriptedMetric but got array of length " + values.length
                         );
                     }
                     count += (long) values[1];  // count is at index 1
                     kahanSummation.add(values[0]);  // sum is at index 0
                 } else {
                     throw new IllegalArgumentException(
-                        "Expected double array[sum, count] from ScriptedMetric but got [" +
-                            (value == null ? "null" : value.getClass().getName()) + "]"
+                        "Expected double array[sum, count] from ScriptedMetric but got ["
+                            + (value == null ? "null" : value.getClass().getName())
+                            + "]"
                     );
                 }
             } else {
