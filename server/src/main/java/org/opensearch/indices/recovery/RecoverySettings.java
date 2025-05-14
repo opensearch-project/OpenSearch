@@ -76,6 +76,27 @@ public class RecoverySettings {
     );
 
     /**
+     * Individual speed setting for merged segment replication, default -1B to reuse the setting of recovery.
+     */
+    public static final Setting<ByteSizeValue> INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        "indices.merged_segment_replication.max_bytes_per_sec",
+        new ByteSizeValue(-1),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Control the maximum waiting time for replicate merged segment to the replica
+     */
+    public static final Setting<TimeValue> INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING = Setting.timeSetting(
+        "indices.merged_segment_replication_timeout",
+        TimeValue.timeValueMinutes(15),
+        TimeValue.timeValueMinutes(0),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
      * Controls the maximum number of file chunk requests that can be sent concurrently from the source node to the target node.
      */
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING = Setting.intSetting(
@@ -190,11 +211,13 @@ public class RecoverySettings {
 
     private volatile ByteSizeValue recoveryMaxBytesPerSec;
     private volatile ByteSizeValue replicationMaxBytesPerSec;
+    private volatile ByteSizeValue mergedSegmentReplicationMaxBytesPerSec;
     private volatile int maxConcurrentFileChunks;
     private volatile int maxConcurrentOperations;
     private volatile int maxConcurrentRemoteStoreStreams;
     private volatile SimpleRateLimiter recoveryRateLimiter;
     private volatile SimpleRateLimiter replicationRateLimiter;
+    private volatile SimpleRateLimiter mergedSegmentReplicationRateLimiter;
     private volatile TimeValue retryDelayStateSync;
     private volatile TimeValue retryDelayNetwork;
     private volatile TimeValue activityTimeout;
@@ -204,6 +227,7 @@ public class RecoverySettings {
 
     private volatile ByteSizeValue chunkSize;
     private volatile TimeValue internalRemoteUploadTimeout;
+    private volatile TimeValue mergedSegmentReplicationTimeout;
 
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
@@ -226,7 +250,10 @@ public class RecoverySettings {
             recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
         }
         this.replicationMaxBytesPerSec = INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        this.mergedSegmentReplicationMaxBytesPerSec = INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        this.mergedSegmentReplicationTimeout = INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.get(settings);
         updateReplicationRateLimiter();
+        updateMergedSegmentReplicationRateLimiter();
 
         logger.debug("using recovery max_bytes_per_sec[{}]", recoveryMaxBytesPerSec);
         this.internalRemoteUploadTimeout = INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.get(settings);
@@ -234,6 +261,14 @@ public class RecoverySettings {
 
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setRecoveryMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING, this::setReplicationMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
+            this::setMergedSegmentReplicationMaxBytesPerSec
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING,
+            this::setMergedSegmentReplicationTimeout
+        );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING, this::setMaxConcurrentOperations);
         clusterSettings.addSettingsUpdateConsumer(
@@ -262,6 +297,10 @@ public class RecoverySettings {
 
     public RateLimiter replicationRateLimiter() {
         return replicationRateLimiter;
+    }
+
+    public SimpleRateLimiter mergedSegmentReplicationRateLimiter() {
+        return mergedSegmentReplicationRateLimiter;
     }
 
     public TimeValue retryDelayNetwork() {
@@ -338,6 +377,7 @@ public class RecoverySettings {
             recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
         }
         if (replicationMaxBytesPerSec.getBytes() < 0) updateReplicationRateLimiter();
+        if (mergedSegmentReplicationMaxBytesPerSec.getBytes() < 0) updateMergedSegmentReplicationRateLimiter();
     }
 
     private void setReplicationMaxBytesPerSec(ByteSizeValue replicationMaxBytesPerSec) {
@@ -361,6 +401,39 @@ public class RecoverySettings {
                 replicationRateLimiter.setMBPerSec(recoveryMaxBytesPerSec.getMbFrac());
             } else {
                 replicationRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
+            }
+        }
+    }
+
+    public TimeValue getMergedSegmentReplicationTimeout() {
+        return mergedSegmentReplicationTimeout;
+    }
+
+    private void setMergedSegmentReplicationMaxBytesPerSec(ByteSizeValue mergedSegmentReplicationMaxBytesPerSec) {
+        this.mergedSegmentReplicationMaxBytesPerSec = mergedSegmentReplicationMaxBytesPerSec;
+        updateMergedSegmentReplicationRateLimiter();
+    }
+
+    public void setMergedSegmentReplicationTimeout(TimeValue mergedSegmentReplicationTimeout) {
+        this.mergedSegmentReplicationTimeout = mergedSegmentReplicationTimeout;
+    }
+
+    private void updateMergedSegmentReplicationRateLimiter() {
+        if (mergedSegmentReplicationMaxBytesPerSec.getBytes() >= 0) {
+            if (mergedSegmentReplicationMaxBytesPerSec.getBytes() == 0) {
+                mergedSegmentReplicationRateLimiter = null;
+            } else if (mergedSegmentReplicationRateLimiter != null) {
+                mergedSegmentReplicationRateLimiter.setMBPerSec(mergedSegmentReplicationMaxBytesPerSec.getMbFrac());
+            } else {
+                mergedSegmentReplicationRateLimiter = new SimpleRateLimiter(mergedSegmentReplicationMaxBytesPerSec.getMbFrac());
+            }
+        } else { // when mergeReplicationMaxBytesPerSec = -1B, use setting of recovery
+            if (recoveryMaxBytesPerSec.getBytes() <= 0) {
+                mergedSegmentReplicationRateLimiter = null;
+            } else if (mergedSegmentReplicationRateLimiter != null) {
+                mergedSegmentReplicationRateLimiter.setMBPerSec(recoveryMaxBytesPerSec.getMbFrac());
+            } else {
+                mergedSegmentReplicationRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
             }
         }
     }

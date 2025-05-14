@@ -54,6 +54,10 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
             Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
         );
         assertNull(recoverySettings.replicationRateLimiter());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
+        );
+        assertNull(recoverySettings.mergedSegmentReplicationRateLimiter());
     }
 
     public void testSetReplicationMaxBytesPerSec() {
@@ -70,6 +74,44 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
                 .build()
         );
         assertEquals(80, (int) recoverySettings.replicationRateLimiter().getMBPerSec());
+    }
+
+    public void testSetMergedSegmentReplicationMaxBytesPerSec() {
+        assertEquals(40, (int) recoverySettings.mergedSegmentReplicationRateLimiter().getMBPerSec());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(
+                    RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(),
+                    new ByteSizeValue(60, ByteSizeUnit.MB)
+                )
+                .build()
+        );
+        assertEquals(60, (int) recoverySettings.mergedSegmentReplicationRateLimiter().getMBPerSec());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(
+                    RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(),
+                    new ByteSizeValue(80, ByteSizeUnit.MB)
+                )
+                .build()
+        );
+        assertEquals(80, (int) recoverySettings.mergedSegmentReplicationRateLimiter().getMBPerSec());
+    }
+
+    public void testMergedSegmentReplicationTimeout() {
+        assertEquals(15, (int) recoverySettings.getMergedSegmentReplicationTimeout().minutes());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5))
+                .build()
+        );
+        assertEquals(5, (int) recoverySettings.getMergedSegmentReplicationTimeout().minutes());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(25))
+                .build()
+        );
+        assertEquals(25, (int) recoverySettings.getMergedSegmentReplicationTimeout().minutes());
     }
 
     public void testRetryDelayStateSync() {

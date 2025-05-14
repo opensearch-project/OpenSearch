@@ -41,6 +41,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -198,6 +199,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.ReplicationSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.repositories.RepositoriesService;
@@ -375,6 +377,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Supplier<TimeValue> refreshInterval;
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
+    private List<DiscoveryNode> activeReplicaNodes = new ArrayList<>();
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -473,7 +476,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPool::absoluteTimeInMillis,
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
             this::getSafeCommitInfo,
-            pendingReplicationActions,
+            new CompositeReplicationGroupListener(List.of(pendingReplicationActions, new IndexShardReplicationGroupListener(this))),
             isShardOnRemoteEnabledNode
         );
 
@@ -522,6 +525,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
             }
+        }
+    }
+
+    private record CompositeReplicationGroupListener(List<Consumer<ReplicationGroup>> consumers) implements Consumer<ReplicationGroup> {
+
+        @Override
+        public void accept(ReplicationGroup replicationGroup) {
+            consumers.forEach(c -> c.accept(replicationGroup));
         }
     }
 
@@ -1846,6 +1857,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Compute {@link ReplicationSegmentCheckpoint} from a SegmentCommitInfo.
+     * This function fetches a metadata snapshot from the store that comes with an IO cost.
+     *
+     * @param segmentCommitInfo {@link SegmentCommitInfo} segmentCommitInfo to use to compute.
+     * @return {@link ReplicationSegmentCheckpoint} Checkpoint computed from the segmentCommitInfo.
+     * @throws IOException When there is an error computing segment metadata from the store.
+     */
+    public ReplicationSegmentCheckpoint computeReplicationSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
+        Map<String, StoreFileMetadata> segmentMetadataMap = store.getSegmentMetadataMap(segmentCommitInfo);
+        return new ReplicationSegmentCheckpoint(
+            shardId,
+            getOperationPrimaryTerm(),
+            segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
+            getEngine().config().getCodec().getName(),
+            segmentMetadataMap,
+            segmentCommitInfo.info.name
+        );
+    }
+
+    /**
      * Checks if this target shard should start a round of segment replication.
      * @return - True if the shard is able to perform segment replication.
      */
@@ -1907,6 +1938,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return false;
         }
         return true;
+    }
+
+    /**
+     * Checks if segment checkpoint should be processed
+     *
+     * @param requestCheckpoint       received segment checkpoint that is checked for processing
+     * @return true if segment checkpoint should be processed
+     */
+    public final boolean shouldProcessMergedSegmentCheckpoint(ReplicationCheckpoint requestCheckpoint) {
+        return isSegmentReplicationAllowed() && requestCheckpoint.getPrimaryTerm() >= getOperationPrimaryTerm();
     }
 
     /**
@@ -5454,6 +5495,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Exclusively for testing, please do not use it elsewhere.
     public AsyncIOProcessor<Translog.Location> getTranslogSyncProcessor() {
         return translogSyncProcessor;
+    }
+
+    public DiscoveryNodes getDiscoveryNodes() {
+        return discoveryNodes;
+    }
+
+    public List<DiscoveryNode> getActiveReplicaNodes() {
+        return activeReplicaNodes;
+    }
+
+    public void setActiveReplicaNodes(List<DiscoveryNode> activeReplicaNodes) {
+        this.activeReplicaNodes = activeReplicaNodes;
     }
 
     enum ShardMigrationState {
