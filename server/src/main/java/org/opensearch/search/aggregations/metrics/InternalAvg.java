@@ -109,9 +109,31 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         for (InternalAggregation aggregation : aggregations) {
-            InternalAvg avg = (InternalAvg) aggregation;
-            count += avg.count;
-            kahanSummation.add(avg.sum);
+            if (aggregation instanceof InternalScriptedMetric) {
+                // If using InternalScriptedMetric in place of InternalAvg
+                Object value = ((InternalScriptedMetric) aggregation).aggregation();
+                if (value instanceof double[]) {
+                    double[] values = (double[]) value;
+                    if (values.length != 2) {
+                        throw new IllegalArgumentException(
+                            "Expected double array with [sum, count] from ScriptedMetric but got array of length " +
+                                values.length
+                        );
+                    }
+                    count += (long) values[1];  // count is at index 1
+                    kahanSummation.add(values[0]);  // sum is at index 0
+                } else {
+                    throw new IllegalArgumentException(
+                        "Expected double array[sum, count] from ScriptedMetric but got [" +
+                            (value == null ? "null" : value.getClass().getName()) + "]"
+                    );
+                }
+            } else {
+                // Original handling for InternalAvg
+                InternalAvg avg = (InternalAvg) aggregation;
+                count += avg.count;
+                kahanSummation.add(avg.sum);
+            }
         }
         return new InternalAvg(getName(), kahanSummation.value(), count, format, getMetadata());
     }
