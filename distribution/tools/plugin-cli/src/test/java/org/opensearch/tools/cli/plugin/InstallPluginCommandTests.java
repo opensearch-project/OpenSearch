@@ -141,7 +141,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class InstallPluginCommandTests extends OpenSearchTestCase {
 
     static {
-        if (Security.getProvider("BCFIPS") == null) {
+        if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
             Security.addProvider(new BouncyCastleFipsProvider());
         }
     }
