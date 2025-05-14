@@ -34,6 +34,8 @@ package org.opensearch.common.ssl;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
+import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
 import org.bouncycastle.openssl.PEMEncryptedKeyPair;
 import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
@@ -49,6 +51,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
+import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -60,7 +63,18 @@ import java.util.function.Supplier;
 
 final class PemUtils {
 
-    public static final String BCFIPS = "BCFIPS";
+    public static final String BCFIPS = BouncyCastleFipsProvider.PROVIDER_NAME;
+    public static final String BCTLS = BouncyCastleJsseProvider.PROVIDER_NAME;
+
+    static {
+        var highestPriority = 1;
+        if (Security.getProvider(BCFIPS) == null) {
+            Security.insertProviderAt(new BouncyCastleFipsProvider(), highestPriority++);
+        }
+        if (Security.getProvider(BCTLS) == null) {
+            Security.insertProviderAt(new BouncyCastleJsseProvider(), highestPriority);
+        }
+    }
 
     PemUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");

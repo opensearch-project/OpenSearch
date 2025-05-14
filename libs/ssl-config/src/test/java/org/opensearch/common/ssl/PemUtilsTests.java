@@ -34,6 +34,7 @@ package org.opensearch.common.ssl;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -44,6 +45,7 @@ import java.security.AlgorithmParameters;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.Security;
 import java.security.interfaces.ECPrivateKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
@@ -60,6 +62,12 @@ public class PemUtilsTests extends OpenSearchTestCase {
     private static final Supplier<char[]> EMPTY_PASSWORD = () -> new char[0];
     private static final Supplier<char[]> TESTNODE_PASSWORD = "testnode"::toCharArray;
     private static final Supplier<char[]> STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/="::toCharArray;
+
+    static {
+        if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
+            Security.insertProviderAt(new BouncyCastleFipsProvider(), 1);
+        }
+    }
 
     public void testReadPKCS8RsaKey() throws Exception {
         Key key = getKeyFromKeystore("RSA");

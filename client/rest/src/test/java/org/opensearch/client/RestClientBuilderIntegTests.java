@@ -39,6 +39,8 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
+import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -55,6 +57,7 @@ import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.PrivilegedAction;
 import java.security.SecureRandom;
+import java.security.Security;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -67,6 +70,18 @@ import static org.junit.Assert.fail;
 public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     private static HttpsServer httpsServer;
+
+    static {
+        if (inFipsJvm()) {
+            int highestPriority = 1;
+            if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
+                Security.insertProviderAt(new BouncyCastleFipsProvider(), highestPriority++);
+            }
+            if (Security.getProvider(BouncyCastleJsseProvider.PROVIDER_NAME) == null) {
+                Security.insertProviderAt(new BouncyCastleJsseProvider(), highestPriority);
+            }
+        }
+    }
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
@@ -121,7 +136,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     private static SSLContext getSslContext(boolean server) throws Exception {
         SSLContext sslContext;
         char[] password = "password".toCharArray();
-        SecureRandom secureRandom = SecureRandom.getInstance("DEFAULT", "BCFIPS");
+        SecureRandom secureRandom = SecureRandom.getInstanceStrong();
         String fileExtension = ".jks";
 
         try (
@@ -130,18 +145,15 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         ) {
             KeyStore keyStore = KeyStore.getInstance("JKS");
             keyStore.load(keyStoreFile, password);
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance("PKIX", "BCJSSE");
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance("PKIX");
             kmf.init(keyStore, password);
 
             KeyStore trustStore = KeyStore.getInstance("JKS");
             trustStore.load(trustStoreFile, password);
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance("PKIX", "BCJSSE");
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance("PKIX");
             tmf.init(trustStore);
 
-            SSLContextBuilder sslContextBuilder = SSLContextBuilder.create()
-                .setProvider("BCJSSE")
-                .setProtocol(getProtocol())
-                .setSecureRandom(secureRandom);
+            SSLContextBuilder sslContextBuilder = SSLContextBuilder.create().setProtocol(getProtocol()).setSecureRandom(secureRandom);
 
             if (server) {
                 sslContextBuilder.loadKeyMaterial(keyStore, password);
