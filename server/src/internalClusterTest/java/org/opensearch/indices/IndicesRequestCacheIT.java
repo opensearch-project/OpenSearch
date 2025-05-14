@@ -34,6 +34,7 @@ package org.opensearch.indices;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -49,6 +50,8 @@ import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.client.Request;
+import org.opensearch.client.Response;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -859,6 +862,68 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         RequestCacheStats requestCacheStats = getRequestCacheStats(client, index);
         // The cache should be empty as the timed-out query was invalidated
         assertEquals(0, requestCacheStats.getMemorySizeInBytes());
+    }
+
+    public void testMatrixStatsMultiValueModeEffect() throws Exception {
+        String index = "test_multi";
+        Client client = client();
+
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                )
+                .get()
+        );
+
+        indexRandom(true, client.prepareIndex(index).setId("1").setSource("num", List.of(10, 30), "num2", List.of(40, 60)));
+        ensureSearchable(index);
+        forceMerge(client, index);
+
+        String avgRequestBody = """
+            {
+              "size": 0,
+              "aggs": {
+                "agg": {
+                  "matrix_stats": {
+                    "fields": ["num", "num2"],
+                    "multi_value_mode": "avg"
+                  }
+                }
+              }
+            }
+            """;
+        Request avgRequest = new Request("POST", "/" + index + "/_search");
+        avgRequest.setJsonEntity(avgRequestBody);
+        Response avgResponse = getRestClient().performRequest(avgRequest);
+
+        String minRequestBody = """
+            {
+              "size": 0,
+              "aggs": {
+                "agg": {
+                  "matrix_stats": {
+                    "fields": ["num", "num2"],
+                    "multi_value_mode": "min"
+                  }
+                }
+              }
+            }
+            """;
+        Request minRequest = new Request("POST", "/" + index + "/_search");
+        minRequest.setJsonEntity(minRequestBody);
+        Response minResponse = getRestClient().performRequest(minRequest);
+
+        String avgBody = EntityUtils.toString(avgResponse.getEntity());
+        String minBody = EntityUtils.toString(minResponse.getEntity());
+
+        assertNotEquals("MatrixStats with AVG and MIN should differ", avgBody, minBody);
     }
 
     private Path[] shardDirectory(String server, Index index, int shard) {
