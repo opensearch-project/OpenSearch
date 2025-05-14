@@ -13,7 +13,7 @@ import java.security.Security;
 /**
  * Provides additional control over declared security providers in 'java.security' file.
  */
-public final class SecurityProviderManager {
+final class SecurityProviderManager {
 
     public static final String SUN_JCE = "SunJCE";
 
