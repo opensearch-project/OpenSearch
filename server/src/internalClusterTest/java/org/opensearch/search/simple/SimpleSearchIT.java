@@ -444,8 +444,14 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         doTestSimpleTerminateAfterTrackTotalHitsUpTo(0);
     }
 
-    public void testSimpleTerminateAfterTrackTotalHitsUpToSize() throws Exception {
-        doTestSimpleTerminateAfterTrackTotalHitsUpTo(randomIntBetween(1, 29));
+    // Tests scenario where size <= track_total_hits_up_to (5)
+    public void testSimpleTerminateAfterTrackTotalHitsUpToSmallSize() throws Exception {
+        doTestSimpleTerminateAfterTrackTotalHitsUpTo(randomIntBetween(1, 5));
+    }
+
+    // Tests scenario where size > track_total_hits_up_to (5)
+    public void testSimpleTerminateAfterTrackTotalHitsUpToLargeSize() throws Exception {
+        doTestSimpleTerminateAfterTrackTotalHitsUpTo(randomIntBetween(6, 29));
     }
 
     public void testSimpleIndexSortEarlyTerminate() throws Exception {
