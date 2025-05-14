@@ -50,6 +50,7 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -166,7 +167,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     @Override
     public String index() {
-        return super.index();
+        return Objects.requireNonNull(super.index());
     }
 
     @Override
