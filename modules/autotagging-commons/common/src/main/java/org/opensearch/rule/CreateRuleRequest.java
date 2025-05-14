@@ -8,8 +8,8 @@
 
 package org.opensearch.rule;
 
-import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.rule.autotagging.Rule;
@@ -28,7 +28,7 @@ import java.io.IOException;
  * }'
  * @opensearch.experimental
  */
-public class CreateRuleRequest extends ActionRequest {
+public class CreateRuleRequest extends ClusterManagerNodeRequest<CreateRuleRequest> {
     private final Rule rule;
 
     /**

@@ -15,9 +15,9 @@ import org.junit.BeforeClass;
 
 import static org.opensearch.rule.autotagging.AutoTaggingRegistry.MAX_FEATURE_TYPE_NAME_LENGTH;
 import static org.opensearch.rule.autotagging.RuleTests.INVALID_FEATURE;
+import static org.opensearch.rule.utils.RuleTestUtils.FEATURE_TYPE_NAME;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.rule.utils.RuleTestUtils.FEATURE_TYPE_NAME;
 
 public class AutoTaggingRegistryTests extends OpenSearchTestCase {
 

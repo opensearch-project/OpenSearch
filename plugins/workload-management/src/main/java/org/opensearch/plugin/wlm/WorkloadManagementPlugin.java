@@ -49,7 +49,6 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.autotagging.FeatureType;
-import org.opensearch.rule.autotagging.FeatureValueValidator;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
@@ -102,14 +101,13 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        FeatureValueValidator validator = WorkloadGroupFeatureValueValidator.getInstance(clusterService);
-        WorkloadGroupFeatureType.initializeFeatureValueValidator(validator);
+        FeatureTypeHolder.featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService));
         RulePersistenceServiceHolder.rulePersistenceService = new IndexStoredRulePersistenceService(
             INDEX_NAME,
             client,
             clusterService,
             MAX_RULES_PER_PAGE,
-            new XContentRuleParser(WorkloadGroupFeatureType.getInstance()),
+            new XContentRuleParser(FeatureTypeHolder.featureType),
             new IndexBasedRuleQueryMapper()
         );
         InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
@@ -175,10 +173,14 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
 
     @Override
     public FeatureType getFeatureType() {
-        return WorkloadGroupFeatureType.getInstance();
+        return FeatureTypeHolder.featureType;
     }
 
     static class RulePersistenceServiceHolder {
         private static RulePersistenceService rulePersistenceService;
+    }
+
+    static class FeatureTypeHolder {
+        private static FeatureType featureType;
     }
 }
