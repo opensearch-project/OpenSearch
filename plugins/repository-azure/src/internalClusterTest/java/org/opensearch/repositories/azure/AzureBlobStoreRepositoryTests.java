@@ -95,7 +95,7 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new AzureErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+        return new AzureErroneousHttpHandler(delegate, randomDoubleBetween(0, 0.25, false));
     }
 
     @Override
@@ -163,8 +163,8 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
     private static class AzureErroneousHttpHandler extends ErroneousHttpHandler {
 
-        AzureErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
-            super(delegate, maxErrorsPerRequest);
+        AzureErroneousHttpHandler(final HttpHandler delegate, final double maxErrorsPercentage) {
+            super(delegate, maxErrorsPercentage);
         }
 
         @Override
