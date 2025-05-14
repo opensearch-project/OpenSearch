@@ -72,12 +72,14 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     private static HttpsServer httpsServer;
 
     static {
-        int highestPriority = 1;
-        if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
-            Security.insertProviderAt(new BouncyCastleFipsProvider(), highestPriority++);
-        }
-        if (Security.getProvider(BouncyCastleJsseProvider.PROVIDER_NAME) == null) {
-            Security.insertProviderAt(new BouncyCastleJsseProvider(), highestPriority);
+        if (inFipsJvm()) {
+            int highestPriority = 1;
+            if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
+                Security.insertProviderAt(new BouncyCastleFipsProvider(), highestPriority++);
+            }
+            if (Security.getProvider(BouncyCastleJsseProvider.PROVIDER_NAME) == null) {
+                Security.insertProviderAt(new BouncyCastleJsseProvider(), highestPriority);
+            }
         }
     }
 
@@ -134,7 +136,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     private static SSLContext getSslContext(boolean server) throws Exception {
         SSLContext sslContext;
         char[] password = "password".toCharArray();
-        SecureRandom secureRandom = SecureRandom.getInstance("DEFAULT", "BCFIPS");
+        SecureRandom secureRandom = SecureRandom.getInstanceStrong();
         String fileExtension = ".jks";
 
         try (
@@ -143,18 +145,15 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
         ) {
             KeyStore keyStore = KeyStore.getInstance("JKS");
             keyStore.load(keyStoreFile, password);
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance("PKIX", "BCJSSE");
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance("PKIX");
             kmf.init(keyStore, password);
 
             KeyStore trustStore = KeyStore.getInstance("JKS");
             trustStore.load(trustStoreFile, password);
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance("PKIX", "BCJSSE");
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance("PKIX");
             tmf.init(trustStore);
 
-            SSLContextBuilder sslContextBuilder = SSLContextBuilder.create()
-                .setProvider("BCJSSE")
-                .setProtocol(getProtocol())
-                .setSecureRandom(secureRandom);
+            SSLContextBuilder sslContextBuilder = SSLContextBuilder.create().setProtocol(getProtocol()).setSecureRandom(secureRandom);
 
             if (server) {
                 sslContextBuilder.loadKeyMaterial(keyStore, password);
