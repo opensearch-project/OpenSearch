@@ -65,15 +65,7 @@ import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
-import java.util.AbstractList;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -552,7 +544,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
             SearchResponse response = context.getClient().search(
                 new SearchRequest(termsLookup.index())
-                    .source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(false))
+                    .source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true))
             ).actionGet();
 
             System.out.println("Subquery Response: " + response);
@@ -653,22 +645,34 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             try {
                 response = shardContext.getClient().search(
                     new SearchRequest(termsLookup.index())
-                        .source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(false))
+                        .source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true))
                 ).actionGet();
-
-                System.out.println("Extracted Terms: ");
-                for (SearchHit hit : response.getHits().getHits()) {
-                    System.out.println(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
-                }
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to execute subquery: " + e.getMessage(), e);
             }
-
-            // Extract terms from the response
+            // Extract terms from search hits
             List<Object> terms = new ArrayList<>();
             for (SearchHit hit : response.getHits().getHits()) {
-                terms.addAll(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
+                Map<String, Object> source = hit.getSourceAsMap();
+                if (source != null) {
+                    try {
+                        List<Object> extracted = XContentMapValues.extractRawValues(termsLookup.path(), source);
+                        terms.addAll(extracted);
+                        System.out.println("Extracted Terms: " + extracted);
+                    } catch (Exception ex) {
+                        System.err.println("Error extracting path '" + termsLookup.path() + "' from source: " + source);
+                        ex.printStackTrace();
+                    }
+                } else {
+                    System.err.println("Source is null for hit: " + hit);
+                }
             }
+
+//            // Extract terms from the response
+//            List<Object> terms = new ArrayList<>();
+//            for (SearchHit hit : response.getHits().getHits()) {
+//                terms.addAll(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
+//            }
 
             // Return a new TermsQueryBuilder with the fetched terms
             return new TermsQueryBuilder(fieldName, terms);
