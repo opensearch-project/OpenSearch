@@ -1013,54 +1013,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public List<IndexRequest> getChildIndexRequests() {
         List<IndexRequest> childIndexRequests = new ArrayList<>();
-        switch (getType()) {
-            case NORMAL_UPDATE, DOC_AS_UPSERT -> childIndexRequests.add(doc);
-            case NORMAL_UPSERT -> {
-                childIndexRequests.add(doc);
-                childIndexRequests.add(upsertRequest);
-            }
-            case UPSERT_WITH_SCRIPT -> childIndexRequests.add(upsertRequest);
-            // Scripted updates have no child requests
+        if (doc != null) {
+            childIndexRequests.add(doc);
+        }
+        if (upsertRequest != null) {
+            childIndexRequests.add(upsertRequest);
         }
         return childIndexRequests;
-    }
-
-    /**
-     * Gets the type of update request, used to determine which pipelines to resolve and execute.
-     * This is calculated dynamically based on what flags and fields are populated.
-     * Validations for invalid cases (e.g. docAsUpsert with an upsert doc) are performed at constructor/parser level.
-     *
-     * @return the type of update request
-     */
-    public UpdateRequest.Type getType() {
-        if (docAsUpsert) {
-            return Type.DOC_AS_UPSERT;
-        } else if (upsertRequest != null && script != null) {
-            return Type.UPSERT_WITH_SCRIPT;
-        } else if (upsertRequest != null && script == null) {
-            return Type.NORMAL_UPSERT;
-        } else if (doc == null && script != null) {
-            return Type.UPDATE_WITH_SCRIPT;
-        } else if (doc == null && script == null) {
-            // This case should never occur when parsed from a bulk request, validations prevent this from occurring
-            return Type.EMPTY;
-        }
-
-        // Implicit conditions: upsertRequest == null && docAsUpsert == false
-        // script == null is also validated during request parsing
-        return Type.NORMAL_UPDATE;
-    }
-
-    /**
-     * Inner enum to classify the type of update request.
-     */
-    @PublicApi(since = "3.1.0")
-    public enum Type {
-        NORMAL_UPDATE,
-        NORMAL_UPSERT,
-        UPDATE_WITH_SCRIPT,
-        UPSERT_WITH_SCRIPT,
-        DOC_AS_UPSERT,
-        EMPTY
     }
 }

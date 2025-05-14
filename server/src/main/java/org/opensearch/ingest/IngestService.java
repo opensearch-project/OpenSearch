@@ -863,10 +863,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (pipelineId != null && IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
                     pipelinesInfoList.add(new IngestPipelineInfo(pipelineId, IngestPipelineType.DEFAULT));
                 }
-                if (pipelineId != null && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                if (finalPipelineId != null && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
                     pipelinesInfoList.add(new IngestPipelineInfo(finalPipelineId, IngestPipelineType.FINAL));
                 }
-                if (pipelineId != null && IngestService.NOOP_PIPELINE_NAME.equals(systemPipelineId) == false) {
+                if (systemPipelineId != null && IngestService.NOOP_PIPELINE_NAME.equals(systemPipelineId) == false) {
                     pipelinesInfoList.add(new IngestPipelineInfo(systemPipelineId, IngestPipelineType.SYSTEM_FINAL));
                 }
 

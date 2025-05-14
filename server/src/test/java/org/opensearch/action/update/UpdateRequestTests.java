@@ -670,29 +670,6 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         );
     }
 
-    public void testGetType() {
-        UpdateRequest request = new UpdateRequest("test", "1");
-        assertEquals(request.getType(), UpdateRequest.Type.EMPTY);
-
-        IndexRequest docRequest = new IndexRequest("test").id("1");
-        IndexRequest upsertRequest = new IndexRequest("test").id("1");
-
-        request = new UpdateRequest("test", "1").doc(docRequest);
-        assertEquals(request.getType(), UpdateRequest.Type.NORMAL_UPDATE);
-
-        request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.field = \"foo\""));
-        assertEquals(request.getType(), UpdateRequest.Type.UPDATE_WITH_SCRIPT);
-
-        request = new UpdateRequest("test", "1").doc(docRequest).upsert(upsertRequest);
-        assertEquals(request.getType(), UpdateRequest.Type.NORMAL_UPSERT);
-
-        request = new UpdateRequest("test", "1").doc(docRequest).upsert(upsertRequest).script(mockInlineScript("ctx.field = \"foo\""));
-        assertEquals(request.getType(), UpdateRequest.Type.UPSERT_WITH_SCRIPT);
-
-        request = new UpdateRequest("test", "1").doc(docRequest).docAsUpsert(true);
-        assertEquals(request.getType(), UpdateRequest.Type.DOC_AS_UPSERT);
-    }
-
     public void testGetChildIndexRequests() {
         UpdateRequest request = new UpdateRequest("test", "1");
         IndexRequest docRequest = new IndexRequest("test").id("1");
