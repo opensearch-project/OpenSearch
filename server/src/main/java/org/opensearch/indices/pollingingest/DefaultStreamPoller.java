@@ -10,8 +10,12 @@ package org.opensearch.indices.pollingingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
@@ -30,6 +34,7 @@ import java.util.concurrent.Executors;
  */
 public class DefaultStreamPoller implements StreamPoller {
     private static final Logger logger = LogManager.getLogger(DefaultStreamPoller.class);
+    private static final int DEFAULT_POLLER_SLEEP_PERIOD_MS = 100;
 
     private volatile State state = State.NONE;
 
@@ -38,6 +43,9 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile boolean closed;
     private volatile boolean paused;
     private volatile IngestionErrorStrategy errorStrategy;
+
+    // indicates if a local or global cluster write block is in effect
+    private volatile boolean isWriteBlockEnabled;
 
     private volatile long lastPolledMessageTimestamp = 0;
 
@@ -56,6 +64,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private int pollTimeout;
 
     private Set<IngestionShardPointer> persistedPointers;
+    private final String indexName;
 
     private final CounterMetric totalPolledCount = new CounterMetric();
     private final CounterMetric totalConsumerErrorCount = new CounterMetric();
@@ -98,7 +107,8 @@ public class DefaultStreamPoller implements StreamPoller {
             errorStrategy,
             initialState,
             maxPollSize,
-            pollTimeout
+            pollTimeout,
+            ingestionEngine.config().getIndexSettings()
         );
     }
 
@@ -112,7 +122,8 @@ public class DefaultStreamPoller implements StreamPoller {
         IngestionErrorStrategy errorStrategy,
         State initialState,
         long maxPollSize,
-        int pollTimeout
+        int pollTimeout,
+        IndexSettings indexSettings
     ) {
         this.consumer = Objects.requireNonNull(consumer);
         this.resetState = resetState;
@@ -133,6 +144,8 @@ public class DefaultStreamPoller implements StreamPoller {
             )
         );
         this.errorStrategy = errorStrategy;
+        this.indexName = indexSettings.getIndex().getName();
+
     }
 
     @Override
@@ -199,11 +212,10 @@ public class DefaultStreamPoller implements StreamPoller {
                     resetState = ResetState.NONE;
                 }
 
-                if (paused) {
+                if (paused || isWriteBlockEnabled) {
                     state = State.PAUSED;
                     try {
-                        // TODO: make sleep time configurable
-                        Thread.sleep(100);
+                        Thread.sleep(DEFAULT_POLLER_SLEEP_PERIOD_MS);
                     } catch (Throwable e) {
                         logger.error("Error in pausing the poller of shard {}: {}", consumer.getShardId(), e);
                     }
@@ -416,5 +428,31 @@ public class DefaultStreamPoller implements StreamPoller {
     public void updateErrorStrategy(IngestionErrorStrategy errorStrategy) {
         this.errorStrategy = errorStrategy;
         blockingQueueContainer.updateErrorStrategy(errorStrategy);
+    }
+
+    @Override
+    public boolean isWriteBlockEnabled() {
+        return isWriteBlockEnabled;
+    }
+
+    @Override
+    public void setWriteBlockEnabled(boolean isWriteBlockEnabled) {
+        this.isWriteBlockEnabled = isWriteBlockEnabled;
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        try {
+            if (event.blocksChanged() == false) {
+                return;
+            }
+
+            final ClusterState state = event.state();
+            isWriteBlockEnabled = state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName);
+
+        } catch (Exception e) {
+            logger.error("Error applying cluster state in stream poller", e);
+            throw e;
+        }
     }
 }
