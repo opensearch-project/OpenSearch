@@ -634,8 +634,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
             if (shardContext == null) {
                 return this;
-                //throw new IllegalStateException("QueryShardContext is required for rewriting the query.");
-                //throw new IllegalStateException("QueryShardContext is null. QueryRewriteContext: " + queryRewriteContext.toString());
             }
             // Rewrite the subquery using the shard context
             QueryBuilder rewrittenQuery = termsLookup.query().rewrite(shardContext);
@@ -667,13 +665,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                     System.err.println("Source is null for hit: " + hit);
                 }
             }
-
-//            // Extract terms from the response
-//            List<Object> terms = new ArrayList<>();
-//            for (SearchHit hit : response.getHits().getHits()) {
-//                terms.addAll(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
-//            }
-
             // Return a new TermsQueryBuilder with the fetched terms
             return new TermsQueryBuilder(fieldName, terms);
         }
