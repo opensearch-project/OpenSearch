@@ -183,6 +183,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     @Override
     public InternalStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         long count = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;

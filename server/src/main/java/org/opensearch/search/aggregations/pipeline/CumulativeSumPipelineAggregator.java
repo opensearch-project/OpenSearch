@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -64,6 +65,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         InternalMultiBucketAggregation<
             ? extends InternalMultiBucketAggregation,
             ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
@@ -74,6 +76,7 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         List<Bucket> newBuckets = new ArrayList<>(buckets.size());
         double sum = 0;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
+            checkCancelled(reduceContext);
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.INSERT_ZEROS);
 
             // Only increment the sum if it's a finite value, otherwise "increment by zero" is correct

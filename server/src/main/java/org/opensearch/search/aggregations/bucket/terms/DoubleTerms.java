@@ -220,7 +220,9 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         boolean promoteToDouble = false;
+        checkCancelled(reduceContext);
         for (InternalAggregation agg : aggregations) {
+            checkCancelled(reduceContext);
             if (agg instanceof LongTerms
                 && (((LongTerms) agg).format == DocValueFormat.RAW || ((LongTerms) agg).format == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
                 /*

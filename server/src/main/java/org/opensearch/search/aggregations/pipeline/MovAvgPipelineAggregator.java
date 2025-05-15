@@ -87,6 +87,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         InternalMultiBucketAggregation<
             ? extends InternalMultiBucketAggregation,
             ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
@@ -109,6 +110,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         }
 
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
+            checkCancelled(reduceContext);
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
 
             // Default is to reuse existing bucket. Simplifies the rest of the logic,

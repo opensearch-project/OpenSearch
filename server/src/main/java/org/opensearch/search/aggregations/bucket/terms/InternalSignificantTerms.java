@@ -234,6 +234,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         LocalBucketCountThresholds localBucketCountThresholds = reduceContext.asLocalBucketCountThresholds(bucketCountThresholds);
         long globalSubsetSize = 0;
         long globalSupersetSize = 0;
@@ -253,6 +254,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         }
         Map<String, List<B>> buckets = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
+            checkCancelled(reduceContext);
             @SuppressWarnings("unchecked")
             InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
             for (B bucket : terms.getBuckets()) {

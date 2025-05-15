@@ -259,6 +259,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         reduceContext.consumeBucketsAndMaybeBreak(buckets.size());
+        checkCancelled(reduceContext);
         long[] docCounts = new long[buckets.size()];
         InternalAggregations[][] aggs = new InternalAggregations[buckets.size()][];
         for (int i = 0; i < aggs.length; ++i) {
@@ -277,6 +278,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         }
         List<Bucket> buckets = new ArrayList<>(this.buckets.size());
         for (int i = 0; i < this.buckets.size(); ++i) {
+            checkCancelled(reduceContext);
             Bucket b = this.buckets.get(i);
             buckets.add(
                 new Bucket(

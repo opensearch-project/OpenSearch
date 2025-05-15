@@ -118,6 +118,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
 
     @Override
     public InternalGeoCentroid reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         double lonSum = Double.NaN;
         double latSum = Double.NaN;
         long totalCount = 0;

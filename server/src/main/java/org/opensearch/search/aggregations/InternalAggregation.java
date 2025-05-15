@@ -37,6 +37,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.action.search.RestSearchAction;
@@ -295,9 +296,17 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     ) {
         assert reduceContext.isFinalReduce();
         for (PipelineAggregator pipelineAggregator : pipelinesForThisAgg.aggregators()) {
+            checkCancelled(reduceContext);
             reducedAggs = pipelineAggregator.reduce(reducedAggs, reduceContext);
         }
         return reducedAggs;
+    }
+
+    protected static void checkCancelled(ReduceContext reduceContext) {
+        if (reduceContext.isTaskCancelled()){
+            throw new OpenSearchRejectedExecutionException("search is cancelled");
+        }
+        reduceContext.consumeBucketsAndMaybeBreak(0);
     }
 
     /**

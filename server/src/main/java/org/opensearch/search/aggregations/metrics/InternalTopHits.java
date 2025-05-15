@@ -120,6 +120,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         final SearchHits[] shardHits = new SearchHits[aggregations.size()];
         final int from;
         final int size;

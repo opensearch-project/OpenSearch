@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.script.BucketAggregationScript;
 import org.opensearch.script.Script;
 import org.opensearch.search.DocValueFormat;
@@ -78,6 +79,8 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
+
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
             (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
@@ -91,6 +94,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             }
             boolean skipBucket = false;
             for (Map.Entry<String, String> entry : bucketsPathsMap.entrySet()) {
+                checkCancelled(reduceContext);
                 String varName = entry.getKey();
                 String bucketsPath = entry.getValue();
                 Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);

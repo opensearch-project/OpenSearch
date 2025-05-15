@@ -97,6 +97,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         InternalMultiBucketAggregation<
             ? extends InternalMultiBucketAggregation,
             ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
@@ -123,6 +124,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
 
         int index = 0;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
+            checkCancelled(reduceContext);
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
 
             // Default is to reuse existing bucket. Simplifies the rest of the logic,

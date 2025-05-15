@@ -41,6 +41,7 @@ import org.opensearch.common.Numbers;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongArray;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
@@ -228,6 +229,9 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        if (context().isCancelled()) {
+            throw new OpenSearchRejectedExecutionException("query is cancelled");
+        }
         return resultStrategy.buildAggregations(owningBucketOrds);
     }
 
@@ -399,6 +403,9 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
         @Override
         final void buildSubAggs(B[][] topBucketsPerOrd) throws IOException {
+            if (context().isCancelled()) {
+                throw new OpenSearchRejectedExecutionException("query is cancelled");
+            }
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }
 
@@ -749,6 +756,9 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
         @Override
         void buildSubAggs(SignificantLongTerms.Bucket[][] topBucketsPerOrd) throws IOException {
+            if (context().isCancelled()) {
+                throw new OpenSearchRejectedExecutionException("query is cancelled");
+            }
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }
 

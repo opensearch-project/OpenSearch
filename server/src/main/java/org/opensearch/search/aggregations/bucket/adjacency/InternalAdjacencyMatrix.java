@@ -203,10 +203,12 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         Map<String, List<InternalBucket>> bucketsMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
             InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
             for (InternalBucket bucket : filters.buckets) {
+                checkCancelled(reduceContext);
                 List<InternalBucket> sameRangeList = bucketsMap.get(bucket.key);
                 if (sameRangeList == null) {
                     sameRangeList = new ArrayList<>(aggregations.size());

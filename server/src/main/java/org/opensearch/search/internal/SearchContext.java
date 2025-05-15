@@ -86,6 +86,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
@@ -105,7 +106,7 @@ public abstract class SearchContext implements Releasable {
     // no-op bucket collector processor
     public static final BucketCollectorProcessor NO_OP_BUCKET_COLLECTOR_PROCESSOR = new BucketCollectorProcessor() {
         @Override
-        public void processPostCollection(Collector collectorTree) {
+        public void processPostCollection(Collector collectorTree, BooleanSupplier isCancelled) {
             // do nothing as there is no aggregation collector
         }
 

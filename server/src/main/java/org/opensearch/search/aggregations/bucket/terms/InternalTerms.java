@@ -390,6 +390,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     }
 
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         LocalBucketCountThresholds localBucketCountThresholds = reduceContext.asLocalBucketCountThresholds(bucketCountThresholds);
         long sumDocCountError = 0;
         long otherDocCount = 0;

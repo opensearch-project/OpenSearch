@@ -356,7 +356,7 @@ public class QueryPhase {
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
             // EarlyTerminationException is not caught in ContextIndexSearcher to allow force termination of collection. Postcollection
             // still needs to be processed for Aggregations when early termination takes place.
-            searchContext.bucketCollectorProcessor().processPostCollection(queryCollector);
+            searchContext.bucketCollectorProcessor().processPostCollection(queryCollector, searchContext::isCancelled);
             queryResult.terminatedEarly(true);
         }
         if (searchContext.isSearchTimedOut()) {

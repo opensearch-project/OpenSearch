@@ -37,6 +37,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -237,6 +238,9 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final void preCollection() throws IOException {
+        if (context.isCancelled()) {
+            throw new OpenSearchRejectedExecutionException("search is cancelled");
+        }
         List<BucketCollector> collectors = Arrays.asList(subAggregators);
         collectableSubAggregators = MultiBucketCollector.wrap(collectors);
         doPreCollection();
@@ -294,6 +298,9 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public void postCollection() throws IOException {
         // post-collect this agg before subs to make it possible to buffer and then replay in postCollection()
+        if (context.isCancelled()) {
+            throw new OpenSearchRejectedExecutionException("search is cancelled");
+        }
         doPostCollection();
         collectableSubAggregators.postCollection();
     }

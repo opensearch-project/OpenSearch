@@ -40,6 +40,7 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -202,6 +203,9 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public final InternalAggregation buildTopLevel() throws IOException {
         assert parent() == null;
+        if (context().isCancelled()) {
+            throw new OpenSearchRejectedExecutionException("query is cancelled");
+        }
         this.internalAggregation.set(buildAggregations(new long[] { 0 })[0]);
         return internalAggregation.get();
     }

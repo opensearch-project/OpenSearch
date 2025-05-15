@@ -342,6 +342,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @SuppressWarnings("unchecked")
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
         List<B>[] rangeList = new List[ranges.size()];
         for (int i = 0; i < rangeList.length; ++i) {

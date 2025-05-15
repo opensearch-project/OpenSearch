@@ -12,6 +12,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.MultiCollector;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.MinimumScoreCollector;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.InternalProfileCollector;
 
@@ -23,6 +24,7 @@ import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.function.BooleanSupplier;
 
 /**
  * Processor to perform collector level processing specific to {@link BucketCollector} in different stages like: a) PostCollection
@@ -57,10 +59,13 @@ public class BucketCollectorProcessor {
      * </p>
      * @param collectorTree collector tree used by calling thread
      */
-    public void processPostCollection(Collector collectorTree) throws IOException {
+    public void processPostCollection(Collector collectorTree, BooleanSupplier isCancelled) throws IOException {
         final Queue<Collector> collectors = new LinkedList<>();
         collectors.offer(collectorTree);
         while (!collectors.isEmpty()) {
+            if (isCancelled.getAsBoolean()) {
+                throw new OpenSearchRejectedExecutionException("Search was cancelled while post collection phase");
+            }
             Collector currentCollector = collectors.poll();
             if (currentCollector instanceof InternalProfileCollector) {
                 collectors.offer(((InternalProfileCollector) currentCollector).getCollector());
@@ -124,11 +129,14 @@ public class BucketCollectorProcessor {
      * @param collectors collection of aggregation collectors to reduce
      * @return list of unwrapped {@link InternalAggregation}
      */
-    public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors) throws IOException {
+    public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors, BooleanSupplier isCancelled) throws IOException {
         List<InternalAggregation> internalAggregations = new ArrayList<>();
 
         final Deque<Collector> allCollectors = new LinkedList<>(collectors);
         while (!allCollectors.isEmpty()) {
+            if (isCancelled.getAsBoolean()) {
+                throw new OpenSearchRejectedExecutionException("Search was cancelled while post collection phase");
+            }
             Collector currentCollector = allCollectors.pop();
             if (currentCollector instanceof InternalProfileCollector) {
                 currentCollector = ((InternalProfileCollector) currentCollector).getCollector();
