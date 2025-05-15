@@ -539,16 +539,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (termsLookup != null && termsLookup.query() != null) {
-            // System.out.println("Executing subquery: " + termsLookup.query());
             QueryBuilder rewrittenQuery = termsLookup.query().rewrite(context);
-            // Query query = rewrittenQuery.toQuery(context);
-            // QueryBuilder query = termsLookup.query().rewrite(context);
 
             SearchResponse response = context.getClient()
                 .search(new SearchRequest(termsLookup.index()).source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true)))
                 .actionGet();
-
-            // System.out.println("Subquery Response: " + response);
 
             List<Object> terms = new ArrayList<>();
             for (SearchHit hit : response.getHits().getHits()) {
@@ -638,7 +633,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             }
             // Rewrite the subquery using the shard context
             QueryBuilder rewrittenQuery = termsLookup.query().rewrite(shardContext);
-            // System.out.println("Rewritten Query: " + rewrittenQuery);
 
             SearchResponse response;
             try {
@@ -658,13 +652,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                     try {
                         List<Object> extracted = XContentMapValues.extractRawValues(termsLookup.path(), source);
                         terms.addAll(extracted);
-                        // System.out.println("Extracted Terms: " + extracted);
                     } catch (Exception ex) {
-                        // System.err.println("Error extracting path '" + termsLookup.path() + "' from source: " + source);
                         throw new IllegalStateException("Failed to execute subquery: " + ex.getMessage(), ex);
                     }
                 } else {
-                    // System.err.println("Source is null for hit: " + hit);
                     throw new IllegalStateException("Source is null for hit: " + hit);
                 }
             }
@@ -708,6 +699,5 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
 
         return this;
-        // return super.doRewrite(queryRewriteContext);
     }
 }

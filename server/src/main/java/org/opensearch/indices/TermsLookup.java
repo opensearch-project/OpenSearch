@@ -67,7 +67,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     private QueryBuilder query;
 
     public TermsLookup(String index, String id, String path) {
-        this(index, id, path, null); // Delegate to the existing constructor
+        this(index, id, path, null);
     }
 
     public TermsLookup(String index, String id, String path, QueryBuilder query) {
@@ -187,9 +187,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
         String index = (String) args[0];
-        String id = (String) args[1]; // Optional id
+        String id = (String) args[1]; // Optional id or query but not both
         String path = (String) args[2];
-        QueryBuilder query = (QueryBuilder) args[3]; // Optional query
+        QueryBuilder query = (QueryBuilder) args[3]; // Optional id or query but not both
 
         // Validation: Either id or query must be present, but not both
         if (id == null && query == null) {
