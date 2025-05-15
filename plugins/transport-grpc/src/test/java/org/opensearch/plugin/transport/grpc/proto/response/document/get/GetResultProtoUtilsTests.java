@@ -101,13 +101,13 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
 
         // Convert to Protocol Buffer
         InlineGetDictUserDefined.Builder builder = InlineGetDictUserDefined.newBuilder();
-        InlineGetDictUserDefined.Builder result = GetResultProtoUtils.toProtoEmbedded(getResult, builder);
+        GetResultProtoUtils.toProtoEmbedded(getResult, builder);
 
         // Verify the conversion
-        assertTrue("Should be found", result.getFound());
-        assertEquals("Should have the correct sequence number", seqNo, result.getSeqNo());
-        assertEquals("Should have the correct primary term", primaryTerm, result.getPrimaryTerm());
-        assertEquals("Should have the correct source", ByteString.copyFrom(sourceBytes), result.getSource());
+        assertTrue("Should be found", builder.getFound());
+        assertEquals("Should have the correct sequence number", seqNo, builder.getSeqNo());
+        assertEquals("Should have the correct primary term", primaryTerm, builder.getPrimaryTerm());
+        assertEquals("Should have the correct source", ByteString.copyFrom(sourceBytes), builder.getSource());
     }
 
     public void testToProtoEmbeddedWithoutSequenceNumber() throws IOException {
@@ -131,15 +131,15 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
 
         // Convert to Protocol Buffer
         InlineGetDictUserDefined.Builder builder = InlineGetDictUserDefined.newBuilder();
-        InlineGetDictUserDefined.Builder result = GetResultProtoUtils.toProtoEmbedded(getResult, builder);
+        GetResultProtoUtils.toProtoEmbedded(getResult, builder);
 
         // Verify the conversion
-        assertTrue("Should be found", result.getFound());
-        assertEquals("Should have the correct source", ByteString.copyFrom(source.toBytesRef().bytes), result.getSource());
+        assertTrue("Should be found", builder.getFound());
+        assertEquals("Should have the correct source", ByteString.copyFrom(source.toBytesRef().bytes), builder.getSource());
 
         // Sequence number and primary term should not be set
-        assertFalse("Should not have sequence number", result.hasSeqNo());
-        assertFalse("Should not have primary term", result.hasPrimaryTerm());
+        assertFalse("Should not have sequence number", builder.hasSeqNo());
+        assertFalse("Should not have primary term", builder.hasPrimaryTerm());
     }
 
     public void testToProtoEmbeddedWithoutSource() throws IOException {
@@ -161,12 +161,12 @@ public class GetResultProtoUtilsTests extends OpenSearchTestCase {
 
         // Convert to Protocol Buffer
         InlineGetDictUserDefined.Builder builder = InlineGetDictUserDefined.newBuilder();
-        InlineGetDictUserDefined.Builder result = GetResultProtoUtils.toProtoEmbedded(getResult, builder);
+        GetResultProtoUtils.toProtoEmbedded(getResult, builder);
 
         // Verify the conversion
-        assertTrue("Should be found", result.getFound());
+        assertTrue("Should be found", builder.getFound());
 
         // Source should not be set
-        assertFalse("Should not have source", result.hasSource());
+        assertFalse("Should not have source", builder.hasSource());
     }
 }
