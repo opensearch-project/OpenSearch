@@ -46,6 +46,8 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.Environment;
+import org.opensearch.search.lookup.FieldsLookup;
+import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -63,10 +65,12 @@ import static org.opensearch.script.ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SE
 import static org.opensearch.script.ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING;
 import static org.opensearch.script.ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING;
 import static org.opensearch.script.ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING;
+import static org.opensearch.search.lookup.SearchLookup.UNKNOWN_SHARD_ID;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class ScriptServiceTests extends OpenSearchTestCase {
 
@@ -178,6 +182,22 @@ public class ScriptServiceTests extends OpenSearchTestCase {
         FieldScript.Factory factoryScript1 = scriptService.compile(script, FieldScript.CONTEXT);
         FieldScript.Factory factoryScript2 = scriptService.compile(script, FieldScript.CONTEXT);
         assertThat(factoryScript1, sameInstance(factoryScript2));
+    }
+
+    public void testScriptsUseCachedSourceLookup() throws IOException {
+        buildScriptService(Settings.EMPTY);
+        Script script = new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap());
+        FieldScript.Factory factoryScript = scriptService.compile(script, FieldScript.CONTEXT);
+
+        FieldScript.LeafFactory leafFactory = factoryScript.newFactory(
+            new HashMap<>(),
+            new SearchLookup(null, null, UNKNOWN_SHARD_ID, mock(FieldsLookup.class))
+        );
+
+        FieldScript script1 = leafFactory.newInstance(null);
+        FieldScript script2 = leafFactory.newInstance(null);
+
+        assertThat(script1.getLeafLookup().source(), sameInstance(script2.getLeafLookup().source()));
     }
 
     public void testAllowAllScriptTypeSettings() throws IOException {

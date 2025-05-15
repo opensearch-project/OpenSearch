@@ -74,6 +74,7 @@ import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
 import org.opensearch.common.util.CachedSupplier;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
@@ -724,6 +725,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 query = ((ConstantScoreQuery) query).getQuery();
             } else if (query instanceof BoostQuery) {
                 query = ((BoostQuery) query).getQuery();
+            } else if (query instanceof ApproximateScoreQuery) {
+                query = ((ApproximateScoreQuery) query).getOriginalQuery();
             } else {
                 break;
             }

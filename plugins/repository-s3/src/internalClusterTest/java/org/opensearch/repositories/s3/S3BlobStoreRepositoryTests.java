@@ -137,7 +137,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new S3StatsCollectorHttpHandler(new S3ErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
+        return new S3StatsCollectorHttpHandler(new S3ErroneousHttpHandler(delegate, randomDoubleBetween(0, 0.25, false)));
     }
 
     @Override
@@ -332,8 +332,8 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     private static class S3ErroneousHttpHandler extends ErroneousHttpHandler {
 
-        S3ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
-            super(delegate, maxErrorsPerRequest);
+        S3ErroneousHttpHandler(final HttpHandler delegate, final double maxErrorsPercentage) {
+            super(delegate, maxErrorsPercentage);
         }
 
         @Override

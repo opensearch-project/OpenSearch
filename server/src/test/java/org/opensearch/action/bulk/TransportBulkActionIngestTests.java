@@ -43,6 +43,7 @@ import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.metadata.AliasMetadata;
@@ -51,12 +52,14 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.metadata.Template;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -72,7 +75,7 @@ import org.opensearch.ingest.IngestService;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.ClusterServiceUtils;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -92,6 +95,7 @@ import java.util.function.BiConsumer;
 import org.mockito.ArgumentCaptor;
 
 import static java.util.Collections.emptyMap;
+import static org.opensearch.ingest.IngestServiceTests.createIngestServiceWithProcessors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Answers.RETURNS_MOCKS;
@@ -99,15 +103,19 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class TransportBulkActionIngestTests extends OpenSearchTestCase {
+public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase {
 
     /**
      * Index for which mock settings contain a default pipeline.
@@ -287,7 +295,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             return null;
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         // setup the mocked ingest service for capturing calls
-        ingestService = mock(IngestService.class);
+        ingestService = spy(createIngestServiceWithProcessors(Collections.emptyMap()));
+        doNothing().when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
         action = new TestTransportBulkAction();
         singleItemBulkWriteAction = new TestSingleItemBulkWriteAction(action);
         reset(transportService); // call on construction of action
@@ -300,7 +309,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         bulkRequest.add(indexRequest);
         action.execute(null, bulkRequest, ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); }));
         assertTrue(action.isExecuted);
-        verifyNoInteractions(ingestService);
+        verify(ingestService, times(1)).resolvePipelines(any(), any(), any());
+        verifyNoMoreInteractions(ingestService);
     }
 
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
@@ -310,7 +320,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             throw new AssertionError(exception);
         }));
         assertTrue(action.isExecuted);
-        verifyNoInteractions(ingestService);
+        verify(ingestService, times(1)).resolvePipelines(any(), any(), any());
+        verifyNoMoreInteractions(ingestService);
     }
 
     public void testIngestLocal() throws Exception {
@@ -655,8 +666,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             failureCalled.set(true);
         }));
         assertEquals(IngestService.NOOP_PIPELINE_NAME, indexRequest.getPipeline());
-        verifyNoInteractions(ingestService);
-
+        verify(ingestService, times(1)).resolvePipelines(any(), any(), any());
+        verifyNoMoreInteractions(ingestService);
     }
 
     public void testFindDefaultPipelineFromTemplateMatch() {
@@ -720,12 +731,16 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         );
     }
 
-    public void testFindDefaultPipelineFromV2TemplateMatch() {
+    public void testFindDefaultPipelineFromV2TemplateMatch() throws Exception {
         Exception exception = new Exception("fake exception");
 
         ComposableIndexTemplate t1 = new ComposableIndexTemplate(
             Collections.singletonList("missing_*"),
-            new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
+            new Template(
+                Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(),
+                new CompressedXContent("{}"),
+                null
+            ),
             null,
             null,
             null,
@@ -734,9 +749,16 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         );
 
         ClusterState state = clusterService.state();
+        final MetadataIndexTemplateService metadataIndexTemplateService = getInstanceFromNode(MetadataIndexTemplateService.class);
+        metadataIndexTemplateService.addIndexTemplateV2(state, false, "my-template", t1);
         Metadata metadata = Metadata.builder().put("my-template", t1).build();
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
+        // mock the cluster state for the ingest service
+        ClusterState ingestServiceClusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        ingestService.applyClusterState(
+            new ClusterChangedEvent("testFindDefaultPipelineFromV2TemplateMatch", ingestServiceClusterState, ingestServiceClusterState)
+        );
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(emptyMap());
@@ -757,6 +779,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             any(),
             eq(Names.WRITE)
         );
+
+        state.metadata().templatesV2().remove("my-template");
     }
 
     private void validateDefaultPipeline(IndexRequest indexRequest) {

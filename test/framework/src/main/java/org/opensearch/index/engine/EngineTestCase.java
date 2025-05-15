@@ -68,6 +68,7 @@ import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
@@ -991,7 +992,11 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     /**
      * Override config with ingestion engine configs
      */
-    protected EngineConfig config(EngineConfig config, Supplier<DocumentMapperForType> documentMapperForTypeSupplier) {
+    protected EngineConfig config(
+        EngineConfig config,
+        Supplier<DocumentMapperForType> documentMapperForTypeSupplier,
+        ClusterApplierService clusterApplierService
+    ) {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder().put(config.getIndexSettings().getSettings()).build()
@@ -1019,6 +1024,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .primaryTermSupplier(config.getPrimaryTermSupplier())
             .tombstoneDocSupplier(config.getTombstoneDocSupplier())
             .documentMapperForTypeSupplier(documentMapperForTypeSupplier)
+            .clusterApplierService(clusterApplierService)
             .build();
     }
 

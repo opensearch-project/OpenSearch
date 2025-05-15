@@ -129,6 +129,6 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
     }
 
     private long getCurrentThreadId() {
-        return Thread.currentThread().getId();
+        return Thread.currentThread().threadId();
     }
 }

@@ -208,6 +208,20 @@ distribution_archives {
     }
   }
 
+  linuxRiscv64Tar {
+    archiveClassifier = 'linux-riscv64'
+    content {
+      archiveFiles(modulesFiles('linux-riscv64'), 'tar', 'linux', 'riscv64', JavaPackageType.JDK)
+    }
+  }
+
+  noJdkLinuxRiscv64Tar {
+    archiveClassifier = 'no-jdk-linux-riscv64'
+    content {
+      archiveFiles(modulesFiles('linux-riscv64'), 'tar', 'linux', 'riscv64', JavaPackageType.NONE)
+    }
+  }
+
   windowsZip {
     archiveClassifier = 'windows-x64'
     content {

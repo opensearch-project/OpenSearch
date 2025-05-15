@@ -138,7 +138,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         client().admin().indices().close(Requests.closeIndexRequest(indexName)).get();
     }
 
-    public void testUpdateAndDelete() throws Exception {
+    public void testMessageOperationTypes() throws Exception {
         // Step 1: Produce message and wait for it to be searchable
 
         produceData("1", "name", "25", defaultMessageTimestamp, "index");
@@ -167,6 +167,15 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
             SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             return response.getHits().getTotalHits().value() == 0;
+        });
+
+        // Step 4: Validate create operation
+        produceData("2", "name", "30", defaultMessageTimestamp, "create");
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "2"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 30 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
         });
     }
 

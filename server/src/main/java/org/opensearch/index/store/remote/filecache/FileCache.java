@@ -123,6 +123,11 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     }
 
     @Override
+    public Integer getRef(Path key) {
+        return theCache.getRef(key);
+    }
+
+    @Override
     public long prune() {
         return theCache.prune();
     }

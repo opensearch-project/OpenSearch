@@ -166,6 +166,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     "linux-arm64-tar",
                     "linux-ppc64le-tar",
                     "linux-s390x-tar",
+                    "linux-riscv64-tar",
                     "windows-zip"
                 )
             );

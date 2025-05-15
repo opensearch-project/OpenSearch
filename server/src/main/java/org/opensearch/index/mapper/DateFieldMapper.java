@@ -226,6 +226,38 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         return (DateFieldMapper) in;
     }
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        checkStoredAndDocValuesForDerivedSource();
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Considerations:
+     *     1. When building source using doc_values, for multi-value field, it will result values in sorted order
+     * <p>
+     * Date format:
+     *     1. If "print_format" specified in field mapping, then derived source will have date in this format
+     *     2. If multiple date formats are specified in field mapping and "print_format" is not specified then
+     *        derived source will contain date in first date format from "||" separated list of format defined in
+     *        "format"
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
+            @Override
+            public Object convert(Object value) {
+                Long val = (Long) value;
+                if (val == null) {
+                    return null;
+                }
+                return fieldType().dateTimeFormatter().format(resolution.toInstant(val).atZone(ZoneOffset.UTC));
+            }
+        }, new StoredFieldFetcher(mappedFieldType, simpleName()));
+    }
+
     /**
      * Builder for the date field mapper
      *

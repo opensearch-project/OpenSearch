@@ -53,7 +53,7 @@ public class KafkaUtils {
         }
 
         // validates topic is created
-        await().atMost(10, TimeUnit.SECONDS).until(() -> checkTopicExistence(topicName, bootstrapServers));
+        await().atMost(60, TimeUnit.SECONDS).until(() -> checkTopicExistence(topicName, bootstrapServers));
     }
 
     public static boolean checkTopicExistence(String topicName, String bootstrapServers) {

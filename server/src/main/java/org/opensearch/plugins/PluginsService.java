@@ -127,10 +127,48 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     public PluginsService(
         Settings settings,
-        Path configPath,
         Path modulesDirectory,
         Path pluginsDirectory,
         Collection<Class<? extends Plugin>> classpathPlugins
+    ) {
+        // Used for testing
+        this(
+            settings,
+            null,
+            modulesDirectory,
+            pluginsDirectory,
+            classpathPlugins.stream()
+                .map(
+                    p -> new PluginInfo(
+                        p.getName(),
+                        "classpath plugin",
+                        "NA",
+                        Version.CURRENT,
+                        "1.8",
+                        p.getName(),
+                        null,
+                        Collections.emptyList(),
+                        false
+                    )
+                )
+                .collect(Collectors.toList())
+        );
+    }
+
+    /**
+     * Constructs a new PluginService
+     * @param settings The settings of the system
+     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
+     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     * @param classpathPlugins Plugins that exist in the classpath which should be loaded
+     */
+    @SuppressWarnings("unchecked")
+    public PluginsService(
+        Settings settings,
+        Path configPath,
+        Path modulesDirectory,
+        Path pluginsDirectory,
+        Collection<PluginInfo> classpathPlugins
     ) {
         this.settings = settings;
         this.configPath = configPath;
@@ -140,25 +178,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
         // first we load plugins that are on the classpath. this is for tests
-        for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(
-                pluginClass.getName(),
-                "classpath plugin",
-                "NA",
-                Version.CURRENT,
-                "1.8",
-                pluginClass.getName(),
-                null,
-                Collections.emptyList(),
-                false
-            );
-            if (logger.isTraceEnabled()) {
-                logger.trace("plugin loaded from classpath [{}]", pluginInfo);
+        for (PluginInfo pluginInfo : classpathPlugins) {
+            try {
+                Class<? extends Plugin> pluginClazz = (Class<? extends Plugin>) Class.forName(pluginInfo.getClassname());
+                Plugin plugin = loadPlugin(pluginClazz, settings, configPath);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("plugin loaded from classpath [{}]", pluginInfo);
+                }
+                pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
+                pluginsList.add(pluginInfo);
+                pluginsNames.add(pluginInfo.getName());
+            } catch (ClassNotFoundException e) {
+                logger.error("Failed to load classpath plugin: " + pluginInfo.getClassname());
             }
-            pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
-            pluginsList.add(pluginInfo);
-            pluginsNames.add(pluginInfo.getName());
         }
 
         Set<Bundle> seenBundles = new LinkedHashSet<>();
@@ -196,6 +228,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(seenBundles);
         pluginsLoaded.addAll(loaded);
+        loadExtensions(pluginsLoaded);
 
         this.info = new PluginsAndModules(pluginsList, modulesList);
         this.plugins = Collections.unmodifiableList(pluginsLoaded);
@@ -583,7 +616,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             plugins.add(new Tuple<>(bundle.plugin, plugin));
         }
 
-        loadExtensions(plugins);
         return Collections.unmodifiableList(plugins);
     }
 

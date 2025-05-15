@@ -33,6 +33,7 @@ import java.io.IOException;
 import static java.util.Arrays.asList;
 import static org.apache.lucene.document.LongPoint.pack;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
 
@@ -371,5 +372,24 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         };
         SearchContext searchContext = mock(SearchContext.class);
         assertTrue(queryCanApproximate.canApproximate(searchContext));
+    }
+
+    public void testCannotApproximateWithTrackTotalHits() {
+        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+            "point",
+            pack(0).bytes,
+            pack(20).bytes,
+            1,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
+        SearchContext mockContext = mock(SearchContext.class);
+        when(mockContext.trackTotalHitsUpTo()).thenReturn(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        assertFalse(query.canApproximate(mockContext));
+        when(mockContext.trackTotalHitsUpTo()).thenReturn(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
+        when(mockContext.aggregations()).thenReturn(null);
+        when(mockContext.from()).thenReturn(0);
+        when(mockContext.size()).thenReturn(10);
+        when(mockContext.request()).thenReturn(null);
+        assertTrue(query.canApproximate(mockContext));
     }
 }

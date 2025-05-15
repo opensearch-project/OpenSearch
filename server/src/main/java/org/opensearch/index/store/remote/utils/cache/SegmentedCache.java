@@ -134,6 +134,12 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
+    public Integer getRef(K key) {
+        if (key == null) throw new NullPointerException();
+        return segmentFor(key).getRef(key);
+    }
+
+    @Override
     public long prune() {
         long sum = 0L;
         for (RefCountedCache<K, V> cache : table) {

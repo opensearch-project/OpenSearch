@@ -157,12 +157,16 @@ public class FileCacheTests extends OpenSearchTestCase {
         // IndexInput with refcount greater than 0 will not be evicted
         for (int i = 0; i < 4; i++) {
             assertNotNull(fileCache.get(createPath(Integer.toString(i))));
+            assertNotNull(fileCache.getRef(createPath(Integer.toString(i))));
+            assertEquals(2, (int) fileCache.getRef(createPath(Integer.toString(i))));
             fileCache.decRef(createPath(Integer.toString(i)));
         }
 
         // decrease ref
         for (int i = 0; i < 4; i++) {
             fileCache.decRef(createPath(Integer.toString(i)));
+            assertNotNull(fileCache.getRef(createPath(Integer.toString(i))));
+            assertEquals(0, (int) fileCache.getRef(createPath(Integer.toString(i))));
         }
 
         // try to evict previous IndexInput again
@@ -172,6 +176,7 @@ public class FileCacheTests extends OpenSearchTestCase {
 
         for (int i = 0; i < 4; i++) {
             assertNull(fileCache.get(createPath(Integer.toString(i))));
+            assertNull(fileCache.getRef(createPath(Integer.toString(i))));
         }
     }
 
