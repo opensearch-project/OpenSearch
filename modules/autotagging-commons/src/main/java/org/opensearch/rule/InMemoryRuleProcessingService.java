@@ -10,7 +10,6 @@ package org.opensearch.rule;
 
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
-import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.storage.AttributeValueStore;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
@@ -20,7 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 /**
  * This class is responsible for managing in-memory view of Rules and Find matching Rule for the request
@@ -32,15 +30,11 @@ public class InMemoryRuleProcessingService {
     private final AttributeValueStoreFactory attributeValueStoreFactory;
 
     /**
-     *  Constrcutor
-     * @param featureType
-     * @param attributeValueStoreSupplier
+     *  Constructor
+     * @param attributeValueStoreFactory
      */
-    public InMemoryRuleProcessingService(
-        FeatureType featureType,
-        Supplier<AttributeValueStore<String, String>> attributeValueStoreSupplier
-    ) {
-        attributeValueStoreFactory = new AttributeValueStoreFactory(featureType, attributeValueStoreSupplier);
+    public InMemoryRuleProcessingService(AttributeValueStoreFactory attributeValueStoreFactory) {
+        this.attributeValueStoreFactory = attributeValueStoreFactory;
     }
 
     /**
@@ -111,5 +105,13 @@ public class InMemoryRuleProcessingService {
             }
         }
         return result;
+    }
+
+    /**
+     * AttributeValueStoreFactory getter
+     * @return
+     */
+    public AttributeValueStoreFactory getAttributeValueStoreFactory() {
+        return attributeValueStoreFactory;
     }
 }

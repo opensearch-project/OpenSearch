@@ -8,19 +8,24 @@
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
-
 apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
-
 opensearchplugin {
   description = 'OpenSearch Workload Management Plugin.'
   classname = 'org.opensearch.plugin.wlm.WorkloadManagementPlugin'
-  extendedPlugins = [] // Remove autotagging-commons since it's not a plugin
+  extendedPlugins = ['rule-framework']
 }
 
 dependencies {
   implementation project(':modules:autotagging-commons:common')
-  implementation project(':modules:autotagging-commons:spi')
+  compileOnly project(':modules:autotagging-commons:spi')
+  compileOnly project(':modules:autotagging-commons')
+  testImplementation project(':modules:autotagging-commons')
+  testImplementation project(':modules:autotagging-commons:common')
+}
+
+testClusters.all {
+  testDistribution = 'archive'
 }
