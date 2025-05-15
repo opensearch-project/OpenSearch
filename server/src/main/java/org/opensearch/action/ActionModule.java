@@ -286,6 +286,7 @@ import org.opensearch.action.search.PutSearchPipelineAction;
 import org.opensearch.action.search.PutSearchPipelineTransportAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchScrollAction;
+import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.search.TransportClearScrollAction;
 import org.opensearch.action.search.TransportCreatePitAction;
 import org.opensearch.action.search.TransportDeletePitAction;
@@ -293,6 +294,7 @@ import org.opensearch.action.search.TransportGetAllPitsAction;
 import org.opensearch.action.search.TransportMultiSearchAction;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.search.TransportSearchScrollAction;
+import org.opensearch.action.search.TransportStreamSearchAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
@@ -734,6 +736,9 @@ public class ActionModule extends AbstractModule {
         actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class, TransportShardMultiGetAction.class);
         actions.register(BulkAction.INSTANCE, TransportBulkAction.class, TransportShardBulkAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
+        if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
+            actions.register(StreamSearchAction.INSTANCE, TransportStreamSearchAction.class);
+        }
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         actions.register(ExplainAction.INSTANCE, TransportExplainAction.class);
