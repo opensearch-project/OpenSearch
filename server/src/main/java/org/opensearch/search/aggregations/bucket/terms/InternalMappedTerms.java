@@ -87,7 +87,9 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
      */
     protected InternalMappedTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
-        docCountError = in.readZLong();
+        // TODO: revert; Temp change to test ArrowStreamOutput
+        docCountError = in.readLong();
+        // docCountError = in.readZLong();
         format = in.readNamedWriteable(DocValueFormat.class);
         shardSize = readSize(in);
         showTermDocCountError = in.readBoolean();
@@ -97,7 +99,9 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     @Override
     protected final void writeTermTypeInfoTo(StreamOutput out) throws IOException {
-        out.writeZLong(docCountError);
+        // TODO: revert; Temp change to test ArrowStreamOutput
+        out.writeLong(docCountError);
+        // out.writeZLong(docCountError);
         out.writeNamedWriteable(format);
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);

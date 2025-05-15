@@ -314,6 +314,12 @@ public interface Client extends OpenSearchClient, Releasable {
      */
     SearchRequestBuilder prepareSearch(String... indices);
 
+
+    /**
+     * Search across one or more indices with a query.
+     */
+    SearchRequestBuilder prepareStreamSearch(String... indices);
+
     /**
      * Search across one or more indices with a query.
      */

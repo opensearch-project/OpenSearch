@@ -53,7 +53,7 @@ import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_PORT;
 import static org.opensearch.transport.Transport.resolveTransportPublishPort;
 
 @SuppressWarnings("removal")
-final class ServerComponents implements AutoCloseable {
+public final class ServerComponents implements AutoCloseable {
 
     public static final Setting<List<String>> SETTING_FLIGHT_HOST = listSetting(
         "arrow.flight.host",
