@@ -40,6 +40,7 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CommonPrefix;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
@@ -53,6 +54,8 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectAttributes;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
@@ -63,6 +66,7 @@ import software.amazon.awssdk.utils.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -97,6 +101,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -173,11 +178,89 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     }
 
     /**
+     * Writes a blob with an eTag for conditional PUT operations
+     */
+    @Override
+    public void writeBlobIfVerified(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        String eTag,
+        ActionListener<String> etagListener
+    ) throws IOException {
+        writeBlobWithMetadataIfVerified(blobName, inputStream, blobSize, failIfAlreadyExists, null, eTag, etagListener);
+    }
+
+    /**
      * This implementation ignores the failIfAlreadyExists flag as the S3 API has no way to enforce this due to its weak consistency model.
      */
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, null);
+    }
+
+    private void internalWriteBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        @Nullable String expectedETag,
+        @Nullable ActionListener<String> etagListener
+    ) throws IOException {
+
+        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
+
+        SocketAccess.doPrivilegedIOException(() -> {
+            if (blobSize <= getLargeBlobThresholdInBytes()) {
+                if (expectedETag != null && etagListener != null) {
+                    executeSingleUploadIfEtagMatches(
+                        blobStore,
+                        buildKey(blobName),
+                        inputStream,
+                        blobSize,
+                        metadata,
+                        expectedETag,
+                        etagListener
+                    );
+                } else {
+                    executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
+                }
+            } else {
+                if (expectedETag != null && etagListener != null) {
+                    executeMultipartUploadIfEtagMatches(
+                        blobStore,
+                        buildKey(blobName),
+                        inputStream,
+                        blobSize,
+                        metadata,
+                        expectedETag,
+                        etagListener
+                    );
+                } else {
+                    executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
+                }
+            }
+            return null;
+        });
+    }
+
+    /**
+     * Writes a blob along with its metadata and using an eTag for conditional PUT operations
+     */
+    @ExperimentalApi
+    @Override
+    public void writeBlobWithMetadataIfVerified(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        String eTag,
+        ActionListener<String> etagListener
+    ) throws IOException {
+        internalWriteBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, eTag, etagListener);
     }
 
     /**
@@ -192,15 +275,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         boolean failIfAlreadyExists,
         @Nullable Map<String, String> metadata
     ) throws IOException {
-        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
-        SocketAccess.doPrivilegedIOException(() -> {
-            if (blobSize <= getLargeBlobThresholdInBytes()) {
-                executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
-            } else {
-                executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
-            }
-            return null;
-        });
+        internalWriteBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, null, null);
     }
 
     @Override
@@ -507,6 +582,255 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
     private String buildKey(String blobName) {
         return keyPath + blobName;
+    }
+
+    /**
+     * Executes a upload to S3 using a conditional If-Match header.
+     * The upload only proceeds if the existing object's ETag matches the provided value.
+     *
+     * @param blobStore     the S3 blob store
+     * @param blobName      the key (name) of the blob
+     * @param input         the input stream containing the blob data
+     * @param blobSize      the size of the blob in bytes
+     * @param metadata      optional metadata to be associated with the blob
+     * @param ETag          the expected ETag value for conditional upload
+     * @param etagListener  listener to handle the resulting ETag or error notifications
+     * @throws IOException if an error occurs during upload or if validations fail
+     */
+    void executeSingleUploadIfEtagMatches(
+        final S3BlobStore blobStore,
+        final String blobName,
+        final InputStream input,
+        final long blobSize,
+        final Map<String, String> metadata,
+        final String ETag,
+        ActionListener<String> etagListener
+    ) throws IOException {
+        // Extra safety checks remain the same
+        if (blobSize > MAX_FILE_SIZE.getBytes()) {
+            throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than " + MAX_FILE_SIZE);
+        }
+        if (blobSize > blobStore.bufferSizeInBytes()) {
+            throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than buffer size");
+        }
+
+        PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
+            .bucket(blobStore.bucket())
+            .key(blobName)
+            .contentLength(blobSize)
+            .storageClass(blobStore.getStorageClass())
+            .ifMatch(ETag)
+            .acl(blobStore.getCannedACL())
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher));
+
+        if (CollectionUtils.isNotEmpty(metadata)) {
+            putObjectRequestBuilder = putObjectRequestBuilder.metadata(metadata);
+        }
+        if (blobStore.serverSideEncryption()) {
+            putObjectRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
+        }
+
+        PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            final InputStream requestInputStream = blobStore.isUploadRetryEnabled()
+                ? new BufferedInputStream(input, (int) (blobSize + 1))
+                : input;
+
+            PutObjectResponse response = SocketAccess.doPrivileged(
+                () -> clientReference.get().putObject(putObjectRequest, RequestBody.fromInputStream(requestInputStream, blobSize))
+            );
+
+            if (response.eTag() != null) {
+                etagListener.onResponse(response.eTag());
+            } else {
+                IOException exception = new IOException(
+                    "S3 upload for [" + blobName + "] returned null ETag, violating data integrity expectations"
+                );
+                etagListener.onFailure(exception);
+                throw exception;
+            }
+
+        } catch (S3Exception e) {
+            if (e.statusCode() == 412) {
+                etagListener.onFailure(new OpenSearchException("stale_primary_shard", e, "Precondition Failed : Etag Mismatch", blobName));
+                throw new IOException("Unable to upload object [" + blobName + "] due to ETag mismatch", e);
+            } else {
+                IOException exception = new IOException(
+                    String.format(Locale.ROOT, "S3 error during upload [%s]: %s", blobName, e.getMessage()),
+                    e
+                );
+                etagListener.onFailure(exception);
+                throw exception;
+            }
+        } catch (SdkException e) {
+            IOException exception = new IOException(String.format(Locale.ROOT, "S3 upload failed for [%s]", blobName), e);
+            etagListener.onFailure(exception);
+            throw exception;
+        }
+    }
+
+    public void executeMultipartUploadIfEtagMatches(
+        final S3BlobStore blobStore,
+        final String blobName,
+        final InputStream input,
+        final long blobSize,
+        final Map<String, String> metadata,
+        final String eTag,
+        final ActionListener<String> etagListener
+    ) throws IOException {
+
+        ensureMultiPartUploadSize(blobSize);
+
+        final long partSize = blobStore.bufferSizeInBytes();
+        final Tuple<Long, Long> multiparts = numberOfMultiparts(blobSize, partSize);
+        if (multiparts.v1() > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Too many multipart upload parts; consider a larger buffer size.");
+        }
+        final int nbParts = multiparts.v1().intValue();
+        final long lastPartSize = multiparts.v2();
+        assert blobSize == (((nbParts - 1) * partSize) + lastPartSize) : "blobSize does not match multipart sizes";
+        // test
+        CreateMultipartUploadRequest.Builder createRequestBuilder = CreateMultipartUploadRequest.builder()
+            .bucket(blobStore.bucket())
+            .key(blobName)
+            .storageClass(blobStore.getStorageClass())
+            .acl(blobStore.getCannedACL())
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
+
+        if (metadata != null && !metadata.isEmpty()) {
+            createRequestBuilder.metadata(metadata);
+        }
+        if (blobStore.serverSideEncryption()) {
+            createRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
+        }
+
+        final CreateMultipartUploadRequest createMultipartUploadRequest = createRequestBuilder.build();
+        final SetOnce<String> uploadId = new SetOnce<>();
+        final String bucketName = blobStore.bucket();
+        boolean success = false;
+
+        final InputStream requestInputStream = blobStore.isUploadRetryEnabled()
+            ? new BufferedInputStream(input, (int) (partSize + 1))
+            : input;
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            uploadId.set(
+                SocketAccess.doPrivileged(() -> clientReference.get().createMultipartUpload(createMultipartUploadRequest).uploadId())
+            );
+            if (Strings.isEmpty(uploadId.get())) {
+                IOException exception = new IOException("Failed to initialize multipart upload for " + blobName);
+                etagListener.onFailure(exception);
+                throw exception;
+            }
+
+            final List<CompletedPart> parts = new ArrayList<>(nbParts);
+            long bytesCount = 0;
+
+            for (int i = 1; i <= nbParts; i++) {
+                long currentPartSize = (i < nbParts) ? partSize : lastPartSize;
+                final UploadPartRequest uploadPartRequest = UploadPartRequest.builder()
+                    .bucket(bucketName)
+                    .key(blobName)
+                    .uploadId(uploadId.get())
+                    .partNumber(i)
+                    .contentLength(currentPartSize)
+                    .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
+                    .build();
+
+                bytesCount += currentPartSize;
+
+                final UploadPartResponse uploadResponse = SocketAccess.doPrivileged(
+                    () -> clientReference.get()
+                        .uploadPart(uploadPartRequest, RequestBody.fromInputStream(requestInputStream, currentPartSize))
+                );
+
+                String partETag = uploadResponse.eTag();
+                if (partETag == null) {
+                    IOException exception = new IOException(
+                        String.format(Locale.ROOT, "S3 part upload for [%s] part [%d] returned null ETag", blobName, i)
+                    );
+                    etagListener.onFailure(exception);
+                    throw exception;
+                }
+
+                parts.add(CompletedPart.builder().partNumber(i).eTag(partETag).build());
+            }
+
+            if (bytesCount != blobSize) {
+                IOException exception = new IOException(
+                    String.format(Locale.ROOT, "Multipart upload for [%s] sent %d bytes; expected %d bytes", blobName, bytesCount, blobSize)
+                );
+                etagListener.onFailure(exception);
+                throw exception;
+            }
+
+            CompleteMultipartUploadRequest completeRequest = CompleteMultipartUploadRequest.builder()
+                .bucket(bucketName)
+                .key(blobName)
+                .uploadId(uploadId.get())
+                .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
+                .ifMatch(eTag)
+                .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
+                .build();
+
+            CompleteMultipartUploadResponse completeResponse = SocketAccess.doPrivileged(
+                () -> clientReference.get().completeMultipartUpload(completeRequest)
+            );
+
+            if (completeResponse.eTag() != null) {
+                success = true;
+                etagListener.onResponse(completeResponse.eTag());
+            } else {
+                IOException exception = new IOException(
+                    "S3 multipart upload for [" + blobName + "] returned null ETag, violating data integrity expectations"
+                );
+                etagListener.onFailure(exception);
+                throw exception;
+            }
+
+        } catch (S3Exception e) {
+            if (e.statusCode() == 412) {
+                etagListener.onFailure(new OpenSearchException("stale_primary_shard", e, "Precondition Failed : Etag Mismatch", blobName));
+                throw new IOException("Unable to upload object [" + blobName + "] due to ETag mismatch", e);
+            } else {
+                IOException exception = new IOException(
+                    String.format(Locale.ROOT, "S3 error during multipart upload [%s]: %s", blobName, e.getMessage()),
+                    e
+                );
+                etagListener.onFailure(exception);
+                throw exception;
+            }
+        } catch (SdkException e) {
+            IOException exception = new IOException(String.format(Locale.ROOT, "S3 multipart upload failed for [%s]", blobName), e);
+            etagListener.onFailure(exception);
+            throw exception;
+        } catch (Exception e) {
+            IOException exception = new IOException(
+                String.format(Locale.ROOT, "Unexpected error during multipart upload [%s]: %s", blobName, e.getMessage()),
+                e
+            );
+            etagListener.onFailure(exception);
+            throw exception;
+        } finally {
+            if (!success && Strings.hasLength(uploadId.get())) {
+                AbortMultipartUploadRequest abortRequest = AbortMultipartUploadRequest.builder()
+                    .bucket(bucketName)
+                    .key(blobName)
+                    .uploadId(uploadId.get())
+                    .build();
+                try (AmazonS3Reference abortClient = blobStore.clientReference()) {
+                    SocketAccess.doPrivilegedVoid(() -> abortClient.get().abortMultipartUpload(abortRequest));
+                } catch (Exception abortException) {
+                    logger.warn(
+                        "Failed to abort incomplete multipart upload [{}] with ID [{}]. "
+                            + "This may result in orphaned S3 data and charges.",
+                        new Object[] { blobName, uploadId.get() },
+                        abortException
+                    );
+                }
+            }
+        }
     }
 
     /**
