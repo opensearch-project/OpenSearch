@@ -31,14 +31,25 @@ abstract class RefCountedCacheTestCase extends OpenSearchTestCase {
         refCountedCache.put("1", 10L);
         assertEquals(10L, refCountedCache.usage().usage());
         assertEquals(10L, refCountedCache.usage().activeUsage());
+        assertNotNull(refCountedCache.getRef("1"));
+        assertEquals(1, (int) refCountedCache.getRef("1"));
 
         refCountedCache.decRef("1");
         assertEquals(10L, refCountedCache.usage().usage());
         assertEquals(0L, refCountedCache.usage().activeUsage());
+        assertNotNull(refCountedCache.getRef("1"));
+        assertEquals(0, (int) refCountedCache.getRef("1"));
 
         refCountedCache.incRef("1");
         assertEquals(10L, refCountedCache.usage().usage());
         assertEquals(10L, refCountedCache.usage().activeUsage());
+        assertNotNull(refCountedCache.getRef("1"));
+        assertEquals(1, (int) refCountedCache.getRef("1"));
+
+        refCountedCache.decRef("1");
+        refCountedCache.prune();
+        assertNull(refCountedCache.getRef("1"));
+
     }
 
     public void testEviction() {
