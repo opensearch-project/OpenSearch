@@ -24,7 +24,7 @@ public abstract class CompositeAggregatorBridge extends DateHistogramAggregatorB
 
     private boolean canOptimize(boolean missing, boolean hasScript, MappedFieldType fieldType) {
         if (!missing && !hasScript) {
-            if (fieldType instanceof DateFieldMapper.DateFieldType) {
+            if (fieldType != null && fieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
                 if (fieldType.isSearchable()) {
                     this.fieldType = fieldType;
                     return true;

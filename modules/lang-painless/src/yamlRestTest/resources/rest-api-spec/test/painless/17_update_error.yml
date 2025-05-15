@@ -1,8 +1,6 @@
 ---
 "Script errors contain position":
-  - skip:
-      version: " - 7.7.0"
-      reason: "position introduced in 7.7"
+
 
   - do:
       catch: /compile error/

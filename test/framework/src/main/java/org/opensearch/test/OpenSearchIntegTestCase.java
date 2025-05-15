@@ -154,6 +154,7 @@ import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
@@ -217,6 +218,7 @@ import java.util.stream.Collectors;
 import reactor.util.annotation.NonNull;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
@@ -399,11 +401,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     protected static final String REMOTE_BACKED_STORAGE_REPOSITORY_NAME = "test-remote-store-repo";
 
-    private static Boolean prefixModeVerificationEnable;
+    protected static Boolean prefixModeVerificationEnable;
 
-    private static Boolean translogPathFixedPrefix;
+    protected static Boolean translogPathFixedPrefix;
 
-    private static Boolean segmentsPathFixedPrefix;
+    protected static Boolean segmentsPathFixedPrefix;
 
     protected static Boolean snapshotShardPathFixedPrefix;
 
@@ -1957,7 +1959,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
             // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
             // when tests are run with concurrent segment search enabled
-            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2)
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY, 2)
             .put(featureFlagSettings());
 
         // Enable tracer only when Telemetry Setting is enabled
@@ -2000,6 +2002,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Returns a collection of plugins that should be loaded on each node.
      */
     protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns a collection of plugins that should be loaded on each node.
+     */
+    protected Collection<PluginInfo> additionalNodePlugins() {
         return Collections.emptyList();
     }
 
@@ -2123,6 +2132,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 return OpenSearchIntegTestCase.this.nodePlugins();
+            }
+
+            @Override
+            public Collection<PluginInfo> additionalNodePlugins() {
+                return OpenSearchIntegTestCase.this.additionalNodePlugins();
             }
         };
     }
@@ -2276,7 +2290,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         assertThat(metadata.hasIndex(index), equalTo(true));
         int numShards = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
         int numReplicas = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
-        return new NumShards(numShards, numReplicas);
+        String numSearchReplicasValue = metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SEARCH_REPLICAS);
+        int numSearchReplicas = numSearchReplicasValue != null ? Integer.parseInt(numSearchReplicasValue) : 0;
+        return new NumShards(numShards, numReplicas, numSearchReplicas);
     }
 
     /**
@@ -2317,13 +2333,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     protected static class NumShards {
         public final int numPrimaries;
         public final int numReplicas;
+        public final int numSearchReplicas;
         public final int totalNumShards;
         public final int dataCopies;
 
-        private NumShards(int numPrimaries, int numReplicas) {
+        private NumShards(int numPrimaries, int numReplicas, int numSearchReplicas) {
             this.numPrimaries = numPrimaries;
             this.numReplicas = numReplicas;
-            this.dataCopies = numReplicas + 1;
+            this.numSearchReplicas = numSearchReplicas;
+            this.dataCopies = numReplicas + numSearchReplicas + 1;
             this.totalNumShards = numPrimaries * dataCopies;
         }
     }
@@ -2669,7 +2687,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (timeout != null) {
             builder.setTimeout(timeout);
         }
-        if (finalSettings == false) {
+        if (finalSettings == false && settings.keys().contains(BlobStoreRepository.SHARD_PATH_TYPE.getKey()) == false) {
             settings.put(BlobStoreRepository.SHARD_PATH_TYPE.getKey(), randomFrom(PathType.values()));
         }
         builder.setSettings(settings);

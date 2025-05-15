@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.search.CreatePitAction;
@@ -38,7 +37,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.client.Requests;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -83,6 +81,7 @@ public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTe
     public void setupIndex() throws ExecutionException, InterruptedException {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).execute().get();
+        flush(); // clear the translog to ensure accurate stats
         ensureGreen();
     }
 
@@ -95,6 +94,7 @@ public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
         indexRandomForConcurrentSearch("index");
+        flush(); // clear the translog to ensure accurate stats
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
         SearchResponse searchResponse = client().prepareSearch("index")
@@ -117,7 +117,12 @@ public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
                 assertTrue(ex.getMessage().contains("Failed to execute phase [create_pit]"));
-                validatePitStats("index", 0, 0);
+                // If the search must make a transport call to start the search then a
+                // PIT context may be temporarily created on a separate thread. The test
+                // will end up racing with the PIT decrement call and can very briefly
+                // observe non-zero PIT stats, so we poll here and wait for stats to eventually
+                // resolve to zero. In almost all cases the first call will observe zero stats.
+                assertBusy(() -> validatePitStats("index", 0, 0));
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -366,9 +371,6 @@ public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
     public void validatePitStats(String index, long expectedPitCurrent, long expectedOpenContexts) throws ExecutionException,
         InterruptedException {
-        // Clear the index transaction log
-        FlushRequest flushRequest = Requests.flushRequest(index);
-        client().admin().indices().flush(flushRequest).get();
         // Test stats
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.indices(index);
@@ -501,5 +503,4 @@ public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
         }
     }
-
 }

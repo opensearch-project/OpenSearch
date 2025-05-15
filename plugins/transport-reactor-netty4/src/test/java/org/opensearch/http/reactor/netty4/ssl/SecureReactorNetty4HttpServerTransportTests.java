@@ -35,6 +35,7 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.KeyStoreUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
@@ -44,10 +45,10 @@ import org.opensearch.transport.reactor.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Optional;
@@ -85,6 +86,7 @@ import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.opensearch.test.KeyStoreUtils.KEYSTORE_PASSWORD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -115,12 +117,14 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             @Override
             public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
                 try {
-                    SSLEngine engine = SslContextBuilder.forServer(
-                        SecureReactorNetty4HttpServerTransportTests.class.getResourceAsStream("/certificate.crt"),
-                        SecureReactorNetty4HttpServerTransportTests.class.getResourceAsStream("/certificate.key")
-                    ).trustManager(InsecureTrustManagerFactory.INSTANCE).build().newEngine(NettyAllocator.getAllocator());
+                    var keyManagerFactory = KeyManagerFactory.getInstance("PKIX");
+                    keyManagerFactory.init(KeyStoreUtils.createServerKeyStore(), KEYSTORE_PASSWORD);
+                    SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                        .build()
+                        .newEngine(NettyAllocator.getAllocator());
                     return Optional.of(engine);
-                } catch (final IOException ex) {
+                } catch (final Exception ex) {
                     throw new SSLException(ex);
                 }
             }

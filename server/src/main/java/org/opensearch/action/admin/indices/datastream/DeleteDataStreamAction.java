@@ -49,7 +49,6 @@ import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -75,6 +74,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.cluster.service.ClusterManagerTask.REMOVE_DATA_STREAM;
 
 /**
  * Transport action for deleting a datastream
@@ -186,7 +186,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
             this.deleteIndexService = deleteIndexService;
             // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-            removeDataStreamTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_DATA_STREAM_KEY, true);
+            removeDataStreamTaskKey = clusterService.registerClusterManagerTask(REMOVE_DATA_STREAM, true);
         }
 
         @Override

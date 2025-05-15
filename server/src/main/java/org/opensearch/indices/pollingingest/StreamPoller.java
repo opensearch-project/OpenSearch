@@ -8,6 +8,8 @@
 
 package org.opensearch.indices.pollingingest;
 
+import org.opensearch.cluster.ClusterStateListener;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IngestionShardPointer;
 
 import java.io.Closeable;
@@ -15,7 +17,7 @@ import java.io.Closeable;
 /**
  * A poller for reading messages from an ingestion shard. This is used in the ingestion engine.
  */
-public interface StreamPoller extends Closeable {
+public interface StreamPoller extends Closeable, ClusterStateListener {
 
     String BATCH_START = "batch_start";
 
@@ -49,6 +51,27 @@ public interface StreamPoller extends Closeable {
      */
     IngestionShardPointer getBatchStartPointer();
 
+    PollingIngestStats getStats();
+
+    IngestionErrorStrategy getErrorStrategy();
+
+    State getState();
+
+    /**
+     * Update the error strategy for the poller.
+     */
+    void updateErrorStrategy(IngestionErrorStrategy errorStrategy);
+
+    /**
+     * Returns if write block is active for the poller.
+     */
+    boolean isWriteBlockEnabled();
+
+    /**
+     * Sets write block status for the poller.
+     */
+    void setWriteBlockEnabled(boolean isWriteBlockEnabled);
+
     /**
      * a state to indicate the current state of the poller
      */
@@ -63,9 +86,12 @@ public interface StreamPoller extends Closeable {
     /**
      *  a reset state to indicate how to reset the pointer
      */
+    @ExperimentalApi
     enum ResetState {
         EARLIEST,
         LATEST,
+        REWIND_BY_OFFSET,
+        REWIND_BY_TIMESTAMP,
         NONE,
     }
 }

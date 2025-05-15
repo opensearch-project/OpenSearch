@@ -69,14 +69,14 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 
     static final String ABORTED_BY_USER_MSG = OpenSearchNodeCommand.ABORTED_BY_USER_MSG;
     static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = OpenSearchNodeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG;
-    static final String NO_CLEANUP = "Node has node.data=true and node.search=true -> no clean up necessary";
+    static final String NO_CLEANUP = "Node has node.data=true and node.warm=true -> no clean up necessary";
     static final String NO_DATA_TO_CLEAN_UP_FOUND = "No data to clean-up found";
     static final String NO_SHARD_DATA_TO_CLEAN_UP_FOUND = "No shard data to clean-up found";
     static final String NO_FILE_CACHE_DATA_TO_CLEAN_UP_FOUND = "No file cache to clean-up found";
     private static final int FILE_CACHE_NODE_PATH_LOCATION = 0;
 
     public NodeRepurposeCommand() {
-        super("Repurpose this node to another cluster-manager/data/search role, cleaning up any excess persisted data");
+        super("Repurpose this node to another cluster-manager/data/warm role, cleaning up any excess persisted data");
     }
 
     void testExecute(Terminal terminal, OptionSet options, Environment env) throws Exception {
@@ -86,7 +86,7 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
     @Override
     protected boolean validateBeforeLock(Terminal terminal, Environment env) {
         Settings settings = env.settings();
-        if (DiscoveryNode.isDataNode(settings) && DiscoveryNode.isSearchNode(settings)) {
+        if (DiscoveryNode.isDataNode(settings) && DiscoveryNode.isWarmNode(settings)) {
             terminal.println(Terminal.Verbosity.NORMAL, NO_CLEANUP);
             return false;
         }
@@ -97,15 +97,15 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
         throws IOException {
-        assert DiscoveryNode.isDataNode(env.settings()) == false || DiscoveryNode.isSearchNode(env.settings()) == false;
+        assert DiscoveryNode.isDataNode(env.settings()) == false || DiscoveryNode.isWarmNode(env.settings()) == false;
 
         boolean repurposeData = DiscoveryNode.isDataNode(env.settings()) == false;
-        boolean repurposeSearch = DiscoveryNode.isSearchNode(env.settings()) == false;
+        boolean repurposeWarm = DiscoveryNode.isWarmNode(env.settings()) == false;
 
         if (DiscoveryNode.isClusterManagerNode(env.settings()) == false) {
-            processNoClusterManagerRepurposeNode(terminal, dataPaths, env, repurposeData, repurposeSearch);
+            processNoClusterManagerRepurposeNode(terminal, dataPaths, env, repurposeData, repurposeWarm);
         } else {
-            processClusterManagerRepurposeNode(terminal, dataPaths, env, repurposeData, repurposeSearch);
+            processClusterManagerRepurposeNode(terminal, dataPaths, env, repurposeData, repurposeWarm);
         }
     }
 
@@ -170,13 +170,13 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 
         if (repurposeData && repurposeSearch) {
             terminal.println(
-                "Node is being re-purposed as no-cluster-manager, no-data and no-search. Clean-up of index data and file cache will be performed."
+                "Node is being re-purposed as no-cluster-manager, no-data and no-warm. Clean-up of index data and file cache will be performed."
             );
         } else if (repurposeData) {
             terminal.println("Node is being re-purposed as no-cluster-manager and no-data. Clean-up of index data will be performed.");
         } else if (repurposeSearch) {
             terminal.println(
-                "Node is being re-purposed as no-cluster-manager and no-search. Clean-up of file cache and corresponding index metadata will be performed."
+                "Node is being re-purposed as no-cluster-manager and no-warm. Clean-up of file cache and corresponding index metadata will be performed."
             );
         }
         confirm(terminal, "Do you want to proceed?");
@@ -194,11 +194,11 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
         }
 
         if (repurposeData && repurposeSearch) {
-            terminal.println("Node successfully repurposed to no-cluster-manager, no-data and no-search.");
+            terminal.println("Node successfully repurposed to no-cluster-manager, no-data and no-warm.");
         } else if (repurposeData) {
             terminal.println("Node successfully repurposed to no-cluster-manager and no-data.");
         } else if (repurposeSearch) {
-            terminal.println("Node successfully repurposed to no-cluster-manager and no-search.");
+            terminal.println("Node successfully repurposed to no-cluster-manager and no-warm.");
         }
     }
 
@@ -252,12 +252,12 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 
         if (repurposeData && repurposeSearch) {
             terminal.println(
-                "Node is being re-purposed as cluster-manager, no-data and no-search. Clean-up of shard data and file cache data will be performed."
+                "Node is being re-purposed as cluster-manager, no-data and no-warm. Clean-up of shard data and file cache data will be performed."
             );
         } else if (repurposeData) {
             terminal.println("Node is being re-purposed as cluster-manager and no-data. Clean-up of shard data will be performed.");
         } else if (repurposeSearch) {
-            terminal.println("Node is being re-purposed as cluster-manager and no-search. Clean-up of file cache data will be performed.");
+            terminal.println("Node is being re-purposed as cluster-manager and no-warm. Clean-up of file cache data will be performed.");
         }
 
         confirm(terminal, "Do you want to proceed?");
@@ -271,11 +271,11 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
         }
 
         if (repurposeData && repurposeSearch) {
-            terminal.println("Node successfully repurposed to cluster-manager, no-data and no-search.");
+            terminal.println("Node successfully repurposed to cluster-manager, no-data and no-warm.");
         } else if (repurposeData) {
             terminal.println("Node successfully repurposed to cluster-manager and no-data.");
         } else if (repurposeSearch) {
-            terminal.println("Node successfully repurposed to cluster-manager and no-search.");
+            terminal.println("Node successfully repurposed to cluster-manager and no-warm.");
         }
     }
 

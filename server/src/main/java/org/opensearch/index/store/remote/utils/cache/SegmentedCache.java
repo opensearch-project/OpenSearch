@@ -134,6 +134,12 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
+    public Integer getRef(K key) {
+        if (key == null) throw new NullPointerException();
+        return segmentFor(key).getRef(key);
+    }
+
+    @Override
     public long prune() {
         long sum = 0L;
         for (RefCountedCache<K, V> cache : table) {
@@ -190,8 +196,11 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     public void logCurrentState() {
         int i = 0;
         for (RefCountedCache<K, V> cache : table) {
-            logger.trace("SegmentedCache " + i);
-            ((LRUCache<K, V>) cache).logCurrentState();
+            if (cache.size() > 0) {
+                final int segmentIndex = i;
+                logger.trace(() -> "SegmentedCache " + segmentIndex);
+                ((LRUCache<K, V>) cache).logCurrentState();
+            }
             i++;
         }
     }

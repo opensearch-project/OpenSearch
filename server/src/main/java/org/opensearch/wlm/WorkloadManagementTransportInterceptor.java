@@ -16,15 +16,15 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 
 /**
- * This class is used to intercept search traffic requests and populate the queryGroupId header in task headers
+ * This class is used to intercept search traffic requests and populate the workloadGroupId header in task headers
  */
 public class WorkloadManagementTransportInterceptor implements TransportInterceptor {
     private final ThreadPool threadPool;
-    private final QueryGroupService queryGroupService;
+    private final WorkloadGroupService workloadGroupService;
 
-    public WorkloadManagementTransportInterceptor(final ThreadPool threadPool, final QueryGroupService queryGroupService) {
+    public WorkloadManagementTransportInterceptor(final ThreadPool threadPool, final WorkloadGroupService workloadGroupService) {
         this.threadPool = threadPool;
-        this.queryGroupService = queryGroupService;
+        this.workloadGroupService = workloadGroupService;
     }
 
     @Override
@@ -34,37 +34,37 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
         boolean forceExecution,
         TransportRequestHandler<T> actualHandler
     ) {
-        return new RequestHandler<T>(threadPool, actualHandler, queryGroupService);
+        return new RequestHandler<T>(threadPool, actualHandler, workloadGroupService);
     }
 
     /**
-     * This class is mainly used to populate the queryGroupId header
+     * This class is mainly used to populate the workloadGroupId header
      * @param <T> T is Search related request
      */
     public static class RequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
 
         private final ThreadPool threadPool;
         TransportRequestHandler<T> actualHandler;
-        private final QueryGroupService queryGroupService;
+        private final WorkloadGroupService workloadGroupService;
 
-        public RequestHandler(ThreadPool threadPool, TransportRequestHandler<T> actualHandler, QueryGroupService queryGroupService) {
+        public RequestHandler(ThreadPool threadPool, TransportRequestHandler<T> actualHandler, WorkloadGroupService workloadGroupService) {
             this.threadPool = threadPool;
             this.actualHandler = actualHandler;
-            this.queryGroupService = queryGroupService;
+            this.workloadGroupService = workloadGroupService;
         }
 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             if (isSearchWorkloadRequest(task)) {
-                ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
-                final String queryGroupId = ((QueryGroupTask) (task)).getQueryGroupId();
-                queryGroupService.rejectIfNeeded(queryGroupId);
+                ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
+                final String workloadGroupId = ((WorkloadGroupTask) (task)).getWorkloadGroupId();
+                workloadGroupService.rejectIfNeeded(workloadGroupId);
             }
             actualHandler.messageReceived(request, channel, task);
         }
 
         boolean isSearchWorkloadRequest(Task task) {
-            return task instanceof QueryGroupTask;
+            return task instanceof WorkloadGroupTask;
         }
     }
 }

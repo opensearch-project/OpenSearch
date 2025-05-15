@@ -87,11 +87,6 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log.Logger',
 )
 
-forbiddenPatterns {
-  // PKCS#12 file are not UTF-8
-  exclude '**/*.p12'
-}
-
 tasks.named("bundlePlugin").configure {
   dependsOn("copyParentJoinMetadata")
   dependsOn("copyTransportNetty4Metadata")

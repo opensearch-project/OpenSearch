@@ -86,6 +86,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MapperTestUtils;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.query.DisabledQueryCache;
@@ -95,6 +96,7 @@ import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
@@ -688,6 +690,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 }
                 return new InternalTranslogFactory();
             };
+            // This is fine since we are not testing the node stats now
+            Function<ShardId, ReplicationStats> mockReplicationStatsProvider = mock(Function.class);
+            when(mockReplicationStatsProvider.apply(any())).thenReturn(new ReplicationStats(800, 800, 500));
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -717,7 +722,14 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 DefaultRecoverySettings.INSTANCE,
                 DefaultRemoteStoreSettings.INSTANCE,
                 false,
-                discoveryNodes
+                discoveryNodes,
+                mockReplicationStatsProvider,
+                new MergedSegmentWarmerFactory(null, null, null),
+                false,
+                () -> Boolean.FALSE,
+                indexSettings::getRefreshInterval,
+                new Object(),
+                clusterService.getClusterApplierService()
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

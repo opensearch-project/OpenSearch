@@ -75,7 +75,7 @@ public class RemoteStoreSettings {
     @ExperimentalApi
     public static final Setting<RemoteStoreEnums.PathType> CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING = new Setting<>(
         "cluster.remote_store.index.path.type",
-        RemoteStoreEnums.PathType.FIXED.toString(),
+        RemoteStoreEnums.PathType.HASHED_PREFIX.toString(),
         RemoteStoreEnums.PathType::parseString,
         Property.NodeScope,
         Property.Dynamic

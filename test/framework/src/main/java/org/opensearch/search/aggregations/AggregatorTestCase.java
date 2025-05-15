@@ -168,6 +168,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -440,6 +441,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         if (consolidated) {
             searchContext.getQueryShardContext().setStarTreeQueryContext(starTreeQueryContext);
         }
+
+        Stream.of(fieldTypes).forEach(fieldType -> when(mapperService.fieldType(fieldType.name())).thenReturn(fieldType));
 
         return searchContext;
     }

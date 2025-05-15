@@ -63,7 +63,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "com.netflix.nebula.ospackage-base" version "11.10.1"
+  id "com.netflix.nebula.ospackage-base" version "11.11.2"
 }
 
 void addProcessFilesTask(String type, boolean jdk) {
@@ -174,6 +174,9 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         into('jdk') {
           with jdkFiles(project, 'linux', architecture)
         }
+      }
+      into('agent') {
+        with agentFiles()
       }
       // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
       // intended to manage them; otherwise they may be left behind on uninstallation. duplicate calls of the same

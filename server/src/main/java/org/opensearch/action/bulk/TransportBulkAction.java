@@ -251,7 +251,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 // Each index request needs to be evaluated, because this method also modifies the IndexRequest
-                boolean indexRequestHasPipeline = IngestService.resolvePipelines(actionRequest, indexRequest, metadata);
+                boolean indexRequestHasPipeline = ingestService.resolvePipelines(actionRequest, indexRequest, metadata);
                 hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
             }
 
@@ -963,8 +963,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             },
             bulkRequestModifier::markItemAsDropped,
-            executorName,
-            original
+            executorName
         );
     }
 
@@ -1078,7 +1077,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.
             failedSlots.set(slot);
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.id(), e);
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
+                indexRequest.index(),
+                indexRequest.id(),
+                e,
+                BulkItemResponse.Failure.FailureSource.PIPELINE
+            );
             itemResponses.add(new BulkItemResponse(slot, indexRequest.opType(), failure));
         }
 

@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.stats;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -44,6 +45,7 @@ import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 
 import java.io.IOException;
 
@@ -64,6 +66,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
 
     @Nullable
     private RetentionLeaseStats retentionLeaseStats;
+
+    @Nullable
+    private PollingIngestStats pollingIngestStats;
 
     /**
      * Gets the current retention lease stats.
@@ -87,6 +92,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            pollingIngestStats = in.readOptionalWriteable(PollingIngestStats::new);
+        }
     }
 
     public ShardStats(
@@ -95,7 +103,8 @@ public class ShardStats implements Writeable, ToXContentFragment {
         final CommonStats commonStats,
         final CommitStats commitStats,
         final SeqNoStats seqNoStats,
-        final RetentionLeaseStats retentionLeaseStats
+        final RetentionLeaseStats retentionLeaseStats,
+        final PollingIngestStats pollingIngestStats
     ) {
         this.shardRouting = routing;
         this.dataPath = shardPath.getRootDataPath().toString();
@@ -105,6 +114,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         this.commonStats = commonStats;
         this.seqNoStats = seqNoStats;
         this.retentionLeaseStats = retentionLeaseStats;
+        this.pollingIngestStats = pollingIngestStats;
     }
 
     /**
@@ -126,6 +136,11 @@ public class ShardStats implements Writeable, ToXContentFragment {
     @Nullable
     public SeqNoStats getSeqNoStats() {
         return this.seqNoStats;
+    }
+
+    @Nullable
+    public PollingIngestStats getPollingIngestStats() {
+        return this.pollingIngestStats;
     }
 
     public String getDataPath() {
@@ -150,6 +165,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);
+        if (out.getVersion().onOrAfter((Version.V_3_0_0))) {
+            out.writeOptionalWriteable(pollingIngestStats);
+        }
     }
 
     @Override
@@ -170,6 +188,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
         }
         if (retentionLeaseStats != null) {
             retentionLeaseStats.toXContent(builder, params);
+        }
+        if (pollingIngestStats != null) {
+            pollingIngestStats.toXContent(builder, params);
         }
         builder.startObject(Fields.SHARD_PATH);
         builder.field(Fields.STATE_PATH, statePath);

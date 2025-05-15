@@ -10,9 +10,12 @@ package org.opensearch.remotestore;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.recovery.IndexRecoveryIT;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
@@ -22,6 +25,7 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 
+import static org.opensearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING;
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -52,6 +56,26 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s")
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
+    }
+
+    @Override
+    public void slowDownRecovery(ByteSizeValue shardSize) {
+        logger.info("--> shardSize: " + shardSize);
+        long chunkSize = Math.max(1, shardSize.getBytes() / 50);
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder()
+                        // one chunk per sec..
+                        .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
+                        // small chunks
+                        .put(INDICES_RECOVERY_CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES))
+                )
+                .get()
+                .isAcknowledged()
+        );
     }
 
     @After

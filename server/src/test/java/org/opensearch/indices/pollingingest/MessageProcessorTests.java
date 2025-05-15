@@ -8,6 +8,8 @@
 
 package org.opensearch.indices.pollingingest;
 
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.index.Message;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.IngestionEngine;
@@ -21,11 +23,15 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,9 +61,36 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         when(documentMapper.parse(any())).thenReturn(parsedDocument);
         when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
 
-        Engine.Operation operation = processor.getOperation(payload, pointer);
+        MessageProcessorRunnable.MessageOperation operation = processor.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), 0),
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
+        );
 
-        assertTrue(operation instanceof Engine.Index);
+        assertTrue(operation.engineOperation() instanceof Engine.Index);
+        assertEquals(DocWriteRequest.OpType.INDEX, operation.opType());
+        ArgumentCaptor<SourceToParse> captor = ArgumentCaptor.forClass(SourceToParse.class);
+        verify(documentMapper).parse(captor.capture());
+        assertEquals("index", captor.getValue().index());
+        assertEquals("1", captor.getValue().id());
+    }
+
+    public void testGetIndexOperationInCreateMode() throws IOException {
+        byte[] payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}, \"_op_type\": \"create\"}".getBytes(
+            StandardCharsets.UTF_8
+        );
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        ParsedDocument parsedDocument = mock(ParsedDocument.class);
+        when(documentMapper.parse(any())).thenReturn(parsedDocument);
+        when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
+
+        MessageProcessorRunnable.MessageOperation operation = processor.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), 0),
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
+        );
+
+        assertTrue(operation.engineOperation() instanceof Engine.Index);
+        assertEquals(DocWriteRequest.OpType.CREATE, operation.opType());
         ArgumentCaptor<SourceToParse> captor = ArgumentCaptor.forClass(SourceToParse.class);
         verify(documentMapper).parse(captor.capture());
         assertEquals("index", captor.getValue().index());
@@ -68,32 +101,170 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         byte[] payload = "{\"_id\":\"1\",\"_op_type\":\"delete\"}".getBytes(StandardCharsets.UTF_8);
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
-        Engine.Operation operation = processor.getOperation(payload, pointer);
+        MessageProcessorRunnable.MessageOperation operation = processor.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
+        );
 
-        assertTrue(operation instanceof Engine.Delete);
-        Engine.Delete deleteOperation = (Engine.Delete) operation;
+        assertTrue(operation.engineOperation() instanceof Engine.Delete);
+        Engine.Delete deleteOperation = (Engine.Delete) operation.engineOperation();
         assertEquals("1", deleteOperation.id());
     }
 
     public void testSkipNoSourceIndexOperation() throws IOException {
-        byte[] payload = "{\"_id\":\"1\"}".getBytes(StandardCharsets.UTF_8);
+        final byte[] payload = "{\"_id\":\"1\"}".getBytes(StandardCharsets.UTF_8);
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
-        Engine.Operation operation = processor.getOperation(payload, pointer);
-        assertNull(operation);
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> processor.getOperation(
+                new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+                MessageProcessorRunnable.MessageProcessorMetrics.create()
+            )
+        );
 
         // source has wrong type
-        payload = "{\"_id\":\"1\", \"_source\":1}".getBytes(StandardCharsets.UTF_8);
-
-        operation = processor.getOperation(payload, pointer);
-        assertNull(operation);
+        final byte[] payload2 = "{\"_id\":\"1\", \"_source\":1}".getBytes(StandardCharsets.UTF_8);
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> processor.getOperation(
+                new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload2), 0),
+                MessageProcessorRunnable.MessageProcessorMetrics.create()
+            )
+        );
     }
 
     public void testUnsupportedOperation() throws IOException {
-        byte[] payload = "{\"_id\":\"1\", \"_op_tpe\":\"update\"}".getBytes(StandardCharsets.UTF_8);
+        byte[] payload = "{\"_id\":\"1\", \"_op_type\":\"update\"}".getBytes(StandardCharsets.UTF_8);
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
-        Engine.Operation operation = processor.getOperation(payload, pointer);
-        assertNull(operation);
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> processor.getOperation(
+                new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+                MessageProcessorRunnable.MessageProcessorMetrics.create()
+            )
+        );
+    }
+
+    public void testInvalidOperationType() throws IOException {
+        byte[] payload = "{\"_id\":\"1\", \"_op_type\":100}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> processor.getOperation(
+                new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+                MessageProcessorRunnable.MessageProcessorMetrics.create()
+            )
+        );
+    }
+
+    public void testMissingID() throws IOException {
+        byte[] payload = "{\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+        ParsedDocument parsedDocument = mock(ParsedDocument.class);
+        when(documentMapper.parse(any())).thenReturn(parsedDocument);
+        when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> processor.getOperation(
+                new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+                MessageProcessorRunnable.MessageProcessorMetrics.create()
+            )
+        );
+    }
+
+    public void testDeleteWithAutoGeneratedID() throws IOException {
+        byte[] payload = "{\"_id\":\"1\",\"_op_type\":\"delete\"}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        ParsedDocument parsedDocument = mock(ParsedDocument.class);
+        when(documentMapper.parse(any())).thenReturn(parsedDocument);
+        when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
+        MessageProcessorRunnable.MessageOperation operation = processor.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), System.currentTimeMillis()),
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
+        );
+        assertTrue(operation.engineOperation() instanceof Engine.NoOp);
+    }
+
+    public void testMessageProcessorMetrics() {
+        MessageProcessorRunnable.MessageProcessorMetrics metrics1 = MessageProcessorRunnable.MessageProcessorMetrics.create();
+        metrics1.processedCounter().inc(100);
+        metrics1.invalidMessageCounter().inc(5);
+        metrics1.versionConflictCounter().inc(2);
+        metrics1.failedMessageCounter().inc(1);
+        metrics1.failedMessageDroppedCounter().inc(1);
+        metrics1.processorThreadInterruptCounter().inc(0);
+
+        MessageProcessorRunnable.MessageProcessorMetrics metrics2 = MessageProcessorRunnable.MessageProcessorMetrics.create();
+        metrics2.processedCounter().inc(100);
+        metrics2.invalidMessageCounter().inc(0);
+        metrics2.versionConflictCounter().inc(0);
+        metrics2.failedMessageCounter().inc(100);
+        metrics2.failedMessageDroppedCounter().inc(100);
+        metrics2.processorThreadInterruptCounter().inc(1);
+
+        MessageProcessorRunnable.MessageProcessorMetrics combinedMetric = metrics1.combine(metrics2);
+        assertEquals(200, combinedMetric.processedCounter().count());
+        assertEquals(5, combinedMetric.invalidMessageCounter().count());
+        assertEquals(2, combinedMetric.versionConflictCounter().count());
+        assertEquals(101, combinedMetric.failedMessageCounter().count());
+        assertEquals(101, combinedMetric.failedMessageDroppedCounter().count());
+        assertEquals(1, combinedMetric.processorThreadInterruptCounter().count());
+    }
+
+    public void testMessageRetrySuccess() throws Exception {
+        MessageProcessorRunnable.MessageProcessor processor = mock(MessageProcessorRunnable.MessageProcessor.class);
+        DropIngestionErrorStrategy errorStrategy = new DropIngestionErrorStrategy("ingestion_source");
+        MessageProcessorRunnable messageProcessorRunnable = new MessageProcessorRunnable(
+            new ArrayBlockingQueue<>(5),
+            processor,
+            errorStrategy
+        );
+        messageProcessorRunnable.getBlockingQueue().put(new ShardUpdateMessage(null, null, null, 0));
+
+        doThrow(new RuntimeException()).doNothing().when(processor).process(any(), any());
+
+        Thread thread = new Thread(messageProcessorRunnable::run);
+        thread.start();
+        assertBusy(() -> {
+            verify(processor, times(2)).process(any(), any());
+            assertEquals(0, messageProcessorRunnable.getMessageProcessorMetrics().failedMessageDroppedCounter().count());
+            assertEquals(1, messageProcessorRunnable.getMessageProcessorMetrics().failedMessageCounter().count());
+        }, 1, TimeUnit.MINUTES);
+
+        messageProcessorRunnable.close();
+        thread.interrupt();
+    }
+
+    public void testMessageRetryFail() throws Exception {
+        MessageProcessorRunnable.MessageProcessor processor = mock(MessageProcessorRunnable.MessageProcessor.class);
+        DropIngestionErrorStrategy errorStrategy = new DropIngestionErrorStrategy("ingestion_source");
+        MessageProcessorRunnable messageProcessorRunnable = new MessageProcessorRunnable(
+            new ArrayBlockingQueue<>(5),
+            processor,
+            errorStrategy
+        );
+        messageProcessorRunnable.getBlockingQueue().put(new ShardUpdateMessage(null, null, null, 0));
+
+        doThrow(new RuntimeException()).doThrow(new RuntimeException())
+            .doThrow(new RuntimeException())
+            .doNothing()
+            .when(processor)
+            .process(any(), any());
+
+        Thread thread = new Thread(messageProcessorRunnable::run);
+        thread.start();
+        assertBusy(() -> {
+            verify(processor, times(3)).process(any(), any());
+            assertEquals(1, messageProcessorRunnable.getMessageProcessorMetrics().failedMessageDroppedCounter().count());
+            assertEquals(3, messageProcessorRunnable.getMessageProcessorMetrics().failedMessageCounter().count());
+        }, 1, TimeUnit.MINUTES);
+
+        messageProcessorRunnable.close();
+        thread.interrupt();
     }
 }

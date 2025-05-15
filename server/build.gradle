@@ -69,8 +69,8 @@ dependencies {
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
-  implementation project(':libs:opensearch-arrow-spi')
 
+  compileOnly project(":libs:agent-sm:bootstrap")
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 
@@ -114,7 +114,7 @@ dependencies {
 
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
-  testImplementation 'org.awaitility:awaitility:4.2.2'
+  testImplementation 'org.awaitility:awaitility:4.3.0'
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
@@ -341,7 +341,8 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
-            'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
+            'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
+            'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException'
     )
 }
 
@@ -377,9 +378,7 @@ tasks.named("licenseHeaders").configure {
 
 tasks.test {
     environment "node.roles.test", "[]"
-    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-        jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED"]
-    }
+    jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED", "-Djdk.attach.allowAttachSelf=true", "-XX:+EnableDynamicAgentLoading" ]
 }
 
 tasks.named("sourcesJar").configure {

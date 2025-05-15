@@ -8,6 +8,7 @@
 
 package org.opensearch.search.approximate;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -16,6 +17,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -24,41 +26,51 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.IntsRef;
-import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * An approximate-able version of {@link PointRangeQuery}. It creates an instance of {@link PointRangeQuery} but short-circuits the intersect logic
  * after {@code size} is hit
  */
-public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
+public class ApproximatePointRangeQuery extends ApproximateQuery {
+    public static final Function<byte[], String> LONG_FORMAT = bytes -> Long.toString(LongPoint.decodeDimension(bytes, 0));
     private int size;
 
     private SortOrder sortOrder;
 
     public final PointRangeQuery pointRangeQuery;
 
-    protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims) {
-        this(field, lowerPoint, upperPoint, numDims, 10_000, null);
+    public ApproximatePointRangeQuery(
+        String field,
+        byte[] lowerPoint,
+        byte[] upperPoint,
+        int numDims,
+        Function<byte[], String> valueToString
+    ) {
+        this(field, lowerPoint, upperPoint, numDims, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, null, valueToString);
     }
 
-    protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims, int size) {
-        this(field, lowerPoint, upperPoint, numDims, size, null);
-    }
-
-    protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims, int size, SortOrder sortOrder) {
+    protected ApproximatePointRangeQuery(
+        String field,
+        byte[] lowerPoint,
+        byte[] upperPoint,
+        int numDims,
+        int size,
+        SortOrder sortOrder,
+        Function<byte[], String> valueToString
+    ) {
         this.size = size;
         this.sortOrder = sortOrder;
         this.pointRangeQuery = new PointRangeQuery(field, lowerPoint, upperPoint, numDims) {
             @Override
             protected String toString(int dimension, byte[] value) {
-                return super.toString(field);
+                return valueToString.apply(value);
             }
         };
     }
@@ -77,6 +89,11 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
 
     public void setSortOrder(SortOrder sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        return super.rewrite(indexSearcher);
     }
 
     @Override
@@ -344,7 +361,6 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
                 if (checkValidPointValues(values) == false) {
                     return null;
                 }
-                final Weight weight = this;
                 if (size > values.size()) {
                     return pointRangeQueryWeight.scorerSupplier(context);
                 } else {
@@ -424,20 +440,39 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
         if (context.aggregations() != null) {
             return false;
         }
+        // Exclude approximation when "track_total_hits": true
+        if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+            return false;
+        }
+
         // size 0 could be set for caching
         if (context.from() + context.size() == 0) {
-            this.setSize(10_000);
+            this.setSize(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
+        } else {
+            // We add +1 to ensure we collect at least one more document than required. This guarantees correct relation value:
+            // - If we find exactly trackTotalHitsUpTo docs: relation = EQUAL_TO
+            // - If we find > trackTotalHitsUpTo docs: relation = GREATER_THAN_OR_EQUAL_TO
+            // With +1, we will consistently get GREATER_THAN_OR_EQUAL_TO relation.
+            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()) + 1);
         }
-        this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()));
         if (context.request() != null && context.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
-            if (primarySortField != null
-                && primarySortField.missing() == null
-                && primarySortField.getFieldName().equals(((RangeQueryBuilder) context.request().source().query()).fieldName())) {
-                if (primarySortField.order() == SortOrder.DESC) {
-                    this.setSortOrder(SortOrder.DESC);
+            if (primarySortField != null) {
+                if (!primarySortField.fieldName().equals(pointRangeQuery.getField())) {
+                    return false;
                 }
+                if (primarySortField.missing() != null) {
+                    // Cannot sort documents missing this field.
+                    return false;
+                }
+                if (context.request().source().searchAfter() != null) {
+                    // TODO: We *could* optimize searchAfter, especially when this is the only sort field, but existing pruning is pretty
+                    // good.
+                    return false;
+                }
+                this.setSortOrder(primarySortField.order());
             }
+            return context.request().source().terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER;
         }
         return true;
     }
@@ -453,56 +488,16 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
     }
 
     private boolean equalsTo(ApproximatePointRangeQuery other) {
-        return Objects.equals(pointRangeQuery.getField(), other.pointRangeQuery.getField())
-            && pointRangeQuery.getNumDims() == other.pointRangeQuery.getNumDims()
-            && pointRangeQuery.getBytesPerDim() == other.pointRangeQuery.getBytesPerDim()
-            && Arrays.equals(pointRangeQuery.getLowerPoint(), other.pointRangeQuery.getLowerPoint())
-            && Arrays.equals(pointRangeQuery.getUpperPoint(), other.pointRangeQuery.getUpperPoint());
+        return Objects.equals(pointRangeQuery, other.pointRangeQuery);
     }
 
     @Override
     public final String toString(String field) {
         final StringBuilder sb = new StringBuilder();
-        if (pointRangeQuery.getField().equals(field) == false) {
-            sb.append(pointRangeQuery.getField());
-            sb.append(':');
-        }
-
-        // print ourselves as "range per dimension"
-        for (int i = 0; i < pointRangeQuery.getNumDims(); i++) {
-            if (i > 0) {
-                sb.append(',');
-            }
-
-            int startOffset = pointRangeQuery.getBytesPerDim() * i;
-
-            sb.append('[');
-            sb.append(
-                toString(
-                    i,
-                    ArrayUtil.copyOfSubArray(pointRangeQuery.getLowerPoint(), startOffset, startOffset + pointRangeQuery.getBytesPerDim())
-                )
-            );
-            sb.append(" TO ");
-            sb.append(
-                toString(
-                    i,
-                    ArrayUtil.copyOfSubArray(pointRangeQuery.getUpperPoint(), startOffset, startOffset + pointRangeQuery.getBytesPerDim())
-                )
-            );
-            sb.append(']');
-        }
+        sb.append("Approximate(");
+        sb.append(pointRangeQuery.toString());
+        sb.append(")");
 
         return sb.toString();
     }
-
-    /**
-     * Returns a string of a single value in a human-readable format for debugging. This is used by
-     * {@link #toString()}.
-     *
-     * @param dimension dimension of the particular value
-     * @param value     single value, never null
-     * @return human readable value for debugging
-     */
-    protected abstract String toString(int dimension, byte[] value);
 }

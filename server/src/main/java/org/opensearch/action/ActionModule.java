@@ -186,6 +186,8 @@ import org.opensearch.action.admin.indices.replication.TransportSegmentReplicati
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.TransportRolloverAction;
+import org.opensearch.action.admin.indices.scale.searchonly.ScaleIndexAction;
+import org.opensearch.action.admin.indices.scale.searchonly.TransportScaleIndexAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
@@ -200,6 +202,14 @@ import org.opensearch.action.admin.indices.shrink.ResizeAction;
 import org.opensearch.action.admin.indices.shrink.TransportResizeAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionAction;
+import org.opensearch.action.admin.indices.streamingingestion.pause.TransportPauseIngestionAction;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionAction;
+import org.opensearch.action.admin.indices.streamingingestion.resume.TransportResumeIngestionAction;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateAction;
+import org.opensearch.action.admin.indices.streamingingestion.state.TransportGetIngestionStateAction;
+import org.opensearch.action.admin.indices.streamingingestion.state.TransportUpdateIngestionStateAction;
+import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateAction;
 import org.opensearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
 import org.opensearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
@@ -222,9 +232,6 @@ import org.opensearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.opensearch.action.admin.indices.template.put.TransportPutComponentTemplateAction;
 import org.opensearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.opensearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
-import org.opensearch.action.admin.indices.tiering.HotToWarmTieringAction;
-import org.opensearch.action.admin.indices.tiering.RestWarmTieringAction;
-import org.opensearch.action.admin.indices.tiering.TransportHotToWarmTieringAction;
 import org.opensearch.action.admin.indices.upgrade.get.TransportUpgradeStatusAction;
 import org.opensearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.opensearch.action.admin.indices.upgrade.post.TransportUpgradeAction;
@@ -403,6 +410,7 @@ import org.opensearch.rest.action.admin.indices.RestGetDataStreamsAction;
 import org.opensearch.rest.action.admin.indices.RestGetFieldMappingAction;
 import org.opensearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestGetIndicesAction;
+import org.opensearch.rest.action.admin.indices.RestGetIngestionStateAction;
 import org.opensearch.rest.action.admin.indices.RestGetMappingAction;
 import org.opensearch.rest.action.admin.indices.RestGetSettingsAction;
 import org.opensearch.rest.action.admin.indices.RestIndexDeleteAliasesAction;
@@ -412,6 +420,7 @@ import org.opensearch.rest.action.admin.indices.RestIndicesSegmentsAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesShardStoresAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesStatsAction;
 import org.opensearch.rest.action.admin.indices.RestOpenIndexAction;
+import org.opensearch.rest.action.admin.indices.RestPauseIngestionAction;
 import org.opensearch.rest.action.admin.indices.RestPutComponentTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestPutComposableIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestPutIndexTemplateAction;
@@ -420,7 +429,9 @@ import org.opensearch.rest.action.admin.indices.RestRecoveryAction;
 import org.opensearch.rest.action.admin.indices.RestRefreshAction;
 import org.opensearch.rest.action.admin.indices.RestResizeHandler;
 import org.opensearch.rest.action.admin.indices.RestResolveIndexAction;
+import org.opensearch.rest.action.admin.indices.RestResumeIngestionAction;
 import org.opensearch.rest.action.admin.indices.RestRolloverIndexAction;
+import org.opensearch.rest.action.admin.indices.RestScaleIndexAction;
 import org.opensearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestSimulateTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestSyncedFlushAction;
@@ -486,7 +497,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -573,7 +584,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
             Stream.of(
                 new RestHeaderDefinition(Task.X_OPAQUE_ID, false),
-                new RestHeaderDefinition(QueryGroupTask.QUERY_GROUP_ID_HEADER, false)
+                new RestHeaderDefinition(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, false)
             )
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
@@ -656,9 +667,6 @@ public class ActionModule extends AbstractModule {
         actions.register(CreateSnapshotAction.INSTANCE, TransportCreateSnapshotAction.class);
         actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
-        if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)) {
-            actions.register(HotToWarmTieringAction.INSTANCE, TransportHotToWarmTieringAction.class);
-        }
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
 
         actions.register(ClusterAddWeightedRoutingAction.INSTANCE, TransportAddWeightedRoutingAction.class);
@@ -688,6 +696,7 @@ public class ActionModule extends AbstractModule {
         actions.register(AutoPutMappingAction.INSTANCE, TransportAutoPutMappingAction.class);
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         actions.register(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
+        actions.register(ScaleIndexAction.INSTANCE, TransportScaleIndexAction.class);
         actions.register(AnalyzeAction.INSTANCE, TransportAnalyzeAction.class);
         actions.register(PutIndexTemplateAction.INSTANCE, TransportPutIndexTemplateAction.class);
         actions.register(GetIndexTemplatesAction.INSTANCE, TransportGetIndexTemplatesAction.class);
@@ -809,6 +818,12 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSearchPipelineAction.INSTANCE, GetSearchPipelineTransportAction.class);
         actions.register(DeleteSearchPipelineAction.INSTANCE, DeleteSearchPipelineTransportAction.class);
 
+        // Pull-based ingestion actions
+        actions.register(PauseIngestionAction.INSTANCE, TransportPauseIngestionAction.class);
+        actions.register(ResumeIngestionAction.INSTANCE, TransportResumeIngestionAction.class);
+        actions.register(GetIngestionStateAction.INSTANCE, TransportGetIngestionStateAction.class);
+        actions.register(UpdateIngestionStateAction.INSTANCE, TransportUpdateIngestionStateAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -909,7 +924,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestUpgradeAction());
         registerHandler.accept(new RestUpgradeStatusAction());
         registerHandler.accept(new RestClearIndicesCacheAction());
-
+        registerHandler.accept(new RestScaleIndexAction());
         registerHandler.accept(new RestIndexAction());
         registerHandler.accept(new CreateHandler());
         registerHandler.accept(new AutoIdHandler(nodesInCluster));
@@ -999,9 +1014,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodeAttrsAction());
         registerHandler.accept(new RestRepositoriesAction());
         registerHandler.accept(new RestSnapshotAction());
-        if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)) {
-            registerHandler.accept(new RestWarmTieringAction());
-        }
         registerHandler.accept(new RestTemplatesAction());
 
         // LIST API
@@ -1044,6 +1056,11 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetDecommissionStateAction());
         registerHandler.accept(new RestRemoteStoreStatsAction());
         registerHandler.accept(new RestRestoreRemoteStoreAction());
+
+        // pull-based ingestion API
+        registerHandler.accept(new RestPauseIngestionAction());
+        registerHandler.accept(new RestResumeIngestionAction());
+        registerHandler.accept(new RestGetIngestionStateAction());
     }
 
     @Override
