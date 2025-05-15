@@ -84,6 +84,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         }
         if (id != null && query != null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
+
         }
 
         this.index = index;
@@ -170,10 +171,16 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     }
 
     public void setQuery(QueryBuilder query) {
+        if (this.id != null && query != null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
+        }
         this.query = query;
     }
 
     public TermsLookup id(String id) {
+        if (this.query != null && id != null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
+        }
         this.id = id;
         return this;
     }
@@ -184,6 +191,15 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         String path = (String) args[2];
         QueryBuilder query = (QueryBuilder) args[3]; // Optional query
 
+        // Validation: Either id or query must be present, but not both
+        if (id == null && query == null) {
+            throw new IllegalArgumentException(
+                "[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query."
+            );
+        }
+        if (id != null && query != null) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
+        }
         return new TermsLookup(index, id, path, query);
     });
     static {

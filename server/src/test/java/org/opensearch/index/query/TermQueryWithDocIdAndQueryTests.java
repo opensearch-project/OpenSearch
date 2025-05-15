@@ -103,8 +103,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         SearchHits mockHits = new SearchHits(
             new SearchHit[] {
                 new SearchHit(1).sourceRef(new BytesArray("{\"name\":\"Jane Doe\",\"student_id\":\"111\"}")),
-                new SearchHit(2).sourceRef(new BytesArray("{\"name\":\"Mary Major\",\"student_id\":\"222\"}"))
-            },
+                new SearchHit(2).sourceRef(new BytesArray("{\"name\":\"Mary Major\",\"student_id\":\"222\"}")) },
             new TotalHits(2, TotalHits.Relation.EQUAL_TO),
             1.0f
         );
@@ -123,196 +122,129 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         assertEquals("Mary Major", hits[1].getSourceAsMap().get("name"));
         assertEquals("222", hits[1].getSourceAsMap().get("student_id"));
     }
+
+    public void testEnhancedTermsLookupWithQueryClause() throws Exception {
+        // Setup TermsLookup with a query clause
+        QueryBuilder queryBuilder = QueryBuilders.matchQuery("course", "Math101");
+        TermsLookup termsLookup = new TermsLookup("courses", null, "students", queryBuilder);
+
+        TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("student_id", termsLookup);
+
+        // Mock QueryShardContext
+        QueryShardContext context = mock(QueryShardContext.class);
+        when(context.getIndexSettings()).thenReturn(null);
+
+        // Rewrite the query before execution
+        QueryBuilder rewrittenQueryBuilder = termsQueryBuilder.rewrite(context);
+
+        // Validate the rewritten query
+        assertNotNull(rewrittenQueryBuilder);
+        assertThat(rewrittenQueryBuilder, instanceOf(QueryBuilder.class));
+    }
+
+    public void testQueryClauseReturnsNoResults() throws Exception {
+        // Setup TermsLookup with a query clause that returns no results
+        QueryBuilder queryBuilder = QueryBuilders.matchQuery("course", "NonExistentCourse");
+        TermsLookup termsLookup = new TermsLookup("courses", null, "students", queryBuilder);
+
+        TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("student_id", termsLookup);
+
+        // Mock QueryShardContext
+        QueryShardContext context = mock(QueryShardContext.class);
+        when(context.getIndexSettings()).thenReturn(null);
+
+        // Rewrite the query before execution
+        QueryBuilder rewrittenQueryBuilder = termsQueryBuilder.rewrite(context);
+
+        // Mock the search response with no hits
+        SearchResponse mockResponse = mock(SearchResponse.class);
+        SearchHits mockHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f);
+        when(mockResponse.getHits()).thenReturn(mockHits);
+
+        // Validate the results
+        assertEquals(0, mockResponse.getHits().getHits().length);
+    }
+
+    public void testTermsQueryWithInsertedData() throws Exception {
+        // Setup TermsLookup with valid data
+        TermsLookup termsLookup = new TermsLookup("classes", "102", "enrolled");
+        TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("student_id", termsLookup);
+
+        // Mock QueryShardContext
+        QueryShardContext context = mock(QueryShardContext.class);
+        when(context.getIndexSettings()).thenReturn(null);
+
+        // Rewrite the query before execution
+        QueryBuilder rewrittenQueryBuilder = termsQueryBuilder.rewrite(context);
+
+        // Mock the search response
+        SearchResponse mockResponse = mock(SearchResponse.class);
+        SearchHits mockHits = new SearchHits(
+            new SearchHit[] {
+                new SearchHit(1).sourceRef(new BytesArray("{\"name\":\"John Smith\",\"student_id\":\"333\"}")),
+                new SearchHit(2).sourceRef(new BytesArray("{\"name\":\"Alice Brown\",\"student_id\":\"444\"}")) },
+            new TotalHits(2, TotalHits.Relation.EQUAL_TO),
+            1.0f
+        );
+        when(mockResponse.getHits()).thenReturn(mockHits);
+
+        // Validate the results
+        SearchHit[] hits = mockResponse.getHits().getHits();
+        assertEquals(2, hits.length);
+        assertEquals("John Smith", hits[0].getSourceAsMap().get("name"));
+        assertEquals("333", hits[0].getSourceAsMap().get("student_id"));
+        assertEquals("Alice Brown", hits[1].getSourceAsMap().get("name"));
+        assertEquals("444", hits[1].getSourceAsMap().get("student_id"));
+    }
+
+    public void testTermsQueryWithNoIdAndNoQuery() {
+        // Attempt to create a TermsLookup with no id and no query
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> {
+            new TermsLookup("classes", null, "enrolled");
+        });
+
+        // Verify the exception message
+        assertEquals("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query.", exception.getMessage());
+    }
+
+    public void testTermsQueryWithIdAndQuery() throws Exception {
+        // Setup TermsLookup with both id and query
+        QueryBuilder queryBuilder = QueryBuilders.matchQuery("course", "CS102");
+        TermsLookup termsLookup = new TermsLookup("classes", "103", "enrolled");
+
+        // Expect an exception due to both id and query being set
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> termsLookup.setQuery(queryBuilder));
+        assertEquals("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.", exception.getMessage());
+
+    }
+
+    public void testTermsQueryWithComplexQuery() throws Exception {
+        // Setup TermsLookup with a complex query
+        QueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .must(QueryBuilders.matchQuery("course", "CS103"))
+            .filter(QueryBuilders.rangeQuery("year").gte(2020));
+        TermsLookup termsLookup = new TermsLookup("classes", null, "enrolled", queryBuilder);
+
+        TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("student_id", termsLookup);
+
+        // Mock QueryShardContext
+        QueryShardContext context = mock(QueryShardContext.class);
+        when(context.getIndexSettings()).thenReturn(null);
+
+        // Rewrite the query before execution
+        QueryBuilder rewrittenQueryBuilder = termsQueryBuilder.rewrite(context);
+
+        // Validate the rewritten query
+        assertNotNull(rewrittenQueryBuilder);
+        assertThat(rewrittenQueryBuilder, instanceOf(QueryBuilder.class));
+    }
 }
-// {
-//
-// public void testEnhancedTermsLookupWithQueryClause() throws Exception {
-// // Setup TermsLookup with a valid id and query clause
-// QueryBuilder queryBuilder = QueryBuilders.matchQuery("name", "CS101");
-// TermsLookup termsLookup = new TermsLookup("classes", "101", "enrolled").query(queryBuilder);
-// TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("student_id", termsLookup);
-//
-// // Create real IndexMetadata with valid settings
-// Settings indexSettings = Settings.builder()
-// .put("index.query.bool.max_clause_count", 1024) // Example setting
-// .put("index.version.created", 8000099) // Add the required index.version.created setting
-// .build();
-// IndexMetadata indexMetadata = IndexMetadata.builder("test_index")
-// .settings(indexSettings)
-// .numberOfShards(1)
-// .numberOfReplicas(1)
-// .build();
-//
-// // Create IndexSettings using the IndexMetadata
-// IndexSettings settings = new IndexSettings(indexMetadata, indexSettings);
-//
-// // Mock QueryShardContext
-// QueryShardContext context = mock(QueryShardContext.class);
-// when(context.getIndexSettings()).thenReturn(settings); // Return the real IndexSettings
-//
-// // Rewrite the query before execution
-// QueryBuilder rewrittenQueryBuilder = termsQueryBuilder.rewrite(context);
-//
-// // Execute the rewritten query and validate
-// Query query = rewrittenQueryBuilder.toQuery(context);
-// assertNotNull(query);
-// assertThat(query, instanceOf(Query.class));
-// }
-//
-//
-//
-// public void testQueryClauseReturnsNoResults() throws Exception {
-// // Setup TermsLookup with a query clause that returns no results
-// QueryBuilder queryBuilder = QueryBuilders.matchQuery("name", "NonExistentClass");
-// TermsLookup termsLookup = new TermsLookup("classes", "101", "enrolled").query(queryBuilder);
-// TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("student_id", termsLookup);
-//
-// // Create real IndexMetadata with valid settings
-// Settings indexSettings = Settings.builder()
-// .put("index.query.bool.max_clause_count", 1024) // Example setting
-// .put("index.version.created", 8000099) // Add the required index.version.created setting
-// .build();
-// IndexMetadata indexMetadata = IndexMetadata.builder("test_index")
-// .settings(indexSettings)
-// .numberOfShards(1)
-// .numberOfReplicas(1)
-// .build();
-//
-// // Create IndexSettings using the IndexMetadata
-// IndexSettings settings = new IndexSettings(indexMetadata, indexSettings);
-//
-// // Mock QueryShardContext
-// QueryShardContext context = mock(QueryShardContext.class);
-// when(context.getIndexSettings()).thenReturn(settings); // Return the real IndexSettings
-//
-// // Rewrite the query before execution
-// QueryBuilder rewrittenQueryBuilder = termsQueryBuilder.rewrite(context);
-//
-// // Check the type of the rewritten query
-// if (rewrittenQueryBuilder instanceof MatchNoneQueryBuilder) {
-// // Handle the case where the query rewrites to MatchNoneQueryBuilder
-// assertNotNull(rewrittenQueryBuilder);
-// assertThat(rewrittenQueryBuilder, instanceOf(MatchNoneQueryBuilder.class));
-// } else if (rewrittenQueryBuilder instanceof TermsQueryBuilder) {
-// // Execute the query and validate
-// Query query = rewrittenQueryBuilder.toQuery(context);
-// assertNotNull(query);
-// assertThat(query, instanceOf(Query.class));
-// } else {
-// throw new IllegalStateException("Unexpected query type: " + rewrittenQueryBuilder.getClass().getName());
-// }
-// }
-//
-// public void testTermsQueryWithInsertedData() throws Exception {
-// // Setup TermsLookup with a valid id and query clause
-// QueryBuilder queryBuilder = QueryBuilders.matchQuery("name", "CS101");
-// TermsLookup termsLookup = new TermsLookup("classes", "101", "enrolled").query(queryBuilder);
-// TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("student_id", termsLookup);
-//
-// // Mock data insertion
-// String[] enrolledStudents = { "1", "2" };
-// String[] allStudents = { "1", "2", "3" };
-//
-// // Simulate query execution
-// boolean queryMatches = false;
-// for (String student : allStudents) {
-// for (String enrolled : enrolledStudents) {
-// if (student.equals(enrolled)) {
-// queryMatches = true;
-// break;
-// }
-// }
-// }
-//
-// // Validate the output
-// assertTrue("Query should match enrolled students", queryMatches);
-// }
-//
-//
-//
-// public void testTermsQueryWithIdOnly() throws Exception {
-// // Setup TermsLookup with a valid id
-// TermsLookup termsLookup = new TermsLookup("classes", "101", "enrolled");
-// TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("student_id", termsLookup);
-//
-// // Mock QueryShardContext
-// QueryShardContext context = mock(QueryShardContext.class);
-// when(context.getIndexSettings()).thenReturn(null); // Mock index settings if needed
-//
-// // Rewrite the query before execution
-// QueryBuilder rewrittenQueryBuilder = termsQueryBuilder.rewrite(context);
-//
-// // Execute the rewritten query and validate
-// Query query = rewrittenQueryBuilder.toQuery(context);
-// assertNotNull(query);
-// assertThat(query, instanceOf(Query.class));
-// }
-//
-// public void testTermsQueryWithQueryOnly() throws Exception {
-// // Setup TermsLookup with a query clause
-// QueryBuilder queryBuilder = QueryBuilders.matchQuery("name", "CS101");
-// TermsLookup termsLookup = new TermsLookup("classes", null, "enrolled").query(queryBuilder);
-// TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("student_id", termsLookup);
-//
-// // Mock QueryShardContext
-// QueryShardContext context = mock(QueryShardContext.class);
-// when(context.getIndexSettings()).thenReturn(null); // Mock index settings if needed
-//
-// // Rewrite the query before execution
-// QueryBuilder rewrittenQueryBuilder = termsQueryBuilder.rewrite(context);
-//
-// // Execute the rewritten query and validate
-// Query query = rewrittenQueryBuilder.toQuery(context);
-// assertNotNull(query);
-// assertThat(query, instanceOf(Query.class));
-// }
-//
-// public void testTermsQueryWithIdAndQuery() {
-// // Setup TermsLookup with both id and query (invalid case)
-// QueryBuilder queryBuilder = QueryBuilders.matchQuery("name", "CS101");
-// TermsLookup termsLookup = new TermsLookup("classes", "101", "enrolled").query(queryBuilder);
-//
-// // Expect an exception during query execution
-// IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-// QueryBuilders.termsQuery("student_id", termsLookup);
-// });
-//
-// // Validate the exception message
-// assertEquals("[terms_lookup] cannot specify both 'id' and 'query'.", e.getMessage());
-// }
-//
-// public void testTermsQueryWithNoIdAndNoQuery() {
-// // Setup TermsLookup with neither id nor query (invalid case)
-// TermsLookup termsLookup = new TermsLookup("classes", null, "enrolled");
-//
-// // Expect an exception during query execution
-// IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-// QueryBuilders.termsQuery("student_id", termsLookup);
-// });
-//
-// // Validate the exception message
-// assertEquals("[terms_lookup] requires either 'id' or 'query' to be specified.", e.getMessage());
-// }
-//
-// public void testTermsQueryWithComplexQuery() throws Exception {
-// // Setup TermsLookup with a complex query clause
-// QueryBuilder queryBuilder = QueryBuilders.boolQuery()
-// .must(QueryBuilders.matchQuery("name", "CS101"))
-// .filter(QueryBuilders.rangeQuery("enrolled").gte(100).lte(200));
-// TermsLookup termsLookup = new TermsLookup("classes", null, "enrolled").query(queryBuilder);
-// TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("student_id", termsLookup);
-//
-// // Mock QueryShardContext
-// QueryShardContext context = mock(QueryShardContext.class);
-// when(context.getIndexSettings()).thenReturn(null); // Mock index settings if needed
-//
-// // Rewrite the query before execution
-// QueryBuilder rewrittenQueryBuilder = termsQueryBuilder.rewrite(context);
-//
-// // Execute the rewritten query and validate
-// Query query = rewrittenQueryBuilder.toQuery(context);
-// assertNotNull(query);
-// assertThat(query, instanceOf(Query.class));
-// }
-//
-// }
+
+// testEnhancedTermsLookupWithQueryClause
+// testQueryClauseReturnsNoResults
+// testTermsQueryWithInsertedData
+// testTermsQueryWithIdOnly
+// testTermsQueryWithQueryOnly
+// testTermsQueryWithIdAndQuery
+// testTermsQueryWithNoIdAndNoQuery
+// testTermsQueryWithComplexQuery
