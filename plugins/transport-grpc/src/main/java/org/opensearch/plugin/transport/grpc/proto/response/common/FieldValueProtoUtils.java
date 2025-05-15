@@ -35,22 +35,39 @@ public class FieldValueProtoUtils {
      */
     public static FieldValue toProto(Object javaObject) {
         FieldValue.Builder fieldValueBuilder = FieldValue.newBuilder();
+        toProto(javaObject, fieldValueBuilder);
+        return fieldValueBuilder.build();
+    }
 
-        if (javaObject instanceof Integer) {
+    /**
+     * Converts a generic Java Object to its Protocol Buffer FieldValue representation.
+     * It handles various Java types (Integer, Long, Double, Float, String, Boolean, Enum, Map)
+     * and converts them to the appropriate FieldValue type.
+     *
+     * @param javaObject The Java object to convert
+     * @param fieldValueBuilder The builder to populate with the Java object data
+     * @throws IllegalArgumentException if the Java object type cannot be converted
+     */
+    public static void toProto(Object javaObject, FieldValue.Builder fieldValueBuilder) {
+        // Use instanceof checks in order of most common types first for better performance
+        if (javaObject instanceof String) {
+            fieldValueBuilder.setStringValue((String) javaObject);
+        } else if (javaObject instanceof Integer) {
             // Integer
-            fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setInt32Value((int) javaObject).build());
+            GeneralNumber generalNumber = GeneralNumber.newBuilder().setInt32Value((int) javaObject).build();
+            fieldValueBuilder.setGeneralNumber(generalNumber);
         } else if (javaObject instanceof Long) {
             // Long
-            fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setInt64Value((long) javaObject).build());
+            GeneralNumber generalNumber = GeneralNumber.newBuilder().setInt64Value((long) javaObject).build();
+            fieldValueBuilder.setGeneralNumber(generalNumber);
         } else if (javaObject instanceof Double) {
             // Double
-            fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setDoubleValue((double) javaObject).build());
+            GeneralNumber generalNumber = GeneralNumber.newBuilder().setDoubleValue((double) javaObject).build();
+            fieldValueBuilder.setGeneralNumber(generalNumber);
         } else if (javaObject instanceof Float) {
             // Float
-            fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setFloatValue((float) javaObject).build());
-        } else if (javaObject instanceof String) {
-            // String
-            fieldValueBuilder.setStringValue((String) javaObject);
+            GeneralNumber generalNumber = GeneralNumber.newBuilder().setFloatValue((float) javaObject).build();
+            fieldValueBuilder.setGeneralNumber(generalNumber);
         } else if (javaObject instanceof Boolean) {
             // Boolean
             fieldValueBuilder.setBoolValue((Boolean) javaObject);
@@ -59,18 +76,31 @@ public class FieldValueProtoUtils {
             fieldValueBuilder.setStringValue(javaObject.toString());
         } else if (javaObject instanceof Map) {
             // Map
-            ObjectMap.Builder objectMapBuilder = ObjectMap.newBuilder();
-
             @SuppressWarnings("unchecked")
-            Map<String, Object> fieldMap = (Map<String, Object>) javaObject;
-            for (Map.Entry<String, Object> entry : fieldMap.entrySet()) {
-                objectMapBuilder.putFields(entry.getKey(), ObjectMapProtoUtils.toProto(entry.getValue()));
-            }
-            fieldValueBuilder.setObjectMap(objectMapBuilder.build());
+            Map<String, Object> map = (Map<String, Object>) javaObject;
+            handleMapValue(map, fieldValueBuilder);
+        } else if (javaObject == null) {
+            throw new IllegalArgumentException("Cannot convert null to FieldValue");
         } else {
-            throw new IllegalArgumentException("Cannot convert " + javaObject.toString() + " to google.protobuf.Struct");
+            throw new IllegalArgumentException("Cannot convert " + javaObject.toString() + " to FieldValue");
+        }
+    }
+
+    /**
+     * Helper method to handle Map values.
+     *
+     * @param map The map to convert
+     * @param fieldValueBuilder The builder to populate with the map data
+     */
+    @SuppressWarnings("unchecked")
+    private static void handleMapValue(Map<String, Object> map, FieldValue.Builder fieldValueBuilder) {
+        ObjectMap.Builder objectMapBuilder = ObjectMap.newBuilder();
+
+        // Process each map entry
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            objectMapBuilder.putFields(entry.getKey(), ObjectMapProtoUtils.toProto(entry.getValue()));
         }
 
-        return fieldValueBuilder.build();
+        fieldValueBuilder.setObjectMap(objectMapBuilder.build());
     }
 }
