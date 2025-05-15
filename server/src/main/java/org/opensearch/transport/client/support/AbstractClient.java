@@ -408,6 +408,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.SearchScrollRequestBuilder;
+import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.termvectors.MultiTermVectorsAction;
@@ -634,6 +635,11 @@ public abstract class AbstractClient implements Client {
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
         return new SearchRequestBuilder(this, SearchAction.INSTANCE).setIndices(indices);
+    }
+
+    @Override
+    public SearchRequestBuilder prepareStreamSearch(String... indices) {
+        return new SearchRequestBuilder(this, StreamSearchAction.INSTANCE).setIndices(indices);
     }
 
     @Override
