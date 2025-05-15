@@ -18,6 +18,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugin.wlm.rule.attribute_extractor.IndicesExtractor;
 import org.opensearch.rule.InMemoryRuleProcessingService;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.WorkloadGroupTask;
@@ -29,7 +30,6 @@ import java.util.Optional;
  * This class is responsible to evaluate and assign the WORKLOAD_GROUP_ID header in ThreadContext
  */
 public class AutoTaggingActionFilter implements ActionFilter {
-    private static final int LARGE_NUMBER_TO_ENSURE_IT_IS_NOT_FIRST = Integer.MAX_VALUE;
     private final InMemoryRuleProcessingService ruleProcessingService;
     ThreadPool threadPool;
 
@@ -45,7 +45,7 @@ public class AutoTaggingActionFilter implements ActionFilter {
 
     @Override
     public int order() {
-        return LARGE_NUMBER_TO_ENSURE_IT_IS_NOT_FIRST;
+        return Integer.MAX_VALUE;
     }
 
     @Override
