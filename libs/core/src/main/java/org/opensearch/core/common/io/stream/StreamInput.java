@@ -563,11 +563,11 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
-    public final float readFloat() throws IOException {
+    public float readFloat() throws IOException {
         return Float.intBitsToFloat(readInt());
     }
 
-    public final double readDouble() throws IOException {
+    public double readDouble() throws IOException {
         return Double.longBitsToDouble(readLong());
     }
 
@@ -582,7 +582,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a boolean.
      */
-    public final boolean readBoolean() throws IOException {
+    public boolean readBoolean() throws IOException {
         return readBoolean(readByte());
     }
 
