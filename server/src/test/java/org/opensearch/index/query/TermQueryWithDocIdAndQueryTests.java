@@ -199,12 +199,13 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
 
     public void testTermsQueryWithNoIdAndNoQuery() {
         // Attempt to create a TermsLookup with no id and no query
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> {
-            new TermsLookup("classes", null, "enrolled");
-        });
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> { new TermsLookup("classes", null, "enrolled"); });
 
         // Verify the exception message
-        assertEquals("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query.", exception.getMessage());
+        assertEquals(
+            "[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying either the id or the query.",
+            exception.getMessage()
+        );
     }
 
     public void testTermsQueryWithIdAndQuery() throws Exception {
