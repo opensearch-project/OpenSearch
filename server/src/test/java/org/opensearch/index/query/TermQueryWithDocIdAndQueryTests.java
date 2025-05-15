@@ -239,12 +239,3 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         assertThat(rewrittenQueryBuilder, instanceOf(QueryBuilder.class));
     }
 }
-
-// testEnhancedTermsLookupWithQueryClause
-// testQueryClauseReturnsNoResults
-// testTermsQueryWithInsertedData
-// testTermsQueryWithIdOnly
-// testTermsQueryWithQueryOnly
-// testTermsQueryWithIdAndQuery
-// testTermsQueryWithNoIdAndNoQuery
-// testTermsQueryWithComplexQuery
