@@ -186,6 +186,7 @@ public final class NativeOutboundHandler extends ProtocolOutboundHandler {
         handler.sendBytes(channel, sendContext);
     }
 
+    @Override
     public void setMessageListener(TransportMessageListener listener) {
         if (messageListener == TransportMessageListener.NOOP_LISTENER) {
             messageListener = listener;
