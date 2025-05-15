@@ -73,6 +73,18 @@ public class TaskTransportChannel implements TransportChannel {
         }
     }
 
+    public void sendResponseBatch(TransportResponse response) {
+        channel.sendResponseBatch(response);
+    }
+
+    public void completeStream() {
+        try {
+            onTaskFinished.close();
+        } finally {
+            channel.completeStream();
+        }
+    }
+
     @Override
     public void sendResponse(Exception exception) throws IOException {
         try {

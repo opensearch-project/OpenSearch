@@ -56,6 +56,14 @@ public interface TransportChannel {
 
     String getChannelType();
 
+    default void sendResponseBatch(TransportResponse response) {
+        throw new UnsupportedOperationException();
+    }
+
+    default void completeStream() {
+        throw new UnsupportedOperationException();
+    }
+
     void sendResponse(TransportResponse response) throws IOException;
 
     void sendResponse(Exception exception) throws IOException;

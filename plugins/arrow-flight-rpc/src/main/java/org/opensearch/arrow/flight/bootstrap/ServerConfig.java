@@ -182,11 +182,11 @@ public class ServerConfig {
             : new NioEventLoopGroup(eventLoopThreads, OpenSearchExecutors.daemonThreadFactory(name));
     }
 
-    static Class<? extends Channel> serverChannelType() {
+    public static Class<? extends Channel> serverChannelType() {
         return Epoll.isAvailable() ? EpollServerSocketChannel.class : NioServerSocketChannel.class;
     }
 
-    static Class<? extends Channel> clientChannelType() {
+    public static Class<? extends Channel> clientChannelType() {
         return Epoll.isAvailable() ? EpollSocketChannel.class : NioSocketChannel.class;
     }
 
