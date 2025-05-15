@@ -56,8 +56,8 @@ public class RemoteStoreMetadataResponse extends BroadcastResponse {
     public Map<String, Map<Integer, List<RemoteStoreMetadata>>> groupByIndexAndShards() {
         Map<String, Map<Integer, List<RemoteStoreMetadata>>> indexWiseMetadata = new HashMap<>();
         for (RemoteStoreMetadata metadata : remoteStoreMetadata) {
-            indexWiseMetadata.computeIfAbsent(metadata.getShardRouting().getIndexName(), k -> new HashMap<>())
-                .computeIfAbsent(metadata.getShardRouting().getId(), k -> new ArrayList<>())
+            indexWiseMetadata.computeIfAbsent(metadata.getIndexName(), k -> new HashMap<>())
+                .computeIfAbsent(metadata.getShardId(), k -> new ArrayList<>())
                 .add(metadata);
         }
         return indexWiseMetadata;

@@ -1,10 +1,18 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
 package org.opensearch.action.admin.cluster.remotestore.metadata;
 
-import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.ToXContent.Params;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -20,30 +28,42 @@ import java.util.Map;
 public class RemoteStoreMetadata implements Writeable, ToXContentFragment {
     private final Map<String, Object> segments;
     private final Map<String, Object> translog;
-    private final ShardRouting shardRouting;
+    private final String indexName;
+    private final int shardId;
 
-    public RemoteStoreMetadata(Map<String, Object> segments, Map<String, Object> translog, ShardRouting shardRouting) {
+    public RemoteStoreMetadata(
+        Map<String, Object> segments,
+        Map<String, Object> translog,
+        String indexName,
+        int shardId
+    ) {
         this.segments = segments;
         this.translog = translog;
-        this.shardRouting = shardRouting;
+        this.indexName = indexName;
+        this.shardId = shardId;
     }
 
     public RemoteStoreMetadata(StreamInput in) throws IOException {
         this.segments = in.readMap();
         this.translog = in.readMap();
-        this.shardRouting = new ShardRouting(in);
+        this.indexName = in.readString();
+        this.shardId = in.readInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(segments);
         out.writeMap(translog);
-        shardRouting.writeTo(out);
+        out.writeString(indexName);
+        out.writeInt(shardId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        
+        builder.field("index", indexName);
+        builder.field("shard", shardId);
 
         builder.startObject("segments");
         for (Map.Entry<String, Object> entry : segments.entrySet()) {
@@ -60,7 +80,11 @@ public class RemoteStoreMetadata implements Writeable, ToXContentFragment {
         return builder.endObject();
     }
 
-    public ShardRouting getShardRouting() {
-        return shardRouting;
+    public String getIndexName() {
+        return indexName;
+    }
+
+    public int getShardId() {
+        return shardId;
     }
 }
