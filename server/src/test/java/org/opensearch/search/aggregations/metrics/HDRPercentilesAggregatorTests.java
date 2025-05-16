@@ -120,8 +120,8 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 1)));
         }, hdr -> {
             assertEquals(0L, hdr.state.getTotalCount());
             assertFalse(AggregationInspectionHelper.hasValue(hdr));
@@ -130,10 +130,10 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
         testCase(new FieldExistsQuery("number"), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 60)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 40)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 20)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 10)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 60)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 40)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 20)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 10)));
         }, hdr -> {
             assertEquals(4L, hdr.state.getTotalCount());
             double approximation = 0.05d;
@@ -164,10 +164,10 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltering() throws IOException {
         final CheckedConsumer<RandomIndexWriter, IOException> docs = iw -> {
-            iw.addDocument(asList(new LongPoint("row", 4), new SortedNumericDocValuesField("number", 60)));
-            iw.addDocument(asList(new LongPoint("row", 3), new SortedNumericDocValuesField("number", 40)));
-            iw.addDocument(asList(new LongPoint("row", 2), new SortedNumericDocValuesField("number", 20)));
-            iw.addDocument(asList(new LongPoint("row", 1), new SortedNumericDocValuesField("number", 10)));
+            iw.addDocument(asList(new LongPoint("row", 4), SortedNumericDocValuesField.indexedField("number", 60)));
+            iw.addDocument(asList(new LongPoint("row", 3), SortedNumericDocValuesField.indexedField("number", 40)));
+            iw.addDocument(asList(new LongPoint("row", 2), SortedNumericDocValuesField.indexedField("number", 20)));
+            iw.addDocument(asList(new LongPoint("row", 1), SortedNumericDocValuesField.indexedField("number", 10)));
         };
 
         testCase(LongPoint.newRangeQuery("row", 0, 2), docs, hdr -> {

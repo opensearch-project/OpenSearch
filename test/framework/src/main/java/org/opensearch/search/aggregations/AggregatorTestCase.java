@@ -1125,7 +1125,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                 v = Math.abs(randomByte());
                 json = "{ \"" + fieldName + "\" : \"" + v + "\" }";
             }
-            doc.add(new SortedNumericDocValuesField(fieldName, v));
+            doc.add(SortedNumericDocValuesField.indexedField(fieldName, v));
 
         } else if (vst.equals(CoreValuesSourceType.BYTES)) {
             if (typeName.equals(BinaryFieldMapper.CONTENT_TYPE)) {
@@ -1139,12 +1139,12 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             // positive integer because date_nanos gets unhappy with large longs
             long v;
             v = Math.abs(randomInt());
-            doc.add(new SortedNumericDocValuesField(fieldName, v));
+            doc.add(SortedNumericDocValuesField.indexedField(fieldName, v));
             json = "{ \"" + fieldName + "\" : \"" + v + "\" }";
         } else if (vst.equals(CoreValuesSourceType.BOOLEAN)) {
             long v;
             v = randomBoolean() ? 0 : 1;
-            doc.add(new SortedNumericDocValuesField(fieldName, v));
+            doc.add(SortedNumericDocValuesField.indexedField(fieldName, v));
             json = "{ \"" + fieldName + "\" : \"" + (v == 0 ? "false" : "true") + "\" }";
         } else if (vst.equals(CoreValuesSourceType.IP)) {
             InetAddress ip = randomIp(randomBoolean());

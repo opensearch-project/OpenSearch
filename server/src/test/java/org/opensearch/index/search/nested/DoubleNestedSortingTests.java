@@ -76,7 +76,7 @@ public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTestCas
 
     @Override
     protected IndexableField createField(String name, int value) {
-        return new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(value));
+        return SortedNumericDocValuesField.indexedField(name, NumericUtils.doubleToSortableLong(value));
     }
 
     @Override

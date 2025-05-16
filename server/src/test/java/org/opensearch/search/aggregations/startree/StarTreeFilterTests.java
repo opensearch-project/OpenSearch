@@ -165,12 +165,12 @@ public class StarTreeFilterTests extends AggregatorTestCase {
 
         for (int i = 0; i < totalDocs; i++) {
             Document doc = new Document();
-            doc.add(new SortedNumericDocValuesField(SNDV, i));
-            doc.add(new SortedNumericDocValuesField(DV, 2 * i));
-            doc.add(new SortedNumericDocValuesField(FIELD_NAME, 3 * i));
+            doc.add(SortedNumericDocValuesField.indexedField(SNDV, i));
+            doc.add(SortedNumericDocValuesField.indexedField(DV, 2 * i));
+            doc.add(SortedNumericDocValuesField.indexedField(FIELD_NAME, 3 * i));
             if (skipStarNodeCreationForSDVDimension) {
                 // adding SDV field only star node creation is skipped for SDV dimension
-                doc.add(new SortedNumericDocValuesField(SDV, 4 * i));
+                doc.add(SortedNumericDocValuesField.indexedField(SDV, 4 * i));
             }
             iw.addDocument(doc);
             docs.add(doc);

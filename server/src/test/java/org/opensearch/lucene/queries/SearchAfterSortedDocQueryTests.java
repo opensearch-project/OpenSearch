@@ -95,7 +95,7 @@ public class SearchAfterSortedDocQueryTests extends OpenSearchTestCase {
         final RandomIndexWriter w = new RandomIndexWriter(random(), dir, config);
         for (int i = 0; i < numDocs; ++i) {
             int rand = randomIntBetween(0, 10);
-            doc.add(new SortedNumericDocValuesField("number", rand));
+            doc.add(SortedNumericDocValuesField.indexedField("number", rand));
             doc.add(new SortedDocValuesField("string", new BytesRef(randomAlphaOfLength(randomIntBetween(5, 50)))));
             w.addDocument(doc);
             doc.clear();

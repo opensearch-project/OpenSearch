@@ -186,9 +186,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         Document doc = new Document();
-        doc.add(new SortedNumericDocValuesField("scaled_float1", 10));
-        doc.add(new SortedNumericDocValuesField("scaled_float2", 5));
-        doc.add(new SortedNumericDocValuesField("scaled_float2", 12));
+        doc.add(SortedNumericDocValuesField.indexedField("scaled_float1", 10));
+        doc.add(SortedNumericDocValuesField.indexedField("scaled_float2", 5));
+        doc.add(SortedNumericDocValuesField.indexedField("scaled_float2", 12));
         w.addDocument(doc);
         try (DirectoryReader reader = DirectoryReader.open(w)) {
             // single-valued

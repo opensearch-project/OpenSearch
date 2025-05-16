@@ -89,14 +89,14 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                         Arrays.asList(
                             new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                             new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
-                            new SortedNumericDocValuesField("shard_id", shardId)
+                            SortedNumericDocValuesField.indexedField("shard_id", shardId)
                         )
                     );
                 }
                 docs.add(
                     Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                        new SortedNumericDocValuesField("shard_id", shardId),
+                        SortedNumericDocValuesField.indexedField("shard_id", shardId),
                         sequenceIDFields.primaryTerm
                     )
                 );
@@ -105,7 +105,7 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                 writer.addDocument(
                     Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                        new SortedNumericDocValuesField("shard_id", shardId),
+                        SortedNumericDocValuesField.indexedField("shard_id", shardId),
                         sequenceIDFields.primaryTerm
                     )
                 );
@@ -143,7 +143,7 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                         Arrays.asList(
                             new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                             new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
-                            new SortedNumericDocValuesField("shard_id", shardId)
+                            SortedNumericDocValuesField.indexedField("shard_id", shardId)
                         )
                     );
                 }
@@ -151,7 +151,7 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                     Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                         new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
-                        new SortedNumericDocValuesField("shard_id", shardId),
+                        SortedNumericDocValuesField.indexedField("shard_id", shardId),
                         sequenceIDFields.primaryTerm
                     )
                 );
@@ -161,7 +161,7 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                     Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                         new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
-                        new SortedNumericDocValuesField("shard_id", shardId),
+                        SortedNumericDocValuesField.indexedField("shard_id", shardId),
                         sequenceIDFields.primaryTerm
                     )
                 );
@@ -196,14 +196,14 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                 rootDoc = Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
-                    new SortedNumericDocValuesField("shard_id", shardId),
+                    SortedNumericDocValuesField.indexedField("shard_id", shardId),
                     sequenceIDFields.primaryTerm
                 );
             } else {
                 shardId = OperationRouting.generateShardId(metadata, Integer.toString(j), null);
                 rootDoc = Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                    new SortedNumericDocValuesField("shard_id", shardId),
+                    SortedNumericDocValuesField.indexedField("shard_id", shardId),
                     sequenceIDFields.primaryTerm
                 );
             }
@@ -216,7 +216,7 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                         Arrays.asList(
                             new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                             new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
-                            new SortedNumericDocValuesField("shard_id", shardId)
+                            SortedNumericDocValuesField.indexedField("shard_id", shardId)
                         )
                     );
                 }
@@ -259,7 +259,7 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                         Arrays.asList(
                             new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                             new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
-                            new SortedNumericDocValuesField("shard_id", shardId)
+                            SortedNumericDocValuesField.indexedField("shard_id", shardId)
                         )
                     );
                 }
@@ -267,7 +267,7 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                     Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                         new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
-                        new SortedNumericDocValuesField("shard_id", shardId),
+                        SortedNumericDocValuesField.indexedField("shard_id", shardId),
                         sequenceIDFields.primaryTerm
                     )
                 );
@@ -277,7 +277,7 @@ public class ShardSplittingQueryTests extends OpenSearchTestCase {
                     Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                         new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
-                        new SortedNumericDocValuesField("shard_id", shardId),
+                        SortedNumericDocValuesField.indexedField("shard_id", shardId),
                         sequenceIDFields.primaryTerm
                     )
                 );

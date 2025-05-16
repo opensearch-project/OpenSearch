@@ -641,7 +641,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                     Document doc = new Document();
                     long value = randomLongBetween(1, Integer.MAX_VALUE);
                     doc.add(new LongPoint("custom-date", value));
-                    doc.add(new SortedNumericDocValuesField("custom-date", value));
+                    doc.add(SortedNumericDocValuesField.indexedField("custom-date", value));
                     writer.addDocument(doc);
                     maxValue = Math.max(maxValue, value);
                     minValue = Math.min(minValue, value);

@@ -105,14 +105,14 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             Document doc = new Document();
             if (random.nextBoolean()) {
                 val = random.nextInt(10); // Random int between 0 and 9 for status
-                doc.add(new SortedNumericDocValuesField(STATUS, val));
+                doc.add(SortedNumericDocValuesField.indexedField(STATUS, val));
             }
             if (random.nextBoolean()) {
                 val = random.nextInt(100); // Random int between 0 and 99 for size
-                doc.add(new SortedNumericDocValuesField(SIZE, val));
+                doc.add(SortedNumericDocValuesField.indexedField(SIZE, val));
             }
             date = random.nextInt(180) * 24 * 60 * 60 * 1000L; // Random date within 180 days
-            doc.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, date));
+            doc.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, date));
             doc.add(new LongPoint(TIMESTAMP_FIELD, date));
             iw.addDocument(doc);
             docs.add(doc);

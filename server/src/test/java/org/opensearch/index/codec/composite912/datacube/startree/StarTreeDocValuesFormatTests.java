@@ -57,29 +57,29 @@ public class StarTreeDocValuesFormatTests extends AbstractStarTreeDVFormatTests 
         conf.setMergePolicy(newLogMergePolicy());
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
         Document doc = new Document();
-        doc.add(new SortedNumericDocValuesField("unsignedLongDimension", 10));
-        doc.add(new SortedNumericDocValuesField("sndv", 1));
-        doc.add(new SortedNumericDocValuesField("dv1", 1));
-        doc.add(new SortedNumericDocValuesField("field1", -1));
+        doc.add(SortedNumericDocValuesField.indexedField("unsignedLongDimension", 10));
+        doc.add(SortedNumericDocValuesField.indexedField("sndv", 1));
+        doc.add(SortedNumericDocValuesField.indexedField("dv1", 1));
+        doc.add(SortedNumericDocValuesField.indexedField("field1", -1));
         iw.addDocument(doc);
         doc = new Document();
-        doc.add(new SortedNumericDocValuesField("unsignedLongDimension", 10));
-        doc.add(new SortedNumericDocValuesField("sndv", 1));
-        doc.add(new SortedNumericDocValuesField("dv1", 1));
-        doc.add(new SortedNumericDocValuesField("field1", -1));
+        doc.add(SortedNumericDocValuesField.indexedField("unsignedLongDimension", 10));
+        doc.add(SortedNumericDocValuesField.indexedField("sndv", 1));
+        doc.add(SortedNumericDocValuesField.indexedField("dv1", 1));
+        doc.add(SortedNumericDocValuesField.indexedField("field1", -1));
         iw.addDocument(doc);
         doc = new Document();
         iw.forceMerge(1);
-        doc.add(new SortedNumericDocValuesField("unsignedLongDimension", -20));
-        doc.add(new SortedNumericDocValuesField("sndv", 2));
-        doc.add(new SortedNumericDocValuesField("dv1", 2));
-        doc.add(new SortedNumericDocValuesField("field1", -2));
+        doc.add(SortedNumericDocValuesField.indexedField("unsignedLongDimension", -20));
+        doc.add(SortedNumericDocValuesField.indexedField("sndv", 2));
+        doc.add(SortedNumericDocValuesField.indexedField("dv1", 2));
+        doc.add(SortedNumericDocValuesField.indexedField("field1", -2));
         iw.addDocument(doc);
         doc = new Document();
-        doc.add(new SortedNumericDocValuesField("unsignedLongDimension", -20));
-        doc.add(new SortedNumericDocValuesField("sndv", 2));
-        doc.add(new SortedNumericDocValuesField("dv1", 2));
-        doc.add(new SortedNumericDocValuesField("field1", -2));
+        doc.add(SortedNumericDocValuesField.indexedField("unsignedLongDimension", -20));
+        doc.add(SortedNumericDocValuesField.indexedField("sndv", 2));
+        doc.add(SortedNumericDocValuesField.indexedField("dv1", 2));
+        doc.add(SortedNumericDocValuesField.indexedField("field1", -2));
         iw.addDocument(doc);
         iw.forceMerge(1);
         iw.close();
@@ -169,14 +169,14 @@ public class StarTreeDocValuesFormatTests extends AbstractStarTreeDVFormatTests 
                 Document doc = new Document();
                 doc.add(new StringField("_id", id, Field.Store.YES));
                 int fieldValue = random().nextInt(5) + 1;
-                doc.add(new SortedNumericDocValuesField("field", fieldValue));
+                doc.add(SortedNumericDocValuesField.indexedField("field", fieldValue));
 
                 int sndvValue = random().nextInt(3);
 
-                doc.add(new SortedNumericDocValuesField("sndv", sndvValue));
+                doc.add(SortedNumericDocValuesField.indexedField("sndv", sndvValue));
                 int dvValue = random().nextInt(3);
 
-                doc.add(new SortedNumericDocValuesField("dv", dvValue));
+                doc.add(SortedNumericDocValuesField.indexedField("dv", dvValue));
                 map.put(sndvValue + "-" + dvValue, fieldValue + map.getOrDefault(sndvValue + "-" + dvValue, 0));
                 doc.add(new NumericDocValuesField("field-ndv", fieldValue));
 
