@@ -69,6 +69,7 @@ import org.opensearch.search.startree.StarTreeTraversalUtil;
 import org.opensearch.search.startree.filter.DimensionFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -284,28 +285,45 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     }
 
     @Override
+    public List<String> getDimensionFilters() {
+        List<String> dimensionsToMerge = new ArrayList<>();
+        dimensionsToMerge.add(starTreeDateDimension);
+
+        for (Aggregator subAgg : subAggregators) {
+            if (subAgg instanceof StarTreePreComputeCollector collector) {
+                List<String> childFilters = collector.getDimensionFilters();
+                dimensionsToMerge.addAll(childFilters != null ? childFilters : Collections.emptyList());
+            }
+        }
+
+        return dimensionsToMerge;
+    }
+
+    @Override
     public StarTreeBucketCollector getStarTreeBucketCollector(
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parentCollector
     ) throws IOException {
-        assert parentCollector == null;
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
             .getDimensionValuesIterator(starTreeDateDimension);
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
+        List<String> dimensionsToMerge = getDimensionFilters();
 
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeTraversalUtil.getStarTreeResult(
-                starTreeValues,
-                StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
-                    context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
-                    starTreeDateDimension,
-                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
-                ),
-                context
-            )
+            parent == null
+                ? StarTreeTraversalUtil.getStarTreeResult(
+                    starTreeValues,
+                    StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+                        context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
+                        dimensionsToMerge,
+                        List.of(DimensionFilter.MATCH_ALL_DEFAULT)
+                    ),
+                    context
+                )
+                : null
         ) {
             @Override
             public void setSubCollectors() throws IOException {
