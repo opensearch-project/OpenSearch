@@ -61,68 +61,29 @@ public class TermsLookupTests extends OpenSearchTestCase {
         assertEquals(store, termsLookup.store());
     }
 
-//    public void testIllegalArguments() {
-//        String id = randomAlphaOfLength(5);
-//        String path = randomAlphaOfLength(5);
-//        String index = randomAlphaOfLength(5);
-//        switch (randomIntBetween(0, 2)) {
-//            case 0:
-//                id = null;
-//                break;
-//            case 1:
-//                path = null;
-//                break;
-//            case 2:
-//                index = null;
-//                break;
-//            default:
-//                fail("unknown case");
-//        }
-//        try {
-//            new TermsLookup(index, id, path);
-//        } catch (IllegalArgumentException e) {
-//            assertThat(e.getMessage(), containsString("[terms] query lookup element requires specifying"));
-//        }
-//    }
-
     public void testIllegalArgumentsWithBasicConstructor() {
         String validIndex = randomAlphaOfLength(5);
         String validId = randomAlphaOfLength(5);
         String validPath = randomAlphaOfLength(5);
 
         // Null index
-        IllegalArgumentException e1 = expectThrows(
-            IllegalArgumentException.class,
-            () -> new TermsLookup(null, validId, validPath)
-        );
+        IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> new TermsLookup(null, validId, validPath));
         assertThat(e1.getMessage(), containsString("[terms] index cannot be null or empty"));
 
         // Empty index
-        IllegalArgumentException e2 = expectThrows(
-            IllegalArgumentException.class,
-            () -> new TermsLookup("", validId, validPath)
-        );
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> new TermsLookup("", validId, validPath));
         assertThat(e2.getMessage(), containsString("[terms] index cannot be null or empty"));
 
         // Null path
-        IllegalArgumentException e3 = expectThrows(
-            IllegalArgumentException.class,
-            () -> new TermsLookup(validIndex, validId, null)
-        );
+        IllegalArgumentException e3 = expectThrows(IllegalArgumentException.class, () -> new TermsLookup(validIndex, validId, null));
         assertThat(e3.getMessage(), containsString("[terms] path cannot be null or empty"));
 
         // Empty path
-        IllegalArgumentException e4 = expectThrows(
-            IllegalArgumentException.class,
-            () -> new TermsLookup(validIndex, validId, "")
-        );
+        IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class, () -> new TermsLookup(validIndex, validId, ""));
         assertThat(e4.getMessage(), containsString("[terms] path cannot be null or empty"));
 
         // Null id (query is implicitly null via 3-arg constructor)
-        IllegalArgumentException e5 = expectThrows(
-            IllegalArgumentException.class,
-            () -> new TermsLookup(validIndex, null, validPath)
-        );
+        IllegalArgumentException e5 = expectThrows(IllegalArgumentException.class, () -> new TermsLookup(validIndex, null, validPath));
         assertThat(e5.getMessage(), containsString("[terms] query lookup element requires specifying either the id or the query"));
     }
 

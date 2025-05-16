@@ -72,14 +72,10 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     public TermsLookup(String index, String id, String path, QueryBuilder query) {
         if (Strings.isEmpty(index)) {
-            throw new IllegalArgumentException(
-                "[" + TermsQueryBuilder.NAME + "] index cannot be null or empty for TermsLookup"
-            );
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] index cannot be null or empty for TermsLookup");
         }
         if (Strings.isEmpty(path)) {
-            throw new IllegalArgumentException(
-                "[" + TermsQueryBuilder.NAME + "] path cannot be null or empty for TermsLookup"
-            );
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] path cannot be null or empty for TermsLookup");
         }
         if (id == null && query == null) {
             throw new IllegalArgumentException(
