@@ -59,7 +59,7 @@ public class LongNestedSortingTests extends AbstractNumberNestedSortingTestCase 
 
     @Override
     protected IndexableField createField(String name, int value) {
-        return new SortedNumericDocValuesField(name, value);
+        return SortedNumericDocValuesField.indexedField(name, value);
     }
 
 }

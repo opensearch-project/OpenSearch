@@ -195,8 +195,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 3)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 3)));
         }, min -> {
             assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
@@ -205,9 +205,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
     public void testMatchesSortedNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 2)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 3)));
         }, min -> {
             assertEquals(2, min.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
@@ -227,9 +227,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
         testCase(new FieldExistsQuery("number"), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number2", 2)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number2", 2)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 3)));
         }, min -> {
             assertEquals(3, min.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
@@ -249,9 +249,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltering() throws IOException {
         testCase(IntPoint.newRangeQuery("number", 0, 3), iw -> {
-            iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 3)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 7), SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 1), SortedNumericDocValuesField.indexedField("number", 1)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 3), SortedNumericDocValuesField.indexedField("number", 3)));
         }, min -> {
             assertEquals(1, min.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
@@ -260,9 +260,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltersAll() throws IOException {
         testCase(IntPoint.newRangeQuery("number", -1, 0), iw -> {
-            iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 3)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 7), SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 1), SortedNumericDocValuesField.indexedField("number", 1)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 3), SortedNumericDocValuesField.indexedField("number", 3)));
         }, min -> {
             assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
@@ -542,8 +542,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("number", i + 2));
-                document.add(new SortedNumericDocValuesField("number", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("number", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("number", i + 3));
                 iw.addDocument(document);
             }
         }, (Consumer<InternalMin>) min -> {
@@ -562,8 +562,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("number", i + 2));
-                document.add(new SortedNumericDocValuesField("number", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("number", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("number", i + 3));
                 iw.addDocument(document);
             }
         }, (Consumer<InternalMin>) min -> {
@@ -582,8 +582,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("number", i + 2));
-                document.add(new SortedNumericDocValuesField("number", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("number", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("number", i + 3));
                 iw.addDocument(document);
             }
         }, (Consumer<InternalMin>) min -> {

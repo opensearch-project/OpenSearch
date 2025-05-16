@@ -102,12 +102,12 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             Document doc = new Document();
             if (random.nextBoolean()) {
                 val = random.nextInt(10); // Random int between (0 and 9) for status
-                doc.add(new SortedNumericDocValuesField(STATUS, val));
+                doc.add(SortedNumericDocValuesField.indexedField(STATUS, val));
             }
             if (random.nextBoolean()) {
                 val = NumericUtils.doubleToSortableLong(random.nextInt(100) + 0.5f);
                 // Random float between (0 and 99)+0.5f for size
-                doc.add(new SortedNumericDocValuesField(SIZE, val));
+                doc.add(SortedNumericDocValuesField.indexedField(SIZE, val));
             }
             iw.addDocument(doc);
             docs.add(doc);

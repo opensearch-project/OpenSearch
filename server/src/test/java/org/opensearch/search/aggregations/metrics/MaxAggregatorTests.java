@@ -195,8 +195,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
     public void testNoMatchingField() throws IOException {
         testAggregation(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 1)));
         }, max -> {
             assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
@@ -205,8 +205,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
         testAggregation(new FieldExistsQuery("number"), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 1)));
         }, max -> {
             assertEquals(7, max.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
@@ -225,8 +225,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltering() throws IOException {
         testAggregation(IntPoint.newRangeQuery("number", 0, 5), iw -> {
-            iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 7), SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 1), SortedNumericDocValuesField.indexedField("number", 1)));
         }, max -> {
             assertEquals(1, max.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
@@ -235,8 +235,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltersAll() throws IOException {
         testAggregation(IntPoint.newRangeQuery("number", -1, 0), iw -> {
-            iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 7), SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 1), SortedNumericDocValuesField.indexedField("number", 1)));
         }, max -> {
             assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
@@ -271,8 +271,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number").missing(19L);
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 7), SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 1), SortedNumericDocValuesField.indexedField("number", 1)));
             iw.addDocument(emptyList());
         }, max -> {
             assertEquals(max.getValue(), 19.0, 0);
@@ -565,8 +565,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("number", i + 2));
-                document.add(new SortedNumericDocValuesField("number", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("number", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("number", i + 3));
                 iw.addDocument(document);
             }
         }, max -> {
@@ -585,8 +585,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("values", i + 2));
-                document.add(new SortedNumericDocValuesField("values", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 3));
                 iw.addDocument(document);
             }
         }, max -> {
@@ -606,8 +606,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("values", i + 2));
-                document.add(new SortedNumericDocValuesField("values", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 3));
                 iw.addDocument(document);
             }
         }, max -> {
@@ -667,8 +667,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("values", i + 2));
-                document.add(new SortedNumericDocValuesField("values", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 3));
                 iw.addDocument(document);
             }
         }, max -> {
@@ -692,8 +692,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("values", i + 2));
-                document.add(new SortedNumericDocValuesField("values", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 3));
                 iw.addDocument(document);
             }
         }, max -> {
@@ -796,8 +796,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         final int numDocs = 10;
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
-            document.add(new SortedNumericDocValuesField("values", i + 2));
-            document.add(new SortedNumericDocValuesField("values", i + 3));
+            document.add(SortedNumericDocValuesField.indexedField("values", i + 2));
+            document.add(SortedNumericDocValuesField.indexedField("values", i + 3));
             indexWriter.addDocument(document);
         }
         indexWriter.close();
@@ -840,8 +840,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
             document.add(new NumericDocValuesField("value", i + 1));
-            document.add(new SortedNumericDocValuesField("values", i + 2));
-            document.add(new SortedNumericDocValuesField("values", i + 3));
+            document.add(SortedNumericDocValuesField.indexedField("values", i + 2));
+            document.add(SortedNumericDocValuesField.indexedField("values", i + 3));
             indexWriter.addDocument(document);
         }
         indexWriter.close();

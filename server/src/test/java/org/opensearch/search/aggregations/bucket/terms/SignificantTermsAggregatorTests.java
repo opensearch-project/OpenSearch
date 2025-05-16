@@ -469,7 +469,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 Document d = new Document();
-                d.add(new SortedNumericDocValuesField("f", 1));
+                d.add(SortedNumericDocValuesField.indexedField("f", 1));
                 writer.addDocument(d);
                 writer.addDocument(new Document());
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
@@ -555,9 +555,9 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                     for (int j = 0; j < 10; j++) {
                         for (int k = 0; k < 10; k++) {
                             Document d = new Document();
-                            d.add(new SortedNumericDocValuesField("i", i));
-                            d.add(new SortedNumericDocValuesField("j", j));
-                            d.add(new SortedNumericDocValuesField("k", k));
+                            d.add(SortedNumericDocValuesField.indexedField("i", i));
+                            d.add(SortedNumericDocValuesField.indexedField("j", j));
+                            d.add(SortedNumericDocValuesField.indexedField("k", k));
                             writer.addDocument(d);
                         }
                     }

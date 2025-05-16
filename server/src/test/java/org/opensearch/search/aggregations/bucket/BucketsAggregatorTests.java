@@ -60,7 +60,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("numeric", 0));
+                document.add(SortedNumericDocValuesField.indexedField("numeric", 0));
                 indexWriter.addDocument(document);
             }
 

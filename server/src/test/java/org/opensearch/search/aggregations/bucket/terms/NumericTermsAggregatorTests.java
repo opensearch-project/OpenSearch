@@ -170,7 +170,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (Long value : dataset) {
-                    document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
+                    document.add(SortedNumericDocValuesField.indexedField(LONG_FIELD, value));
                     document.add(new LongPoint(LONG_FIELD, value));
                     indexWriter.addDocument(document);
                     document.clear();

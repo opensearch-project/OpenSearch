@@ -100,7 +100,7 @@ public class StoreRecoveryTests extends OpenSearchTestCase {
                 writer.addDocument(
                     Arrays.asList(
                         new StringField("id", Integer.toString(id++), Field.Store.YES),
-                        new SortedNumericDocValuesField("num", randomLong())
+                        SortedNumericDocValuesField.indexedField("num", randomLong())
                     )
                 );
             }
@@ -167,7 +167,7 @@ public class StoreRecoveryTests extends OpenSearchTestCase {
             writer.addDocument(
                 Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                    new SortedNumericDocValuesField("num", randomLong())
+                    SortedNumericDocValuesField.indexedField("num", randomLong())
                 )
             );
         }

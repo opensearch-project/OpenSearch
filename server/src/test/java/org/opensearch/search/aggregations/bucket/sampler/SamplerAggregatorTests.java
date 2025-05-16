@@ -80,7 +80,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                     text.append("good ");
                 }
                 doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
-                doc.add(new SortedNumericDocValuesField("int", value));
+                doc.add(SortedNumericDocValuesField.indexedField("int", value));
                 w.addDocument(doc);
             }
 
@@ -118,7 +118,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                     text.append("good ");
                 }
                 doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
-                doc.add(new SortedNumericDocValuesField("int", value));
+                doc.add(SortedNumericDocValuesField.indexedField("int", value));
                 w.addDocument(doc);
             }
 

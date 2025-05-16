@@ -95,11 +95,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             Document doc = new Document();
             if (random.nextBoolean()) {
                 val = random.nextInt(100); // Random int between 0 and 99 for status
-                doc.add(new SortedNumericDocValuesField(STATUS, val));
+                doc.add(SortedNumericDocValuesField.indexedField(STATUS, val));
             }
             if (random.nextBoolean()) {
                 val = NumericUtils.doubleToSortableLong(random.nextInt(100) + 0.5f);
-                doc.add(new SortedNumericDocValuesField(SIZE, val));
+                doc.add(SortedNumericDocValuesField.indexedField(SIZE, val));
             }
             iw.addDocument(doc);
             docs.add(doc);

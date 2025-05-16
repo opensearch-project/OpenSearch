@@ -810,7 +810,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
         if (hasDocValues) {
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+            context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
         } else if (store || indexed) {
             createFieldNamesField(context);
         }

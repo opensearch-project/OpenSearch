@@ -158,8 +158,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
     public void testNoMatchingField() throws IOException {
         testAggregation(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 3)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 3)));
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(avg));
@@ -168,9 +168,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
         testAggregation(new FieldExistsQuery("number"), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 2)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 3)));
         }, avg -> {
             assertEquals(4, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
@@ -190,9 +190,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltering() throws IOException {
         testAggregation(IntPoint.newRangeQuery("number", 0, 3), iw -> {
-            iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 2)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 3)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 7), SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 1), SortedNumericDocValuesField.indexedField("number", 2)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 3), SortedNumericDocValuesField.indexedField("number", 3)));
         }, avg -> {
             assertEquals(2.5, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
@@ -201,9 +201,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltersAll() throws IOException {
         testAggregation(IntPoint.newRangeQuery("number", -1, 0), iw -> {
-            iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 2)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 7)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 7), SortedNumericDocValuesField.indexedField("number", 7)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 1), SortedNumericDocValuesField.indexedField("number", 2)));
+            iw.addDocument(Arrays.asList(new IntPoint("number", 3), SortedNumericDocValuesField.indexedField("number", 7)));
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(avg));
@@ -402,8 +402,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("number", i + 2));
-                document.add(new SortedNumericDocValuesField("number", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("number", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("number", i + 3));
                 iw.addDocument(document);
             }
         }, avg -> {
@@ -423,8 +423,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("values", i + 2));
-                document.add(new SortedNumericDocValuesField("values", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 3));
                 iw.addDocument(document);
             }
         }, avg -> {
@@ -452,8 +452,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("values", i + 2));
-                document.add(new SortedNumericDocValuesField("values", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 3));
                 iw.addDocument(document);
             }
         }, avg -> {
@@ -495,8 +495,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("values", i + 2));
-                document.add(new SortedNumericDocValuesField("values", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 3));
                 iw.addDocument(document);
             }
         }, avg -> {
@@ -519,8 +519,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                document.add(new SortedNumericDocValuesField("values", i + 2));
-                document.add(new SortedNumericDocValuesField("values", i + 3));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 2));
+                document.add(SortedNumericDocValuesField.indexedField("values", i + 3));
                 iw.addDocument(document);
             }
         }, avg -> {

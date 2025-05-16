@@ -309,10 +309,10 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             for (long d = start; d < end; d += anHour) {
                 docs.add(
                     List.of(
-                        new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
+                        SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, d),
                         new SortedSetDocValuesField("k1", aBytes),
                         new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
-                        new SortedNumericDocValuesField("n", n++)
+                        SortedNumericDocValuesField.indexedField("n", n++)
                     )
                 );
             }
@@ -376,7 +376,12 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             List<List<IndexableField>> docs = new ArrayList<>();
             int n = 0;
             for (long d = start; d < end; d += anHour) {
-                docs.add(List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, d), new SortedNumericDocValuesField("n", n % 100)));
+                docs.add(
+                    List.of(
+                        SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, d),
+                        SortedNumericDocValuesField.indexedField("n", n % 100)
+                    )
+                );
                 n++;
             }
             /*
@@ -1023,10 +1028,10 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         int i = 0;
         for (final ZonedDateTime date : dataset) {
             final long instant = date.toInstant().toEpochMilli();
-            document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+            document.add(SortedNumericDocValuesField.indexedField(DATE_FIELD, instant));
             document.add(new LongPoint(DATE_FIELD, instant));
             document.add(new LongPoint(INSTANT_FIELD, instant));
-            document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, i));
+            document.add(SortedNumericDocValuesField.indexedField(NUMERIC_FIELD, i));
             indexWriter.addDocument(document);
             document.clear();
             i += 1;

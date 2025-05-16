@@ -241,7 +241,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             new StringField(IdFieldMapper.NAME, Uid.encodeId(childId), Field.Store.NO),
             new StringField("join_field", CHILD_TYPE, Field.Store.NO),
             createJoinField(PARENT_TYPE, parentId),
-            new SortedNumericDocValuesField("number", value)
+            SortedNumericDocValuesField.indexedField("number", value)
         );
     }
 

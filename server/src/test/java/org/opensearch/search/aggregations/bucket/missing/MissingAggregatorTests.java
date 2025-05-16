@@ -97,7 +97,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
-                writer.addDocument(singleton(new SortedNumericDocValuesField(fieldType.name(), randomLong())));
+                writer.addDocument(singleton(SortedNumericDocValuesField.indexedField(fieldType.name(), randomLong())));
             }
         }, internalMissing -> {
             assertEquals(0, internalMissing.getDocCount());
@@ -115,7 +115,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
-                writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                writer.addDocument(singleton(SortedNumericDocValuesField.indexedField(anotherFieldType.name(), randomLong())));
             }
         }, internalMissing -> {
             assertEquals(numDocs, internalMissing.getDocCount());
@@ -134,9 +134,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         final List<Set<IndexableField>> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             if (randomBoolean()) {
-                docs.add(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+                docs.add(singleton(SortedNumericDocValuesField.indexedField(aggFieldType.name(), randomLong())));
             } else {
-                docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                docs.add(singleton(SortedNumericDocValuesField.indexedField(anotherFieldType.name(), randomLong())));
                 docsMissingAggField++;
             }
         }
@@ -166,7 +166,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             if (randomBoolean()) {
                 docs.add(singleton(encodedRangeField));
             } else {
-                docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                docs.add(singleton(SortedNumericDocValuesField.indexedField(anotherFieldType.name(), randomLong())));
                 docsMissingAggField++;
             }
         }
@@ -186,7 +186,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
-                writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+                writer.addDocument(singleton(SortedNumericDocValuesField.indexedField(aggFieldType.name(), randomLong())));
             }
         }, internalMissing -> {
             assertEquals(numDocs, internalMissing.getDocCount());
@@ -202,7 +202,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
-                writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+                writer.addDocument(singleton(SortedNumericDocValuesField.indexedField(aggFieldType.name(), randomLong())));
             }
         }, internalMissing -> {
             assertEquals(0, internalMissing.getDocCount());
@@ -220,7 +220,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         testCase(newMatchAllQuery(), builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
-                writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                writer.addDocument(singleton(SortedNumericDocValuesField.indexedField(anotherFieldType.name(), randomLong())));
             }
         }, internalMissing -> {
             assertEquals(0, internalMissing.getDocCount());
@@ -242,12 +242,12 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 final long randomLong = randomLong();
                 docs.add(
                     Set.of(
-                        new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
-                        new SortedNumericDocValuesField(aggFieldType.name(), randomLong + 1)
+                        SortedNumericDocValuesField.indexedField(aggFieldType.name(), randomLong),
+                        SortedNumericDocValuesField.indexedField(aggFieldType.name(), randomLong + 1)
                     )
                 );
             } else {
-                docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                docs.add(singleton(SortedNumericDocValuesField.indexedField(anotherFieldType.name(), randomLong())));
                 docsMissingAggField++;
             }
         }
@@ -278,9 +278,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         final List<Set<IndexableField>> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             if (randomBoolean()) {
-                docs.add(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
+                docs.add(singleton(SortedNumericDocValuesField.indexedField(aggFieldType.name(), randomLong())));
             } else {
-                docs.add(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
+                docs.add(singleton(SortedNumericDocValuesField.indexedField(anotherFieldType.name(), randomLong())));
                 docsMissingAggField++;
             }
         }
@@ -321,8 +321,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             }
             docs.add(
                 Set.of(
-                    new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
-                    new SortedNumericDocValuesField(aggFieldType.name(), secondValue)
+                    SortedNumericDocValuesField.indexedField(aggFieldType.name(), firstValue),
+                    SortedNumericDocValuesField.indexedField(aggFieldType.name(), secondValue)
                 )
             );
         }
