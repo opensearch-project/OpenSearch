@@ -16,7 +16,6 @@ import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -45,7 +44,6 @@ public class RestRemoteStoreMetadataAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String index = request.param("index");
         String shardId = request.param("shard_id");
-        boolean local = Objects.equals(request.param("local"), "true");
 
         RemoteStoreMetadataRequest metadataRequest = new RemoteStoreMetadataRequest();
         if (index != null) {
@@ -54,7 +52,6 @@ public class RestRemoteStoreMetadataAction extends BaseRestHandler {
         if (shardId != null) {
             metadataRequest.shards(shardId);
         }
-        metadataRequest.local(local);
 
         return channel -> client.admin().cluster().remoteStoreMetadata(metadataRequest, new RestToXContentListener<>(channel));
     }

@@ -9,7 +9,7 @@
 package org.opensearch.action.admin.cluster.remotestore.metadata;
 
 import org.opensearch.action.support.broadcast.BroadcastResponse;
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -28,7 +28,7 @@ import java.util.Map;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.0.0")
+@ExperimentalApi
 public class RemoteStoreMetadataResponse extends BroadcastResponse {
     private final RemoteStoreMetadata[] remoteStoreMetadata;
 
