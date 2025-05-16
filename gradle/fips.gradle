@@ -1,0 +1,5 @@
+def fips = project.configurations.maybeCreate("fipsOnly")
+
+["compileClasspath", "testCompileClasspath", "runtimeClasspath", "testRuntimeClasspath"].each {
+    project.getConfigurations().getByName(it).extendsFrom(fips)
+}

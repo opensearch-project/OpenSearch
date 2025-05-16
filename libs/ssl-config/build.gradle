@@ -31,13 +31,14 @@
 import org.opensearch.gradle.info.BuildParams
 
 apply plugin: "opensearch.publish"
+apply from: "$rootDir/gradle/fips.gradle"
 
 dependencies {
   api project(':libs:opensearch-common')
-  api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
-  api "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
-  api "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
-  runtimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+  fipsOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  fipsOnly "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
+  fipsOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-ssl-config'
