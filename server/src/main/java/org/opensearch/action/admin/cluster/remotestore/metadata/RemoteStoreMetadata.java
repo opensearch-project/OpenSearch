@@ -8,11 +8,10 @@
 
 package org.opensearch.action.admin.cluster.remotestore.metadata;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.ToXContent.Params;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -24,7 +23,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-@PublicApi(since = "3.0.0")
+@ExperimentalApi
 public class RemoteStoreMetadata implements Writeable, ToXContentFragment {
     private final Map<String, Object> segments;
     private final Map<String, Object> translog;

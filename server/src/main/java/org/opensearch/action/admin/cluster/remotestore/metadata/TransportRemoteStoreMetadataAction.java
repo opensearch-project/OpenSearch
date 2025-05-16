@@ -10,48 +10,42 @@ package org.opensearch.action.admin.cluster.remotestore.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.VersionedCodecStreamWrapper;
-import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
-import org.opensearch.core.common.io.stream.BytesStreamInput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardNotFoundException;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
-import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.tasks.Task;
+import org.opensearch.core.index.Index;
 import org.opensearch.transport.TransportService;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.index.translog.RemoteFsTranslog;
+import org.opensearch.index.translog.transfer.FileTransferTracker;
+import org.opensearch.index.translog.transfer.TranslogTransferManager;
+import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * Transport action responsible for collecting segment and translog metadata
@@ -65,7 +59,8 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
     private final IndicesService indicesService;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final VersionedCodecStreamWrapper<RemoteSegmentMetadata> metadataStreamWrapper;
+    private final RepositoriesService repositoriesService;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportRemoteStoreMetadataAction(
@@ -73,37 +68,25 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool
     ) {
         super(RemoteStoreMetadataAction.NAME, actionFilters, transportService.getTaskManager());
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
-            new RemoteSegmentMetadataHandlerFactory(),
-            RemoteSegmentMetadata.VERSION_ONE,
-            RemoteSegmentMetadata.CURRENT_VERSION,
-            RemoteSegmentMetadata.METADATA_CODEC
-        );
+        this.repositoriesService = repositoriesService;
+        this.threadPool = threadPool;
     }
 
     @Override
     protected void doExecute(Task task, RemoteStoreMetadataRequest request, ActionListener<RemoteStoreMetadataResponse> listener) {
         try {
             ClusterState state = clusterService.state();
-            
-            // Check blocks
-            ClusterBlockException blockException = checkBlocks(state, request);
-            if (blockException != null) {
-                listener.onFailure(blockException);
-                return;
-            }
-
-            // Resolve concrete indices
             String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
             if (concreteIndices.length == 0) {
-                listener.onResponse(new RemoteStoreMetadataResponse(
-                    new RemoteStoreMetadata[0], 0, 0, 0, Collections.emptyList()));
+                listener.onResponse(new RemoteStoreMetadataResponse(new RemoteStoreMetadata[0], 0, 0, 0, Collections.emptyList()));
                 return;
             }
 
@@ -111,45 +94,37 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
             AtomicInteger successfulShards = new AtomicInteger(0);
             AtomicInteger failedShards = new AtomicInteger(0);
             List<DefaultShardOperationFailedException> shardFailures = Collections.synchronizedList(new ArrayList<>());
+            RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                () -> repositoriesService, 
+                threadPool, 
+                "remote_store"
+            );
 
-            // Process each index
             for (String indexName : concreteIndices) {
                 IndexMetadata indexMetadata = state.metadata().index(indexName);
                 if (!indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)) {
                     continue;
                 }
 
-                String repoLocation = clusterService.localNode()
-                    .getAttributes()
-                    .get("remote_store.repository.my-repository.settings.location");
-                String indexUUID = indexMetadata.getIndexUUID();
-
-                // Process requested shards or all shards
-                int[] shardIds = request.shards().length == 0 ? 
-                    IntStream.range(0, indexMetadata.getNumberOfShards()).toArray() :
+                Index index = indexMetadata.getIndex();
+                int[] shardIds = request.shards().length == 0 ?
+                    new int[indexMetadata.getNumberOfShards()] :
                     Arrays.stream(request.shards()).mapToInt(Integer::parseInt).toArray();
 
                 for (int shardId : shardIds) {
                     try {
-                        String segmentMetadataPath = String.format("%s/%s/%d/segments/metadata", 
-                            repoLocation, indexUUID, shardId);
-                        String translogMetadataPath = String.format("%s/%s/%d/translog/metadata", 
-                            repoLocation, indexUUID, shardId);
+                        ShardId sid = new ShardId(index, shardId);
+                        IndexService indexService = indicesService.indexService(index);
 
-                        Map<String, Object> segmentMetadata = readSegmentMetadata(segmentMetadataPath);
-                        Map<String, Object> translogMetadata = readTranslogMetadata(translogMetadataPath);
+                        Map<String, Object> segmentMetadataMap = getSegmentMetadata(remoteDirectoryFactory, index, sid, indexService);
+                        Map<String, Object> translogMetadataMap = getTranslogMetadata(indexMetadata, sid, indexService);
 
-                        responses.add(new RemoteStoreMetadata(
-                            segmentMetadata,
-                            translogMetadata,
-                            indexName,
-                            shardId
-                        ));
+                        responses.add(new RemoteStoreMetadata(segmentMetadataMap, translogMetadataMap, indexName, shardId));
                         successfulShards.incrementAndGet();
                     } catch (Exception e) {
                         failedShards.incrementAndGet();
                         shardFailures.add(new DefaultShardOperationFailedException(indexName, shardId, e));
-                        logger.warn("Failed to read remote store metadata for index [{}] shard [{}]", indexName, shardId, e);
+                        logger.warn("Failed to fetch remote store metadata for index [{}] shard [{}]", indexName, shardId, e);
                     }
                 }
             }
@@ -168,100 +143,67 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
         }
     }
 
-    private ClusterBlockException checkBlocks(ClusterState state, RemoteStoreMetadataRequest request) {
-        // Check global blocks
-        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
-        if (globalBlock != null) {
-            return globalBlock;
-        }
+    private Map<String, Object> getSegmentMetadata(
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
+        Index index,
+        ShardId shardId,
+        IndexService indexService
+    ) throws IOException {
+        RemoteSegmentStoreDirectory remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
+            clusterService.localNode().getAttributes().get("remote_store.segment.repository"),
+            index.getUUID(),
+            shardId,
+            indexService.getIndexSettings().getRemoteStorePathStrategy()
+        );
 
-        // Check index-specific blocks
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
+        RemoteSegmentMetadata segmentMetadata = remoteDirectory.readLatestMetadataFile();
+        Map<String, Object> segmentMetadataMap = new HashMap<>();
+        
+        segmentMetadata.getMetadata().forEach((file, meta) -> {
+            Map<String, Object> metaMap = new HashMap<>();
+            metaMap.put("original_name", meta.getOriginalFilename());
+            metaMap.put("checksum", meta.getChecksum());
+            metaMap.put("length", meta.getLength());
+            segmentMetadataMap.put(file, metaMap);
+        });
+
+        return segmentMetadataMap;
     }
 
-    private Map<String, Object> readSegmentMetadata(String metadataPath) throws IOException {
-        Map<String, Object> metadata = new HashMap<>();
-        Path path = Path.of(metadataPath);
-        if (!Files.exists(path)) return metadata;
+    private Map<String, Object> getTranslogMetadata(
+        IndexMetadata indexMetadata,
+        ShardId shardId,
+        IndexService indexService
+    ) throws IOException {
+        Map<String, Object> translogMetadataMap = new HashMap<>();
+        String repository = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(
+            indexMetadata.getSettings()
+        );
+        
+        if (repository != null) {
+            RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
+            FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+            BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repositoriesService.repository(repository);
+            TranslogTransferManager transferManager = RemoteFsTranslog.buildTranslogTransferManager(
+                blobStoreRepository,
+                threadPool,
+                shardId,
+                fileTransferTracker,
+                remoteTranslogTransferTracker,
+                indexService.getIndexSettings().getRemoteStorePathStrategy(),
+                new RemoteStoreSettings(clusterService.getSettings(), clusterService.getClusterSettings()),
+                indexMetadata.getSettings().getAsBoolean("index.remote_store.translog.metadata.enabled", true)
+            );
 
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, "metadata__*")) {
-            for (Path metadataFile : stream) {
-                try (InputStream in = Files.newInputStream(metadataFile);
-                     IndexInput idxIn = new ByteArrayIndexInput(metadataFile.getFileName().toString(), in.readAllBytes())) {
-
-                    RemoteSegmentMetadata segMetadata = metadataStreamWrapper.readStream(idxIn);
-                    Map<String, Object> fileMetadata = new HashMap<>();
-
-                    Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = segMetadata.getMetadata();
-                    if (uploadedSegments != null) {
-                        Map<String, Map<String, Object>> segmentsInfo = new HashMap<>();
-                        uploadedSegments.forEach((segmentFile, uploadedMetadata) -> {
-                            Map<String, Object> segInfo = new HashMap<>();
-                            segInfo.put("original_name", uploadedMetadata.getOriginalFilename());
-                            segInfo.put("checksum", uploadedMetadata.getChecksum());
-                            segInfo.put("length", uploadedMetadata.getLength());
-                            segmentsInfo.put(segmentFile, segInfo);
-                        });
-                        fileMetadata.put("uploaded_segments", segmentsInfo);
-                    }
-
-                    if (segMetadata.getReplicationCheckpoint() != null) {
-                        var cp = segMetadata.getReplicationCheckpoint();
-                        fileMetadata.put("replication_checkpoint", Map.of(
-                            "shard_id", cp.getShardId().toString(),
-                            "primary_term", cp.getPrimaryTerm(),
-                            "generation", cp.getSegmentsGen(),
-                            "version", cp.getSegmentInfosVersion(),
-                            "length", cp.getLength(),
-                            "codec", cp.getCodec(),
-                            "created_timestamp", cp.getCreatedTimeStamp()
-                        ));
-                    }
-
-                    fileMetadata.put("generation", segMetadata.getGeneration());
-                    fileMetadata.put("primary_term", segMetadata.getPrimaryTerm());
-                    metadata.put(metadataFile.getFileName().toString(), fileMetadata);
-                }
+            TranslogTransferMetadata translogMetadata = transferManager.readMetadata();
+            if (translogMetadata != null) {
+                translogMetadataMap.put("primary_term", translogMetadata.getPrimaryTerm());
+                translogMetadataMap.put("generation", translogMetadata.getGeneration());
+                translogMetadataMap.put("min_translog_gen", translogMetadata.getMinTranslogGeneration());
+                translogMetadataMap.put("generation_to_primary_term", translogMetadata.getGenerationToPrimaryTermMapper());
             }
         }
-        return metadata;
-    }
-
-    private Map<String, Object> readTranslogMetadata(String metadataPath) throws IOException {
-        Map<String, Object> metadata = new HashMap<>();
-        Path path = Path.of(metadataPath);
-        if (!Files.exists(path)) return metadata;
-
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, "metadata__*")) {
-            for (Path metadataFile : stream) {
-                try (InputStream inputStream = Files.newInputStream(metadataFile);
-                     BytesStreamInput input = new BytesStreamInput(inputStream.readAllBytes())) {
-
-                    Map<String, Object> fileMetadata = new HashMap<>();
-                    String[] parts = metadataFile.getFileName().toString().split(TranslogTransferMetadata.METADATA_SEPARATOR);
-                    fileMetadata.put("primary_term", Long.parseLong(parts[1]));
-                    fileMetadata.put("generation", Long.parseLong(parts[2]));
-                    fileMetadata.put("timestamp", Long.parseLong(parts[3]));
-                    fileMetadata.put("node_id_hash", parts[4]);
-                    fileMetadata.put("min_translog_gen", Long.parseLong(parts[5]));
-                    fileMetadata.put("min_primary_term", parts[6]);
-                    fileMetadata.put("version", parts[7]);
-
-                    long primaryTerm = input.readLong();
-                    long generation = input.readLong();
-                    long minTranslogGen = input.readLong();
-                    Map<String, String> genToTermMap = input.readMap(StreamInput::readString, StreamInput::readString);
-                    fileMetadata.put("content", Map.of(
-                        "primary_term", primaryTerm,
-                        "generation", generation,
-                        "min_translog_generation", minTranslogGen,
-                        "generation_to_term_mapping", genToTermMap
-                    ));
-                    metadata.put(metadataFile.getFileName().toString(), fileMetadata);
-                }
-            }
-        }
-        return metadata;
+        
+        return translogMetadataMap;
     }
 }
