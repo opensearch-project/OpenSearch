@@ -128,7 +128,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
-    public void postCollection() throws IOException {
+    public void postCollection(Runnable checkCancelled) throws IOException {
         // Delaying until beforeBuildingBuckets
     }
 
@@ -177,7 +177,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 }
             }
         }
-        super.postCollection(); // Run post collection after collecting the sub-aggs
+        super.postCollection(() -> {}); // Run post collection after collecting the sub-aggs
     }
 
     @Override

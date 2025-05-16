@@ -138,16 +138,16 @@ public class MultiBucketCollector extends BucketCollector {
     }
 
     @Override
-    public void preCollection() throws IOException {
+    public void preCollection(Runnable checkCancelled) throws IOException {
         for (BucketCollector collector : collectors) {
-            collector.preCollection();
+            collector.preCollection(checkCancelled);
         }
     }
 
     @Override
-    public void postCollection() throws IOException {
+    public void postCollection(Runnable checkCancelled) throws IOException {
         for (BucketCollector collector : collectors) {
-            collector.postCollection();
+            collector.postCollection(checkCancelled);
         }
     }
 

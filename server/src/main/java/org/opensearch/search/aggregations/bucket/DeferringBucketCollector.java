@@ -132,14 +132,14 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public void preCollection() throws IOException {
+        public void preCollection(Runnable checkCancelled) throws IOException {
             throw new IllegalStateException(
                 "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper."
             );
         }
 
         @Override
-        public void postCollection() throws IOException {
+        public void postCollection(Runnable checkCancelled) throws IOException {
             throw new IllegalStateException(
                 "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper."
             );

@@ -128,12 +128,12 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public void preCollection() throws IOException {
+    public void preCollection(Runnable checkCancelled) throws IOException {
         this.profileBreakdown = profiler.getQueryBreakdown(delegate);
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.INITIALIZE);
         timer.start();
         try {
-            delegate.preCollection();
+            delegate.preCollection(checkCancelled);
         } finally {
             timer.stop();
         }
@@ -141,11 +141,11 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public void postCollection() throws IOException {
+    public void postCollection(Runnable checkCancelled) throws IOException {
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.POST_COLLECTION);
         timer.start();
         try {
-            delegate.postCollection();
+            delegate.postCollection(checkCancelled);
         } finally {
             timer.stop();
         }

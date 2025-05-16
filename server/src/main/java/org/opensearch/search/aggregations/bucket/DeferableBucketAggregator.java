@@ -71,6 +71,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
 
     @Override
     protected void doPreCollection() throws IOException {
+        checkCancelled();
         List<BucketCollector> collectors = new ArrayList<>(subAggregators.length);
         List<BucketCollector> deferredAggregations = null;
         for (int i = 0; i < subAggregators.length; ++i) {
@@ -95,6 +96,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     }
 
     public DeferringBucketCollector getDeferringCollector() {
+        checkCancelled();
         // Default impl is a collector that selects the best buckets
         // but an alternative defer policy may be based on best docs.
         return new BestBucketsDeferringCollector(context(), descendsFromGlobalAggregator(parent()));
@@ -115,6 +117,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
 
     @Override
     protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
+        checkCancelled();
         if (recordingWrapper != null) {
             recordingWrapper.prepareSelectedBuckets(ordsToCollect);
         }

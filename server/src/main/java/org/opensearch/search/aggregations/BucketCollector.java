@@ -53,12 +53,12 @@ public abstract class BucketCollector implements Collector {
         }
 
         @Override
-        public void preCollection() throws IOException {
+        public void preCollection(Runnable checkCancelled) throws IOException {
             // no-op
         }
 
         @Override
-        public void postCollection() throws IOException {
+        public void postCollection(Runnable checkCancelled) throws IOException {
             // no-op
         }
 
@@ -74,11 +74,11 @@ public abstract class BucketCollector implements Collector {
     /**
      * Pre collection callback.
      */
-    public abstract void preCollection() throws IOException;
+    public abstract void preCollection(Runnable checkCancelled) throws IOException;
 
     /**
      * Post-collection callback.
      */
-    public abstract void postCollection() throws IOException;
+    public abstract void postCollection(Runnable checkCancelled) throws IOException;
 
 }

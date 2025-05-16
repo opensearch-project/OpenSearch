@@ -56,7 +56,7 @@ public class AggregationProfiler extends AbstractProfiler<AggregationProfileBrea
     /**
      * This method does not need to be thread safe for concurrent search use case as well.
      * The {@link AggregationProfileBreakdown} for each Aggregation operator is created in sync path when
-     * {@link org.opensearch.search.aggregations.BucketCollector#preCollection()} is called
+     * {@link org.opensearch.search.aggregations.BucketCollector#preCollection(Runnable r)} is called
      * on the Aggregation collector instances during construction.
      */
     @Override

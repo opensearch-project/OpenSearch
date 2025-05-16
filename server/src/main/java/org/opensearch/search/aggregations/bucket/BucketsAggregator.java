@@ -113,9 +113,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Utility method to collect the given doc in the given bucket (identified by the bucket ordinal)
      */
     public final void collectBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
-        if (context().isCancelled()) {
-            throw new OpenSearchRejectedExecutionException("query is cancelled");
-        }
+        checkCancelled();
         grow(bucketOrd + 1);
         collectExistingBucket(subCollector, doc, bucketOrd);
     }
@@ -124,9 +122,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
-        if (context().isCancelled()) {
-            throw new OpenSearchRejectedExecutionException("query is cancelled");
-        }
         long docCount = docCountProvider.getDocCount(doc);
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
             // We calculate the final number of buckets only during the reduce phase. But we still need to
@@ -143,9 +138,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      */
     public final void collectStarTreeBucket(StarTreeBucketCollector collector, long docCount, long bucketOrd, int entryBit)
         throws IOException {
-        if (context().isCancelled()) {
-            throw new OpenSearchRejectedExecutionException("query is cancelled");
-        }
+        checkCancelled();
         if (bucketOrd < 0) {
             bucketOrd = -1 - bucketOrd;
         } else {
@@ -170,9 +163,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      */
     @Deprecated
     public final void mergeBuckets(long[] mergeMap, long newNumBuckets) {
-        if (context().isCancelled()) {
-            throw new OpenSearchRejectedExecutionException("query is cancelled");
-        }
+        checkCancelled();
         mergeBuckets(newNumBuckets, bucket -> mergeMap[Math.toIntExact(bucket)]);
     }
 
@@ -185,9 +176,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * merge the actual ordinals and doc ID deltas.
      */
     public final void mergeBuckets(long newNumBuckets, LongUnaryOperator mergeMap) {
-        if (context().isCancelled()) {
-            throw new OpenSearchRejectedExecutionException("query is cancelled");
-        }
+        checkCancelled();
         try (LongArray oldDocCounts = docCounts) {
             docCounts = bigArrays.newLongArray(newNumBuckets, true);
             docCounts.fill(0, newNumBuckets, 0);
@@ -251,9 +240,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *         array of ordinals
      */
     protected final InternalAggregations[] buildSubAggsForBuckets(long[] bucketOrdsToCollect) throws IOException {
-        if (context().isCancelled()) {
-            throw new OpenSearchRejectedExecutionException("query is cancelled");
-        }
+        checkCancelled();
         beforeBuildingBuckets(bucketOrdsToCollect);
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
@@ -275,6 +262,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
             });
         }
         return result;
+    }
+
+    protected void checkCancelled() {
+        if (context().isCancelled()) {
+            throw new OpenSearchRejectedExecutionException("query is cancelled");
+        }
     }
 
     /**
@@ -308,6 +301,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         ToLongFunction<B> bucketToOrd,
         BiConsumer<B, InternalAggregations> setAggs
     ) throws IOException {
+        checkCancelled();
         int totalBucketOrdsToCollect = 0;
         for (B[] bucketsForOneResult : buckets) {
             totalBucketOrdsToCollect += bucketsForOneResult.length;

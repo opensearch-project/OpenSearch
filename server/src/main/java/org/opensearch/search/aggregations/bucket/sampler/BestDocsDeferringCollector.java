@@ -135,13 +135,13 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     @Override
-    public void preCollection() throws IOException {
-        deferred.preCollection();
+    public void preCollection(Runnable checkCancelled) throws IOException {
+        deferred.preCollection(checkCancelled);
     }
 
     @Override
-    public void postCollection() throws IOException {
-        runDeferredAggs();
+    public void postCollection(Runnable checkCancelled) throws IOException {
+        runDeferredAggs(checkCancelled);
     }
 
     @Override
@@ -149,9 +149,10 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         // no-op - deferred aggs processed in postCollection call
     }
 
-    private void runDeferredAggs() throws IOException {
+    private void runDeferredAggs(Runnable checkCancelled) throws IOException {
         // ScoreDoc is 12b ([float + int + int])
         circuitBreakerConsumer.accept(12L * shardSize);
+        checkCancelled.run();
         try {
             List<ScoreDoc> allDocs = new ArrayList<>(shardSize);
             for (int i = 0; i < perBucketSamples.size(); i++) {
@@ -180,7 +181,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             // done with allDocs now, reclaim some memory
             circuitBreakerConsumer.accept(-12L * shardSize);
         }
-        deferred.postCollection();
+        deferred.postCollection(checkCancelled);
     }
 
     class PerParentBucketSamples {

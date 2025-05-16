@@ -36,7 +36,7 @@ import java.util.function.BooleanSupplier;
 public class BucketCollectorProcessor {
 
     /**
-     * Performs {@link BucketCollector#postCollection()} on all the {@link BucketCollector} in the given {@link Collector} collector tree
+     * Performs {@link BucketCollector#postCollection(Runnable r)} on all the {@link BucketCollector} in the given {@link Collector} collector tree
      * after the collection of documents on a leaf is completed. This method will be called by different slice threads on its own collector
      * tree instance in case of concurrent segment search such that postCollection happens on the same slice thread which initialize and
      * perform collection of the documents for a leaf segment. For sequential search case, there is always a single search thread which
@@ -54,18 +54,21 @@ public class BucketCollectorProcessor {
      * <p>
      * NOTE: We can evaluate and deprecate this postCollection processing once lucene release the changes described in the
      * <a href="https://github.com/apache/lucene/issues/12375">issue-12375</a>. With this new change we should be able to implement
-     * {@link BucketCollector#postCollection()} functionality using the lucene interface directly such that postCollection gets called
+     * {@link BucketCollector#postCollection(Runnable r)} functionality using the lucene interface directly such that postCollection gets called
      * from the slice thread by lucene itself
      * </p>
      * @param collectorTree collector tree used by calling thread
      */
     public void processPostCollection(Collector collectorTree, BooleanSupplier isCancelled) throws IOException {
         final Queue<Collector> collectors = new LinkedList<>();
-        collectors.offer(collectorTree);
-        while (!collectors.isEmpty()) {
+        Runnable checkCancelled = () -> {
             if (isCancelled.getAsBoolean()) {
                 throw new OpenSearchRejectedExecutionException("Search was cancelled while post collection phase");
             }
+        };
+
+        collectors.offer(collectorTree);
+        while (!collectors.isEmpty()) {
             Collector currentCollector = collectors.poll();
             if (currentCollector instanceof InternalProfileCollector) {
                 collectors.offer(((InternalProfileCollector) currentCollector).getCollector());
@@ -79,8 +82,8 @@ public class BucketCollectorProcessor {
                 // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator) {
                     // Do not perform postCollection for MultiBucketCollector as we are unwrapping that below
-                    ((BucketCollector) currentCollector).postCollection();
-                    ((Aggregator) currentCollector).buildTopLevel();
+                    ((BucketCollector) currentCollector).postCollection(checkCancelled);
+                    ((Aggregator) currentCollector).buildTopLevel(checkCancelled);
                 } else if (currentCollector instanceof MultiBucketCollector) {
                     for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
                         collectors.offer(innerCollector);

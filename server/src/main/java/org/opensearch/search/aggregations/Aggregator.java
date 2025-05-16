@@ -201,11 +201,9 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * of another aggregation then the aggregation that contains
      * it will call {@link #buildAggregations(long[])}.
      */
-    public final InternalAggregation buildTopLevel() throws IOException {
+    public final InternalAggregation buildTopLevel(Runnable checkCancelled) throws IOException {
         assert parent() == null;
-        if (context().isCancelled()) {
-            throw new OpenSearchRejectedExecutionException("query is cancelled");
-        }
+        checkCancelled.run();
         this.internalAggregation.set(buildAggregations(new long[] { 0 })[0]);
         return internalAggregation.get();
     }

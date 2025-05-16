@@ -11,6 +11,7 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.query.ReduceableSearchResult;
 
@@ -70,7 +71,7 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
 
     static Collector createCollector(List<Aggregator> collectors) throws IOException {
         Collector collector = MultiBucketCollector.wrap(collectors);
-        ((BucketCollector) collector).preCollection();
+        ((BucketCollector) collector).preCollection(() -> {});
         return collector;
     }
 }
