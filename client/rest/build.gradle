@@ -32,6 +32,7 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
+apply from: "$rootDir/gradle/fips.gradle"
 
 java {
   targetCompatibility = JavaVersion.VERSION_1_8
@@ -51,9 +52,9 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
-  runtimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
-  runtimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+  fipsOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  fipsOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   // reactor
   api "io.projectreactor:reactor-core:${versions.reactor}"
@@ -71,7 +72,6 @@ dependencies {
   testImplementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   testImplementation "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  testImplementation "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
 }
 
 tasks.named("dependencyLicenses").configure {
