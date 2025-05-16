@@ -44,6 +44,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.opensearch.test.NodeRoles.clusterManagerNode;
 import static org.opensearch.test.NodeRoles.dataOnlyNode;
@@ -254,9 +255,9 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
         logger.info("--> closing cluster-manager node (1)");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(clusterManagerNodeName)).get();
         // removing the cluster-manager from the voting configuration immediately triggers the cluster-manager to step down
-        assertBusy(() -> {
-            assertThat(
-                internalCluster().nonClusterManagerClient()
+        Supplier<String> getClusterManagerIfElected = () -> {
+            try {
+                return internalCluster().nonClusterManagerClient()
                     .admin()
                     .cluster()
                     .prepareState()
@@ -265,9 +266,14 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                     .getState()
                     .nodes()
                     .getClusterManagerNode()
-                    .getName(),
-                equalTo(nextClusterManagerEligableNodeName)
-            );
+                    .getName();
+            } catch (ClusterManagerNotDiscoveredException e) {
+                logger.debug("failed to get cluster-manager name", e);
+                return null;
+            }
+        };
+        assertBusy(() -> {
+            assertThat(getClusterManagerIfElected.get(), equalTo(nextClusterManagerEligableNodeName));
             assertThat(
                 internalCluster().clusterManagerClient()
                     .admin()

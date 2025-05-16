@@ -89,6 +89,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -2155,13 +2156,12 @@ public final class InternalTestCluster extends TestCluster {
      * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
      */
     public String getClusterManagerName(@Nullable String viaNode) {
-        try {
-            Client client = viaNode != null ? client(viaNode) : client();
-            return client.admin().cluster().prepareState().get().getState().nodes().getClusterManagerNode().getName();
-        } catch (Exception e) {
-            logger.warn("Can't fetch cluster state", e);
-            throw new RuntimeException("Can't get cluster-manager node " + e.getMessage(), e);
+        Client client = viaNode != null ? client(viaNode) : client();
+        DiscoveryNode clusterManagerNode = client.admin().cluster().prepareState().get().getState().nodes().getClusterManagerNode();
+        if (clusterManagerNode == null) {
+            throw new ClusterManagerNotDiscoveredException("Cluster manager node not discovered");
         }
+        return clusterManagerNode.getName();
     }
 
     /**
