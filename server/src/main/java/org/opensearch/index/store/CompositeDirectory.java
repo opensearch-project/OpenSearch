@@ -143,7 +143,12 @@ public class CompositeDirectory extends FilterDirectory {
         if (FileTypeUtils.isTempFile(name)) {
             localDirectory.deleteFile(name);
         } else if (Arrays.asList(listAll()).contains(name) == false) {
-            throw new NoSuchFileException("File " + name + " not found in directory");
+            /*
+             We can run into scenarios where stale files are evicted locally (zero refCount in FileCache) and
+             not present in remote as well (due to metadata refresh). In such scenarios listAll() of composite directory
+             will not show the file. Hence, we need to silently fail deleteFile operation for such files.
+             */
+            return;
         } else {
             List<String> blockFiles = listBlockFiles(name);
             if (blockFiles.isEmpty()) {

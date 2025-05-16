@@ -14,6 +14,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
+import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.lease.Releasable;
@@ -132,6 +133,19 @@ public class IngestionEngine extends InternalEngine {
             ingestionSource.getNumProcessorThreads(),
             ingestionSource.getBlockingQueueSize()
         );
+
+        // Register the poller with the ClusterService for receiving cluster state updates.
+        // Also initialize cluster write block state in the poller.
+        if (engineConfig.getClusterApplierService() != null) {
+            engineConfig.getClusterApplierService().addListener(streamPoller);
+            boolean isWriteBlockEnabled = engineConfig.getClusterApplierService()
+                .state()
+                .blocks()
+                .indexBlocked(ClusterBlockLevel.WRITE, engineConfig.getIndexSettings().getIndex().getName());
+            streamPoller.setWriteBlockEnabled(isWriteBlockEnabled);
+        }
+
+        // start the polling loop
         streamPoller.start();
     }
 
@@ -512,7 +526,9 @@ public class IngestionEngine extends InternalEngine {
             engineConfig.getShardId().getId(),
             streamPoller.getState().toString(),
             streamPoller.getErrorStrategy().getName(),
-            streamPoller.isPaused()
+            streamPoller.isPaused(),
+            streamPoller.isWriteBlockEnabled()
+
         );
     }
 }
