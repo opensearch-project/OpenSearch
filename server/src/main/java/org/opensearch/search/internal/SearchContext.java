@@ -66,11 +66,7 @@ import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.StoredFieldsContext;
-import org.opensearch.search.fetch.subphase.FetchDocValuesContext;
-import org.opensearch.search.fetch.subphase.FetchFieldsContext;
-import org.opensearch.search.fetch.subphase.FetchSourceContext;
-import org.opensearch.search.fetch.subphase.InnerHitsContext;
-import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
+import org.opensearch.search.fetch.subphase.*;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
@@ -79,11 +75,7 @@ import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -117,7 +109,7 @@ public abstract class SearchContext implements Releasable {
         }
 
         @Override
-        public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors) {
+        public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors, BooleanSupplier isCancelled) {
             // should not be called when there is no aggregation collector
             throw new IllegalStateException("Unexpected toInternalAggregations call on NO_OP_BUCKET_COLLECTOR_PROCESSOR");
         }
