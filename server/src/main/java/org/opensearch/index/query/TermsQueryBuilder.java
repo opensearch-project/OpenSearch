@@ -513,9 +513,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             }
         }
 
-        if (termsLookup != null) {
-            termsLookup = new TermsLookup(termsLookup.index(), termsLookup.id(), termsLookup.path(), termsLookup.query());
-        }
         return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType);
     }
 

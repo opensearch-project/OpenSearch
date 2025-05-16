@@ -36,6 +36,8 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -59,28 +61,104 @@ public class TermsLookupTests extends OpenSearchTestCase {
         assertEquals(store, termsLookup.store());
     }
 
-    public void testIllegalArguments() {
-        String id = randomAlphaOfLength(5);
-        String path = randomAlphaOfLength(5);
-        String index = randomAlphaOfLength(5);
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                id = null;
-                break;
-            case 1:
-                path = null;
-                break;
-            case 2:
-                index = null;
-                break;
-            default:
-                fail("unknown case");
-        }
-        try {
-            new TermsLookup(index, id, path);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[terms] query lookup element requires specifying"));
-        }
+//    public void testIllegalArguments() {
+//        String id = randomAlphaOfLength(5);
+//        String path = randomAlphaOfLength(5);
+//        String index = randomAlphaOfLength(5);
+//        switch (randomIntBetween(0, 2)) {
+//            case 0:
+//                id = null;
+//                break;
+//            case 1:
+//                path = null;
+//                break;
+//            case 2:
+//                index = null;
+//                break;
+//            default:
+//                fail("unknown case");
+//        }
+//        try {
+//            new TermsLookup(index, id, path);
+//        } catch (IllegalArgumentException e) {
+//            assertThat(e.getMessage(), containsString("[terms] query lookup element requires specifying"));
+//        }
+//    }
+
+    public void testIllegalArgumentsWithBasicConstructor() {
+        String validIndex = randomAlphaOfLength(5);
+        String validId = randomAlphaOfLength(5);
+        String validPath = randomAlphaOfLength(5);
+
+        // Null index
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TermsLookup(null, validId, validPath)
+        );
+        assertThat(e1.getMessage(), containsString("[terms] index cannot be null or empty"));
+
+        // Empty index
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TermsLookup("", validId, validPath)
+        );
+        assertThat(e2.getMessage(), containsString("[terms] index cannot be null or empty"));
+
+        // Null path
+        IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TermsLookup(validIndex, validId, null)
+        );
+        assertThat(e3.getMessage(), containsString("[terms] path cannot be null or empty"));
+
+        // Empty path
+        IllegalArgumentException e4 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TermsLookup(validIndex, validId, "")
+        );
+        assertThat(e4.getMessage(), containsString("[terms] path cannot be null or empty"));
+
+        // Null id (query is implicitly null via 3-arg constructor)
+        IllegalArgumentException e5 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TermsLookup(validIndex, null, validPath)
+        );
+        assertThat(e5.getMessage(), containsString("[terms] query lookup element requires specifying either the id or the query"));
+    }
+
+    public void testIllegalArgumentsWithExtendedConstructor() {
+        String validIndex = randomAlphaOfLength(5);
+        String validId = randomAlphaOfLength(5);
+        String validPath = randomAlphaOfLength(5);
+        QueryBuilder validQuery = new MatchAllQueryBuilder();
+
+        // Null index
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TermsLookup(null, null, validPath, validQuery)
+        );
+        assertThat(e1.getMessage(), containsString("[terms] index cannot be null or empty"));
+
+        // Null path
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TermsLookup(validIndex, null, null, validQuery)
+        );
+        assertThat(e2.getMessage(), containsString("[terms] path cannot be null or empty"));
+
+        // Both id and query null
+        IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TermsLookup(validIndex, null, validPath, null)
+        );
+        assertThat(e3.getMessage(), containsString("[terms] query lookup element requires specifying either the id or the query"));
+
+        // Both id and query provided (invalid)
+        IllegalArgumentException e4 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TermsLookup(validIndex, validId, validPath, validQuery)
+        );
+        assertThat(e4.getMessage(), containsString("[terms] query lookup element cannot specify both id and query."));
     }
 
     public void testSerialization() throws IOException {
