@@ -9,6 +9,7 @@
 package org.opensearch.indices.pollingingest;
 
 import org.opensearch.action.DocWriteRequest;
+import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.FakeIngestionSource;
@@ -23,6 +24,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -240,7 +242,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         thread.interrupt();
     }
 
-    public void testMessageRetryFail() throws Exception {
+    public void testDropPolicyMessageRetryFail() throws Exception {
         MessageProcessorRunnable.MessageProcessor processor = mock(MessageProcessorRunnable.MessageProcessor.class);
         DropIngestionErrorStrategy errorStrategy = new DropIngestionErrorStrategy("ingestion_source");
         MessageProcessorRunnable messageProcessorRunnable = new MessageProcessorRunnable(
@@ -248,21 +250,20 @@ public class MessageProcessorTests extends OpenSearchTestCase {
             processor,
             errorStrategy
         );
-        messageProcessorRunnable.getBlockingQueue().put(new ShardUpdateMessage(null, null, null, 0));
+        messageProcessorRunnable.getBlockingQueue()
+            .put(new ShardUpdateMessage(mock(IngestionShardPointer.class), null, Collections.emptyMap(), 0));
+        messageProcessorRunnable.getBlockingQueue()
+            .put(new ShardUpdateMessage(mock(IngestionShardPointer.class), null, Collections.emptyMap(), -1));
 
-        doThrow(new RuntimeException()).doThrow(new RuntimeException())
-            .doThrow(new RuntimeException())
-            .doNothing()
-            .when(processor)
-            .process(any(), any());
+        doThrow(new RuntimeException()).when(processor).process(any(), any());
 
         Thread thread = new Thread(messageProcessorRunnable::run);
         thread.start();
         assertBusy(() -> {
-            verify(processor, times(3)).process(any(), any());
-            assertEquals(1, messageProcessorRunnable.getMessageProcessorMetrics().failedMessageDroppedCounter().count());
-            assertEquals(3, messageProcessorRunnable.getMessageProcessorMetrics().failedMessageCounter().count());
-        }, 1, TimeUnit.MINUTES);
+            verify(processor, times(6)).process(any(), any());
+            assertEquals(2, messageProcessorRunnable.getMessageProcessorMetrics().failedMessageDroppedCounter().count());
+            assertEquals(6, messageProcessorRunnable.getMessageProcessorMetrics().failedMessageCounter().count());
+        }, 2, TimeUnit.MINUTES);
 
         messageProcessorRunnable.close();
         thread.interrupt();
