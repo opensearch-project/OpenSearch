@@ -493,12 +493,12 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         AggregationBuilder builder = new TermsAggregationBuilder("t").field("t")
             .subAggregation(new VariableWidthHistogramAggregationBuilder("v").field("v").setNumBuckets(2));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
-            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 1)));
-            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 10)));
-            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 11)));
+            iw.addDocument(List.of(SortedNumericDocValuesField.indexedField("t", 1), SortedNumericDocValuesField.indexedField("v", 1)));
+            iw.addDocument(List.of(SortedNumericDocValuesField.indexedField("t", 1), SortedNumericDocValuesField.indexedField("v", 10)));
+            iw.addDocument(List.of(SortedNumericDocValuesField.indexedField("t", 1), SortedNumericDocValuesField.indexedField("v", 11)));
 
-            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 20)));
-            iw.addDocument(List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 30)));
+            iw.addDocument(List.of(SortedNumericDocValuesField.indexedField("t", 2), SortedNumericDocValuesField.indexedField("v", 20)));
+            iw.addDocument(List.of(SortedNumericDocValuesField.indexedField("t", 2), SortedNumericDocValuesField.indexedField("v", 30)));
         };
         Consumer<LongTerms> verify = terms -> {
             /*
@@ -665,7 +665,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             for (final Number doc : dataset) {
                 final Document document = new Document();
                 long fieldVal = convertDocumentToSortableValue(doc);
-                document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, fieldVal));
+                document.add(SortedNumericDocValuesField.indexedField(NUMERIC_FIELD, fieldVal));
                 documents.add(document);
             }
             indexWriter.addDocuments(documents);
@@ -674,7 +674,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             final Document document = new Document();
             for (final Number doc : dataset) {
                 long fieldVal = convertDocumentToSortableValue(doc);
-                document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, fieldVal));
+                document.add(SortedNumericDocValuesField.indexedField(NUMERIC_FIELD, fieldVal));
                 indexWriter.addDocument(document);
                 document.clear();
             }

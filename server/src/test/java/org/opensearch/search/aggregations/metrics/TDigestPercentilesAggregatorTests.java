@@ -85,8 +85,8 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("wrong_number", 1)));
         }, tdigest -> {
             assertEquals(0L, tdigest.state.size());
             assertFalse(AggregationInspectionHelper.hasValue(tdigest));
@@ -95,13 +95,13 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
         testCase(new FieldExistsQuery("number"), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 8)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 5)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("number", 0)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 8)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 5)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 3)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 2)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("number", 0)));
         }, tdigest -> {
             assertEquals(7L, tdigest.state.size());
             assertEquals(7L, tdigest.state.centroidCount());
@@ -145,13 +145,13 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltering() throws IOException {
         final CheckedConsumer<RandomIndexWriter, IOException> docs = iw -> {
-            iw.addDocument(asList(new LongPoint("row", 7), new SortedNumericDocValuesField("number", 8)));
-            iw.addDocument(asList(new LongPoint("row", 6), new SortedNumericDocValuesField("number", 5)));
-            iw.addDocument(asList(new LongPoint("row", 5), new SortedNumericDocValuesField("number", 3)));
-            iw.addDocument(asList(new LongPoint("row", 4), new SortedNumericDocValuesField("number", 2)));
-            iw.addDocument(asList(new LongPoint("row", 3), new SortedNumericDocValuesField("number", 1)));
-            iw.addDocument(asList(new LongPoint("row", 2), new SortedNumericDocValuesField("number", 1)));
-            iw.addDocument(asList(new LongPoint("row", 1), new SortedNumericDocValuesField("number", 0)));
+            iw.addDocument(asList(new LongPoint("row", 7), SortedNumericDocValuesField.indexedField("number", 8)));
+            iw.addDocument(asList(new LongPoint("row", 6), SortedNumericDocValuesField.indexedField("number", 5)));
+            iw.addDocument(asList(new LongPoint("row", 5), SortedNumericDocValuesField.indexedField("number", 3)));
+            iw.addDocument(asList(new LongPoint("row", 4), SortedNumericDocValuesField.indexedField("number", 2)));
+            iw.addDocument(asList(new LongPoint("row", 3), SortedNumericDocValuesField.indexedField("number", 1)));
+            iw.addDocument(asList(new LongPoint("row", 2), SortedNumericDocValuesField.indexedField("number", 1)));
+            iw.addDocument(asList(new LongPoint("row", 1), SortedNumericDocValuesField.indexedField("number", 0)));
         };
 
         testCase(LongPoint.newRangeQuery("row", 1, 4), docs, tdigest -> {

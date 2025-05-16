@@ -136,9 +136,19 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
     public void testSortedNumericDocValues() throws IOException {
         testAggregation(new FieldExistsQuery(FIELD_NAME), iw -> {
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField(FIELD_NAME, 3), new SortedNumericDocValuesField(FIELD_NAME, 4)));
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField(FIELD_NAME, 3), new SortedNumericDocValuesField(FIELD_NAME, 4)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
+            iw.addDocument(
+                Arrays.asList(
+                    SortedNumericDocValuesField.indexedField(FIELD_NAME, 3),
+                    SortedNumericDocValuesField.indexedField(FIELD_NAME, 4)
+                )
+            );
+            iw.addDocument(
+                Arrays.asList(
+                    SortedNumericDocValuesField.indexedField(FIELD_NAME, 3),
+                    SortedNumericDocValuesField.indexedField(FIELD_NAME, 4)
+                )
+            );
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(FIELD_NAME, 1)));
         }, count -> {
             assertEquals(15L, count.getValue(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(count));
@@ -375,7 +385,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             for (int iValue = 0; iValue < valuesPerField; iValue++) {
                 final long value = randomLongBetween(0, 1000);
                 sum += value;
-                doc.add(new SortedNumericDocValuesField(fieldType.name(), value));
+                doc.add(SortedNumericDocValuesField.indexedField(fieldType.name(), value));
             }
             docs.add(doc);
         }

@@ -1439,7 +1439,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
                 for (String date : dataset) {
                     long instant = asLong(date, fieldType);
-                    document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
+                    document.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, instant));
                     if (aggregableDateIsSearchable) {
                         document.add(new LongPoint(AGGREGABLE_DATE, instant));
                     }
@@ -1640,7 +1640,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     for (Map.Entry<String, Integer> date : dataset.entrySet()) {
                         for (int i = 0; i < date.getValue(); i++) {
                             long instant = asLong(date.getKey(), fieldType);
-                            document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
+                            document.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, instant));
                             document.add(new LongPoint(AGGREGABLE_DATE, instant));
                             indexWriter.addDocument(document);
                             document.clear();
@@ -1660,7 +1660,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                 useDocCountField = false;
                             }
                             long instant = asLong(date.getKey(), fieldType);
-                            document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
+                            document.add(SortedNumericDocValuesField.indexedField(AGGREGABLE_DATE, instant));
                             document.add(new LongPoint(AGGREGABLE_DATE, instant));
                             documents.add(document);
                         }

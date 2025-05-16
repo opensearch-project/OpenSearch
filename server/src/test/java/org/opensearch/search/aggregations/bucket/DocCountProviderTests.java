@@ -59,12 +59,16 @@ public class DocCountProviderTests extends AggregatorTestCase {
 
     public void testDocsWithDocCount() throws IOException {
         testAggregation(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(List.of(new NumericDocValuesField(DOC_COUNT_FIELD, 4), new SortedNumericDocValuesField(NUMBER_FIELD, 1)));
-            iw.addDocument(List.of(new NumericDocValuesField(DOC_COUNT_FIELD, 5), new SortedNumericDocValuesField(NUMBER_FIELD, 7)));
+            iw.addDocument(
+                List.of(new NumericDocValuesField(DOC_COUNT_FIELD, 4), SortedNumericDocValuesField.indexedField(NUMBER_FIELD, 1))
+            );
+            iw.addDocument(
+                List.of(new NumericDocValuesField(DOC_COUNT_FIELD, 5), SortedNumericDocValuesField.indexedField(NUMBER_FIELD, 7))
+            );
             iw.addDocument(
                 List.of(
                     // Intentionally omit doc_count field
-                    new SortedNumericDocValuesField(NUMBER_FIELD, 1)
+                    SortedNumericDocValuesField.indexedField(NUMBER_FIELD, 1)
                 )
             );
         }, global -> { assertEquals(10, global.getDocCount()); });
@@ -72,9 +76,9 @@ public class DocCountProviderTests extends AggregatorTestCase {
 
     public void testDocsWithoutDocCount() throws IOException {
         testAggregation(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD, 1)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD, 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD, 1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(NUMBER_FIELD, 1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(NUMBER_FIELD, 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(NUMBER_FIELD, 1)));
         }, global -> { assertEquals(3, global.getDocCount()); });
     }
 

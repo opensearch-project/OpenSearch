@@ -104,12 +104,12 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
         testCase(filters, new MatchAllDocsQuery(), iw -> {
             Document doc = new Document();
             doc.add(new SortedSetDocValuesField("the_field", new BytesRef("test1")));
-            doc.add(new SortedNumericDocValuesField("number_field", 19));
+            doc.add(SortedNumericDocValuesField.indexedField("number_field", 19));
             iw.addDocument(doc);
 
             doc = new Document();
             doc.add(new SortedSetDocValuesField("the_field", new BytesRef("test2")));
-            doc.add(new SortedNumericDocValuesField("number_field", 55));
+            doc.add(SortedNumericDocValuesField.indexedField("number_field", 55));
             iw.addDocument(doc);
         },
             f -> {
