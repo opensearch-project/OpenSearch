@@ -80,8 +80,14 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         compositeDirectory.deleteFile(FILE_PRESENT_LOCALLY);
         assertFalse(existsInCompositeDirectory(FILE_PRESENT_LOCALLY));
         assertFalse(existsInCompositeDirectory(BLOCK_FILE_PRESENT_LOCALLY));
-        // Reading deleted file from directory should result in NoSuchFileException
-        assertThrows(NoSuchFileException.class, () -> compositeDirectory.openInput(FILE_PRESENT_LOCALLY, IOContext.DEFAULT));
+        // Deletion of non-existent file should fail silently without throwing any error
+        Exception exception = null;
+        try {
+            compositeDirectory.deleteFile(NON_EXISTENT_FILE);
+        } catch (Exception e) {
+            exception = e;
+        }
+        assertNull(exception);
     }
 
     public void testFileLength() throws IOException {
