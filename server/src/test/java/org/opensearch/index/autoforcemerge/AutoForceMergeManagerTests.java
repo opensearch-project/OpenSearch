@@ -38,6 +38,7 @@ import org.opensearch.monitor.jvm.JvmService;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsService;
 import org.opensearch.monitor.os.OsStats;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -513,7 +514,8 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             threadPool,
             monitorService,
             indicesService,
-            clusterService
+            clusterService,
+            new AutoForceMergeMetrics(NoopMetricsRegistry.INSTANCE)
         );
     }
 
