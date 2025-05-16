@@ -34,7 +34,6 @@ package org.opensearch.indices;
 
 import org.opensearch.Version;
 import org.opensearch.core.ParseField;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -71,10 +70,10 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     }
 
     public TermsLookup(String index, String id, String path, QueryBuilder query) {
-        if (Strings.isEmpty(index)) {
+        if (index == null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] index cannot be null or empty for TermsLookup");
         }
-        if (Strings.isEmpty(path)) {
+        if (path == null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] path cannot be null or empty for TermsLookup");
         }
         if (id == null && query == null) {
