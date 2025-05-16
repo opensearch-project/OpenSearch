@@ -727,7 +727,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 shardLevelRefreshEnabled,
                 fixedRefreshIntervalSchedulingEnabled,
                 this::getRefreshInterval,
-                refreshMutex
+                refreshMutex,
+                clusterService.getClusterApplierService()
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

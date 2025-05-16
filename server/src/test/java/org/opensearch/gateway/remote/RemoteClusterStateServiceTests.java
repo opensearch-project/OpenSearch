@@ -3512,7 +3512,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 anyBoolean(),
                 eq(emptyMap()),
                 anyBoolean(),
-                anyBoolean()
+                anyBoolean(),
+                any(),
+                any()
             );
         mockService.getClusterStateUsingDiff(manifest, clusterState, NODE_ID);
 
@@ -3554,7 +3556,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 anyBoolean(),
                 eq(emptyMap()),
                 anyBoolean(),
-                anyBoolean()
+                anyBoolean(),
+                any(),
+                any()
             );
         mockService.getClusterStateUsingDiff(manifest, clusterState, NODE_ID);
 
@@ -3596,7 +3600,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 anyBoolean(),
                 eq(emptyMap()),
                 anyBoolean(),
-                anyBoolean()
+                anyBoolean(),
+                any(),
+                any()
             );
         mockService.getClusterStateUsingDiff(manifest, clusterState, NODE_ID);
         verify(mockService, times(1)).validateClusterStateFromChecksum(
@@ -3637,7 +3643,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 anyBoolean(),
                 eq(emptyMap()),
                 anyBoolean(),
-                anyBoolean()
+                anyBoolean(),
+                any(),
+                any()
             );
         doReturn(clusterState).when(mockService)
             .readClusterStateInParallel(
@@ -3657,7 +3665,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 eq(true),
                 eq(manifest.getClusterStateCustomMap()),
                 eq(false),
-                eq(true)
+                eq(true),
+                any(),
+                any()
             );
 
         mockService.getClusterStateUsingDiff(manifest, clusterState, NODE_ID);
@@ -3699,7 +3709,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 anyBoolean(),
                 eq(emptyMap()),
                 anyBoolean(),
-                anyBoolean()
+                anyBoolean(),
+                any(),
+                any()
             );
         doReturn(clusterState).when(mockService)
             .readClusterStateInParallel(
@@ -3719,7 +3731,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 eq(true),
                 eq(manifest.getClusterStateCustomMap()),
                 eq(false),
-                eq(true)
+                eq(true),
+                any(),
+                any()
             );
 
         expectThrows(IllegalStateException.class, () -> mockService.getClusterStateUsingDiff(manifest, clusterState, NODE_ID));
