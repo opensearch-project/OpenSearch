@@ -527,4 +527,9 @@ class S3Service implements Closeable {
     public void close() {
         releaseCachedClients();
     }
+
+    @Nullable
+    ScheduledExecutorService getClientExecutorService() {
+        return clientExecutorService;
+    }
 }

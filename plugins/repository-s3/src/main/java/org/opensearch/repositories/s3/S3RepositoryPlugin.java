@@ -75,6 +75,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -106,6 +107,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     protected SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
     protected TransferSemaphoresHolder transferSemaphoresHolder;
     protected GenericStatsMetricPublisher genericStatsMetricPublisher;
+    private ScheduledExecutorService scheduler;
 
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath), new S3AsyncService(configPath));
@@ -234,6 +236,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
         this.lowTransferQConsumerService = threadPool.executor(LOW_TRANSFER_QUEUE_CONSUMER);
         this.normalTransferQConsumerService = threadPool.executor(NORMAL_TRANSFER_QUEUE_CONSUMER);
+        this.scheduler = threadPool.scheduler();
 
         // High number of permit allocation because each op acquiring permit performs disk IO, computation and network IO.
         int availablePermits = Math.max(allocatedProcessors(clusterService.getSettings()) * 4, 10);
