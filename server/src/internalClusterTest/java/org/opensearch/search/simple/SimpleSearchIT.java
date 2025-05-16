@@ -61,7 +61,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
@@ -763,11 +762,27 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                             "date_field": {
                                 "type": "date"
                             },
+                            "date_nanos_field": {
+                                "type": "date_nanos",
+                                "format": "strict_date_optional_time_nanos"
+                            },
                             "bool_field": {
                                 "type": "boolean"
                             },
                             "ip_field": {
                                 "type": "ip"
+                            },
+                            "text_field": {
+                                "type": "text",
+                                "store": true
+                            },
+                            "wildcard_field": {
+                                "type": "wildcard",
+                                "doc_values": true
+                            },
+                            "constant_keyword": {
+                                "type": "constant_keyword",
+                                "value": "1"
                             }
                         }
                     }
@@ -778,7 +793,7 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         ensureGreen();
 
         // Index multiple documents
-        int numDocs = 10;
+        int numDocs = 8;
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             builders.add(
@@ -789,9 +804,13 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                             .field("geopoint_field", Geohash.stringEncode(40.0 + i, 75.0 + i))
                             .field("keyword_field", "keyword_" + i)
                             .field("numeric_field", i)
-                            .field("date_field", "2023-01-" + String.format(Locale.ROOT, "%02d", i + 1))
+                            .field("date_field", "2023-01-01T01:20:30." + String.valueOf(i + 1).repeat(3) + "Z")
+                            .field("date_nanos_field", "2022-06-15T10:12:52." + String.valueOf(i + 1).repeat(9) + "Z")
                             .field("bool_field", i % 2 == 0)
                             .field("ip_field", "192.168.1." + i)
+                            .field("text_field", "text field " + i)
+                            .field("wildcard_field", "wildcard" + i)
+                            .field("constant_keyword", "1")
                             .endObject()
                     )
             );
@@ -799,7 +818,10 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         indexRandom(true, builders);
 
         // Test 1: Basic search with derived source
-        SearchResponse response = client().prepareSearch("test_derive").setQuery(QueryBuilders.matchAllQuery()).get();
+        SearchResponse response = client().prepareSearch("test_derive")
+            .setQuery(QueryBuilders.matchAllQuery())
+            .addSort("numeric_field", SortOrder.ASC)
+            .get();
         assertNoFailures(response);
         assertHitCount(response, numDocs);
         for (SearchHit hit : response.getHits()) {
@@ -807,8 +829,14 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             assertNotNull("Derive source should be present", source);
             int id = ((Number) source.get("numeric_field")).intValue();
             assertEquals(Integer.toString(id), hit.getId());
+            assertEquals("2023-01-01T01:20:30." + String.valueOf(id + 1).repeat(3) + "Z", source.get("date_field"));
+            assertEquals("2022-06-15T10:12:52." + String.valueOf(id + 1).repeat(9) + "Z", source.get("date_nanos_field"));
             assertEquals("keyword_" + id, source.get("keyword_field"));
             assertEquals("192.168.1." + id, source.get("ip_field"));
+            assertEquals(id % 2 == 0, source.get("bool_field"));
+            assertEquals("text field " + id, source.get("text_field"));
+            assertEquals("wildcard" + id, source.get("wildcard_field"));
+            assertEquals("1", source.get("constant_keyword"));
         }
 
         // Test 2: Search with source filtering

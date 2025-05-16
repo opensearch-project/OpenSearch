@@ -466,6 +466,9 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                     "date_field": {
                         "type": "date"
                     },
+                    "date_nanos_field": {
+                        "type": "date_nanos"
+                    },
                     "boolean_field": {
                         "type": "boolean"
                     },

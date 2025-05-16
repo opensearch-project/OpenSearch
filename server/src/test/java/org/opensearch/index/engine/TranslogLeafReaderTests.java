@@ -26,6 +26,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
@@ -55,6 +56,7 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
     private Translog.Index operation;
     private TranslogLeafReader translogLeafReader;
     private DocumentMapper documentMapper;
+    private DocumentMapperForType documentMapperForType;
     private Index index;
     private BytesReference source;
     private IndexSettings defaultIndexSettings;
@@ -74,9 +76,13 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
         when(mapperService.documentMapper()).thenReturn(documentMapper);
         when(mapperService.index()).thenReturn(index);
 
+        documentMapperForType = mock(DocumentMapperForType.class);
+        when(documentMapperForType.getDocumentMapper()).thenReturn(documentMapper);
+
         engineConfig = new EngineConfig.Builder().indexSettings(defaultIndexSettings)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
             .codecService(new CodecService(null, defaultIndexSettings, logger))
+            .documentMapperForTypeSupplier(() -> documentMapperForType)
             .build();
 
         // Setup basic operation
@@ -84,7 +90,7 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
         operation = new Translog.Index("test", 1L, 1L, 1L, source.toBytesRef().bytes, "routing", 1);
 
         // Initialize the reader
-        translogLeafReader = new TranslogLeafReader(operation, mapperService, engineConfig);
+        translogLeafReader = new TranslogLeafReader(operation, engineConfig);
     }
 
     public void testBasicProperties() {
@@ -250,6 +256,6 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
         when(mapperService.documentMapper().parse(any())).thenReturn(parsedDoc);
 
         // Test creation of in-memory reader
-        assertNotNull(TranslogLeafReader.createInMemoryIndexReader(operation, mapperService, engineConfig));
+        assertNotNull(TranslogLeafReader.createInMemoryIndexReader(operation, engineConfig));
     }
 }

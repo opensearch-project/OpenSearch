@@ -552,6 +552,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         public static Parameter<Float> boostParam() {
             return Parameter.floatParam("boost", true, m -> m.fieldType().boost(), 1.0f);
         }
+
     }
 
     /**

@@ -786,7 +786,8 @@ public final class IndexSettings {
     public static final Setting<Boolean> INDEX_DERIVED_SOURCE_SETTING = Setting.boolSetting(
         "index.derived_source.enabled",
         false,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.Final
     );
 
     private final Index index;

@@ -95,7 +95,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
-import static org.opensearch.index.engine.EngineTestCase.createMapperService;
 import static org.hamcrest.Matchers.arrayContaining;
 
 /**
@@ -370,7 +369,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
                         listener.assertNoError();
 
                         Engine.Get get = new Engine.Get(false, false, threadId, new Term(IdFieldMapper.NAME, threadId));
-                        try (Engine.GetResult getResult = engine.get(get, createMapperService(), engine::acquireSearcher)) {
+                        try (Engine.GetResult getResult = engine.get(get, engine::acquireSearcher)) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
                             StoredFields storedFields = getResult.docIdAndVersion().reader.storedFields();

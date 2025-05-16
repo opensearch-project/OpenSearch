@@ -146,7 +146,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 assertThat(readOnlyEngine.getProcessedLocalCheckpoint(), equalTo(readOnlyEngine.getPersistedLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
-                try (Engine.GetResult getResult = readOnlyEngine.get(get, createMapperService(), readOnlyEngine::acquireSearcher)) {
+                try (Engine.GetResult getResult = readOnlyEngine.get(get, readOnlyEngine::acquireSearcher)) {
                     assertTrue(getResult.exists());
                 }
             }

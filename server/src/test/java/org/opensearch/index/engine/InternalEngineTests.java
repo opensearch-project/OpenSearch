@@ -1054,7 +1054,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         final AtomicReference<Engine.GetResult> latestGetResult = new AtomicReference<>();
         final BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory = engine::acquireSearcher;
-        latestGetResult.set(engine.get(newGet(true, doc), createMapperService(), searcherFactory));
+        latestGetResult.set(engine.get(newGet(true, doc), searcherFactory));
         final AtomicBoolean flushFinished = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);
         Thread getThread = new Thread(() -> {
@@ -1068,11 +1068,7 @@ public class InternalEngineTests extends EngineTestCase {
                 if (previousGetResult != null) {
                     previousGetResult.close();
                 }
-                try {
-                    latestGetResult.set(engine.get(newGet(true, doc), createMapperService(), searcherFactory));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                latestGetResult.set(engine.get(newGet(true, doc), searcherFactory));
                 if (latestGetResult.get().exists() == false) {
                     break;
                 }
@@ -1160,18 +1156,18 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
 
         // but, not there non realtime
-        try (Engine.GetResult getResult = engine.get(newGet(false, doc), createMapperService(), searcherFactory)) {
+        try (Engine.GetResult getResult = engine.get(newGet(false, doc), searcherFactory)) {
             assertThat(getResult.exists(), equalTo(false));
         }
 
         // but, we can still get it (in realtime)
-        try (Engine.GetResult getResult = engine.get(newGet(true, doc), createMapperService(), searcherFactory)) {
+        try (Engine.GetResult getResult = engine.get(newGet(true, doc), searcherFactory)) {
             assertThat(getResult.exists(), equalTo(true));
             assertThat(getResult.docIdAndVersion(), notNullValue());
         }
 
         // but not real time is not yet visible
-        try (Engine.GetResult getResult = engine.get(newGet(false, doc), createMapperService(), searcherFactory)) {
+        try (Engine.GetResult getResult = engine.get(newGet(false, doc), searcherFactory)) {
             assertThat(getResult.exists(), equalTo(false));
         }
 
@@ -1188,7 +1184,7 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
 
         // also in non realtime
-        try (Engine.GetResult getResult = engine.get(newGet(false, doc), createMapperService(), searcherFactory)) {
+        try (Engine.GetResult getResult = engine.get(newGet(false, doc), searcherFactory)) {
             assertThat(getResult.exists(), equalTo(true));
             assertThat(getResult.docIdAndVersion(), notNullValue());
         }
@@ -1214,7 +1210,7 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
 
         // but, we can still get it (in realtime)
-        try (Engine.GetResult getResult = engine.get(newGet(true, doc), createMapperService(), searcherFactory)) {
+        try (Engine.GetResult getResult = engine.get(newGet(true, doc), searcherFactory)) {
             assertThat(getResult.exists(), equalTo(true));
             assertThat(getResult.docIdAndVersion(), notNullValue());
         }
@@ -1251,7 +1247,7 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
 
         // but, get should not see it (in realtime)
-        try (Engine.GetResult getResult = engine.get(newGet(true, doc), createMapperService(), searcherFactory)) {
+        try (Engine.GetResult getResult = engine.get(newGet(true, doc), searcherFactory)) {
             assertThat(getResult.exists(), equalTo(false));
         }
 
@@ -1309,7 +1305,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.flush();
 
         // and, verify get (in real time)
-        try (Engine.GetResult getResult = engine.get(newGet(true, doc), createMapperService(), searcherFactory)) {
+        try (Engine.GetResult getResult = engine.get(newGet(true, doc), searcherFactory)) {
             assertThat(getResult.exists(), equalTo(true));
             assertThat(getResult.docIdAndVersion(), notNullValue());
         }
@@ -1676,9 +1672,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.Index create = new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED);
         Engine.IndexResult indexResult = engine.index(create);
         assertThat(indexResult.getVersion(), equalTo(1L));
-        try (
-            Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), create.uid()), createMapperService(), searcherFactory)
-        ) {
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), create.uid()), searcherFactory)) {
             assertEquals(1, get.version());
         }
 
@@ -1686,9 +1680,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.IndexResult update_1_result = engine.index(update_1);
         assertThat(update_1_result.getVersion(), equalTo(2L));
 
-        try (
-            Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), create.uid()), createMapperService(), searcherFactory)
-        ) {
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), create.uid()), searcherFactory)) {
             assertEquals(2, get.version());
         }
 
@@ -1696,9 +1688,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.IndexResult update_2_result = engine.index(update_2);
         assertThat(update_2_result.getVersion(), equalTo(3L));
 
-        try (
-            Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), create.uid()), createMapperService(), searcherFactory)
-        ) {
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), create.uid()), searcherFactory)) {
             assertEquals(3, get.version());
         }
 
@@ -1719,7 +1709,6 @@ public class InternalEngineTests extends EngineTestCase {
         try (
             Engine.GetResult get = engine.get(
                 new Engine.Get(true, true, doc.id(), create.uid()).setIfSeqNo(indexResult.getSeqNo()).setIfPrimaryTerm(primaryTerm.get()),
-                createMapperService(),
                 searcherFactory
             )
         ) {
@@ -1731,7 +1720,6 @@ public class InternalEngineTests extends EngineTestCase {
             () -> engine.get(
                 new Engine.Get(true, false, doc.id(), create.uid()).setIfSeqNo(indexResult.getSeqNo() + 1)
                     .setIfPrimaryTerm(primaryTerm.get()),
-                createMapperService(),
                 searcherFactory
             )
         );
@@ -1741,7 +1729,6 @@ public class InternalEngineTests extends EngineTestCase {
             () -> engine.get(
                 new Engine.Get(true, false, doc.id(), create.uid()).setIfSeqNo(indexResult.getSeqNo())
                     .setIfPrimaryTerm(primaryTerm.get() + 1),
-                createMapperService(),
                 searcherFactory
             )
         );
@@ -1751,7 +1738,6 @@ public class InternalEngineTests extends EngineTestCase {
             () -> engine.get(
                 new Engine.Get(true, false, doc.id(), create.uid()).setIfSeqNo(indexResult.getSeqNo() + 1)
                     .setIfPrimaryTerm(primaryTerm.get() + 1),
-                createMapperService(),
                 searcherFactory
             )
         );
@@ -2673,13 +2659,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
 
                 for (int op = 0; op < opsPerThread; op++) {
-                    try (
-                        Engine.GetResult get = engine.get(
-                            new Engine.Get(true, false, doc.id(), uidTerm),
-                            createMapperService(),
-                            searcherFactory
-                        )
-                    ) {
+                    try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), uidTerm), searcherFactory)) {
 
                         FieldsVisitor visitor = new FieldsVisitor(true);
                         get.docIdAndVersion().reader.storedFields().document(get.docIdAndVersion().docId, visitor);
@@ -2736,7 +2716,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertTrue(op.added + " should not exist", exists);
         }
 
-        try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), uidTerm), createMapperService(), searcherFactory)) {
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), uidTerm), searcherFactory)) {
             FieldsVisitor visitor = new FieldsVisitor(true);
             get.docIdAndVersion().reader.storedFields().document(get.docIdAndVersion().docId, visitor);
             List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
@@ -3225,7 +3205,7 @@ public class InternalEngineTests extends EngineTestCase {
             );
 
             // Get should not find the document
-            Engine.GetResult getResult = engine.get(newGet(true, doc), createMapperService(), searcherFactory);
+            Engine.GetResult getResult = engine.get(newGet(true, doc), searcherFactory);
             assertThat(getResult.exists(), equalTo(false));
 
             // Give the gc pruning logic a chance to kick in
@@ -3252,7 +3232,7 @@ public class InternalEngineTests extends EngineTestCase {
             );
 
             // Get should not find the document (we never indexed uid=2):
-            getResult = engine.get(new Engine.Get(true, false, "2", newUid("2")), createMapperService(), searcherFactory);
+            getResult = engine.get(new Engine.Get(true, false, "2", newUid("2")), searcherFactory);
             assertThat(getResult.exists(), equalTo(false));
 
             // Try to index uid=1 with a too-old version, should fail:
@@ -3275,7 +3255,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
 
             // Get should still not find the document
-            getResult = engine.get(newGet(true, doc), createMapperService(), searcherFactory);
+            getResult = engine.get(newGet(true, doc), searcherFactory);
             assertThat(getResult.exists(), equalTo(false));
 
             // Try to index uid=2 with a too-old version, should fail:
@@ -3298,7 +3278,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
 
             // Get should not find the document
-            getResult = engine.get(newGet(true, doc), createMapperService(), searcherFactory);
+            getResult = engine.get(newGet(true, doc), searcherFactory);
             assertThat(getResult.exists(), equalTo(false));
         }
     }
@@ -5577,7 +5557,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         assertThat(engine.getProcessedLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
-        try (Engine.GetResult result = engine.get(new Engine.Get(true, false, "2", uid), createMapperService(), searcherFactory)) {
+        try (Engine.GetResult result = engine.get(new Engine.Get(true, false, "2", uid), searcherFactory)) {
             assertThat(result.exists(), equalTo(exists));
         }
     }
@@ -6723,27 +6703,12 @@ public class InternalEngineTests extends EngineTestCase {
                 CountDownLatch awaitStarted = new CountDownLatch(1);
                 Thread thread = new Thread(() -> {
                     awaitStarted.countDown();
-                    try (
-                        Engine.GetResult getResult = engine.get(
-                            new Engine.Get(true, false, doc3.id(), doc3.uid()),
-                            createMapperService(),
-                            engine::acquireSearcher
-                        )
-                    ) {
-                        assertTrue(getResult.exists());
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                    Engine.GetResult getResult = engine.get(new Engine.Get(true, false, doc3.id(), doc3.uid()), engine::acquireSearcher);
+                    assertTrue(getResult.exists());
                 });
                 thread.start();
                 awaitStarted.await();
-                try (
-                    Engine.GetResult getResult = engine.get(
-                        new Engine.Get(true, false, doc.id(), doc.uid()),
-                        createMapperService(),
-                        engine::acquireSearcher
-                    )
-                ) {
+                try (Engine.GetResult getResult = engine.get(new Engine.Get(true, false, doc.id(), doc.uid()), engine::acquireSearcher)) {
                     assertFalse(getResult.exists());
                 }
                 thread.join();
@@ -7764,14 +7729,9 @@ public class InternalEngineTests extends EngineTestCase {
                         int iters = randomIntBetween(1, 10);
                         for (int i = 0; i < iters; i++) {
                             ParsedDocument doc = createParsedDoc(randomFrom(ids), null);
-                            try (
-                                Engine.GetResult getResult = engine.get(newGet(true, doc), createMapperService(), engine::acquireSearcher)
-                            ) {
-                                assertThat(getResult.exists(), equalTo(true));
-                                assertThat(getResult.docIdAndVersion(), notNullValue());
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
+                            Engine.GetResult getResult = engine.get(newGet(true, doc), engine::acquireSearcher);
+                            assertThat(getResult.exists(), equalTo(true));
+                            assertThat(getResult.docIdAndVersion(), notNullValue());
                         }
                     });
                     getters[t].start();

@@ -511,4 +511,65 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
         assertNull(doc.rootDoc().getField("_source"));
         assertNull(doc.rootDoc().getField("_recovery_source"));
     }
+
+    public void testDerivedSourceValidation() throws IOException {
+        // Test 1: Cannot disable _source when derived source is enabled
+        final String mapping1 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_source")
+            .field("enabled", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        // Create index with derived source enabled
+        Settings settings = Settings.builder().put("index.derived_source.enabled", true).build();
+
+        final DocumentMapperParser parser1 = createIndex("test", settings).mapperService().documentMapperParser();
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> parser1.parse("type", new CompressedXContent(mapping1))
+        );
+        assertEquals("_source can't be disabled with index.derived_source.enabled enabled index setting", e.getMessage());
+
+        // Test 2: Can disable _source when derived source is disabled (default)
+        final String mapping2 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_source")
+            .field("enabled", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        Settings defaultSettings = Settings.builder().build();
+        final DocumentMapperParser parser2 = createIndex("test2", defaultSettings).mapperService().documentMapperParser();
+
+        // This should not throw an exception
+        DocumentMapper documentMapper = parser2.parse("type", new CompressedXContent(mapping2));
+        assertFalse(documentMapper.sourceMapper().enabled());
+
+        // Test 3: Can enable _source when derived source is enabled
+        final String mapping3 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("_source")
+            .field("enabled", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+
+        settings = Settings.builder().put("index.derived_source.enabled", true).build();
+
+        final DocumentMapperParser parser3 = createIndex("test3", settings).mapperService().documentMapperParser();
+
+        // This should not throw an exception
+        documentMapper = parser3.parse("type", new CompressedXContent(mapping3));
+        assertTrue(documentMapper.sourceMapper().enabled());
+    }
 }

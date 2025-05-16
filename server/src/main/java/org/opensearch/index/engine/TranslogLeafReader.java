@@ -68,7 +68,6 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
@@ -90,7 +89,6 @@ import static org.apache.lucene.index.DirectoryReader.open;
 public final class TranslogLeafReader extends LeafReader {
 
     private final Translog.Index operation;
-    private final MapperService mapperService;
     private final EngineConfig engineConfig;
     private volatile LeafReader inMemoryIndexReader;
     private static final FieldInfo FAKE_SOURCE_FIELD = new FieldInfo(
@@ -155,9 +153,8 @@ public final class TranslogLeafReader extends LeafReader {
     );
     public static Set<String> ALL_FIELD_NAMES = Sets.newHashSet(FAKE_SOURCE_FIELD.name, FAKE_ROUTING_FIELD.name, FAKE_ID_FIELD.name);
 
-    TranslogLeafReader(Translog.Index operation, MapperService mapperService, EngineConfig engineConfig) {
+    TranslogLeafReader(Translog.Index operation, EngineConfig engineConfig) {
         this.operation = operation;
-        this.mapperService = mapperService;
         this.engineConfig = engineConfig;
     }
 
@@ -165,26 +162,25 @@ public final class TranslogLeafReader extends LeafReader {
         if (inMemoryIndexReader == null) {
             synchronized (this) {
                 if (inMemoryIndexReader == null) {
-                    inMemoryIndexReader = createInMemoryIndexReader(operation, mapperService, engineConfig);
+                    inMemoryIndexReader = createInMemoryIndexReader(operation, engineConfig);
                 }
             }
         }
         return inMemoryIndexReader;
     }
 
-    public static LeafReader createInMemoryIndexReader(Translog.Index operation, MapperService mapperService, EngineConfig engineConfig)
-        throws IOException {
+    public static LeafReader createInMemoryIndexReader(Translog.Index operation, EngineConfig engineConfig) throws IOException {
         boolean success = false;
         final Directory directory = new ByteBuffersDirectory();
         try {
             SourceToParse sourceToParse = new SourceToParse(
-                mapperService.index().getName(),
+                engineConfig.getIndexSettings().getIndex().getName(),
                 operation.id(),
                 operation.source(),
                 MediaTypeRegistry.xContentType(operation.source()),
                 operation.routing()
             );
-            ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
+            ParsedDocument parsedDocument = engineConfig.getDocumentMapperForTypeSupplier().get().getDocumentMapper().parse(sourceToParse);
             parsedDocument.updateSeqID(operation.seqNo(), operation.primaryTerm());
             parsedDocument.version().setLongValue(operation.version());
             final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
@@ -330,12 +326,17 @@ public final class TranslogLeafReader extends LeafReader {
                     throw new IllegalArgumentException("no such doc ID " + docID);
                 }
                 if (visitor.needsField(FAKE_SOURCE_FIELD) == StoredFieldVisitor.Status.YES) {
-                    if (mapperService.getIndexSettings().isDerivedSourceEnabled()) {
+                    if (engineConfig.getIndexSettings().isDerivedSourceEnabled()) {
                         LeafReader leafReader = getInMemoryIndexReader();
                         assert leafReader != null && leafReader.leaves().size() == 1;
                         visitor.binaryField(
                             FAKE_SOURCE_FIELD,
-                            mapperService.documentMapper().root().deriveSource(leafReader, docID).toBytesRef().bytes
+                            engineConfig.getDocumentMapperForTypeSupplier()
+                                .get()
+                                .getDocumentMapper()
+                                .root()
+                                .deriveSource(leafReader, docID)
+                                .toBytesRef().bytes
                         );
                     } else {
                         assert operation.source().toBytesRef().offset == 0;

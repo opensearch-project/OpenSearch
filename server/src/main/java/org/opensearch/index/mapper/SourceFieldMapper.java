@@ -50,6 +50,7 @@ import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.lookup.SearchLookup;
@@ -182,6 +183,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build(BuilderContext context) {
+            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false) && !enabled.getValue()) {
+                throw new MapperParsingException(
+                    "_source can't be disabled with " + IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey() + " enabled index setting"
+                );
+            }
             return new SourceFieldMapper(
                 enabled.getValue(),
                 includes.getValue().toArray(new String[0]),
