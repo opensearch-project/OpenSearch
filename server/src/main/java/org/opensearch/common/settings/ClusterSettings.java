@@ -116,6 +116,7 @@ import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.index.autoforcemerge.ForceMergeManagerSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -830,7 +831,18 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Setting related to refresh optimisations
                 IndicesService.CLUSTER_REFRESH_FIXED_INTERVAL_SCHEDULE_ENABLED_SETTING,
-                IndicesService.CLUSTER_REFRESH_SHARD_LEVEL_ENABLED_SETTING
+                IndicesService.CLUSTER_REFRESH_SHARD_LEVEL_ENABLED_SETTING,
+
+                // Settings related to Auto Force Merge Manager
+                ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING,
+                ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL,
+                ForceMergeManagerSettings.TRANSLOG_AGE_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.MERGE_DELAY_BETWEEN_SHARDS_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
+                ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER
             )
         )
     );
