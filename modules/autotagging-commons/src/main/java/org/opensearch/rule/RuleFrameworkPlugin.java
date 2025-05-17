@@ -22,9 +22,12 @@ import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rule.action.DeleteRuleAction;
 import org.opensearch.rule.action.GetRuleAction;
+import org.opensearch.rule.action.TransportDeleteRuleAction;
 import org.opensearch.rule.action.TransportGetRuleAction;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+import org.opensearch.rule.rest.RestDeleteRuleAction;
 import org.opensearch.rule.rest.RestGetRuleAction;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
 
@@ -50,7 +53,10 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         // We are consuming the extensions at this place to ensure that the RulePersistenceService is initialised
         ruleFrameworkExtensions.forEach(this::consumeFrameworkExtension);
-        return List.of(new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class));
+        return List.of(
+            new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class),
+            new ActionPlugin.ActionHandler<>(DeleteRuleAction.INSTANCE, TransportDeleteRuleAction.class)
+        );
     }
 
     @Override
@@ -63,7 +69,7 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestGetRuleAction());
+        return List.of(new RestGetRuleAction(), new RestDeleteRuleAction());
     }
 
     @Override
