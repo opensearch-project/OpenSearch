@@ -115,9 +115,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
-        this.fieldName = (this.valuesSource instanceof ValuesSource.Numeric.FieldData)
-            ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
-            : null;
+        this.fieldName = this.valuesSource.getIndexFieldName();
     }
 
     @Override
