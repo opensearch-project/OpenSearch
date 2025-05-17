@@ -82,6 +82,7 @@ grant codeBase "${codebase.lucene-test-framework}" {
   // needed for RAMUsageTester
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.net.NetPermission "accessUnixDomainSocket";
+  permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
 };
 
 grant codeBase "${codebase.randomizedtesting-runner}" {
@@ -94,6 +95,7 @@ grant codeBase "${codebase.randomizedtesting-runner}" {
   // needed for TestClass creation
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.net.NetPermission "accessUnixDomainSocket";
+  permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
 };
 
 grant codeBase "${codebase.junit}" {
@@ -101,6 +103,7 @@ grant codeBase "${codebase.junit}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   // needed for test listener notifications
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
 };
 
 grant codeBase "${codebase.opensearch-core}" {
@@ -119,6 +122,10 @@ grant codeBase "${codebase.opensearch-rest-client}" {
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";
   permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant codeBase "${codebase.opensearch-ssl-config}" {
+  permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
 };
 
 grant codeBase "${codebase.httpcore5}" {
