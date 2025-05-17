@@ -16,7 +16,7 @@ base {
 }
 
 dependencies {
-  api project(':modules:autotagging-commons:common')
+  implementation project(':modules:autotagging-commons:common')
 }
 
 disableTasks("forbiddenApisMain")
