@@ -180,6 +180,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             request.settings(),
             CryptoMetadata.fromRequest(request.cryptoSettings())
         );
+
+        Repository currentRepository = repositories.get(request.name());
+        boolean isReloadableSettings = currentRepository != null && currentRepository.isReloadableSettings(newRepositoryMetadata);
+
         validate(request.name());
         validateRepositoryMetadataSettings(clusterService, request.name(), request.settings(), repositories, settings, this);
         if (newRepositoryMetadata.cryptoMetadata() != null) {
@@ -187,7 +191,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
-        if (request.verify()) {
+        if (isReloadableSettings == false && request.verify()) {
             registrationListener = ActionListener.delegateFailure(listener, (delegatedListener, clusterStateUpdateResponse) -> {
                 if (clusterStateUpdateResponse.isAcknowledged()) {
                     // The response was acknowledged - all nodes should know about the new repository, let's verify them
@@ -208,7 +212,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         // Trying to create the new repository on cluster-manager to make sure it works
         try {
-            closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
+            if (isReloadableSettings == false) {
+                closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
+            }
         } catch (Exception e) {
             registrationListener.onFailure(e);
             return;
@@ -224,7 +230,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    ensureRepositoryNotInUse(currentState, request.name());
+                    if (isReloadableSettings == false) {
+                        ensureRepositoryNotInUse(currentState, request.name());
+                    }
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                     RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
@@ -481,7 +489,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         if (previousMetadata.type().equals(repositoryMetadata.type()) == false
                             || previousMetadata.settings().equals(repositoryMetadata.settings()) == false) {
                             // Previous version is different from the version in settings
-                            if (repository.isSystemRepository() && repository.isReloadable()) {
+                            if ((repository.isSystemRepository() && repository.isReloadable())
+                                || repository.isReloadableSettings(repositoryMetadata)) {
                                 logger.debug(
                                     "updating repository [{}] in-place to use new metadata [{}]",
                                     repositoryMetadata.name(),
