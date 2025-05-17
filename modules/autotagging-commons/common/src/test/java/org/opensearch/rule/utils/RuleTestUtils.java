@@ -36,7 +36,7 @@ public class RuleTestUtils {
         private MockRuleFeatureType() {}
 
         static {
-            INSTANCE.registerFeatureType();
+            AutoTaggingRegistry.registerFeatureType(INSTANCE);
         }
 
         @Override
@@ -52,11 +52,6 @@ public class RuleTestUtils {
                 ATTRIBUTE_VALUE_TWO,
                 MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO
             );
-        }
-
-        @Override
-        public void registerFeatureType() {
-            AutoTaggingRegistry.registerFeatureType(INSTANCE);
         }
     }
 

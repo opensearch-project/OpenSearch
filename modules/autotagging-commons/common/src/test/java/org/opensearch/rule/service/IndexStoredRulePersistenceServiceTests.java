@@ -9,7 +9,12 @@
 package org.opensearch.rule.service;
 
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
@@ -20,6 +25,8 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.rule.CreateRuleRequest;
+import org.opensearch.rule.CreateRuleResponse;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
@@ -31,13 +38,21 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.AdminClient;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.IndicesAdminClient;
 
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 import org.mockito.ArgumentCaptor;
 
 import static org.opensearch.rule.XContentRuleParserTests.VALID_JSON;
+import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.MockRuleFeatureType;
 import static org.opensearch.rule.utils.RuleTestUtils.TEST_INDEX_NAME;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -53,6 +68,243 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
 
     public static final int MAX_VALUES_PER_PAGE = 50;
 
+    public void testCreateRuleOnExistingIndex() throws IOException {
+        CreateRuleRequest createRuleRequest = mock(CreateRuleRequest.class);
+        Rule mockRule = mock(Rule.class);
+        when(createRuleRequest.getRule()).thenReturn(mockRule);
+        RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
+        RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState clusterState = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        QueryBuilder queryBuilder = mock(QueryBuilder.class);
+
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.hasIndex(TEST_INDEX_NAME)).thenReturn(true);
+        when(mockRuleQueryMapper.from(any(GetRuleRequest.class))).thenReturn(queryBuilder);
+        when(queryBuilder.filter(any())).thenReturn(queryBuilder);
+
+        SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
+        Client client = setUpMockClient(searchRequestBuilder);
+        RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
+            TEST_INDEX_NAME,
+            client,
+            clusterService,
+            MAX_VALUES_PER_PAGE,
+            mockRuleEntityParser,
+            mockRuleQueryMapper
+        );
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+        when(mockRule.toXContent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(new SearchHits(new SearchHit[] {}, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f));
+        doAnswer((invocation) -> {
+            ActionListener<SearchResponse> actionListener = invocation.getArgument(0);
+            actionListener.onResponse(searchResponse);
+            return null;
+        }).when(searchRequestBuilder).execute(any(ActionListener.class));
+
+        IndexResponse indexResponse = mock(IndexResponse.class);
+        when(indexResponse.getId()).thenReturn(_ID_ONE);
+        doAnswer(invocation -> {
+            ActionListener<IndexResponse> actionListener = invocation.getArgument(1);
+            actionListener.onResponse(indexResponse);
+            return null;
+        }).when(client).index(any(IndexRequest.class), any(ActionListener.class));
+
+        rulePersistenceService.createRule(createRuleRequest, listener);
+        ArgumentCaptor<CreateRuleResponse> responseCaptor = ArgumentCaptor.forClass(CreateRuleResponse.class);
+        verify(listener).onResponse(responseCaptor.capture());
+        CreateRuleResponse response = responseCaptor.getValue();
+        assertNotNull(response.getRule());
+    }
+
+    public void testCreateDuplicateRule() {
+        CreateRuleRequest createRuleRequest = mock(CreateRuleRequest.class);
+        Rule mockRule = mock(Rule.class);
+        when(createRuleRequest.getRule()).thenReturn(mockRule);
+
+        RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
+        RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState clusterState = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        QueryBuilder queryBuilder = mock(QueryBuilder.class);
+
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.hasIndex(TEST_INDEX_NAME)).thenReturn(true);
+        when(mockRuleQueryMapper.from(any(GetRuleRequest.class))).thenReturn(queryBuilder);
+        when(queryBuilder.filter(any())).thenReturn(queryBuilder);
+
+        when(mockRule.getAttributeMap()).thenReturn(Map.of(MOCK_RULE_ATTRIBUTE_ONE, Set.of(ATTRIBUTE_VALUE_ONE)));
+        when(mockRule.getFeatureType()).thenReturn(MockRuleFeatureType.INSTANCE);
+
+        SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
+        Client client = setUpMockClient(searchRequestBuilder);
+
+        RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
+            TEST_INDEX_NAME,
+            client,
+            clusterService,
+            MAX_VALUES_PER_PAGE,
+            mockRuleEntityParser,
+            mockRuleQueryMapper
+        );
+
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        SearchHit hit = new SearchHit(1);
+        hit.sourceRef(new BytesArray(VALID_JSON));
+        SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+
+        doAnswer((invocation) -> {
+            ActionListener<SearchResponse> actionListener = invocation.getArgument(0);
+            actionListener.onResponse(searchResponse);
+            return null;
+        }).when(searchRequestBuilder).execute(any(ActionListener.class));
+
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+        when(mockRuleEntityParser.parse(any(String.class))).thenReturn(mockRule);
+        rulePersistenceService.createRule(createRuleRequest, listener);
+        ArgumentCaptor<Exception> failureCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(listener).onFailure(failureCaptor.capture());
+    }
+
+    public void testCreateRuleOnNewIndex() throws IOException {
+        CreateRuleRequest createRuleRequest = mock(CreateRuleRequest.class);
+        Rule mockRule = mock(Rule.class);
+        when(createRuleRequest.getRule()).thenReturn(mockRule);
+        RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
+        RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState clusterState = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        QueryBuilder queryBuilder = mock(QueryBuilder.class);
+
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.hasIndex(TEST_INDEX_NAME)).thenReturn(false);
+        when(mockRuleQueryMapper.from(any(GetRuleRequest.class))).thenReturn(queryBuilder);
+        when(queryBuilder.filter(any())).thenReturn(queryBuilder);
+
+        SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
+        Client client = setUpMockClient(searchRequestBuilder);
+        RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
+            TEST_INDEX_NAME,
+            client,
+            clusterService,
+            MAX_VALUES_PER_PAGE,
+            mockRuleEntityParser,
+            mockRuleQueryMapper
+        );
+
+        AdminClient adminClient = mock(AdminClient.class);
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        when(client.admin()).thenReturn(adminClient);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+        when(mockRule.toXContent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CreateIndexResponse createIndexResponse = new CreateIndexResponse(true, true, TEST_INDEX_NAME);
+        doAnswer(invocation -> {
+            ActionListener<CreateIndexResponse> actionListener = invocation.getArgument(1);
+            actionListener.onResponse(createIndexResponse);
+            return null;
+        }).when(indicesAdminClient).create(any(CreateIndexRequest.class), any(ActionListener.class));
+
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(new SearchHits(new SearchHit[] {}, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f));
+        doAnswer((invocation) -> {
+            ActionListener<SearchResponse> actionListener = invocation.getArgument(0);
+            actionListener.onResponse(searchResponse);
+            return null;
+        }).when(searchRequestBuilder).execute(any(ActionListener.class));
+
+        IndexResponse indexResponse = mock(IndexResponse.class);
+        when(indexResponse.getId()).thenReturn(_ID_ONE);
+        doAnswer(invocation -> {
+            ActionListener<IndexResponse> actionListener = invocation.getArgument(1);
+            actionListener.onResponse(indexResponse);
+            return null;
+        }).when(client).index(any(IndexRequest.class), any(ActionListener.class));
+
+        rulePersistenceService.createRule(createRuleRequest, listener);
+        ArgumentCaptor<CreateRuleResponse> responseCaptor = ArgumentCaptor.forClass(CreateRuleResponse.class);
+        verify(listener).onResponse(responseCaptor.capture());
+        CreateRuleResponse response = responseCaptor.getValue();
+        assertNotNull(response.getRule());
+    }
+
+    public void testCreateRuleWhenIndexAlreadyExistsDuringCreation() throws IOException {
+        CreateRuleRequest createRuleRequest = mock(CreateRuleRequest.class);
+        Rule mockRule = mock(Rule.class);
+        when(createRuleRequest.getRule()).thenReturn(mockRule);
+
+        RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
+        RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState clusterState = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        QueryBuilder queryBuilder = mock(QueryBuilder.class);
+
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.hasIndex(TEST_INDEX_NAME)).thenReturn(false);
+        when(mockRuleQueryMapper.from(any(GetRuleRequest.class))).thenReturn(queryBuilder);
+        when(queryBuilder.filter(any())).thenReturn(queryBuilder);
+
+        SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
+        Client client = setUpMockClient(searchRequestBuilder);
+        RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
+            TEST_INDEX_NAME,
+            client,
+            clusterService,
+            MAX_VALUES_PER_PAGE,
+            mockRuleEntityParser,
+            mockRuleQueryMapper
+        );
+
+        AdminClient adminClient = mock(AdminClient.class);
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        when(client.admin()).thenReturn(adminClient);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+        when(mockRule.toXContent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        doAnswer(invocation -> {
+            ActionListener<CreateIndexResponse> actionListener = invocation.getArgument(1);
+            actionListener.onFailure(new ResourceAlreadyExistsException(TEST_INDEX_NAME));
+            return null;
+        }).when(indicesAdminClient).create(any(CreateIndexRequest.class), any(ActionListener.class));
+
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(new SearchHits(new SearchHit[] {}, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f));
+        doAnswer((invocation) -> {
+            ActionListener<SearchResponse> actionListener = invocation.getArgument(0);
+            actionListener.onResponse(searchResponse);
+            return null;
+        }).when(searchRequestBuilder).execute(any(ActionListener.class));
+
+        IndexResponse indexResponse = mock(IndexResponse.class);
+        when(indexResponse.getId()).thenReturn(_ID_ONE);
+        doAnswer(invocation -> {
+            ActionListener<IndexResponse> actionListener = invocation.getArgument(1);
+            actionListener.onResponse(indexResponse);
+            return null;
+        }).when(client).index(any(IndexRequest.class), any(ActionListener.class));
+
+        rulePersistenceService.createRule(createRuleRequest, listener);
+        ArgumentCaptor<CreateRuleResponse> responseCaptor = ArgumentCaptor.forClass(CreateRuleResponse.class);
+        verify(listener).onResponse(responseCaptor.capture());
+        CreateRuleResponse response = responseCaptor.getValue();
+        assertNotNull(response);
+        assertNotNull(response.getRule());
+    }
+
     public void testGetRuleByIdSuccess() {
         GetRuleRequest getRuleRequest = mock(GetRuleRequest.class);
         when(getRuleRequest.getId()).thenReturn(_ID_ONE);
@@ -60,6 +312,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         QueryBuilder queryBuilder = mock(QueryBuilder.class);
         RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
         RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
+        ClusterService clusterService = mock(ClusterService.class);
         Rule mockRule = mock(Rule.class);
 
         when(mockRuleEntityParser.parse(anyString())).thenReturn(mockRule);
@@ -72,6 +325,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
             TEST_INDEX_NAME,
             client,
+            clusterService,
             MAX_VALUES_PER_PAGE,
             mockRuleEntityParser,
             mockRuleQueryMapper
@@ -105,6 +359,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         when(getRuleRequest.getId()).thenReturn(_ID_ONE);
         QueryBuilder queryBuilder = mock(QueryBuilder.class);
         RuleQueryMapper<QueryBuilder> mockRuleQueryMapper = mock(RuleQueryMapper.class);
+        ClusterService clusterService = mock(ClusterService.class);
         RuleEntityParser mockRuleEntityParser = mock(RuleEntityParser.class);
         Rule mockRule = mock(Rule.class);
 
@@ -118,6 +373,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
             TEST_INDEX_NAME,
             client,
+            clusterService,
             MAX_VALUES_PER_PAGE,
             mockRuleEntityParser,
             mockRuleQueryMapper
