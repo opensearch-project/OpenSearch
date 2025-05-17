@@ -74,6 +74,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import fixture.s3.S3HttpHandler;
@@ -234,9 +237,13 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
      * S3RepositoryPlugin that allows to disable chunked encoding and to set a low threshold between single upload and multipart upload.
      */
     public static class TestS3RepositoryPlugin extends S3RepositoryPlugin {
-
         public TestS3RepositoryPlugin(final Settings settings, final Path configPath) {
-            super(settings, configPath);
+            super(
+                settings,
+                configPath,
+                new S3Service(configPath, Executors.newSingleThreadScheduledExecutor()),
+                new S3AsyncService(configPath, Executors.newSingleThreadScheduledExecutor())
+            );
         }
 
         @Override
@@ -244,6 +251,13 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             final List<Setting<?>> settings = new ArrayList<>(super.getSettings());
             settings.add(S3ClientSettings.DISABLE_CHUNKED_ENCODING);
             return settings;
+        }
+
+        @Override
+        public void close() throws IOException {
+            super.close();
+            Stream.of(service.getClientExecutorService(), s3AsyncService.getClientExecutorService())
+                .forEach(e -> assertTrue(ThreadPool.terminate(e, 5, TimeUnit.SECONDS)));
         }
 
         @Override
