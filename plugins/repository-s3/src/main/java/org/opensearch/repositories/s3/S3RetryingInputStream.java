@@ -116,6 +116,9 @@ class S3RetryingInputStream extends InputStream {
                     + end;
                 getObjectRequest.range(HttpRangeUtils.toHttpRangeHeader(Math.addExact(start, currentOffset), end));
             }
+            if (blobStore.expectedBucketOwner() != null && !blobStore.expectedBucketOwner().isEmpty()) {
+                getObjectRequest.expectedBucketOwner(blobStore.expectedBucketOwner());
+            }
             final ResponseInputStream<GetObjectResponse> getObjectResponseInputStream = SocketAccess.doPrivileged(
                 () -> clientReference.get().getObject(getObjectRequest.build())
             );

@@ -95,7 +95,9 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -539,8 +541,22 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         if (CollectionUtils.isNotEmpty(metadata)) {
             putObjectRequestBuilder = putObjectRequestBuilder.metadata(metadata);
         }
-        if (blobStore.serverSideEncryption()) {
+
+        if (blobStore.serverSideEncryptionType().equals(ServerSideEncryption.AES256.toString())) {
             putObjectRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
+        } else if (blobStore.serverSideEncryptionType().equals(ServerSideEncryption.AWS_KMS.toString())) {
+            putObjectRequestBuilder.serverSideEncryption(ServerSideEncryption.AWS_KMS);
+            putObjectRequestBuilder.ssekmsKeyId(blobStore.serverSideEncryptionKmsKey());
+            putObjectRequestBuilder.bucketKeyEnabled(blobStore.serverSideEncryptionBucketKey());
+            if (!blobStore.serverSideEncryptionEncryptionContext().isEmpty()) {
+                putObjectRequestBuilder.ssekmsEncryptionContext(
+                    Base64.getEncoder().encodeToString(blobStore.serverSideEncryptionEncryptionContext().getBytes(StandardCharsets.UTF_8))
+                );
+            }
+        }
+
+        if (!blobStore.expectedBucketOwner().isEmpty()) {
+            putObjectRequestBuilder.expectedBucketOwner(blobStore.expectedBucketOwner());
         }
 
         PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
@@ -597,8 +613,21 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             createMultipartUploadRequestBuilder.metadata(metadata);
         }
 
-        if (blobStore.serverSideEncryption()) {
+        if (blobStore.serverSideEncryptionType().equals(ServerSideEncryption.AES256.toString())) {
             createMultipartUploadRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
+        } else if (blobStore.serverSideEncryptionType().equals(ServerSideEncryption.AWS_KMS.toString())) {
+            createMultipartUploadRequestBuilder.serverSideEncryption(ServerSideEncryption.AWS_KMS);
+            createMultipartUploadRequestBuilder.ssekmsKeyId(blobStore.serverSideEncryptionKmsKey());
+            createMultipartUploadRequestBuilder.bucketKeyEnabled(blobStore.serverSideEncryptionBucketKey());
+            if (!blobStore.serverSideEncryptionEncryptionContext().isEmpty()) {
+                createMultipartUploadRequestBuilder.ssekmsEncryptionContext(
+                    Base64.getEncoder().encodeToString(blobStore.serverSideEncryptionEncryptionContext().getBytes(StandardCharsets.UTF_8))
+                );
+            }
+        }
+
+        if (!blobStore.expectedBucketOwner().isEmpty()) {
+            createMultipartUploadRequestBuilder.expectedBucketOwner(blobStore.expectedBucketOwner());
         }
 
         final InputStream requestInputStream;
@@ -734,7 +763,9 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         if (isMultipartObject) {
             getObjectRequestBuilder.partNumber(partNumber);
         }
-
+        if (!blobStore.expectedBucketOwner().isEmpty()) {
+            getObjectRequestBuilder.expectedBucketOwner(blobStore.expectedBucketOwner());
+        }
         return SocketAccess.doPrivileged(
             () -> s3AsyncClient.getObject(getObjectRequestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream())
                 .thenApply(response -> transformResponseToInputStreamContainer(response, isMultipartObject))
