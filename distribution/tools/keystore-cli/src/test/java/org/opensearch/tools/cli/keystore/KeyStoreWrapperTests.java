@@ -61,12 +61,10 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.MessageDigest;
@@ -411,31 +409,6 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
         assertThat(toByteArray(afterSave.getFile("string_setting")), equalTo("string_value".getBytes(StandardCharsets.UTF_8)));
         assertThat(afterSave.getString("file_setting"), equalTo("file_value"));
         assertThat(toByteArray(afterSave.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/468")
-    public void testLegacyV3() throws GeneralSecurityException, IOException {
-        final Path configDir = createTempDir();
-        final Path keystore = configDir.resolve("opensearch.keystore");
-        try (
-            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-opensearch.keystore");
-            OutputStream os = Files.newOutputStream(keystore)
-        ) {
-            final byte[] buffer = new byte[4096];
-            int readBytes;
-            while ((readBytes = is.read(buffer)) > 0) {
-                os.write(buffer, 0, readBytes);
-            }
-        }
-        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
-        assertNotNull(wrapper);
-        wrapper.decrypt(new char[0]);
-        assertThat(wrapper.getFormatVersion(), equalTo(3));
-        assertThat(wrapper.getSettingNames(), equalTo(new HashSet<>(Arrays.asList("keystore.seed", "string_setting", "file_setting"))));
-        assertThat(wrapper.getString("string_setting"), equalTo("string_value"));
-        assertThat(toByteArray(wrapper.getFile("string_setting")), equalTo("string_value".getBytes(StandardCharsets.UTF_8)));
-        assertThat(wrapper.getString("file_setting"), equalTo("file_value"));
-        assertThat(toByteArray(wrapper.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
     }
 
     private void generateV1() throws IOException, NoSuchAlgorithmException, NoSuchProviderException, CertificateException,
