@@ -64,8 +64,13 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
 
     @Nullable
     private final Long translogChecksum;
+
+    // fullTranslogChecksum is the checksum for translog which includes header, content, and footer.
+    @Nullable
+    private final Long fullTranslogChecksum;
     @Nullable
     private final Long checkpointChecksum;
+    private final Boolean hasFooter;
 
     /**
      * Create a translog writer against the specified translog file channel.
@@ -80,14 +85,18 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
         final FileChannel channel,
         final Path path,
         final TranslogHeader header,
-        final Long translogChecksum
+        final Long translogChecksum,
+        final Long fullTranslogChecksum,
+        final Boolean hasFooter
     ) throws IOException {
         super(checkpoint.generation, channel, path, header);
         this.length = checkpoint.offset;
         this.totalOperations = checkpoint.numOps;
         this.checkpoint = checkpoint;
         this.translogChecksum = translogChecksum;
+        this.fullTranslogChecksum = fullTranslogChecksum;
         this.checkpointChecksum = (translogChecksum != null) ? calculateCheckpointChecksum(checkpoint, path) : null;
+        this.hasFooter = hasFooter;
     }
 
     private static Long calculateCheckpointChecksum(Checkpoint checkpoint, Path path) throws IOException {
@@ -99,6 +108,14 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
 
     public Long getTranslogChecksum() {
         return translogChecksum;
+    }
+
+    /**
+     * getFullTranslogChecksum returns the complete checksum of the translog which includes
+     * header, content and footer.
+     * */
+    public Long getFullTranslogChecksum() {
+        return fullTranslogChecksum;
     }
 
     public Long getCheckpointChecksum() {
@@ -118,7 +135,18 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     public static TranslogReader open(final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID)
         throws IOException {
         final TranslogHeader header = TranslogHeader.read(translogUUID, path, channel);
-        return new TranslogReader(checkpoint, channel, path, header, null);
+
+        // When we open a reader to Translog from a path, we want to fetch the checksum
+        // as that would be needed later on while creating the metadata map for
+        // generation to checksum.
+        Long translogChecksum = null;
+        try {
+            translogChecksum = TranslogFooter.readChecksum(path);
+        } catch (IOException ignored) {}
+
+        boolean hasFooter = translogChecksum != null;
+
+        return new TranslogReader(checkpoint, channel, path, header, translogChecksum, null, hasFooter);
     }
 
     /**
@@ -146,9 +174,9 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
 
                     IOUtils.fsync(checkpointFile.getParent(), true);
 
-                    newReader = new TranslogReader(newCheckpoint, channel, path, header, translogChecksum);
+                    newReader = new TranslogReader(newCheckpoint, channel, path, header, translogChecksum, fullTranslogChecksum, hasFooter);
                 } else {
-                    newReader = new TranslogReader(checkpoint, channel, path, header, translogChecksum);
+                    newReader = new TranslogReader(checkpoint, channel, path, header, translogChecksum, fullTranslogChecksum, hasFooter);
                 }
                 toCloseOnFailure = null;
                 return newReader;
@@ -177,6 +205,23 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * reads an operation at the given position into the given buffer.
      */
     protected void readBytes(ByteBuffer buffer, long position) throws IOException {
+        if (hasFooter && header.getTranslogHeaderVersion() == TranslogHeader.VERSION_WITH_FOOTER) {
+            // Ensure that the read request does not overlap with footer.
+            long translogLengthWithoutFooter = length - TranslogFooter.footerLength();
+            if (position >= translogLengthWithoutFooter && position < length) {
+                throw new EOFException(
+                    "read requested past last ops into footer. pos [" + position + "] end: [" + translogLengthWithoutFooter + "]"
+                );
+            }
+            // If we are trying to read beyond the last Ops, we need to return EOF error.
+            long lastPositionToRead = position + buffer.limit();
+            if (lastPositionToRead > translogLengthWithoutFooter) {
+                throw new EOFException(
+                    "trying to read past last ops into footer. pos [" + lastPositionToRead + "] end: [" + translogLengthWithoutFooter + "]"
+                );
+            }
+        }
+
         if (position >= length) {
             throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "]");
         }
