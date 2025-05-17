@@ -17,6 +17,7 @@ grant {
   // security
   permission java.io.FilePermission "${java.home}/lib/security/cacerts", "read";
   permission java.io.FilePermission "${java.home}/lib/security/jssecacerts", "read";
+  permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
   permission java.lang.RuntimePermission "accessClassInPackage.sun.security.internal.spec";
   permission java.lang.RuntimePermission "closeClassLoader";
   permission java.lang.RuntimePermission "getProtectionDomain";

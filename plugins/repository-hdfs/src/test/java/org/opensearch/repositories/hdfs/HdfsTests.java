@@ -33,6 +33,7 @@ package org.opensearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.cluster.ClusterState;
@@ -61,6 +62,7 @@ public class HdfsTests extends OpenSearchSingleNodeTestCase {
         return pluginList(HdfsPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
     public void testSimpleWorkflow() {
         Client client = client();
         Settings.Builder settings = Settings.builder()
