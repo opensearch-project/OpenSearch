@@ -256,7 +256,8 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             clusterName,
             threadPool,
             ThreadPool.Names.REMOTE_STATE_READ,
-            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+            clusterSettings
         );
     }
 
