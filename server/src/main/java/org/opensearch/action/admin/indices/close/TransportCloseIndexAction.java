@@ -185,11 +185,8 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         CompatibilityMode compatibilityMode = clusterSettings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING);
         Direction migrationDirection = clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING);
-        if (compatibilityMode == CompatibilityMode.MIXED) {
-            boolean isRemoteMigration = migrationDirection == Direction.REMOTE_STORE;
-            if (isRemoteMigration) {
-                throw new IllegalStateException("Cannot close index while remote migration is ongoing");
-            }
+        if (compatibilityMode == CompatibilityMode.MIXED && migrationDirection == Direction.REMOTE_STORE) {
+            throw new IllegalStateException("Cannot close index while remote migration is ongoing");
         }
     }
 }
