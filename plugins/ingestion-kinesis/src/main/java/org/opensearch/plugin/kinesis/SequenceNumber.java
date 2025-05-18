@@ -49,11 +49,6 @@ public class SequenceNumber implements IngestionShardPointer {
     }
 
     @Override
-    public String asString() {
-        return sequenceNumber;
-    }
-
-    @Override
     public Field asPointField(String fieldName) {
         return new KeywordField(fieldName, sequenceNumber, KeywordField.Store.YES);
     }
@@ -65,7 +60,7 @@ public class SequenceNumber implements IngestionShardPointer {
 
     @Override
     public String toString() {
-        return "SequenceNumber{" + "sequenceNumber=" + sequenceNumber + '}';
+        return sequenceNumber;
     }
 
     @Override

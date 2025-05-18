@@ -22,6 +22,8 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.pollingingest.IngestionSettings;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
@@ -178,6 +180,33 @@ public class IngestionEngineTests extends EngineTestCase {
             assertEquals("failed to create engine", e.getMessage());
             assertTrue(e.getCause() instanceof IOException);
         }
+    }
+
+    public void testIngestionStateUpdate() {
+        publishData("{\"_id\":\"3\",\"_source\":{\"name\":\"john\", \"age\": 30}}");
+        publishData("{\"_id\":\"4\",\"_source\":{\"name\":\"jane\", \"age\": 25}}");
+        waitForResults(ingestionEngine, 4);
+        // flush
+        ingestionEngine.flush(false, true);
+
+        ShardIngestionState initialIngestionState = ingestionEngine.getIngestionState();
+        assertEquals(false, initialIngestionState.isPollerPaused());
+
+        publishData("{\"_id\":\"5\",\"_source\":{\"name\":\"john\", \"age\": 30}}");
+        publishData("{\"_id\":\"6\",\"_source\":{\"name\":\"jane\", \"age\": 25}}");
+        waitForResults(ingestionEngine, 6);
+
+        // pause ingestion
+        ingestionEngine.updateIngestionSettings(new IngestionSettings(true, null, null));
+        // resume ingestion with offset reset
+        ingestionEngine.updateIngestionSettings(new IngestionSettings(null, StreamPoller.ResetState.RESET_BY_OFFSET, "0"));
+        ShardIngestionState resumedIngestionState = ingestionEngine.getIngestionState();
+        assertEquals(false, resumedIngestionState.isPollerPaused());
+
+        publishData("{\"_id\":\"7\",\"_source\":{\"name\":\"jane\", \"age\": 27}}");
+        waitForResults(ingestionEngine, 7);
+        PollingIngestStats stats = ingestionEngine.pollingIngestStats();
+        assertEquals(6, stats.getConsumerStats().totalDuplicateMessageSkippedCount());
     }
 
     private IngestionEngine buildIngestionEngine(
