@@ -69,7 +69,10 @@ public class DefaultStreamPoller implements StreamPoller {
     private final CounterMetric totalPolledCount = new CounterMetric();
     private final CounterMetric totalConsumerErrorCount = new CounterMetric();
     private final CounterMetric totalPollerMessageFailureCount = new CounterMetric();
+    // indicates number of messages dropped due to error
     private final CounterMetric totalPollerMessageDroppedCount = new CounterMetric();
+    // indicates number of duplicate messages that are already processed, and hence skipped
+    private final CounterMetric totalDuplicateMessageSkippedCount = new CounterMetric();
 
     // A pointer to the max persisted pointer for optimizing the check
     @Nullable
@@ -190,22 +193,22 @@ public class DefaultStreamPoller implements StreamPoller {
                     switch (resetState) {
                         case EARLIEST:
                             initialBatchStartPointer = consumer.earliestPointer();
-                            logger.info("Resetting offset by seeking to earliest offset {}", initialBatchStartPointer.asString());
+                            logger.info("Resetting offset by seeking to earliest offset {}", initialBatchStartPointer);
                             break;
                         case LATEST:
                             initialBatchStartPointer = consumer.latestPointer();
-                            logger.info("Resetting offset by seeking to latest offset {}", initialBatchStartPointer.asString());
+                            logger.info("Resetting offset by seeking to latest offset {}", initialBatchStartPointer);
                             break;
-                        case REWIND_BY_OFFSET:
+                        case RESET_BY_OFFSET:
                             initialBatchStartPointer = consumer.pointerFromOffset(resetValue);
-                            logger.info("Resetting offset by seeking to offset {}", initialBatchStartPointer.asString());
+                            logger.info("Resetting offset by seeking to offset {}", initialBatchStartPointer);
                             break;
-                        case REWIND_BY_TIMESTAMP:
+                        case RESET_BY_TIMESTAMP:
                             initialBatchStartPointer = consumer.pointerFromTimestampMillis(Long.parseLong(resetValue));
                             logger.info(
                                 "Resetting offset by seeking to timestamp {}, corresponding offset {}",
                                 resetValue,
-                                initialBatchStartPointer.asString()
+                                initialBatchStartPointer
                             );
                             break;
                     }
@@ -267,7 +270,8 @@ public class DefaultStreamPoller implements StreamPoller {
             try {
                 // check if the message is already processed
                 if (isProcessed(result.getPointer())) {
-                    logger.debug("Skipping message with pointer {} as it is already processed", () -> result.getPointer().asString());
+                    logger.debug("Skipping message with pointer {} as it is already processed", result.getPointer());
+                    totalDuplicateMessageSkippedCount.inc();
                     continue;
                 }
                 totalPolledCount.inc();
@@ -276,15 +280,10 @@ public class DefaultStreamPoller implements StreamPoller {
                 logger.debug(
                     "Put message {} with pointer {} to the blocking queue",
                     String.valueOf(result.getMessage().getPayload()),
-                    result.getPointer().asString()
+                    result.getPointer()
                 );
             } catch (Exception e) {
-                logger.error(
-                    "Error in processing a record. Shard {}, pointer {}: {}",
-                    consumer.getShardId(),
-                    result.getPointer().asString(),
-                    e
-                );
+                logger.error("Error in processing a record. Shard {}, pointer {}: {}", consumer.getShardId(), result.getPointer(), e);
                 errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.POLLING);
                 totalPollerMessageFailureCount.inc();
 
@@ -404,6 +403,7 @@ public class DefaultStreamPoller implements StreamPoller {
         builder.setTotalConsumerErrorCount(totalConsumerErrorCount.count());
         builder.setTotalPollerMessageFailureCount(totalPollerMessageFailureCount.count());
         builder.setTotalPollerMessageDroppedCount(totalPollerMessageDroppedCount.count());
+        builder.setTotalDuplicateMessageSkippedCount(totalDuplicateMessageSkippedCount.count());
         builder.setLagInMillis(computeLag());
         return builder.build();
     }
@@ -438,6 +438,11 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public void setWriteBlockEnabled(boolean isWriteBlockEnabled) {
         this.isWriteBlockEnabled = isWriteBlockEnabled;
+    }
+
+    @Override
+    public IngestionShardConsumer getConsumer() {
+        return consumer;
     }
 
     @Override

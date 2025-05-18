@@ -51,7 +51,7 @@ public class KafkaOffsetTests extends OpenSearchTestCase {
         long offset = 12345L;
         KafkaOffset kafkaOffset = new KafkaOffset(offset);
 
-        Assert.assertEquals("The string representation should be correct", String.valueOf(offset), kafkaOffset.asString());
+        Assert.assertEquals("The string representation should be correct", String.valueOf(offset), kafkaOffset.toString());
     }
 
     public void testAsPointField() {

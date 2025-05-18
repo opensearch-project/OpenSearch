@@ -51,12 +51,14 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         long totalConsumerErrorCount = in.readLong();
         long totalPollerMessageFailureCount = in.readLong();
         long totalPollerMessageDroppedCount = in.readLong();
+        long totalDuplicateMessageSkippedCount = in.readLong();
         this.consumerStats = new ConsumerStats(
             totalPolledCount,
             lagInMillis,
             totalConsumerErrorCount,
             totalPollerMessageFailureCount,
-            totalPollerMessageDroppedCount
+            totalPollerMessageDroppedCount,
+            totalDuplicateMessageSkippedCount
         );
     }
 
@@ -73,6 +75,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         out.writeLong(consumerStats.totalConsumerErrorCount);
         out.writeLong(consumerStats.totalPollerMessageFailureCount);
         out.writeLong(consumerStats.totalPollerMessageDroppedCount);
+        out.writeLong(consumerStats.totalDuplicateMessageSkippedCount);
     }
 
     @Override
@@ -91,6 +94,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         builder.field("total_consumer_error_count", consumerStats.totalConsumerErrorCount);
         builder.field("total_poller_message_failure_count", consumerStats.totalPollerMessageFailureCount);
         builder.field("total_poller_message_dropped_count", consumerStats.totalPollerMessageDroppedCount);
+        builder.field("total_duplicate_message_skipped_count", consumerStats.totalDuplicateMessageSkippedCount);
         builder.field("lag_in_millis", consumerStats.lagInMillis);
         builder.endObject();
         builder.endObject();
@@ -131,7 +135,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
      */
     @ExperimentalApi
     public record ConsumerStats(long totalPolledCount, long lagInMillis, long totalConsumerErrorCount, long totalPollerMessageFailureCount,
-        long totalPollerMessageDroppedCount) {
+        long totalPollerMessageDroppedCount, long totalDuplicateMessageSkippedCount) {
     }
 
     /**
@@ -150,6 +154,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         private long totalConsumerErrorCount;
         private long totalPollerMessageFailureCount;
         private long totalPollerMessageDroppedCount;
+        private long totalDuplicateMessageSkippedCount;
 
         public Builder() {}
 
@@ -208,6 +213,11 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             return this;
         }
 
+        public Builder setTotalDuplicateMessageSkippedCount(long totalDuplicateMessageSkippedCount) {
+            this.totalDuplicateMessageSkippedCount = totalDuplicateMessageSkippedCount;
+            return this;
+        }
+
         public PollingIngestStats build() {
             MessageProcessorStats messageProcessorStats = new MessageProcessorStats(
                 totalProcessedCount,
@@ -222,7 +232,8 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
                 lagInMillis,
                 totalConsumerErrorCount,
                 totalPollerMessageFailureCount,
-                totalPollerMessageDroppedCount
+                totalPollerMessageDroppedCount,
+                totalDuplicateMessageSkippedCount
             );
             return new PollingIngestStats(messageProcessorStats, consumerStats);
         }

@@ -67,7 +67,6 @@ import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IngestionStatus;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -191,6 +190,7 @@ import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
+import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
@@ -5486,24 +5486,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
 
-        updateShardIngestionState(indexMetadata.getIngestionStatus());
+        updateShardIngestionState(new IngestionSettings(indexMetadata.getIngestionStatus().isPaused(), null, null));
     }
 
     /**
      * Updates the ingestion state by delegating to the ingestion engine.
      */
-    public void updateShardIngestionState(IngestionStatus ingestionStatus) {
+    public void updateShardIngestionState(IngestionSettings ingestionSettings) {
         synchronized (engineMutex) {
             if (getEngineOrNull() instanceof IngestionEngine == false) {
                 return;
             }
 
             IngestionEngine ingestionEngine = (IngestionEngine) getEngineOrNull();
-            if (ingestionStatus.isPaused()) {
-                ingestionEngine.pauseIngestion();
-            } else {
-                ingestionEngine.resumeIngestion();
-            }
+            ingestionEngine.updateIngestionSettings(ingestionSettings);
         }
     }
 
