@@ -119,7 +119,6 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
   }
-  testImplementation project(path: ':modules:aggs-matrix-stats')
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
   }
