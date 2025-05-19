@@ -55,6 +55,7 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
         indexDoc(primaryShard, "_doc", "1");
         indexDoc(primaryShard, "_doc", "2");
         primaryShard.refresh("test");
+        primaryShard.awaitRemoteStoreSync();
         replicaShard = newStartedShard(false, settings, new NRTReplicationEngineFactory());
     }
 

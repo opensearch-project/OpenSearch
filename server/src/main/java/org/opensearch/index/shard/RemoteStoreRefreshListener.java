@@ -12,7 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -45,7 +47,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -74,6 +75,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     private static final int INVALID_PRIMARY_TERM = -1;
 
+    private long lastRemoteCommitGeneration = -1;
+
     /**
      * Exponential back off policy with max retry interval.
      */
@@ -82,7 +85,16 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         REMOTE_REFRESH_RETRY_MAX_INTERVAL_MILLIS
     );
 
-    public static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
+    /**
+     * Checks if a file should be excluded from upload based on exclusion rules.
+     *
+     * @param file the filename to check
+     * @return true if the file should be excluded from upload
+     */
+    public static boolean isFileExcluded(String file) {
+        // Check segments_* pattern as these segment files are not used in Remote Store.
+        return "write.lock".equals(file) || file.startsWith(IndexFileNames.SEGMENTS);
+    }
 
     private final IndexShard indexShard;
     private final Directory storeDirectory;
@@ -196,7 +208,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     /**
      * Checks if all files present in local store are uploaded to remote store or part of excluded files.
      *
-     * Different from IndexShard#isRemoteSegmentStoreInSync as
+     *  Different from IndexShard#isRemoteSegmentStoreInSync as
      *  it uses files uploaded cache in RemoteDirector and it doesn't make a remote store call.
      *  Doesn't throw an exception on store getting closed as store will be open
      *
@@ -233,12 +245,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         try {
             try {
                 initializeRemoteDirectoryOnTermUpdate();
-                // if a new segments_N file is present in local that is not uploaded to remote store yet, it
-                // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
-                // This is done to avoid delete post each refresh.
-                if (isRefreshAfterCommit()) {
-                    remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
-                }
+
+                final long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
+                final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
 
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                     SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
@@ -253,9 +262,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                             )
                         );
                     }
-                    // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
-                    // move.
-                    long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
+
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
                     // Create a map of file name to size and update the refresh segment tracker
@@ -269,9 +276,20 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                             try {
                                 logger.debug("New segments upload successful");
                                 // Start metadata file upload
-                                uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
+                                uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint, maxSeqNo);
                                 logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
+
+                                // if a new local commit Generation is greater than remote commit generation., it
+                                // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
+                                // This is done to avoid delete post each refresh.
+                                if (segmentInfos.getGeneration() > lastRemoteCommitGeneration) {
+                                    remoteDirectory.deleteStaleSegmentsAsync(
+                                        indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles()
+                                    );
+                                    setLastRemoteCommitGeneration(segmentInfos.getLastGeneration());
+                                }
+
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
                                     refreshClockTimeMs,
@@ -350,14 +368,26 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         Map<String, Long> localFileSizeMap,
         ReplicationCheckpoint checkpoint
     ) {
+        if (isClosed() || shardClosed()) {
+            logger.info("Skipping segment sync completion tasks as shard or listener is closed");
+            return;
+        }
+
         // Update latest uploaded segment files name in segment tracker
         segmentTracker.setLatestUploadedFiles(localFileSizeMap.keySet());
         // Update the remote refresh time and refresh seq no
         updateRemoteRefreshTimeAndSeqNo(refreshTimeMs, refreshClockTimeMs, refreshSeqNo);
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
-        // Set the minimum sequence number for keeping translog
-        indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+
+        try {
+            indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        } catch (AlreadyClosedException e) {
+            logger.warn("Engine was closed during post-upload operations, skipping translog update");
+        } catch (Exception e) {
+            logger.warn("Failed to set minSeqNoToKeep, shard may have been closed during operation", e);
+        }
+
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
         logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
@@ -380,10 +410,19 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return ThreadPool.Names.REMOTE_REFRESH_RETRY;
     }
 
+    /**
+     * Only run async for non-critical operations.
+     *
+     * @return false if it's a critical operation (create, split, snapshot, shrink).
+     */
+    @Override
+    protected boolean shouldRunAsync() {
+        return !isCloneOrCreateOperation();
+    }
+
     private boolean isRefreshAfterCommit() throws IOException {
-        String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
-        return (lastCommittedLocalSegmentFileName != null
-            && !remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)));
+        long localCommitGeneration = SegmentInfos.readLatestCommit(storeDirectory).getGeneration();
+        return localCommitGeneration > getLastRemoteCommitGeneration();
     }
 
     /**
@@ -399,9 +438,12 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return false;
     }
 
-    void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
-        throws IOException {
-        final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
+    void uploadMetadata(
+        Collection<String> localSegmentsPostRefresh,
+        SegmentInfos segmentInfos,
+        ReplicationCheckpoint replicationCheckpoint,
+        long maxSeqNo
+    ) throws IOException {
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
@@ -429,6 +471,12 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         Map<String, Long> localSegmentsSizeMap,
         ActionListener<Void> listener
     ) {
+        if (isClosed() || shardClosed()) {
+            logger.debug("Skipping segment upload as shard is closed");
+            listener.onFailure(null);
+            return;
+        }
+
         Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
         if (filteredFiles.size() == 0) {
             logger.debug("No new segments to upload in uploadNewSegments");
@@ -476,7 +524,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private boolean skipUpload(String file) {
         try {
             // Exclude files that are already uploaded and the exclude files to come up with the list of files to be uploaded.
-            return EXCLUDE_FILES.contains(file) || remoteDirectory.containsFile(file, getChecksumOfLocalFile(file));
+            return isFileExcluded(file) || remoteDirectory.containsFile(file, getChecksumOfLocalFile(file));
         } catch (IOException e) {
             logger.error(
                 "Exception while reading checksum of local segment file: {}, ignoring the exception and re-uploading the file",
@@ -581,10 +629,19 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         // This is required in case of remote migration seeding/snapshots/shrink/ split/clone where we need to durable persist
         // all segments to remote before completing the recovery to ensure durability.
         return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
+            && (isCloneOrCreateOperation() || indexShard.shouldSeedRemoteStore());
+    }
+
+    /**
+     * Determines if the current operation is an index clone, snapshot restoration, or create operation that requires synchronous processing.
+     *
+     * @return true if this is a clone, snapshot restore, or create operation that requires synchronous processing
+     */
+    private boolean isCloneOrCreateOperation() {
+        return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
             && indexShard.recoveryState() != null
             && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
-                || indexShard.shouldSeedRemoteStore());
+                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
 
     /**
@@ -637,5 +694,23 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     @Override
     protected boolean isRetryEnabled() {
         return true;
+    }
+
+    /**
+     * Returns the thread pool name to use for remote refresh operations.
+     *
+     * @return thread pool name for remote refresh
+     */
+    @Override
+    protected String getRemoteRefreshThreadPoolName() {
+        return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+    }
+
+    long getLastRemoteCommitGeneration() {
+        return lastRemoteCommitGeneration;
+    }
+
+    private void setLastRemoteCommitGeneration(long lastRemoteCommitGeneration) {
+        this.lastRemoteCommitGeneration = lastRemoteCommitGeneration;
     }
 }

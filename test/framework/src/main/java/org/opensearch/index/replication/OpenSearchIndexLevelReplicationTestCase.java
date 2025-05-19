@@ -504,6 +504,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             IndexMetadata.Builder newMetadata = IndexMetadata.builder(indexMetadata).primaryTerm(shardId.id(), newTerm);
             indexMetadata = newMetadata.build();
             assertTrue(replicas.remove(replica));
+            primary.awaitRemoteStoreSync();
             closeShards(primary);
             primary = replica;
             assert primary.routingEntry().active() : "only active replicas can be promoted to primary: " + primary.routingEntry();
@@ -622,6 +623,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
 
         @Override
         public synchronized void close() throws Exception {
+            primary.awaitRemoteStoreSync();
             if (closed == false) {
                 closed = true;
                 try {

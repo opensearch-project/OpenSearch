@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -32,6 +34,83 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
     private static final Logger logger = LogManager.getLogger(ReleasableRetryableRefreshListenerTests.class);
 
     private ThreadPool threadPool;
+
+    /**
+     * Test implementation of ReleasableRetryableRefreshListener that provides sensible defaults
+     * and allows customization of behavior through constructor parameters.
+     */
+    static class TestReleasableRetryableRefreshListener extends ReleasableRetryableRefreshListener {
+        private final Function<Boolean, Boolean> performAfterRefreshLogic;
+        private final boolean retryEnabled;
+        private final String retryThreadPoolName;
+        private final Supplier<TimeValue> retryIntervalSupplier;
+        private final Supplier<TimeValue> drainTimeoutSupplier;
+
+        public TestReleasableRetryableRefreshListener(ThreadPool threadPool, Function<Boolean, Boolean> performAfterRefreshLogic) {
+            this(threadPool, performAfterRefreshLogic, false, null, null, null);
+        }
+
+        public TestReleasableRetryableRefreshListener(
+            ThreadPool threadPool,
+            Function<Boolean, Boolean> performAfterRefreshLogic,
+            boolean retryEnabled,
+            String retryThreadPoolName,
+            Supplier<TimeValue> retryIntervalSupplier,
+            Supplier<TimeValue> drainTimeoutSupplier
+        ) {
+            super(threadPool);
+            this.performAfterRefreshLogic = performAfterRefreshLogic;
+            this.retryEnabled = retryEnabled;
+            this.retryThreadPoolName = retryThreadPoolName;
+            this.retryIntervalSupplier = retryIntervalSupplier;
+            this.drainTimeoutSupplier = drainTimeoutSupplier;
+        }
+
+        @Override
+        protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+            return performAfterRefreshLogic.apply(didRefresh);
+        }
+
+        @Override
+        public void beforeRefresh() {
+            // Default empty implementation - most tests don't need this
+        }
+
+        @Override
+        protected Logger getLogger() {
+            return logger;
+        }
+
+        @Override
+        protected boolean shouldRunAsync() {
+            return false; // Default to synchronous for most tests
+        }
+
+        @Override
+        protected String getRemoteRefreshThreadPoolName() {
+            return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+        }
+
+        @Override
+        protected String getRetryThreadPoolName() {
+            return retryThreadPoolName != null ? retryThreadPoolName : super.getRetryThreadPoolName();
+        }
+
+        @Override
+        protected TimeValue getNextRetryInterval() {
+            return retryIntervalSupplier != null ? retryIntervalSupplier.get() : super.getNextRetryInterval();
+        }
+
+        @Override
+        protected boolean isRetryEnabled() {
+            return retryEnabled;
+        }
+
+        @Override
+        TimeValue getDrainTimeout() {
+            return drainTimeoutSupplier != null ? drainTimeoutSupplier.get() : super.getDrainTimeout();
+        }
+    }
 
     @Before
     public void init() {
@@ -44,21 +123,13 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
     public void testPerformAfterRefresh() throws IOException {
 
         CountDownLatch countDownLatch = new CountDownLatch(2);
-        ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(mock(ThreadPool.class)) {
-            @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+        ReleasableRetryableRefreshListener testRefreshListener = new TestReleasableRetryableRefreshListener(
+            mock(ThreadPool.class),
+            didRefresh -> {
                 countDownLatch.countDown();
                 return false;
             }
-
-            @Override
-            public void beforeRefresh() {}
-
-            @Override
-            protected Logger getLogger() {
-                return logger;
-            }
-        };
+        );
 
         // First invocation of afterRefresh method
         testRefreshListener.afterRefresh(true);
@@ -76,21 +147,13 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
     public void testCloseAfterRefresh() throws IOException {
         final int initialCount = randomIntBetween(10, 100);
         final CountDownLatch countDownLatch = new CountDownLatch(initialCount);
-        ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(mock(ThreadPool.class)) {
-            @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+        ReleasableRetryableRefreshListener testRefreshListener = new TestReleasableRetryableRefreshListener(
+            mock(ThreadPool.class),
+            didRefresh -> {
                 countDownLatch.countDown();
                 return false;
             }
-
-            @Override
-            public void beforeRefresh() {}
-
-            @Override
-            protected Logger getLogger() {
-                return logger;
-            }
-        };
+        );
 
         int refreshCount = randomIntBetween(1, initialCount);
         for (int i = 0; i < refreshCount; i++) {
@@ -127,6 +190,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 1, countDownLatch.getCount());
@@ -146,6 +220,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 2, countDownLatch.getCount());
@@ -170,6 +255,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 3, countDownLatch.getCount());
@@ -194,6 +290,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 4, countDownLatch.getCount());
@@ -206,36 +313,15 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
     public void testRetry() throws Exception {
         int initialCount = randomIntBetween(10, 20);
         final CountDownLatch countDownLatch = new CountDownLatch(initialCount);
-        ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(threadPool) {
-            @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
-                countDownLatch.countDown();
-                return countDownLatch.getCount() == 0;
-            }
-
-            @Override
-            public void beforeRefresh() {}
-
-            @Override
-            protected String getRetryThreadPoolName() {
-                return ThreadPool.Names.REMOTE_REFRESH_RETRY;
-            }
-
-            @Override
-            protected TimeValue getNextRetryInterval() {
-                return TimeValue.timeValueMillis(100);
-            }
-
-            @Override
-            protected Logger getLogger() {
-                return logger;
-            }
-
-            @Override
-            protected boolean isRetryEnabled() {
-                return true;
-            }
-        };
+        ReleasableRetryableRefreshListener testRefreshListener = new TestReleasableRetryableRefreshListener(threadPool, didRefresh -> {
+            countDownLatch.countDown();
+            return countDownLatch.getCount() == 0;
+        },
+            true, // retryEnabled
+            ThreadPool.Names.REMOTE_REFRESH_RETRY,
+            () -> TimeValue.timeValueMillis(100),
+            null
+        );
         testRefreshListener.afterRefresh(true);
         assertBusy(() -> assertEquals(0, countDownLatch.getCount()));
         testRefreshListener.drainRefreshes();
@@ -271,6 +357,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         testRefreshListener.afterRefresh(randomBoolean());
         testRefreshListener.drainRefreshes();
@@ -280,26 +377,15 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
 
     public void testCloseWaitsForAcquiringAllPermits() throws Exception {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(threadPool) {
-            @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-                countDownLatch.countDown();
-                return false;
+        ReleasableRetryableRefreshListener testRefreshListener = new TestReleasableRetryableRefreshListener(threadPool, didRefresh -> {
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
             }
-
-            @Override
-            public void beforeRefresh() {}
-
-            @Override
-            protected Logger getLogger() {
-                return logger;
-            }
-        };
+            countDownLatch.countDown();
+            return false;
+        });
         Thread thread = new Thread(() -> {
             try {
                 testRefreshListener.afterRefresh(randomBoolean());
@@ -362,6 +448,16 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             }
 
             @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
+            @Override
             protected String getRetryThreadPoolName() {
                 return ThreadPool.Names.REMOTE_REFRESH_RETRY;
             }
@@ -380,6 +476,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
                 }
                 return TimeValue.timeValueMillis(100);
             }
+
         };
     }
 
@@ -431,6 +528,16 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             }
 
             @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
+            @Override
             protected String getRetryThreadPoolName() {
                 return ThreadPool.Names.REMOTE_REFRESH_RETRY;
             }
@@ -444,6 +551,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected boolean isRetryEnabled() {
                 return true;
             }
+
         };
         testRefreshListener.afterRefresh(true);
         testRefreshListener.afterRefresh(true);
@@ -474,6 +582,16 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             }
 
             @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
+            @Override
             protected String getRetryThreadPoolName() {
                 return ThreadPool.Names.REMOTE_REFRESH_RETRY;
             }
@@ -487,6 +605,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected boolean isRetryEnabled() {
                 return true;
             }
+
         };
         assertThrows(RuntimeException.class, () -> testRefreshListener.afterRefresh(true));
         assertBusy(() -> assertFalse(testRefreshListener.getRetryScheduledStatus()));
@@ -497,30 +616,21 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
 
     public void testTimeoutDuringClose() throws Exception {
         // This test checks the expected behaviour when the drainRefreshes times out.
-        ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(mock(ThreadPool.class)) {
-            @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+        ReleasableRetryableRefreshListener testRefreshListener = new TestReleasableRetryableRefreshListener(
+            mock(ThreadPool.class),
+            didRefresh -> {
                 try {
                     Thread.sleep(TimeValue.timeValueSeconds(2).millis());
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }
                 return true;
-            }
-
-            @Override
-            public void beforeRefresh() {}
-
-            @Override
-            protected Logger getLogger() {
-                return logger;
-            }
-
-            @Override
-            TimeValue getDrainTimeout() {
-                return TimeValue.timeValueSeconds(1);
-            }
-        };
+            },
+            false, // retryEnabled
+            null,
+            null,
+            () -> TimeValue.timeValueSeconds(1) // custom drain timeout
+        );
         Thread thread1 = new Thread(() -> {
             try {
                 testRefreshListener.afterRefresh(true);
@@ -558,9 +668,20 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             }
 
             @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
+            @Override
             TimeValue getDrainTimeout() {
                 return TimeValue.timeValueSeconds(2);
             }
+
         };
         Thread thread1 = new Thread(() -> {
             try {
@@ -587,20 +708,10 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
     public void testResumeRefreshesAfterDrainRefreshes() {
         // This test checks the expected behaviour when the refresh listener is drained, but then refreshes are resumed again
         // by closing the releasables acquired by calling the drainRefreshes method.
-        ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(mock(ThreadPool.class)) {
-            @Override
-            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
-                return true;
-            }
-
-            @Override
-            public void beforeRefresh() {}
-
-            @Override
-            protected Logger getLogger() {
-                return logger;
-            }
-        };
+        ReleasableRetryableRefreshListener testRefreshListener = new TestReleasableRetryableRefreshListener(
+            mock(ThreadPool.class),
+            didRefresh -> true
+        );
         assertRefreshListenerOpen(testRefreshListener);
         Releasable releasable = testRefreshListener.drainRefreshes();
         assertRefreshListenerClosed(testRefreshListener);

@@ -49,8 +49,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -63,6 +61,7 @@ import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
@@ -220,6 +219,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -363,6 +363,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RemoteStoreFileDownloader fileDownloader;
     private final RecoverySettings recoverySettings;
     private final RemoteStoreSettings remoteStoreSettings;
+
     /*
      On source doc rep node,  It will be DOCREP_NON_MIGRATING.
      On source remote node , it will be REMOTE_MIGRATING_SEEDED when relocating from remote node
@@ -972,11 +973,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 // Ensures all in-flight remote store refreshes drain, before we perform the performSegRep.
-                for (ReferenceManager.RefreshListener refreshListener : internalRefreshListener) {
-                    if (refreshListener instanceof ReleasableRetryableRefreshListener) {
-                        releasablesOnHandoffFailures.add(((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes());
-                    }
-                }
+                releasablesOnHandoffFailures.addAll(drainRefreshListeners());
 
                 // Ensure all in-flight remote store translog upload drains, before we perform the performSegRep.
                 releasablesOnHandoffFailures.add(getEngine().translogManager().drainSync());
@@ -2126,13 +2123,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
+                List<Releasable> releasables = new ArrayList<>();
                 try {
+                    releasables.addAll(drainRefreshListeners());
                     if (engine != null && flushEngine) {
                         engine.flushAndClose();
                     }
+
+                    Releasables.close(releasables);
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
+                    IOUtils.close(releasables);
                     IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions, refreshTask);
 
                     if (deleted && engine != null && isPrimaryMode()) {
@@ -2159,6 +2161,64 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Waits for the local commit to be uploaded to the remote store within the specified timeout.
+     * This method captures the local commit information once at the start and then periodically checks if
+     * that specific commit is in the remote store. This approach prevents issues when multiple local commits
+     * are happening during the wait period.Uses exponential backoff with equal jitter, starting with 1-second
+     * base delay and max 30-second delay.
+     *
+     * @param timeout The maximum time to wait for the commit to be uploaded
+     * @return true if the commit was uploaded within the timeout period, false otherwise
+     * @throws AlreadyClosedException if the shard is closed during the wait
+     */
+    public boolean waitForLocalCommitToBeUploadedToRemote(TimeValue timeout) throws IOException {
+        assert indexSettings.isAssignedOnRemoteNode();
+
+        if (timeout == null) {
+            throw new IllegalArgumentException("Timeout must not be null");
+        }
+
+        long startTimeMillis = System.currentTimeMillis();
+        long timeoutMillis = timeout.millis();
+
+        // Capture the current local commit generation once at the start
+        long localCommitGeneration;
+        try (GatedCloseable<IndexCommit> localCommit = acquireLastIndexCommit(false)) {
+            localCommitGeneration = localCommit.get().getGeneration();
+            logger.debug("Waiting for local commit generation [{}] to be uploaded to remote (timeout: {})", localCommitGeneration, timeout);
+        } catch (Exception e) {
+            logger.error("Failed to get local commit generation", e);
+            return false;
+        }
+
+        BackoffPolicy backoffPolicy = BackoffPolicy.exponentialEqualJitterBackoff(1000L, 30000L);
+        Iterator<TimeValue> backoffIterator = backoffPolicy.iterator();
+
+        RemoteStoreRefreshListener remoteStoreRefreshListener = getRemoteStoreRefreshListener();
+
+        while (System.currentTimeMillis() - startTimeMillis < timeoutMillis) {
+            if (remoteStoreRefreshListener != null && remoteStoreRefreshListener.getLastRemoteCommitGeneration() >= localCommitGeneration) {
+                logger.debug(
+                    "Local commit generation [{}] has been successfully uploaded to remote within {} ms",
+                    localCommitGeneration,
+                    TimeValue.nsecToMSec(System.currentTimeMillis() - startTimeMillis)
+                );
+                return true;
+            }
+            TimeValue delay = backoffIterator.next();
+            try {
+                Thread.sleep(delay.millis());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while waiting for local commit to be uploaded to remote", e);
+            }
+        }
+
+        logger.warn("Timed out waiting for local commit generation [{}] to be uploaded to remote after {}", localCommitGeneration, timeout);
+        return false;
+    }
+
+    /**
      * Returns true iff it is able to verify that remote segment store
      * is in sync with local
      */
@@ -2171,8 +2231,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
                     Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
                     Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
-                    // verifying that all files except EXCLUDE_FILES are uploaded to the remote
-                    localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
+                    // verifying that all files except excluded files are uploaded to the remote
+                    localFiles.removeIf(RemoteStoreRefreshListener::isFileExcluded);
                     if (uploadFiles.containsAll(localFiles)) {
                         return true;
                     }
@@ -2203,40 +2263,69 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     Throws IOException if the remote store is not synced within the timeout
     */
     public void waitForRemoteStoreSync(Runnable onProgress) throws IOException {
+        waitForRemoteStoreSyncWithConfig(getRecoverySettings().internalRemoteUploadTimeout(), TimeValue.timeValueSeconds(30), onProgress);
+    }
+
+    /**
+     * Waits for remote store to sync with configurable timeout and poll interval.
+     * The method will periodically check if remote segments store is in sync with local store.
+     *
+     * @param timeout The maximum time to wait for the sync to complete
+     * @param pollInterval The time to wait between checks
+     * @param onProgress A runnable that will be executed when progress is detected
+     * @throws IOException if the sync doesn't complete within the timeout period
+     */
+    private void waitForRemoteStoreSyncWithConfig(TimeValue timeout, TimeValue pollInterval, Runnable onProgress) throws IOException {
         assert indexSettings.isAssignedOnRemoteNode();
+
+        if (timeout == null || pollInterval == null) {
+            throw new IllegalArgumentException("Timeout and poll interval must not be null");
+        }
+
         RemoteSegmentStoreDirectory directory = getRemoteDirectory();
-        int segmentUploadeCount = 0;
+        int segmentUploadCount = 0;
+
         if (shardRouting.primary() == false) {
             return;
         }
+
         long startNanos = System.nanoTime();
 
-        while (System.nanoTime() - startNanos < getRecoverySettings().internalRemoteUploadTimeout().nanos()) {
+        while (System.nanoTime() - startNanos < timeout.nanos()) {
             try {
                 if (isRemoteSegmentStoreInSync()) {
                     return;
                 } else {
-                    if (directory.getSegmentsUploadedToRemoteStore().size() > segmentUploadeCount) {
+                    if (directory.getSegmentsUploadedToRemoteStore().size() > segmentUploadCount) {
                         onProgress.run();
                         logger.debug("Uploaded segment count {}", directory.getSegmentsUploadedToRemoteStore().size());
-                        segmentUploadeCount = directory.getSegmentsUploadedToRemoteStore().size();
+                        segmentUploadCount = directory.getSegmentsUploadedToRemoteStore().size();
                     }
                     try {
-                        Thread.sleep(TimeValue.timeValueSeconds(30).millis());
+                        Thread.sleep(pollInterval.millis());
                     } catch (InterruptedException ie) {
-                        throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
+                        throw new OpenSearchException("Interrupted while waiting for remote store sync", ie);
                     }
                 }
             } catch (AlreadyClosedException e) {
-                // There is no point in waiting as shard is now closed .
+                // There is no point in waiting as shard is now closed.
                 return;
             }
         }
-        throw new IOException(
-            "Failed to upload to remote segment store within remote upload timeout of "
-                + getRecoverySettings().internalRemoteUploadTimeout().getMinutes()
-                + " minutes"
-        );
+        throw new IOException("Failed to upload to remote segment store within timeout of " + timeout);
+    }
+
+    /**
+     * Blocks until remote store is synced with local shard or timeout occurs.
+     * This method should only be used in tests.
+     *
+     * @throws IOException if there is some failure while checking remote store sync status
+     */
+    public void awaitRemoteStoreSync() throws IOException {
+        if (indexSettings.isAssignedOnRemoteNode() == false) {
+            return;
+        }
+        waitForRemoteStoreSyncWithConfig(TimeValue.timeValueMinutes(2), TimeValue.timeValueMillis(100), () -> {});
     }
 
     public void preRecovery() {
@@ -4159,15 +4248,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean hasOneRemoteSegmentSyncHappened() {
         assert indexSettings.isAssignedOnRemoteNode();
-        // We upload remote translog only after one remote segment upload in case of migration
-        RemoteSegmentStoreDirectory rd = getRemoteDirectory();
-        AtomicBoolean segment_n_uploaded = new AtomicBoolean(false);
-        rd.getSegmentsUploadedToRemoteStore().forEach((key, value) -> {
-            if (key.startsWith("segments")) {
-                segment_n_uploaded.set(true);
-            }
-        });
-        return segment_n_uploaded.get();
+        try {
+            RemoteSegmentStoreDirectory rd = getRemoteDirectory();
+            return rd.readLatestMetadataFile() != null;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     /**
@@ -5267,16 +5353,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 storeDirectory = store.directory();
             }
+            copySegmentFiles(storeDirectory, sourceRemoteDirectory, remoteDirectory, uploadedSegments, overrideLocal, () -> {});
 
-            String segmentsNFile = copySegmentFiles(
-                storeDirectory,
-                sourceRemoteDirectory,
-                remoteDirectory,
-                uploadedSegments,
-                overrideLocal,
-                () -> {}
-            );
-            if (pinnedTimestamp) {
+            if (remoteSegmentMetadata != null) {
                 final SegmentInfos infosSnapshot = store.buildSegmentInfos(
                     remoteSegmentMetadata.getSegmentInfosBytes(),
                     remoteSegmentMetadata.getGeneration()
@@ -5290,24 +5369,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
                 assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
-                    : "There should not be any segments file in the dir";
+                    || indexSettings.isWarmIndex() : "There should not be any segments file in the dir";
+
                 store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
-            } else if (segmentsNFile != null) {
-                try (
-                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
-                        storeDirectory.openInput(segmentsNFile, IOContext.READONCE)
-                    )
-                ) {
-                    long commitGeneration = SegmentInfos.generationFromSegmentsFileName(segmentsNFile);
-                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(store.directory(), indexInput, commitGeneration);
-                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                    if (remoteStore != null) {
-                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
-                    } else {
-                        store.directory().sync(infosSnapshot.files(true));
-                        store.directory().syncMetaData();
-                    }
-                }
             }
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
@@ -5505,6 +5569,40 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 ingestionEngine.resumeIngestion();
             }
         }
+    }
+
+    /**
+     * Drains all ReleasableRetryableRefreshListener instances to ensure ongoing refresh operations complete
+     * before shard shutdown. This is primarily used in test scenarios.
+     *
+     * @return List of Releasable objects that must be closed to release the drained permits
+     */
+    public List<Releasable> drainRefreshListeners() {
+        List<Releasable> releasables = new ArrayList<>();
+        for (ReferenceManager.RefreshListener refreshListener : internalRefreshListener) {
+            if (refreshListener instanceof ReleasableRetryableRefreshListener) {
+                try {
+                    Releasable releasable = ((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes();
+                    releasables.add(releasable);
+                } catch (Exception e) {
+                    logger.warn("Failed to drain refresh listener: {} , exception: {}", refreshListener.getClass().getSimpleName(), e);
+                }
+            }
+        }
+        return releasables;
+    }
+
+    /**
+     * Returns the RemoteStoreRefreshListener instance if it exists, otherwise null.
+     */
+    private RemoteStoreRefreshListener getRemoteStoreRefreshListener() {
+        for (ReferenceManager.RefreshListener refreshListener : internalRefreshListener) {
+            if (refreshListener instanceof RemoteStoreRefreshListener) {
+                return (RemoteStoreRefreshListener) refreshListener;
+            }
+        }
+
+        return null;
     }
 
     /**
