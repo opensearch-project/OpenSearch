@@ -137,7 +137,7 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
-    //@AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18110")
+    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18110")
     public void testStarTreeDocValues() throws IOException {
         final List<Supplier<Integer>> MAX_LEAF_DOC_VARIATIONS = List.of(
             () -> 1,
@@ -559,12 +559,12 @@ public class MetricAggregatorTests extends AggregatorTestCase {
                 .to(valueSupplier.get())
                 .includeLower(randomBoolean())
                 .includeUpper(randomBoolean());
-            // Keyword terms are not always supported for range queries. 
+            // Keyword terms are not always supported for range queries.
             if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
                 // This is essentially a match none query because the value of the keyword will
                 // never have the string value of "-1". Just using a match none query is not possible
                 // because the match none query does not correspond with a fieldname, making star tree
-                // precomputation unavailable in boolean queries as the queries must be on the same 
+                // precomputation unavailable in boolean queries as the queries must be on the same
                 // dimension.
                 return new TermQueryBuilder(fieldName, String.valueOf(-1));
             }
