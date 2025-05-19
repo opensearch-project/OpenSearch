@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * A request to delete a Rule by ID
  * Example:
- * curl -XDELETE "localhost:9200/_rules/{featureType}/{ruleId}"
+ * curl -XDELETE "localhost:9200/_rules/{featureType}/{_id}"
  * @opensearch.experimental
  */
 @ExperimentalApi

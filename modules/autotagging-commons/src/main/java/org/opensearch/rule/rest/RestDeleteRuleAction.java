@@ -45,7 +45,7 @@ public class RestDeleteRuleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new RestHandler.Route(DELETE, "_rules/{featureType}/{ruleId}"));
+        return List.of(new RestHandler.Route(DELETE, "_rules/{featureType}/{_id}"));
     }
 
     @Override
