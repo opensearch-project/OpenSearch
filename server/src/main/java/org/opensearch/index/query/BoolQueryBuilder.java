@@ -531,10 +531,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
         if (shardContext == null) return null;
         IndexSearcher indexSearcher = shardContext.searcher();
-        if ((indexSearcher instanceof ContextIndexSearcher cis)) {
-            return cis.getLeafContexts();
-        }
-        return null;
+        if (indexSearcher == null) return null;
+        return indexSearcher.getIndexReader().leaves();
     }
 
     private boolean checkAllDocsHaveOneValue(List<LeafReaderContext> contexts, String fieldName) {
