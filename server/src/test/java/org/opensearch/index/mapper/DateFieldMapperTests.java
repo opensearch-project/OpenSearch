@@ -32,11 +32,22 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.opensearch.index.termvectors.TermVectorsService;
 import org.opensearch.search.DocValueFormat;
 
@@ -44,14 +55,22 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assume.assumeThat;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DateFieldMapperTests extends MapperTestCase {
+
+    private static final long TEST_TIMESTAMP = 1739858400000L;
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -342,5 +361,258 @@ public class DateFieldMapperTests extends MapperTestCase {
         String date = "2020-05-15T21:33:02.123456789Z";
         assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
         assertEquals(List.of("2020-05-15T21:33:02.123Z"), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
+    }
+
+    public void testPossibleToDeriveSource_WhenDerivedSourceDisabled() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "date_nanos").field("format", "strict_date_time||epoch_millis").field("copy_to", "a"))
+        );
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThrows(UnsupportedOperationException.class, dateFieldMapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenCopyToPresent() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "date_nanos").field("format", "strict_date_time||epoch_millis").field("copy_to", "a"))
+        );
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThrows(UnsupportedOperationException.class, dateFieldMapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenDocValuesAndStoreFieldDisabled() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "date").field("doc_values", false).field("store", false))
+        );
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThrows(UnsupportedOperationException.class, dateFieldMapper::canDeriveSource);
+    }
+
+    public void testDeriveSource_WhenStoredFieldEnabledAndDateType() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "date").field("format", "strict_date_time_no_millis").field("doc_values", false).field("store", true)
+            )
+        );
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        LeafReader leafReader = mock(LeafReader.class);
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+
+        StoredFields storedFields = mock(StoredFields.class);
+        when(leafReader.storedFields()).thenReturn(storedFields);
+
+        FieldInfo mockFieldInfo = new FieldInfo(
+            "field",
+            1,
+            false,
+            false,
+            true,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
+
+        doAnswer(invocation -> {
+            SingleFieldsVisitor visitor = invocation.getArgument(1);
+            visitor.longField(mockFieldInfo, TEST_TIMESTAMP);
+            return null;
+        }).when(storedFields).document(anyInt(), any(StoredFieldVisitor.class));
+
+        dateFieldMapper.deriveSource(builder, leafReader, 0);
+        builder.endObject();
+        String source = builder.toString();
+        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00Z\""));
+    }
+
+    public void testDeriveSource_WhenStoredFieldEnabledAndDateNanosType() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "date_nanos")
+                    .field("format", "strict_date_time_no_millis")
+                    .field("doc_values", false)
+                    .field("store", true)
+            )
+        );
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        LeafReader leafReader = mock(LeafReader.class);
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+
+        StoredFields storedFields = mock(StoredFields.class);
+        when(leafReader.storedFields()).thenReturn(storedFields);
+
+        FieldInfo mockFieldInfo = new FieldInfo(
+            "field",
+            1,
+            false,
+            false,
+            true,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
+
+        doAnswer(invocation -> {
+            SingleFieldsVisitor visitor = invocation.getArgument(1);
+            visitor.longField(mockFieldInfo, TEST_TIMESTAMP * 1000000L);
+            return null;
+        }).when(storedFields).document(anyInt(), any(StoredFieldVisitor.class));
+
+        dateFieldMapper.deriveSource(builder, leafReader, 0);
+        builder.endObject();
+        String source = builder.toString();
+        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00Z\""));
+    }
+
+    public void testDeriveSource_WhenStoredFieldEnabledWithMultiValue() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "date").field("format", "strict_date_time_no_millis").field("doc_values", false).field("store", true)
+            )
+        );
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        LeafReader leafReader = mock(LeafReader.class);
+        StoredFields storedFields = mock(StoredFields.class);
+        when(leafReader.storedFields()).thenReturn(storedFields);
+
+        FieldInfo mockFieldInfo = new FieldInfo(
+            "field",
+            1,
+            false,
+            false,
+            true,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        doAnswer(invocation -> {
+            SingleFieldsVisitor visitor = invocation.getArgument(1);
+            visitor.longField(mockFieldInfo, TEST_TIMESTAMP);
+            visitor.longField(mockFieldInfo, TEST_TIMESTAMP + 3600000); // One hour later
+            return null;
+        }).when(storedFields).document(anyInt(), any(StoredFieldVisitor.class));
+
+        dateFieldMapper.deriveSource(builder, leafReader, 0);
+        builder.endObject();
+        String source = builder.toString();
+        assertTrue(source.contains("\"field\":[\"2025-02-18T06:00:00Z\",\"2025-02-18T07:00:00Z\"]"));
+    }
+
+    public void testDeriveSource_WhenDocValuesEnabledAndDateType() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "date").field("format", "strict_date_time_no_millis").field("store", false).field("doc_values", true)
+            )
+        );
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        LeafReader leafReader = mock(LeafReader.class);
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+
+        SortedNumericDocValues docValues = mock(SortedNumericDocValues.class);
+        when(leafReader.getSortedNumericDocValues("field")).thenReturn(docValues);
+        when(docValues.advanceExact(0)).thenReturn(true);
+        when(docValues.docValueCount()).thenReturn(1);
+        when(docValues.nextValue()).thenReturn(TEST_TIMESTAMP);
+
+        dateFieldMapper.deriveSource(builder, leafReader, 0);
+        builder.endObject();
+        String source = builder.toString();
+        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00Z\""));
+    }
+
+    public void testDeriveSource_WhenDocValuesEnabledAndDateNanosType() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "date_nanos")
+                    .field("format", "strict_date_time_no_millis")
+                    .field("store", false)
+                    .field("doc_values", true)
+            )
+        );
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        LeafReader leafReader = mock(LeafReader.class);
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+
+        SortedNumericDocValues docValues = mock(SortedNumericDocValues.class);
+        when(leafReader.getSortedNumericDocValues("field")).thenReturn(docValues);
+        when(docValues.advanceExact(0)).thenReturn(true);
+        when(docValues.docValueCount()).thenReturn(1);
+        when(docValues.nextValue()).thenReturn(TEST_TIMESTAMP * 1000000L);
+
+        dateFieldMapper.deriveSource(builder, leafReader, 0);
+        builder.endObject();
+        String source = builder.toString();
+        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00Z\""));
+    }
+
+    public void testDeriveSource_WhenDocValuesEnabledWithMultiValue() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "date").field("format", "strict_date_time_no_millis").field("store", false).field("doc_values", true)
+            )
+        );
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        LeafReader leafReader = mock(LeafReader.class);
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+
+        SortedNumericDocValues docValues = mock(SortedNumericDocValues.class);
+        when(leafReader.getSortedNumericDocValues("field")).thenReturn(docValues);
+        when(docValues.advanceExact(0)).thenReturn(true);
+        when(docValues.docValueCount()).thenReturn(2);
+        when(docValues.nextValue()).thenReturn(TEST_TIMESTAMP).thenReturn(TEST_TIMESTAMP + 3600000L); // One Hour Later
+
+        dateFieldMapper.deriveSource(builder, leafReader, 0);
+        builder.endObject();
+        String source = builder.toString();
+        assertTrue(source.contains("\"field\":[\"2025-02-18T06:00:00Z\",\"2025-02-18T07:00:00Z\"]"));
+    }
+
+    public void testDeriveSource_NoValue() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "date").field("format", "strict_date_time_no_millis").field("store", false).field("doc_values", true)
+            )
+        );
+        DateFieldMapper dateFieldMapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        LeafReader leafReader = mock(LeafReader.class);
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+
+        SortedNumericDocValues docValues = mock(SortedNumericDocValues.class);
+        when(leafReader.getSortedNumericDocValues("field")).thenReturn(docValues);
+        when(docValues.advanceExact(0)).thenReturn(false);
+
+        dateFieldMapper.deriveSource(builder, leafReader, 0);
+        builder.endObject();
+        String source = builder.toString();
+        assertEquals("{}", source);
     }
 }
