@@ -177,9 +177,10 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
                     @Override
                     public void visit(IntsRef ref) {
-                        for (int i = 0; i < ref.length; i++) {
+                        for (int i = 0; i < Math.min(ref.length, size - docCount[0]); i++) {
                             adder.add(ref.ints[ref.offset + i]);
                         }
+                        docCount[0] += Math.min(ref.length, Math.max(0, size - docCount[0]));
                     }
 
                     @Override
