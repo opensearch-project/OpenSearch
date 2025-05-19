@@ -32,29 +32,21 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.action.ListenableActionFuture;
-import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
     public void testTermsQueryWithIdOnlyAndVerifyResults() throws Exception {
@@ -72,9 +64,9 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         // Mock the search response
         SearchResponse mockResponse = mock(SearchResponse.class);
         SearchHits mockHits = new SearchHits(
-            new SearchHit[]{
+            new SearchHit[] {
                 new SearchHit(1).sourceRef(new BytesArray("{\"name\":\"Jane Doe\",\"student_id\":\"111\"}")),
-                new SearchHit(2).sourceRef(new BytesArray("{\"name\":\"Mary Major\",\"student_id\":\"222\"}"))},
+                new SearchHit(2).sourceRef(new BytesArray("{\"name\":\"Mary Major\",\"student_id\":\"222\"}")) },
             new TotalHits(2, TotalHits.Relation.EQUAL_TO), // Use TotalHits instead of int
             1.0f
         );
@@ -112,9 +104,9 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         // Mock the search response
         SearchResponse mockResponse = mock(SearchResponse.class);
         SearchHits mockHits = new SearchHits(
-            new SearchHit[]{
+            new SearchHit[] {
                 new SearchHit(1).sourceRef(new BytesArray("{\"name\":\"Jane Doe\",\"student_id\":\"111\"}")),
-                new SearchHit(2).sourceRef(new BytesArray("{\"name\":\"Mary Major\",\"student_id\":\"222\"}"))},
+                new SearchHit(2).sourceRef(new BytesArray("{\"name\":\"Mary Major\",\"student_id\":\"222\"}")) },
             new TotalHits(2, TotalHits.Relation.EQUAL_TO),
             1.0f
         );
@@ -191,9 +183,9 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         // Mock the search response
         SearchResponse mockResponse = mock(SearchResponse.class);
         SearchHits mockHits = new SearchHits(
-            new SearchHit[]{
+            new SearchHit[] {
                 new SearchHit(1).sourceRef(new BytesArray("{\"name\":\"John Smith\",\"student_id\":\"333\"}")),
-                new SearchHit(2).sourceRef(new BytesArray("{\"name\":\"Alice Brown\",\"student_id\":\"444\"}"))},
+                new SearchHit(2).sourceRef(new BytesArray("{\"name\":\"Alice Brown\",\"student_id\":\"444\"}")) },
             new TotalHits(2, TotalHits.Relation.EQUAL_TO),
             1.0f
         );
@@ -210,9 +202,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
 
     public void testTermsQueryWithNoIdAndNoQuery() {
         // Attempt to create a TermsLookup with no id and no query
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> {
-            new TermsLookup("classes", null, "enrolled");
-        });
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> { new TermsLookup("classes", null, "enrolled"); });
 
         // Verify the exception message
         assertEquals(
@@ -256,7 +246,6 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
     public void testRewriteWithTermsLookupQuery() throws IOException {
         QueryBuilder spyQuery = mock(QueryBuilder.class);
 
-
         TermsLookup termsLookup = new TermsLookup("test-index", null, "field", spyQuery);
 
         // Create the TermsQueryBuilder with the TermsLookup
@@ -276,15 +265,15 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         assertEquals(1.0f, resultTermsQuery.boost(), 0.001f);
 
         // Optionally, check the JSON representation if you want string-based asserts
-        String expectedJson = "{\n" +
-            "  \"terms\" : {\n" +
-            "    \"field\" : [\n" +
-            "      \"value1\",\n" +
-            "      \"value2\"\n" +
-            "    ],\n" +
-            "    \"boost\" : 1.0\n" +
-            "  }\n" +
-            "}";
+        String expectedJson = "{\n"
+            + "  \"terms\" : {\n"
+            + "    \"field\" : [\n"
+            + "      \"value1\",\n"
+            + "      \"value2\"\n"
+            + "    ],\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
         assertEquals(expectedJson, result.toString());
     }
 }
