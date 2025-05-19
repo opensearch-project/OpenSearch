@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILES;
+import static org.opensearch.index.shard.RemoteStoreRefreshListener.isFileExcluded;
 
 /**
  * Keeps track of remote refresh which happens in {@link org.opensearch.index.shard.RemoteStoreRefreshListener}. This consist of multiple critical metrics.
@@ -322,7 +322,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         );
         // Update the map
         segmentFiles.stream()
-            .filter(file -> EXCLUDE_FILES.contains(file) == false)
+            .filter(file -> isFileExcluded(file) == false)
             .filter(file -> latestLocalFileNameLengthMap.containsKey(file) == false || latestLocalFileNameLengthMap.get(file) == 0)
             .forEach(file -> {
                 long fileSize = 0;

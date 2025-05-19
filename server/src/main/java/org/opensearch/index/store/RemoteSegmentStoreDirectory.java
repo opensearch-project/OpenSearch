@@ -61,6 +61,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.shard.RemoteStoreRefreshListener.isFileExcluded;
+
 /**
  * A RemoteDirectory extension for remote segment store. We need to make sure we don't overwrite a segment file once uploaded.
  * In order to prevent segment overwrite which can occur due to two primary nodes for the same shard at the same time,
@@ -701,7 +703,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     Map<String, Integer> segmentToLuceneVersion = getSegmentToLuceneVersion(segmentFiles, segmentInfosSnapshot);
                     Map<String, String> uploadedSegments = new HashMap<>();
                     for (String file : segmentFiles) {
-                        if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                        if (isFileExcluded(file)) {
+                            continue;
+                        } else if (segmentsUploadedToRemoteStore.containsKey(file)) {
                             UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
                             metadata.setWrittenByMajor(segmentToLuceneVersion.get(metadata.originalFilename));
                             uploadedSegments.put(file, metadata.toString());
