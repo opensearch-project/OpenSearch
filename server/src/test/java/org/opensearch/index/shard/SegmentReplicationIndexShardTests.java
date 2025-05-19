@@ -30,6 +30,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -141,6 +142,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             int numDocs = randomIntBetween(10, 20);
             shards.indexDocs(numDocs);
             primaryShard.refresh("test");
+            primaryShard.awaitRemoteStoreSync();
             flushShard(primaryShard);
             replicateSegments(primaryShard, List.of(replicaShard));
 
@@ -150,6 +152,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertFalse(replicaShard.getReplicationEngine().isEmpty());
             replicaShard.close("test", false, false);
             assertTrue(replicaShard.getReplicationEngine().isEmpty());
+
+            drainRefreshes(shards);
         }
     }
 
@@ -160,6 +164,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, "DOCUMENT").put(Settings.EMPTY).build();
         final IndexShard indexShard = newStartedShard(false, indexSettings);
         assertNull(indexShard.getLatestReplicationCheckpoint());
+        drainRefreshes(indexShard);
         closeShards(indexShard);
     }
 
@@ -170,12 +175,14 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         final IndexShard indexShard = newStartedShard(randomBoolean(), getIndexSettings(), new NRTReplicationEngineFactory());
         final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
         assertNotNull(replicationCheckpoint);
+        drainRefreshes(indexShard);
         closeShards(indexShard);
     }
 
     public void testNRTReplicasDoNotAcceptRefreshListeners() throws IOException {
         final IndexShard indexShard = newStartedShard(false, settings, new NRTReplicationEngineFactory());
         indexShard.addRefreshListener(mock(Translog.Location.class), Assert::assertFalse);
+        drainRefreshes(indexShard);
         closeShards(indexShard);
     }
 
@@ -205,6 +212,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             int numDocs = randomIntBetween(10, 20);
             shards.indexDocs(numDocs);
             primary.refresh("test");
+            primary.awaitRemoteStoreSync();
             replicateSegments(primary, List.of(replica));
 
             replicaTuple = replica.getLatestSegmentInfosAndCheckpoint();
@@ -280,6 +288,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testIsSegmentReplicationAllowed_WrongEngineType() throws IOException {
         final IndexShard indexShard = newShard(false, getIndexSettings(), new InternalEngineFactory());
         assertFalse(indexShard.isSegmentReplicationAllowed());
+        drainRefreshes(indexShard);
         closeShards(indexShard);
     }
 
@@ -305,6 +314,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.refresh("Test");
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+            primaryShard.awaitRemoteStoreSync();
             replicateSegments(primaryShard, shards.getReplicas());
 
             IndexShard spyShard = spy(replicaShard);
@@ -318,10 +328,12 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+            primaryShard.awaitRemoteStoreSync();
             replicateSegments(primaryShard, shards.getReplicas());
 
             // Step 3. Perform force merge down to 1 segment on primary
             primaryShard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
+            primaryShard.awaitRemoteStoreSync();
             logger.info("--> primary store after force merge {}", Arrays.toString(primaryShard.store().directory().listAll()));
             // Perform close on searcher before IndexShard::finalizeReplication
             doAnswer(n -> {
@@ -354,6 +366,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.refresh("Test");
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+            primaryShard.awaitRemoteStoreSync();
             replicateSegments(primaryShard, shards.getReplicas());
             shards.assertAllEqual(numDocs);
 
@@ -365,6 +378,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
             logger.info("--> primary store after final flush {}", Arrays.toString(primaryShard.store().directory().listAll()));
+            primaryShard.awaitRemoteStoreSync();
 
             // Step 3. Before replicating segments, block finalizeReplication and perform engine commit directly that
             // cleans up recently copied over files
@@ -398,6 +412,8 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             // invoke scheduledRefresh, returns true if refresh is immediately invoked.
             assertTrue(primary.scheduledRefresh());
+            primary.awaitRemoteStoreSync();
+
             // replica would always return false here as there is no indexed doc to refresh on.
             assertFalse(replica.scheduledRefresh());
 
@@ -442,6 +458,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final IndexShard primary = shards.getPrimary();
             shards.indexDocs(randomIntBetween(1, 10));
             validateShardIdleWithNoReplicas(primary);
+            primary.awaitRemoteStoreSync();
         }
     }
 
@@ -483,6 +500,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         latch.await();
         // verify checkpoint is published
         verify(mock, times(1)).publish(any(), any());
+        drainRefreshes(shard);
         closeShards(shard);
     }
 
@@ -515,6 +533,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         latch.await();
         // verify checkpoint is published
         verify(mock, times(0)).publish(any(), any());
+        drainRefreshes(shard);
         closeShards(shard);
     }
 
@@ -526,6 +545,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
         // verify checkpoint is published
         verify(mock, times(1)).publish(any(), any());
+        drainRefreshes(shard);
         closeShards(shard);
     }
 
@@ -548,6 +568,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
         // verify checkpoint is not published
         verify(mock, times(0)).publish(any(), any());
+        drainRefreshes(shard);
         closeShards(shard);
     }
 
@@ -578,6 +599,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
         // Verify that checkpoint is not processed as shard routing is primary.
         verify(spy, times(0)).startReplication(any(), any(), any());
+        drainRefreshes(primaryShard);
         closeShards(primaryShard);
     }
 
@@ -699,10 +721,12 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final IndexShard replicaSpy = spy(replica);
 
             primary.refresh("Test");
+            primary.awaitRemoteStoreSync();
 
             doThrow(AlreadyClosedException.class).when(replicaSpy).finalizeReplication(any());
 
             replicateSegments(primary, List.of(replicaSpy));
+            primary.drainRefreshListeners();
         }
     }
 
@@ -756,6 +780,9 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             shards.removeReplica(replica);
             closeShards(replica);
+            for (var shard : shards) {
+                shard.drainRefreshListeners();
+            }
         }
     }
 
@@ -1124,5 +1151,31 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 }
             }
         }
+    }
+
+    public void drainRefreshes(IndexShard... shards) throws IOException {
+        List<Releasable> allReleasables = new ArrayList<>();
+        for (IndexShard shard : shards) {
+            if (shard != null) {
+                shard.awaitRemoteStoreSync();
+                List<Releasable> shardReleasables = shard.drainRefreshListeners();
+                allReleasables.addAll(shardReleasables);
+            }
+        }
+
+        IOUtils.closeWhileHandlingException(allReleasables.toArray(new Releasable[0]));
+    }
+
+    public void drainRefreshes(Iterable<IndexShard> shards) throws IOException {
+        List<Releasable> allReleasables = new ArrayList<>();
+        for (IndexShard shard : shards) {
+            if (shard != null) {
+                shard.awaitRemoteStoreSync();
+                List<Releasable> shardReleasables = shard.drainRefreshListeners();
+                allReleasables.addAll(shardReleasables);
+            }
+        }
+
+        IOUtils.closeWhileHandlingException(allReleasables.toArray(new Releasable[0]));
     }
 }
