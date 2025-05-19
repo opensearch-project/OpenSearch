@@ -1338,6 +1338,14 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return builder;
     }
 
+    public static Settings.Builder warmIndexSettings(Version version) {
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
+        return builder;
+    }
+
     /**
      * Returns size random values
      */

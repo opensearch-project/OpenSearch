@@ -62,6 +62,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -71,6 +72,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static org.opensearch.ingest.IngestServiceTests.createIngestServiceWithProcessors;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -146,7 +148,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
             threadPool,
             mock(TransportService.class),
             clusterService,
-            null,
+            createIngestServiceWithProcessors(Collections.emptyMap()),
             null,
             null,
             mock(ActionFilters.class),

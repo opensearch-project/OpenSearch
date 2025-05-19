@@ -314,13 +314,13 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(settings.get("other").signerOverride, is(signerOverride));
 
         ClientOverrideConfiguration defaultConfiguration = SocketAccess.doPrivileged(
-            () -> S3Service.buildOverrideConfiguration(settings.get("default"))
+            () -> S3Service.buildOverrideConfiguration(settings.get("default"), null)
         );
         Optional<Signer> defaultSigner = defaultConfiguration.advancedOption(SdkAdvancedClientOption.SIGNER);
         assertFalse(defaultSigner.isPresent());
 
         ClientOverrideConfiguration configuration = SocketAccess.doPrivileged(
-            () -> S3Service.buildOverrideConfiguration(settings.get("other"))
+            () -> S3Service.buildOverrideConfiguration(settings.get("other"), null)
         );
         Optional<Signer> otherSigner = configuration.advancedOption(SdkAdvancedClientOption.SIGNER);
         assertTrue(otherSigner.isPresent());
