@@ -455,4 +455,9 @@ class S3AsyncService implements Closeable {
         releaseCachedClients();
 
     }
+
+    @Nullable
+    ScheduledExecutorService getClientExecutorService() {
+        return clientExecutorService;
+    }
 }
