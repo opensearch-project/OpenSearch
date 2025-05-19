@@ -967,6 +967,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         IndexShard shard = shardFunction.apply(primary);
         if (primary) {
             recoverShardFromStore(shard);
+            shard.awaitRemoteStoreSync();
             assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(shard.seqNoStats().getMaxSeqNo()));
         } else {
             recoveryEmptyReplica(shard, true);
