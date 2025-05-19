@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
@@ -73,6 +74,18 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private static final int REMOTE_REFRESH_RETRY_MAX_INTERVAL_MILLIS = 10_000;
 
     private static final int INVALID_PRIMARY_TERM = -1;
+
+    private final AtomicBoolean pendingRefresh = new AtomicBoolean(false);
+    private final AtomicInteger asyncOperationsInProgress = new AtomicInteger(0);
+    private final CountDownLatch shutdownLatch = new CountDownLatch(1);
+    private volatile boolean isShuttingDown = false;
+
+    private volatile long capturedLastRefreshedCheckpoint = -3;
+
+    /**
+     * ThreadLocal to store the checkpoint value for each thread executing afterRefresh
+     */
+    private final ThreadLocal<Long> threadLocalCheckpoint = new ThreadLocal<>();
 
     /**
      * Exponential back off policy with max retry interval.
@@ -136,13 +149,127 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             try {
                 segmentTracker.updateLocalRefreshTimeAndSeqNo();
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
-                    Collection<String> localSegmentsPostRefresh = segmentInfosGatedCloseable.get().files(true);
+                    SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
+                    Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
                     updateLocalSizeMapAndTracker(localSegmentsPostRefresh);
                 }
             } catch (Throwable t) {
                 logger.error("Exception in runAfterRefreshExactlyOnce() method", t);
             }
         }
+    }
+
+    /**
+     * Returns true if this listener is being shut down
+     */
+    private boolean isShuttingDown() {
+        return isShuttingDown || shardClosed();
+    }
+
+    /**
+     * Wait for all asynchronous operations to complete during shutdown.
+     * This method is called by the parent class during drainRefreshes().
+     */
+    @Override
+    protected boolean waitForAsyncOperations(long timeout, TimeUnit unit) {
+        try {
+            if (asyncOperationsInProgress.get() > 0) {
+                isShuttingDown = true;
+                logger.info("Waiting for {} async operations to complete during shutdown", asyncOperationsInProgress.get());
+                return shutdownLatch.await(timeout, unit);
+            }
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("Interrupted while waiting for async operations to complete", e);
+            return false;
+        }
+    }
+
+    @Override
+    public final void afterRefresh(boolean didRefresh) throws IOException {
+        if (isClosed() || isShuttingDown()) {
+            return;
+        }
+
+        runAfterRefreshExactlyOnce(didRefresh);
+
+        // Compute the lastRefreshedCheckpoint and store for later use
+        final long capturedCheckpoint;
+        if (indexShard.getEngine() instanceof InternalEngine) {
+            capturedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
+        } else {
+            capturedCheckpoint = this.capturedLastRefreshedCheckpoint;
+            // Skip further processing if we're in the middle of an engine switch
+            if (indexShard.state() != IndexShardState.STARTED) {
+                logger.debug("Skipping remote refresh processing during engine transition");
+                return;
+            }
+        }
+
+        this.capturedLastRefreshedCheckpoint = capturedCheckpoint;
+
+        // Increment the count before submitting the task
+        asyncOperationsInProgress.incrementAndGet();
+
+        this.indexShard.getThreadPool().executor(getRemoteRefreshThreadPoolName()).execute(() -> {
+            try {
+                // Skip operation if shutdown is in progress
+                if (isShuttingDown()) {
+                    logger.debug("Skipping async operation as shutdown is in progress");
+                    return;
+                }
+
+                // Store checkpoint in ThreadLocal for this specific thread execution
+                threadLocalCheckpoint.set(capturedCheckpoint);
+                try {
+                    runAfterRefreshWithPermit(didRefresh, () -> {});
+                } finally {
+                    // Clean up ThreadLocal to prevent memory leaks
+                    threadLocalCheckpoint.remove();
+                }
+            } finally {
+                // Decrement the counter and possibly signal shutdown completion
+                if (asyncOperationsInProgress.decrementAndGet() == 0 && isShuttingDown) {
+                    shutdownLatch.countDown();
+                }
+            }
+        });
+    }
+
+    /**
+     * Override the parent class method to handle multiple incoming refresh requests.
+     * This ensures that if multiple requests come in during execution, we'll run exactly
+     * one more time after the current execution completes, and only schedule a retry if
+     * all executions fail.
+     */
+    @Override
+    protected synchronized void runAfterRefreshWithPermit(boolean didRefresh, Runnable runFinally) {
+        if (isClosed()) {
+            return;
+        }
+
+        if (!semaphore.tryAcquire()) {
+            pendingRefresh.set(true);
+            return;
+        }
+
+        boolean successful = false;
+
+        try {
+            do {
+                pendingRefresh.set(false);
+
+                successful = performAfterRefreshWithPermit(didRefresh);
+
+            } while (pendingRefresh.compareAndSet(true, false));
+
+        } finally {
+            semaphore.release();
+            runFinally.run();
+        }
+
+        scheduleRetry(successful, didRefresh);
     }
 
     /**
@@ -216,6 +343,12 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      @return false if retry is needed
      */
     private boolean syncSegments() {
+        // Check for shutdown state first
+        if (isShuttingDown()) {
+            logger.debug("Skipping syncSegments as shutdown is in progress");
+            return true;
+        }
+
         if (isReadyForUpload() == false) {
             // Following check is required to enable retry and make sure that we do not lose this refresh event
             // When primary shard is restored from remote store, the recovery happens first followed by changing
@@ -253,9 +386,12 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                             )
                         );
                     }
-                    // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
-                    // move.
-                    long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
+                    // Get the checkpoint from ThreadLocal if available, otherwise fall back to class field
+                    Long checkpointFromThread = threadLocalCheckpoint.get();
+                    long lastRefreshedCheckpoint = checkpointFromThread != null
+                        ? checkpointFromThread
+                        : this.capturedLastRefreshedCheckpoint;
+
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
                     // Create a map of file name to size and update the refresh segment tracker
@@ -380,6 +516,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return ThreadPool.Names.REMOTE_REFRESH_RETRY;
     }
 
+    private String getRemoteRefreshThreadPoolName() {
+        return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+    }
+
     private boolean isRefreshAfterCommit() throws IOException {
         String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
         return (lastCommittedLocalSegmentFileName != null
@@ -401,23 +541,49 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
-        final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
+        final long maxSeqNo;
+        if (indexShard.getEngine() instanceof InternalEngine) {
+            maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
+        } else {
+            // If we're in the middle of an engine transition, use the max sequence number from segment infos
+            maxSeqNo = Long.parseLong(segmentInfos.userData.getOrDefault(SequenceNumbers.MAX_SEQ_NO, "-1"));
+            logger.debug("Using max sequence number {} from segment info during engine transition", maxSeqNo);
+        }
+
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         segmentInfosSnapshot.setUserData(userData, false);
 
-        Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
-        if (translogGeneration == null) {
-            throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
-        } else {
+        try {
+            Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
+            if (translogGeneration == null) {
+                throw new UnsupportedOperationException(
+                    "Encountered null TranslogGeneration while uploading metadata to remote segment store"
+                );
+            }
+
             long translogFileGeneration = translogGeneration.translogFileGeneration;
             remoteDirectory.uploadMetadata(
                 localSegmentsPostRefresh,
                 segmentInfosSnapshot,
                 storeDirectory,
                 translogFileGeneration,
+                replicationCheckpoint,
+                indexShard.getNodeId()
+            );
+        } catch (Exception e) {
+            if (e instanceof UnsupportedOperationException) {
+                throw e;
+            }
+            // This could happen during engine transitions, especially with ReadOnlyEngine
+            logger.warn("Exception while getting translog generation during metadata upload, falling back to generation 0", e);
+            remoteDirectory.uploadMetadata(
+                localSegmentsPostRefresh,
+                segmentInfosSnapshot,
+                storeDirectory,
+                0, // Default to generation 0 when we can't determine the generation
                 replicationCheckpoint,
                 indexShard.getNodeId()
             );
@@ -429,6 +595,13 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         Map<String, Long> localSegmentsSizeMap,
         ActionListener<Void> listener
     ) {
+        // Check shutdown status before starting upload operations
+        if (isShuttingDown()) {
+            logger.debug("Skipping segment upload as shutdown is in progress");
+            listener.onResponse(null);
+            return;
+        }
+
         Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
         if (filteredFiles.size() == 0) {
             logger.debug("No new segments to upload in uploadNewSegments");
@@ -442,21 +615,44 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         Directory directory = ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
 
         for (String src : filteredFiles) {
+            // Check shutdown status before each file
+            if (isShuttingDown()) {
+                batchUploadListener.onResponse(null);
+                continue;
+            }
+
+            // Track this operation
+            asyncOperationsInProgress.incrementAndGet();
+
             // Initializing listener here to ensure that the stats increment operations are thread-safe
             UploadListener statsListener = createUploadListener(localSegmentsSizeMap);
             ActionListener<Void> aggregatedListener = ActionListener.wrap(resp -> {
-                statsListener.onSuccess(src);
-                batchUploadListener.onResponse(resp);
-                if (directory instanceof CompositeDirectory) {
-                    ((CompositeDirectory) directory).afterSyncToRemote(src);
+                try {
+                    statsListener.onSuccess(src);
+                    batchUploadListener.onResponse(resp);
+                    if (directory instanceof CompositeDirectory) {
+                        ((CompositeDirectory) directory).afterSyncToRemote(src);
+                    }
+                } finally {
+                    // Decrement the counter and possibly signal shutdown completion
+                    if (asyncOperationsInProgress.decrementAndGet() == 0 && isShuttingDown) {
+                        shutdownLatch.countDown();
+                    }
                 }
             }, ex -> {
-                logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
-                if (ex instanceof CorruptIndexException) {
-                    indexShard.failShard(ex.getMessage(), ex);
+                try {
+                    logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
+                    if (ex instanceof CorruptIndexException) {
+                        indexShard.failShard(ex.getMessage(), ex);
+                    }
+                    statsListener.onFailure(src);
+                    batchUploadListener.onFailure(ex);
+                } finally {
+                    // Decrement the counter and possibly signal shutdown completion
+                    if (asyncOperationsInProgress.decrementAndGet() == 0 && isShuttingDown) {
+                        shutdownLatch.countDown();
+                    }
                 }
-                statsListener.onFailure(src);
-                batchUploadListener.onFailure(ex);
             });
             statsListener.beforeUpload(src);
             remoteDirectory.copyFrom(storeDirectory, src, IOContext.DEFAULT, aggregatedListener, isLowPriorityUpload());
