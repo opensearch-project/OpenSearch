@@ -8,6 +8,7 @@
 
 package org.opensearch.search.approximate;
 
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -40,6 +41,7 @@ import java.util.function.Function;
  */
 public class ApproximatePointRangeQuery extends ApproximateQuery {
     public static final Function<byte[], String> LONG_FORMAT = bytes -> Long.toString(LongPoint.decodeDimension(bytes, 0));
+    public static final Function<byte[], String> INT_FORMAT = bytes -> Integer.toString(IntPoint.decodeDimension(bytes, 0));
     private int size;
 
     private SortOrder sortOrder;
@@ -248,14 +250,49 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
             // custom intersect visitor to walk the left of the tree
             public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
-                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] >= size) {
                     return;
                 }
+                // Outside query - quick exit
+                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
+                if (r == PointValues.Relation.CELL_OUTSIDE_QUERY) {
+                    return;
+                }
+                // Fast path for dense nodes
+                if (pointTree.size() > size && docCount[0] < size) {
+                    boolean processedDeepDive = false;
+                    // deep-dive
+                    if (pointTree.moveToChild()) {
+                        processedDeepDive = true;
+                        do {
+                            intersectLeft(visitor, pointTree, docCount);
+                            if (docCount[0] >= size) {
+                                pointTree.moveToParent();
+                                return;
+                            }
+                        } while (pointTree.size() > size && pointTree.moveToChild());
+                        pointTree.moveToParent();
+
+                        // If we've collected documents but not enough size, process the siblings
+                        if (docCount[0] > 0 && docCount[0] < size) {
+                            // siblings at current level
+                            if (pointTree.moveToChild()) {
+                                while (pointTree.moveToSibling() && docCount[0] < size) {
+                                    intersectLeft(visitor, pointTree, docCount);
+                                }
+                                pointTree.moveToParent();
+                            }
+                            return;
+                        }
+                    }
+                    // If the optimization gave no docs continue with standard traversal
+                    if (processedDeepDive && docCount[0] == 0) {} else if (processedDeepDive) {
+                        return;
+                    }
+                }
+
+                // Standard traversal for regular nodes and fallback for deep dive with zero docs
                 switch (r) {
-                    case CELL_OUTSIDE_QUERY:
-                        // This cell is fully outside the query shape: stop recursing
-                        break;
                     case CELL_INSIDE_QUERY:
                         // If the cell is fully inside, we keep moving to child until we reach a point where we can no longer move or when
                         // we have sufficient doc count. We first move down and then move to the left child
@@ -434,71 +471,48 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
     @Override
     public boolean canApproximate(SearchContext context) {
-        System.out.println("Entering the ApproximatePointRangeQuery canApproximate");
-        boolean finalResult;
         if (context == null) {
-            // return false;
-            finalResult = false;
-            System.out.println("[1] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
-            return finalResult;
+            return false;
         }
         if (context.aggregations() != null) {
-            // return false;
-            finalResult = false;
-            System.out.println("[2] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
-            return finalResult;
+            return false;
         }
         // Exclude approximation when "track_total_hits": true
         if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-            // return false;
-            finalResult = false;
-            System.out.println("[3] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
-            return finalResult;
+            return false;
         }
 
         // size 0 could be set for caching
         if (context.from() + context.size() == 0) {
             this.setSize(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
         } else {
-            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()));
+            // We add +1 to ensure we collect at least one more document than required. This guarantees correct relation value:
+            // - If we find exactly trackTotalHitsUpTo docs: relation = EQUAL_TO
+            // - If we find > trackTotalHitsUpTo docs: relation = GREATER_THAN_OR_EQUAL_TO
+            // With +1, we will consistently get GREATER_THAN_OR_EQUAL_TO relation.
+            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()) + 1);
         }
         if (context.request() != null && context.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
             if (primarySortField != null) {
                 if (!primarySortField.fieldName().equals(pointRangeQuery.getField())) {
-                    // return false;
-                    finalResult = false;
-                    System.out.println("[4] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
-                    return finalResult;
+                    return false;
                 }
                 if (primarySortField.missing() != null) {
                     // Cannot sort documents missing this field.
-                    // return false;
-                    finalResult = false;
-                    System.out.println("[5] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
-                    return finalResult;
+                    return false;
                 }
                 if (context.request().source().searchAfter() != null) {
                     // TODO: We *could* optimize searchAfter, especially when this is the only sort field, but existing pruning is pretty
                     // good.
-                    // return false;
-                    finalResult = false;
-                    System.out.println("[6] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
-                    return finalResult;
+                    return false;
                 }
                 this.setSortOrder(primarySortField.order());
             }
-            finalResult = context.request().source().terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER;
-            System.out.println("[7] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
-            return finalResult;
-            // return context.request().source().terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER;
+            return context.request().source().terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER;
         }
-        // return true;
-        finalResult = true;
-        System.out.println("[8] The final result of ApproximatePointRangeQuery canApproximate is " + finalResult);
-        return finalResult;
+        return true;
     }
-
 
     @Override
     public final int hashCode() {
