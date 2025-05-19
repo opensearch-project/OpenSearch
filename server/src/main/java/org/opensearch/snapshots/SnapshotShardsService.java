@@ -51,6 +51,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -416,6 +417,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             commitGeneration = lastRemoteUploadedIndexCommit.getGeneration();
                         } else {
                             wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
+                            indexShard.waitForLocalCommitToBeUploadedToRemote(TimeValue.timeValueMinutes(10));
                             snapshotIndexCommit = wrappedSnapshot.get();
                             commitGeneration = snapshotIndexCommit.getGeneration();
                         }

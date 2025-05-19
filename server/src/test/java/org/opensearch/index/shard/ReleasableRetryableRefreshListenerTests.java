@@ -58,6 +58,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
 
         // First invocation of afterRefresh method
@@ -90,6 +101,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
 
         int refreshCount = randomIntBetween(1, initialCount);
@@ -127,6 +149,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 1, countDownLatch.getCount());
@@ -146,6 +179,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 2, countDownLatch.getCount());
@@ -170,6 +214,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 3, countDownLatch.getCount());
@@ -194,6 +249,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 4, countDownLatch.getCount());
@@ -232,9 +298,20 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             }
 
             @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
+            @Override
             protected boolean isRetryEnabled() {
                 return true;
             }
+
         };
         testRefreshListener.afterRefresh(true);
         assertBusy(() -> assertEquals(0, countDownLatch.getCount()));
@@ -271,6 +348,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         testRefreshListener.afterRefresh(randomBoolean());
         testRefreshListener.drainRefreshes();
@@ -299,6 +387,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         Thread thread = new Thread(() -> {
             try {
@@ -362,6 +461,16 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             }
 
             @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
+            @Override
             protected String getRetryThreadPoolName() {
                 return ThreadPool.Names.REMOTE_REFRESH_RETRY;
             }
@@ -380,6 +489,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
                 }
                 return TimeValue.timeValueMillis(100);
             }
+
         };
     }
 
@@ -431,6 +541,16 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             }
 
             @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
+            @Override
             protected String getRetryThreadPoolName() {
                 return ThreadPool.Names.REMOTE_REFRESH_RETRY;
             }
@@ -444,6 +564,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected boolean isRetryEnabled() {
                 return true;
             }
+
         };
         testRefreshListener.afterRefresh(true);
         testRefreshListener.afterRefresh(true);
@@ -474,6 +595,16 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             }
 
             @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
+            @Override
             protected String getRetryThreadPoolName() {
                 return ThreadPool.Names.REMOTE_REFRESH_RETRY;
             }
@@ -487,6 +618,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected boolean isRetryEnabled() {
                 return true;
             }
+
         };
         assertThrows(RuntimeException.class, () -> testRefreshListener.afterRefresh(true));
         assertBusy(() -> assertFalse(testRefreshListener.getRetryScheduledStatus()));
@@ -517,9 +649,20 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             }
 
             @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
+            @Override
             TimeValue getDrainTimeout() {
                 return TimeValue.timeValueSeconds(1);
             }
+
         };
         Thread thread1 = new Thread(() -> {
             try {
@@ -558,9 +701,20 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             }
 
             @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
+            @Override
             TimeValue getDrainTimeout() {
                 return TimeValue.timeValueSeconds(2);
             }
+
         };
         Thread thread1 = new Thread(() -> {
             try {
@@ -600,6 +754,17 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             protected Logger getLogger() {
                 return logger;
             }
+
+            @Override
+            protected boolean shouldRunAsync() {
+                return false;
+            }
+
+            @Override
+            protected String getRemoteRefreshThreadPoolName() {
+                return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
+            }
+
         };
         assertRefreshListenerOpen(testRefreshListener);
         Releasable releasable = testRefreshListener.drainRefreshes();

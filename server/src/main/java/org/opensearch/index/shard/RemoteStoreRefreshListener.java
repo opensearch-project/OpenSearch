@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -253,9 +254,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                             )
                         );
                     }
-                    // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
-                    // move.
+
                     long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
+
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
                     // Create a map of file name to size and update the refresh segment tracker
@@ -350,14 +351,26 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         Map<String, Long> localFileSizeMap,
         ReplicationCheckpoint checkpoint
     ) {
+        if (isClosed() || shardClosed()) {
+            logger.debug("Skipping segment sync completion tasks as shard or listener is closed");
+            return;
+        }
+
         // Update latest uploaded segment files name in segment tracker
         segmentTracker.setLatestUploadedFiles(localFileSizeMap.keySet());
         // Update the remote refresh time and refresh seq no
         updateRemoteRefreshTimeAndSeqNo(refreshTimeMs, refreshClockTimeMs, refreshSeqNo);
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
-        // Set the minimum sequence number for keeping translog
-        indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+
+        try {
+            indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        } catch (AlreadyClosedException e) {
+            logger.debug("Engine was closed during post-upload operations, skipping translog update");
+        } catch (Exception e) {
+            logger.warn("Failed to set minSeqNoToKeep, shard may have been closed during operation", e);
+        }
+
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
         logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
@@ -378,6 +391,16 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     @Override
     protected String getRetryThreadPoolName() {
         return ThreadPool.Names.REMOTE_REFRESH_RETRY;
+    }
+
+    /**
+     * Only run async for non-critical operations.
+     *
+     * @return false if it's a critical operation (create, split, snapshot, shrink).
+     */
+    @Override
+    protected boolean shouldRunAsync() {
+        return !isCloneOrCreateOperation();
     }
 
     private boolean isRefreshAfterCommit() throws IOException {
@@ -402,6 +425,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
         final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
+
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
@@ -429,6 +453,12 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         Map<String, Long> localSegmentsSizeMap,
         ActionListener<Void> listener
     ) {
+        if (isClosed() || shardClosed()) {
+            logger.debug("Skipping segment upload as shard is closed");
+            listener.onFailure(null);
+            return;
+        }
+
         Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
         if (filteredFiles.size() == 0) {
             logger.debug("No new segments to upload in uploadNewSegments");
@@ -581,10 +611,19 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         // This is required in case of remote migration seeding/snapshots/shrink/ split/clone where we need to durable persist
         // all segments to remote before completing the recovery to ensure durability.
         return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
+            && (isCloneOrCreateOperation() || indexShard.shouldSeedRemoteStore());
+    }
+
+    /**
+     * Determines if the current operation is an index clone, snapshot restoration, or create operation that requires synchronous processing.
+     *
+     * @return true if this is a clone, snapshot restore, or create operation that requires synchronous processing
+     */
+    private boolean isCloneOrCreateOperation() {
+        return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
             && indexShard.recoveryState() != null
             && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
-                || indexShard.shouldSeedRemoteStore());
+                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
 
     /**
@@ -637,5 +676,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     @Override
     protected boolean isRetryEnabled() {
         return true;
+    }
+
+    /**
+     * Returns the thread pool name to use for remote refresh operations.
+     *
+     * @return thread pool name for remote refresh
+     */
+    @Override
+    protected String getRemoteRefreshThreadPoolName() {
+        return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
     }
 }

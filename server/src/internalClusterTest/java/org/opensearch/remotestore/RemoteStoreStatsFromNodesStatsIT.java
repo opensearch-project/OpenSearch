@@ -13,10 +13,13 @@ import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRes
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.remote.RemoteSegmentStats;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -98,11 +101,15 @@ public class RemoteStoreStatsFromNodesStatsIT extends RemoteStoreBaseIntegTestCa
      * Ensures that node stats shows 0 values for dedicated cluster manager nodes
      * since cluster manager nodes does not participate in indexing
      */
-    public void testZeroRemoteStatsOnNodesStatsForClusterManager() {
+    public void testZeroRemoteStatsOnNodesStatsForClusterManager() throws IOException, ExecutionException, InterruptedException {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureGreen(INDEX_NAME);
         indexSingleDoc(INDEX_NAME);
         refresh(INDEX_NAME);
+
+        String primaryNode = primaryNodeName(INDEX_NAME);
+        IndexShard indexShard = getIndexShard(primaryNode, INDEX_NAME);
+        indexShard.awaitRemoteStoreSync();
 
         NodesStatsResponse nodesStatsResponseForClusterManager = client().admin()
             .cluster()
