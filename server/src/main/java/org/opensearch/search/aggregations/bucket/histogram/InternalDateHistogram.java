@@ -331,7 +331,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             }
         };
         for (InternalAggregation aggregation : aggregations) {
-            checkCancelled(reduceContext);
             InternalDateHistogram histogram = (InternalDateHistogram) aggregation;
             if (histogram.buckets.isEmpty() == false) {
                 pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));

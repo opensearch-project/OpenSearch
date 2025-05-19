@@ -306,10 +306,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     }
 
     private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        if (reduceContext.isTaskCancelled()) {
-            throw new TaskCancelledException("task is cancelled, stopping aggregations");
-        }
-
+        checkCancelled(reduceContext);
         final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<IteratorAndCurrent<Bucket>>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {

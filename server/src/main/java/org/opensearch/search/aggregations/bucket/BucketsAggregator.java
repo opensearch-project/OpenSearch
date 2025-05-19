@@ -416,6 +416,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         BucketBuilderForVariable<B> bucketBuilder,
         ResultBuilderForVariable<B> resultBuilder
     ) throws IOException {
+        checkCancelled();
         long totalOrdsToCollect = 0;
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             totalOrdsToCollect += bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
