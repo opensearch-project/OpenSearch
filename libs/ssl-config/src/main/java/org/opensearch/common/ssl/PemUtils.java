@@ -63,15 +63,12 @@ import java.util.function.Supplier;
 
 final class PemUtils {
 
-    public static final String BCFIPS = BouncyCastleFipsProvider.PROVIDER_NAME;
-    public static final String BCTLS = BouncyCastleJsseProvider.PROVIDER_NAME;
-
     static {
         var highestPriority = 1;
-        if (Security.getProvider(BCFIPS) == null) {
+        if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
             Security.insertProviderAt(new BouncyCastleFipsProvider(), highestPriority++);
         }
-        if (Security.getProvider(BCTLS) == null) {
+        if (Security.getProvider(BouncyCastleJsseProvider.PROVIDER_NAME) == null) {
             Security.insertProviderAt(new BouncyCastleJsseProvider(), highestPriority);
         }
     }
@@ -128,12 +125,14 @@ final class PemUtils {
 
             if (object instanceof PKCS8EncryptedPrivateKeyInfo) { // encrypted private key in pkcs8-format
                 var privateKeyInfo = (PKCS8EncryptedPrivateKeyInfo) object;
-                var inputDecryptorProvider = new JcePKCSPBEInputDecryptorProviderBuilder().setProvider(BCFIPS)
-                    .build(passwordSupplier.get());
+                var inputDecryptorProvider = new JcePKCSPBEInputDecryptorProviderBuilder().setProvider(
+                    BouncyCastleFipsProvider.PROVIDER_NAME
+                ).build(passwordSupplier.get());
                 return privateKeyInfo.decryptPrivateKeyInfo(inputDecryptorProvider);
             } else if (object instanceof PEMEncryptedKeyPair) { // encrypted private key
                 var encryptedKeyPair = (PEMEncryptedKeyPair) object;
-                var decryptorProvider = new JcePEMDecryptorProviderBuilder().setProvider(BCFIPS).build(passwordSupplier.get());
+                var decryptorProvider = new JcePEMDecryptorProviderBuilder().setProvider(BouncyCastleFipsProvider.PROVIDER_NAME)
+                    .build(passwordSupplier.get());
                 var keyPair = encryptedKeyPair.decryptKeyPair(decryptorProvider);
                 return keyPair.getPrivateKeyInfo();
             } else if (object instanceof PEMKeyPair) { // unencrypted private key
