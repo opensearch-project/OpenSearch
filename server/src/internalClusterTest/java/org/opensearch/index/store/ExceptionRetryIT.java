@@ -42,7 +42,6 @@ import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.bulk.TransportShardBulkAction;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.SegmentsStats;
@@ -52,6 +51,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.Arrays;

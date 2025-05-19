@@ -10,7 +10,6 @@ package org.opensearch.action;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.ClusterSettings;
@@ -86,6 +85,7 @@ import org.opensearch.rest.action.ingest.RestPutPipelineAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.After;
 
 import java.io.IOException;

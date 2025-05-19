@@ -233,7 +233,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
         // balance the shard, if a better node can be found
         final String idxName = shard.getIndexName();
-        final float currentWeight = weight.weight(this, currentNode, idxName);
+        final float currentWeight = weight.weightWithRebalanceConstraints(this, currentNode, idxName);
         final AllocationDeciders deciders = allocation.deciders();
         Decision.Type rebalanceDecisionType = Decision.Type.NO;
         BalancedShardsAllocator.ModelNode assignedNode = null;
@@ -561,7 +561,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     private boolean canShardBeSkipped(ShardRouting shardRouting) {
         return (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))
-            && !(FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX) && isPartialShard(shardRouting, allocation)));
+            && !(FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG) && isPartialShard(shardRouting, allocation)));
     }
 
     /**
@@ -771,7 +771,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 assert rn.nodeId().equals(shard.currentNodeId());
                 /* we skip relocating shards here since we expect an initializing shard with the same id coming in */
                 if ((RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation))
-                    || (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX) && isPartialShard(shard, allocation)))
+                    || (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG) && isPartialShard(shard, allocation)))
                     && shard.state() != RELOCATING) {
                     node.addShard(shard);
                     ++totalShardCount;
@@ -806,10 +806,21 @@ public class LocalShardsBalancer extends ShardsBalancer {
         final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
         final Comparator<ShardRouting> comparator = (o1, o2) -> {
             if (o1.primary() ^ o2.primary()) {
+                // If one is primary and the other isn't, primary comes first
                 return o1.primary() ? -1 : 1;
             }
             final int indexCmp;
+
             if ((indexCmp = o1.getIndexName().compareTo(o2.getIndexName())) == 0) {
+                if (o1.isSearchOnly() ^ o2.isSearchOnly()) {
+                    // Orders replicas first, followed by search replicas (e.g., R1, R1, S1, S1).
+                    // This order is maintained because the logic that moves all replicas to unassigned
+                    // when a replica cannot be allocated relies on this comparator.
+                    // Ensures that a failed replica allocation does not block the allocation of a search replica.
+                    return o1.isSearchOnly() ? 1 : -1;
+                }
+
+                // If both are primary or both are non-primary, compare by ID
                 return o1.getId() - o2.getId();
             }
             // this comparator is more expensive than all the others up there

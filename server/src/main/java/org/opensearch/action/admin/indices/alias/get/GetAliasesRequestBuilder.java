@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.indices.alias.get;
 
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport request builder for listing index aliases

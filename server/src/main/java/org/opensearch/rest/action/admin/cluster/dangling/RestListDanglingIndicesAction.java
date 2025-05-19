@@ -33,10 +33,10 @@
 package org.opensearch.rest.action.admin.cluster.dangling;
 
 import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestActions;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;

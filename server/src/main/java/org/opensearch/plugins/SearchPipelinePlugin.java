@@ -8,7 +8,6 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.client.Client;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -20,6 +19,7 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 import org.opensearch.threadpool.Scheduler;
+import org.opensearch.transport.client.Client;
 
 import java.util.Collections;
 import java.util.Map;

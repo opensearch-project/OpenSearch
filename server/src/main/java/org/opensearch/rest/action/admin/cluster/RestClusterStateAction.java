@@ -35,8 +35,6 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.Requests;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -51,6 +49,8 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestBuilderListener;
+import org.opensearch.transport.client.Requests;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Collections;

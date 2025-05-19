@@ -35,7 +35,6 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
@@ -44,6 +43,7 @@ import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;

@@ -8,7 +8,6 @@
 
 package org.opensearch.action;
 
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.rest.action.admin.cluster.RestClusterStatsAction;
@@ -17,6 +16,7 @@ import org.opensearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.After;
 
 import java.util.Collections;

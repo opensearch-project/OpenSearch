@@ -15,7 +15,6 @@ import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
@@ -26,6 +25,7 @@ import org.opensearch.index.stats.IndexingPressurePerShardStats;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.client.Requests;
 import org.junit.Before;
 
 public class IndexingPressureServiceTests extends OpenSearchTestCase {

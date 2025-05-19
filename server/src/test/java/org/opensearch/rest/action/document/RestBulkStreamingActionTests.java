@@ -11,7 +11,6 @@ package org.opensearch.rest.action.document;
 import org.opensearch.Version;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.action.ActionListener;
@@ -24,6 +23,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -36,7 +36,6 @@ import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRespon
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.plugin.repository.url.URLRepositoryModulePlugin;
@@ -44,6 +43,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.nio.file.Path;
 import java.util.Collection;

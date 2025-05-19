@@ -32,13 +32,13 @@
 
 package org.opensearch.client.core.tasks;
 
-import org.opensearch.client.Requests;
 import org.opensearch.client.tasks.GetTaskResponse;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceStats;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.core.tasks.resourcetracker.TaskThreadUsage;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.RawTaskStatus;
@@ -125,7 +125,7 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
     }
 
     private static RawTaskStatus randomRawTaskStatus() {
-        try (XContentBuilder builder = XContentBuilder.builder(Requests.INDEX_CONTENT_TYPE.xContent())) {
+        try (XContentBuilder builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent())) {
             builder.startObject();
             int fields = between(0, 10);
             for (int f = 0; f < fields; f++) {

@@ -73,6 +73,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
@@ -257,6 +258,7 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
         synchronized (indexVersionLock) { // not necessarily needed here but for completeness we lock here too
             indexVersion.incrementAndGet();
         }
+        final AtomicReference<Exception> deleteFailure = new AtomicReference<>();
         client().admin().indices().prepareDelete("test").execute(new ActionListener<AcknowledgedResponse>() { // this happens async!!!
             @Override
             public void onResponse(AcknowledgedResponse deleteIndexResponse) {
@@ -284,7 +286,8 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                throw new RuntimeException(e);
+                deleteFailure.set(e);
+                latch.countDown();
             }
         });
         numDocs = randomIntBetween(100, 200);
@@ -304,6 +307,7 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
             }
         }
         latch.await();
+        assertNull(deleteFailure.get());
         refresh();
 
         // we only really assert that we never reuse segments of old indices or anything like this here and that nothing fails with

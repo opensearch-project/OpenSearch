@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport action for OpenSearch Node Information

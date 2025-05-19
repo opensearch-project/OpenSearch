@@ -37,7 +37,6 @@ import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusio
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.Metadata;
@@ -54,6 +53,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.client.Client;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -250,6 +250,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/14289")
     public void testThreeNodesNoClusterManagerBlock() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(2);
 

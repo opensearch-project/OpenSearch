@@ -40,7 +40,6 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.PlainListenableActionFuture;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
@@ -51,6 +50,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.After;
 import org.junit.Before;
 

@@ -36,12 +36,8 @@ import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenOffsetFilter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
-import org.apache.lucene.search.uhighlight.CustomPassageFormatter;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
-import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
-import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter.OffsetSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
@@ -54,20 +50,26 @@ import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextSearchInfo;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
+import org.opensearch.lucene.search.uhighlight.CustomPassageFormatter;
+import org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.opensearch.lucene.search.uhighlight.Snippet;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
+import static org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 /**
  * Uses lucene's unified highlighter implementation
@@ -189,8 +191,7 @@ public class UnifiedHighlighter implements Highlighter {
             higlighterNumberOfFragments = numberOfFragments;
         }
         return new CustomUnifiedHighlighter(
-            searcher,
-            analyzer,
+            newBuilder(searcher, analyzer, fieldContext),
             offsetSource,
             passageFormatter,
             fieldContext.field.fieldOptions().boundaryScannerLocale(),
@@ -200,7 +201,6 @@ public class UnifiedHighlighter implements Highlighter {
             fieldContext.query,
             fieldContext.field.fieldOptions().noMatchSize(),
             higlighterNumberOfFragments,
-            fieldMatcher(fieldContext),
             maxAnalyzedOffset,
             fieldMaxAnalyzedOffset
         );
@@ -273,10 +273,27 @@ public class UnifiedHighlighter implements Highlighter {
         return OffsetSource.ANALYSIS;
     }
 
+    private org.apache.lucene.search.uhighlight.UnifiedHighlighter.Builder newBuilder(
+        IndexSearcher searcher,
+        Analyzer analyzer,
+        FieldHighlightContext fieldContext
+    ) {
+        org.apache.lucene.search.uhighlight.UnifiedHighlighter.Builder builder = org.apache.lucene.search.uhighlight.UnifiedHighlighter
+            .builder(searcher, analyzer);
+        Set<String> matchedFields = fieldContext.field.fieldOptions().matchedFields();
+        if (matchedFields != null && !matchedFields.isEmpty()) {
+            Map<String, Set<String>> maskedFields = Collections.singletonMap(fieldContext.fieldName, matchedFields);
+            builder.withMaskedFieldsFunc(f -> maskedFields.getOrDefault(f, Collections.emptySet()));
+        }
+        builder.withFieldMatcher(fieldMatcher(fieldContext));
+        return builder;
+    }
+
     private Predicate<String> fieldMatcher(FieldHighlightContext fieldContext) {
         if (fieldContext.field.fieldOptions().requireFieldMatch()) {
             String fieldName = fieldContext.fieldName;
-            return fieldName::equals;
+            Set<String> matchedFields = fieldContext.field.fieldOptions().matchedFields();
+            return f -> fieldName.equals(f) || (matchedFields != null && matchedFields.contains(f));
         }
         // ignore terms that targets the _id field since they use a different encoding
         // that is not compatible with utf8

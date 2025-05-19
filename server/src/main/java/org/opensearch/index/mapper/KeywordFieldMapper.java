@@ -40,6 +40,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -70,9 +71,7 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -160,6 +159,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         );
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
+        private final Parameter<Boolean> useSimilarity = Parameter.boolParam("use_similarity", true, m -> toType(m).useSimilarity, false);
 
         private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");
 
@@ -216,6 +216,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 indexOptions,
                 hasNorms,
                 similarity,
+                useSimilarity,
                 normalizer,
                 splitQueriesOnWhitespace,
                 boost,
@@ -268,6 +269,39 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        if (this.ignoreAbove != Integer.MAX_VALUE || !Objects.equals(this.normalizerName, "default")) {
+            throw new UnsupportedOperationException(
+                "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
+            );
+        }
+        checkStoredAndDocValuesForDerivedSource();
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Support:
+     *    1. If "ignore_above" is set in the field mapping, then we won't be supporting derived source for now,
+     *       considering for these cases we will need to have explicit stored field.
+     *    2. If "normalizer" is set in the field mapping, then also we won't support derived source, as with
+     *       normalizer it is hard to regenerate original source
+     * <p>
+     * Considerations:
+     *    1. When using doc values, for multi value field, result would be deduplicated and in sorted order
+     *    2. When using stored field, order and duplicate values would be preserved
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(
+            mappedFieldType,
+            new SortedSetDocValuesFetcher(mappedFieldType, simpleName()),
+            new StoredFieldFetcher(mappedFieldType, simpleName())
+        );
+    }
+
     /**
      * Field type for keyword fields
      *
@@ -277,6 +311,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
         private final int ignoreAbove;
         private final String nullValue;
+        private final boolean useSimilarity;
 
         public KeywordFieldType(String name, FieldType fieldType, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, Builder builder) {
             super(
@@ -292,13 +327,19 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             setBoost(builder.boost.getValue());
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
+            this.useSimilarity = builder.useSimilarity.getValue();
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
+            this(name, isSearchable, hasDocValues, false, meta);
+        }
+
+        public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, boolean useSimilarity, Map<String, String> meta) {
             super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
+            this.useSimilarity = useSimilarity;
         }
 
         public KeywordFieldType(String name) {
@@ -316,12 +357,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             );
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
+            this.useSimilarity = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
+            this.useSimilarity = false;
         }
 
         @Override
@@ -411,7 +454,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 Term term = new Term(name(), bytesRef);
                 Query query = AutomatonQueries.createAutomatonQuery(
                     term,
-                    AutomatonQueries.toCaseInsensitiveString(bytesRef.utf8ToString(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
+                    AutomatonQueries.toCaseInsensitiveString(bytesRef.utf8ToString()),
                     MultiTermQuery.DOC_VALUES_REWRITE
                 );
                 if (boost() != 1f) {
@@ -425,7 +468,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
             if (isSearchable()) {
-                return super.termQuery(value, context);
+                Query query = super.termQuery(value, context);
+                if (!this.useSimilarity) {
+                    query = new ConstantScoreQuery(super.termQuery(value, context));
+                }
+                if (boost() != 1f) {
+                    query = new BoostQuery(query, boost());
+                }
+                return query;
             } else {
                 Query query = SortedSetDocValuesField.newSlowRangeQuery(
                     name(),
@@ -449,23 +499,26 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 if (!context.keywordFieldIndexOrDocValuesEnabled()) {
                     return super.termsQuery(values, context);
                 }
-                Collection<BytesRef> iBytesRefs = new ArrayList<>(values.size());
-                Collection<BytesRef> dVByteRefs = new ArrayList<>(values.size());
+                BytesRefsCollectionBuilder iBytesRefs = new BytesRefsCollectionBuilder(values.size());
+                BytesRefsCollectionBuilder dVByteRefs = new BytesRefsCollectionBuilder(values.size());
                 for (int i = 0; i < values.size(); i++) {
-                    iBytesRefs.add(indexedValueForSearch(values.get(i)));
-                    dVByteRefs.add(indexedValueForSearch(rewriteForDocValue(values.get(i))));
+                    BytesRef idxBytes = indexedValueForSearch(values.get(i));
+                    iBytesRefs.accept(idxBytes);
+                    BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(values.get(i)));
+                    dVByteRefs.accept(dvBytes);
                 }
-                Query indexQuery = new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), iBytesRefs);
-                Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), dVByteRefs);
+                Query indexQuery = new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), iBytesRefs.get());
+                Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), dVByteRefs.get());
                 return new IndexOrDocValuesQuery(indexQuery, dvQuery);
             }
             // if we only have doc_values enabled, we construct a new query with doc_values re-written
             if (hasDocValues()) {
-                Collection<BytesRef> bytesRefs = new ArrayList<>(values.size());
+                BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder(values.size());
                 for (int i = 0; i < values.size(); i++) {
-                    bytesRefs.add(indexedValueForSearch(rewriteForDocValue(values.get(i))));
+                    BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(values.get(i)));
+                    bytesCollector.accept(dvBytes);
                 }
-                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesRefs);
+                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesCollector.get());
             }
             // has index enabled, we're going to return the query as is
             return super.termsQuery(values, context);
@@ -702,6 +755,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     private final String indexOptions;
     private final FieldType fieldType;
     private final SimilarityProvider similarity;
+    private final boolean useSimilarity;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
 
@@ -725,6 +779,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = fieldType;
         this.similarity = builder.similarity.getValue();
+        this.useSimilarity = builder.useSimilarity.getValue();
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
 
@@ -737,6 +792,10 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      */
     public int ignoreAbove() {
         return ignoreAbove;
+    }
+
+    boolean useSimilarity() {
+        return useSimilarity;
     }
 
     @Override

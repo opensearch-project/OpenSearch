@@ -640,7 +640,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             }
             List<Automaton> automata = new ArrayList<>();
             if (caseInsensitive) {
-                automata.add(AutomatonQueries.toCaseInsensitiveString(value, Integer.MAX_VALUE));
+                automata.add(AutomatonQueries.toCaseInsensitiveString(value));
             } else {
                 automata.add(Automata.makeString(value));
             }
@@ -1225,5 +1225,29 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         mapperBuilder.freqFilter.toXContent(builder, includeDefaults);
         mapperBuilder.indexPrefixes.toXContent(builder, includeDefaults);
         mapperBuilder.indexPhrases.toXContent(builder, includeDefaults);
+    }
+
+    @Override
+    protected void canDeriveSourceInternal() {
+        checkStoredForDerivedSource();
+    }
+
+    /**
+     * 1. Currently, we will only be supporting text field, if stored field is enabled
+     *
+     * <p>
+     * Future Improvements
+     * 1. If there is any subfield present of type keyword, for which source can be derived(doc_values/stored field
+     *    is present and other conditions are meeting for keyword field mapper, i.e. ignore_above or normalizer should
+     *    not be present in subfield mapping)
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, null, new StoredFieldFetcher(mappedFieldType, simpleName())) {
+            @Override
+            public FieldValueType getDerivedFieldPreference() {
+                return FieldValueType.STORED;
+            }
+        };
     }
 }

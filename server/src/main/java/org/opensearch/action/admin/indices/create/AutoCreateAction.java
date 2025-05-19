@@ -49,7 +49,6 @@ import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -61,6 +60,8 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.AUTO_CREATE;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
@@ -104,7 +105,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
 
             // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-            autoCreateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.AUTO_CREATE_KEY, true);
+            autoCreateTaskKey = clusterService.registerClusterManagerTask(AUTO_CREATE, true);
         }
 
         @Override
@@ -174,7 +175,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                 request.cause(),
                                 indexName,
                                 request.index()
-                            ).ackTimeout(request.timeout()).masterNodeTimeout(request.clusterManagerNodeTimeout());
+                            ).ackTimeout(request.timeout()).clusterManagerNodeTimeout(request.clusterManagerNodeTimeout());
                             return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                         }
                     }

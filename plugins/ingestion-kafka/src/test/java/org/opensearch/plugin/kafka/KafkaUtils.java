@@ -53,19 +53,16 @@ public class KafkaUtils {
         }
 
         // validates topic is created
-        await().atMost(3, TimeUnit.SECONDS).until(() -> checkTopicExistence(topicName, bootstrapServers));
+        await().atMost(60, TimeUnit.SECONDS).until(() -> checkTopicExistence(topicName, bootstrapServers));
     }
 
     public static boolean checkTopicExistence(String topicName, String bootstrapServers) {
         return getAdminClient(bootstrapServers, (client -> {
-            Map<String, KafkaFuture<TopicDescription>> topics = client.describeTopics(List.of(topicName)).values();
+            Map<String, KafkaFuture<TopicDescription>> topics = client.describeTopics(List.of(topicName)).topicNameValues();
 
             try {
                 return topics.containsKey(topicName) && topics.get(topicName).get().name().equals(topicName);
-            } catch (InterruptedException e) {
-                LOGGER.error("error on checkTopicExistence", e);
-                return false;
-            } catch (ExecutionException e) {
+            } catch (InterruptedException | ExecutionException e) {
                 LOGGER.error("error on checkTopicExistence", e);
                 return false;
             }
@@ -73,13 +70,12 @@ public class KafkaUtils {
     }
 
     private static <Rep> Rep getAdminClient(String bootstrapServer, Function<AdminClient, Rep> function) {
-        AdminClient adminClient = KafkaAdminClient.create(
-            Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer, AdminClientConfig.CLIENT_ID_CONFIG, "test")
-        );
-        try {
+        try (
+            AdminClient adminClient = KafkaAdminClient.create(
+                Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer, AdminClientConfig.CLIENT_ID_CONFIG, "test")
+            )
+        ) {
             return function.apply(adminClient);
-        } finally {
-            adminClient.close();
         }
     }
 }

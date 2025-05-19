@@ -36,7 +36,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -48,6 +47,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.lucene.queries.ExtendedCommonTermsQuery;
 
 import java.io.IOException;
 import java.util.Objects;

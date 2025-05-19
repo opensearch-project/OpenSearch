@@ -42,6 +42,10 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
         this.maxReplicationLag = in.readVLong();
     }
 
+    public static ReplicationStats empty() {
+        return new ReplicationStats();
+    }
+
     public ReplicationStats() {
 
     }

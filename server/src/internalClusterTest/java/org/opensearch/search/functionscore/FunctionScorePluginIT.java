@@ -60,13 +60,13 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.opensearch.client.Requests.indexRequest;
-import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.opensearch.transport.client.Requests.indexRequest;
+import static org.opensearch.transport.client.Requests.searchRequest;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)

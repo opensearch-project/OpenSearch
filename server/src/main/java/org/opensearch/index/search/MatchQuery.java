@@ -35,13 +35,11 @@ package org.opensearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
@@ -71,6 +69,8 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.opensearch.lucene.queries.ExtendedCommonTermsQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -300,7 +300,8 @@ public class MatchQuery {
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(fieldName, value.toString());
             if (type == Type.BOOLEAN_PREFIX
-                && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
+                && (fieldType.unwrap() instanceof TextFieldMapper.TextFieldType
+                    || fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
             } else {
                 return builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
@@ -887,7 +888,7 @@ public class MatchQuery {
 
         private void checkForPositions(String field) {
             if (fieldType.getTextSearchInfo().hasPositions() == false) {
-                if (fieldType instanceof MatchOnlyTextFieldMapper.MatchOnlyTextFieldType) {
+                if (fieldType.unwrap() instanceof MatchOnlyTextFieldMapper.MatchOnlyTextFieldType) {
                     return;
                 }
                 throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");

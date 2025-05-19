@@ -33,8 +33,8 @@
 package org.opensearch.action.termvectors;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * A single multi get request builder.

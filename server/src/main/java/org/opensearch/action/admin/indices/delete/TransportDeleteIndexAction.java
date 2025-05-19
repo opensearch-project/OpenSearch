@@ -127,7 +127,7 @@ public class TransportDeleteIndexAction extends TransportClusterManagerNodeActio
         }
 
         DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
-            .masterNodeTimeout(request.clusterManagerNodeTimeout())
+            .clusterManagerNodeTimeout(request.clusterManagerNodeTimeout())
             .indices(concreteIndices.toArray(new Index[0]));
 
         deleteIndexService.deleteIndices(deleteRequest, new ActionListener<ClusterStateUpdateResponse>() {

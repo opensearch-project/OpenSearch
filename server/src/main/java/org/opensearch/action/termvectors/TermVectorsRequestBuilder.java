@@ -33,10 +33,10 @@
 package org.opensearch.action.termvectors;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.util.Map;
 

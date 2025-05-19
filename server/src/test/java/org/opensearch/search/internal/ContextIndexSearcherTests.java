@@ -68,7 +68,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.ExceptionsHelper;
@@ -81,6 +80,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.test.IndexSettingsModule;
@@ -341,7 +341,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 // Case 1: Verify the slice count when lucene default slice computation is used
                 IndexSearcher.LeafSlice[] slices = searcher.slicesInternal(
                     leaves,
-                    SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE
+                    SearchService.CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE
                 );
                 int expectedSliceCount = 2;
                 // 2 slices will be created since max segment per slice of 5 will be reached

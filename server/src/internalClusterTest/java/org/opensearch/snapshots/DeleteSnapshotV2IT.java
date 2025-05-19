@@ -10,7 +10,6 @@ package org.opensearch.snapshots;
 
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -22,6 +21,7 @@ import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;

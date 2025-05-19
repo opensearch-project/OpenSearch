@@ -14,15 +14,22 @@ import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -43,8 +50,11 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.index.mapper.FieldTypeTestCase.fetchSourceValue;
+import static org.opensearch.index.mapper.KeywordFieldMapper.normalizeValue;
 
 public class WildcardFieldMapperTests extends MapperTestCase {
+
+    private static final String FIELD_NAME = "field";
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
@@ -82,22 +92,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List.of(
                 WildcardFieldTypeTests.prefixAnchored("p"),
                 WildcardFieldTypeTests.prefixAnchored("pi"),
-                "p",
-                "pi",
                 "pic",
-                "i",
-                "ic",
                 "ick",
-                "c",
-                "ck",
                 "ckl",
-                "k",
-                "kl",
                 "kle",
-                "l",
-                "le",
                 WildcardFieldTypeTests.suffixAnchored("le"),
-                "e",
                 WildcardFieldTypeTests.suffixAnchored("e")
             ),
             terms
@@ -111,7 +110,14 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 terms.add(charTermAttribute.toString());
             }
         }
-        assertEquals(List.of(WildcardFieldTypeTests.prefixAnchored("a"), "a", WildcardFieldTypeTests.suffixAnchored("a")), terms);
+        assertEquals(
+            List.of(
+                WildcardFieldTypeTests.prefixAnchored("a"),
+                WildcardFieldTypeTests.suffixAnchored((char) 0 + "a"),
+                WildcardFieldTypeTests.suffixAnchored("a")
+            ),
+            terms
+        );
     }
 
     public void testEnableDocValues() throws IOException {
@@ -188,13 +194,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List.of(
                 WildcardFieldTypeTests.prefixAnchored("a"),
                 WildcardFieldTypeTests.prefixAnchored("ab"),
-                "a",
-                "ab",
                 "abc",
-                "b",
-                "bc",
                 WildcardFieldTypeTests.suffixAnchored("bc"),
-                "c",
                 WildcardFieldTypeTests.suffixAnchored("c")
             ),
             terms
@@ -242,13 +243,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List.of(
                 WildcardFieldTypeTests.prefixAnchored("u"),
                 WildcardFieldTypeTests.prefixAnchored("ur"),
-                "u",
-                "ur",
                 "uri",
-                "r",
-                "ri",
                 WildcardFieldTypeTests.suffixAnchored("ri"),
-                "i",
                 WildcardFieldTypeTests.suffixAnchored("i")
             ),
             terms
@@ -281,16 +277,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List.of(
                 WildcardFieldTypeTests.prefixAnchored("1"),
                 WildcardFieldTypeTests.prefixAnchored("12"),
-                "1",
-                "12",
                 "123",
-                "2",
-                "23",
                 "234",
-                "3",
-                "34",
                 WildcardFieldTypeTests.suffixAnchored("34"),
-                "4",
                 WildcardFieldTypeTests.suffixAnchored("4")
             ),
             terms
@@ -333,5 +322,71 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         MappedFieldType nullValueMapper = new WildcardFieldMapper.Builder("field").nullValue("NULL").build(context).fieldType();
         assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testPossibleToDeriveSource_WhenCopyToPresent() throws IOException {
+        FieldMapper.CopyTo copyTo = new FieldMapper.CopyTo.Builder().add("copy_to_field").build();
+        WildcardFieldMapper mapper = getMapper(copyTo, Integer.MAX_VALUE, "default", true);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenIgnoreAbovePresent() throws IOException {
+        WildcardFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), 100, "default", true);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenNormalizerPresent() throws IOException {
+        WildcardFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), 100, "lowercase", true);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenDocValuesDisabled() throws IOException {
+        WildcardFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), Integer.MAX_VALUE, "default", false);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testDerivedValueFetching_DocValues() throws IOException {
+        try (Directory directory = newDirectory()) {
+            WildcardFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), Integer.MAX_VALUE, "default", true);
+            String value = "keyword_value";
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                iw.addDocument(createDocument(mapper, value));
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":" + "\"" + value + "\"" + "}", source);
+            }
+        }
+    }
+
+    private WildcardFieldMapper getMapper(FieldMapper.CopyTo copyTo, int ignoreAbove, String normalizerName, boolean hasDocValues)
+        throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "wildcard")
+                    .field("doc_values", hasDocValues)
+                    .field("normalizer", normalizerName)
+                    .field("ignore_above", ignoreAbove)
+            )
+        );
+        WildcardFieldMapper mapper = (WildcardFieldMapper) mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
+        mapper.copyTo = copyTo;
+        return mapper;
+    }
+
+    /**
+     * Helper method to create a document with both doc values and stored fields
+     */
+    private Document createDocument(WildcardFieldMapper mapper, String value) throws IOException {
+        Document doc = new Document();
+        NamedAnalyzer normalizer = mapper.fieldType().normalizer();
+        value = normalizeValue(normalizer, FIELD_NAME, value);
+        final BytesRef binaryValue = new BytesRef(value);
+        doc.add(new SortedSetDocValuesField(FIELD_NAME, binaryValue));
+        return doc;
     }
 }

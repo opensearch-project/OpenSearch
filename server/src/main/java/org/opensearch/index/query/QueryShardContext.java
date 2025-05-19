@@ -39,7 +39,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.Version;
-import org.opensearch.client.Client;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
@@ -78,6 +77,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.transport.RemoteClusterAware;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -496,7 +496,7 @@ public class QueryShardContext extends BaseQueryRewriteContext {
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null) {
-            if (fieldMapping instanceof DerivedFieldType) {
+            if (fieldMapping.unwrap() instanceof DerivedFieldType) {
                 // resolveDerivedFieldType() will give precedence to search time definitions over index mapping, thus
                 // calling it instead of directly returning. It also ensures the feature flags are honoured.
                 return resolveDerivedFieldType(name);

@@ -51,6 +51,9 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  runtimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  runtimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   // reactor
   api "io.projectreactor:reactor-core:${versions.reactor}"
@@ -70,13 +73,13 @@ dependencies {
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 }
 
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
+}
+
 tasks.withType(CheckForbiddenApis).configureEach {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles('jdk-signatures', 'http-signatures')
-}
-
-forbiddenPatterns {
-  exclude '**/*.der'
 }
 
 tasks.named('forbiddenApisTest').configure {
@@ -141,7 +144,8 @@ thirdPartyAudit {
       'reactor.blockhound.integration.BlockHoundIntegration'
    )
    ignoreViolations(
-      'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
+      'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
+      'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException'
    )
 }
 

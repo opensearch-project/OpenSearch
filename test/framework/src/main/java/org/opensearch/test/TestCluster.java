@@ -39,7 +39,6 @@ import org.opensearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -49,6 +48,7 @@ import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
+import org.opensearch.transport.client.Client;
 
 import java.io.Closeable;
 import java.io.IOException;

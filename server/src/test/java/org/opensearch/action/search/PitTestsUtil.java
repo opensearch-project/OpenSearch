@@ -14,7 +14,6 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.unit.TimeValue;
@@ -28,6 +27,7 @@ import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.transport.client.Client;
 import org.junit.Assert;
 
 import java.util.ArrayList;

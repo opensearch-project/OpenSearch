@@ -56,7 +56,7 @@ public class TieringRequestValidator {
         final DiskThresholdSettings diskThresholdSettings
     ) {
         final String indexNames = concreteIndices.stream().map(Index::getName).collect(Collectors.joining(", "));
-        validateSearchNodes(currentState, indexNames);
+        validateWarmNodes(currentState, indexNames);
         validateDiskThresholdWaterMarkNotBreached(currentState, clusterInfo, diskThresholdSettings, indexNames);
 
         final TieringValidationResult tieringValidationResult = new TieringValidationResult(concreteIndices);
@@ -91,18 +91,18 @@ public class TieringRequestValidator {
     }
 
     /**
-     * Validates that there are eligible nodes with the search role in the current cluster state.
+     * Validates that there are eligible nodes with the warm role in the current cluster state.
      * (only for the dedicated case - to be removed later)
      *
      * @param currentState the current cluster state
      * @param indexNames the names of the indices being validated
-     * @throws IllegalArgumentException if there are no eligible search nodes in the cluster
+     * @throws IllegalArgumentException if there are no eligible warm nodes in the cluster
      */
-    static void validateSearchNodes(final ClusterState currentState, final String indexNames) {
+    static void validateWarmNodes(final ClusterState currentState, final String indexNames) {
         if (getEligibleNodes(currentState).isEmpty()) {
             final String errorMsg = "Rejecting tiering request for indices ["
                 + indexNames
-                + "] because there are no nodes found with the search role";
+                + "] because there are no nodes found with the warm role";
             logger.warn(errorMsg);
             throw new IllegalArgumentException(errorMsg);
         }
@@ -183,7 +183,7 @@ public class TieringRequestValidator {
             }
         }
         throw new IllegalArgumentException(
-            "Disk threshold low watermark is breached on all the search nodes, rejecting tiering request for indices: " + indexNames
+            "Disk threshold low watermark is breached on all the warm nodes, rejecting tiering request for indices: " + indexNames
         );
     }
 
@@ -265,13 +265,13 @@ public class TieringRequestValidator {
     }
 
     /**
-     * Retrieves the set of eligible(search) nodes from the current cluster state.
+     * Retrieves the set of eligible(warm) nodes from the current cluster state.
      *
      * @param currentState the current cluster state
      * @return the set of eligible nodes
      */
     static Set<DiscoveryNode> getEligibleNodes(final ClusterState currentState) {
         final Map<String, DiscoveryNode> nodes = currentState.getNodes().getDataNodes();
-        return nodes.values().stream().filter(DiscoveryNode::isSearchNode).collect(Collectors.toSet());
+        return nodes.values().stream().filter(DiscoveryNode::isWarmNode).collect(Collectors.toSet());
     }
 }

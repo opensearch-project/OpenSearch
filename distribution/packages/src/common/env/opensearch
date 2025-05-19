@@ -3,17 +3,17 @@
 ################################
 
 # OpenSearch home directory
-#OPENSEARCH_HOME=/usr/share/opensearch
+OPENSEARCH_HOME=/usr/share/opensearch
 
 # OpenSearch Java path
-#OPENSEARCH_JAVA_HOME=
+#OPENSEARCH_JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto
 
 # OpenSearch configuration directory
 # Note: this setting will be shared with command-line tools
-OPENSEARCH_PATH_CONF=${path.conf}
+OPENSEARCH_PATH_CONF=/etc/opensearch
 
 # OpenSearch PID directory
-#PID_DIR=/var/run/opensearch
+PID_DIR=/var/run/opensearch
 
 # Additional Java OPTS
 #OPENSEARCH_JAVA_OPTS=
@@ -25,10 +25,11 @@ OPENSEARCH_PATH_CONF=${path.conf}
 # OpenSearch service
 ################################
 
-# SysV init.d
-#
 # The number of seconds to wait before checking if OpenSearch started successfully as a daemon process
 OPENSEARCH_STARTUP_SLEEP_TIME=5
+
+# Notification for systemd
+OPENSEARCH_SD_NOTIFY=true
 
 ################################
 # System properties

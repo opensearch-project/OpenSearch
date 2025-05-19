@@ -48,10 +48,10 @@ import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.metadata.MetadataMappingService;
 import org.opensearch.cluster.metadata.MetadataUpdateSettingsService;
-import org.opensearch.cluster.metadata.QueryGroupMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
+import org.opensearch.cluster.metadata.WorkloadGroupMetadata;
 import org.opensearch.cluster.routing.DelayedAllocationService;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -81,13 +81,13 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.WarmDiskThresholdDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.ParseField;
@@ -221,7 +221,7 @@ public class ClusterModule extends AbstractModule {
             DecommissionAttributeMetadata::readDiffFrom
         );
 
-        registerMetadataCustom(entries, QueryGroupMetadata.TYPE, QueryGroupMetadata::new, QueryGroupMetadata::readDiffFrom);
+        registerMetadataCustom(entries, WorkloadGroupMetadata.TYPE, WorkloadGroupMetadata::new, WorkloadGroupMetadata::readDiffFrom);
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
@@ -330,8 +330,8 @@ public class ClusterModule extends AbstractModule {
         entries.add(
             new NamedXContentRegistry.Entry(
                 Metadata.Custom.class,
-                new ParseField(QueryGroupMetadata.TYPE),
-                QueryGroupMetadata::fromXContent
+                new ParseField(WorkloadGroupMetadata.TYPE),
+                WorkloadGroupMetadata::fromXContent
             )
         );
         return entries;
@@ -391,11 +391,10 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
-        if (FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(settings)) {
-            addAllocationDecider(deciders, new SearchReplicaAllocationDecider(settings, clusterSettings));
-        }
+        addAllocationDecider(deciders, new SearchReplicaAllocationDecider());
         addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new WarmDiskThresholdDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ThrottlingAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));

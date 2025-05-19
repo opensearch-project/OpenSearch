@@ -35,7 +35,7 @@ package org.opensearch.index.reindex;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Builder for delete by query

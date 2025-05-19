@@ -69,6 +69,7 @@ import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 import org.opensearch.repositories.s3.async.TransferSemaphoresHolder;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -94,6 +95,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.opensearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
@@ -128,15 +130,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @Before
     public void setUp() throws Exception {
         previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
-        service = new S3Service(configPath());
-        asyncService = new S3AsyncService(configPath());
+        scheduler = new ScheduledThreadPoolExecutor(1);
+        service = new S3Service(configPath(), scheduler);
+        asyncService = new S3AsyncService(configPath(), scheduler);
 
         futureCompletionService = Executors.newSingleThreadExecutor();
         streamReaderService = Executors.newSingleThreadExecutor();
         transferNIOGroup = new AsyncTransferEventLoopGroup(1);
         remoteTransferRetry = Executors.newFixedThreadPool(20);
         transferQueueConsumerService = Executors.newFixedThreadPool(2);
-        scheduler = new ScheduledThreadPoolExecutor(1);
         GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
             new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 5L, ByteSizeUnit.GB),
@@ -162,14 +164,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @After
     public void tearDown() throws Exception {
         IOUtils.close(service, asyncService);
-
-        streamReaderService.shutdown();
-        futureCompletionService.shutdown();
-        remoteTransferRetry.shutdown();
-        transferQueueConsumerService.shutdown();
-        scheduler.shutdown();
         normalPrioritySizeBasedBlockingQ.close();
         lowPrioritySizeBasedBlockingQ.close();
+        Stream.of(streamReaderService, futureCompletionService, remoteTransferRetry, transferQueueConsumerService, scheduler)
+            .forEach(e -> assertTrue(ThreadPool.terminate(e, 5, TimeUnit.SECONDS)));
         IOUtils.close(transferNIOGroup);
 
         if (previousOpenSearchPathConf != null) {

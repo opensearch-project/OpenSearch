@@ -40,7 +40,6 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardsObserver;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -48,7 +47,6 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -60,6 +58,7 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -70,6 +69,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.ROLLOVER_INDEX;
 
 /**
  * Main class to swap the index pointed to by an alias, given some conditions
@@ -106,7 +107,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        rolloverIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.ROLLOVER_INDEX_KEY, true);
+        rolloverIndexTaskKey = clusterService.registerClusterManagerTask(ROLLOVER_INDEX, true);
     }
 
     @Override

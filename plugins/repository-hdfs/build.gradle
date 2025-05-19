@@ -67,21 +67,21 @@ dependencies {
   api 'org.apache.htrace:htrace-core4:4.2.0-incubating'
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api 'org.apache.avro:avro:1.12.0'
-  api 'com.google.code.gson:gson:2.12.1'
+  api 'com.google.code.gson:gson:2.13.1'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api 'commons-cli:commons-cli:1.9.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'commons-collections:commons-collections:3.2.2'
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
-  api 'org.apache.commons:commons-configuration2:2.11.0'
+  api 'org.apache.commons:commons-configuration2:2.12.0'
   api "commons-io:commons-io:${versions.commonsio}"
   api 'org.apache.commons:commons-lang3:3.17.0'
   implementation 'com.google.re2j:re2j:1.8'
   api 'javax.servlet:servlet-api:2.5'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  api 'net.minidev:json-smart:2.5.1'
+  api "net.minidev:json-smart:${versions.json_smart}"
   api "io.netty:netty-all:${versions.netty}"
   implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   implementation 'org.codehaus.woodstox:stax2-api:4.2.2'
@@ -145,10 +145,6 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
       return fixture.portsFile.exists()
     }
     final List<String> miniHDFSArgs = []
-
-    if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_23) {
-      miniHDFSArgs.add('-Djava.security.manager=allow')
-    }
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {

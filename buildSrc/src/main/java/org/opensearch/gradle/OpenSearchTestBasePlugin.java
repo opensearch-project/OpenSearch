@@ -115,9 +115,6 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                             test.jvmArgs("--illegal-access=warn");
                         }
                     }
-                    if (test.getJavaVersion().compareTo(JavaVersion.VERSION_17) > 0) {
-                        test.jvmArgs("-Djava.security.manager=allow");
-                    }
                 }
             });
             test.getJvmArgumentProviders().add(nonInputProperties);
@@ -164,6 +161,11 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 test.systemProperty("tests.seed", BuildParams.getTestSeed());
             }
 
+            var securityFile = "java.security";
+            test.systemProperty(
+                "java.security.properties",
+                project.getRootProject().getLayout().getProjectDirectory() + "/distribution/src/config/" + securityFile
+            );
             // don't track these as inputs since they contain absolute paths and break cache relocatability
             File gradleHome = project.getGradle().getGradleUserHomeDir();
             String gradleVersion = project.getGradle().getGradleVersion();

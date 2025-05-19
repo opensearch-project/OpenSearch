@@ -217,6 +217,8 @@ public class Netty4HttpRequest implements HttpRequest {
             return HttpRequest.HttpVersion.HTTP_1_0;
         } else if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1)) {
             return HttpRequest.HttpVersion.HTTP_1_1;
+        } else if (request.protocolVersion().equals("HTTP/2.0")) {
+            return HttpRequest.HttpVersion.HTTP_2_0;
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
         }

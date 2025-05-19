@@ -45,7 +45,6 @@ import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.termvectors.MultiTermVectorsRequest;
 import org.opensearch.action.termvectors.MultiTermVectorsResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.regex.Regex;
@@ -91,6 +90,7 @@ import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchModule;
+import org.opensearch.transport.client.Client;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -389,7 +389,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
                 throw new AssertionError("node.name must be set");
             });
             PluginsService pluginsService;
-            pluginsService = new PluginsService(nodeSettings, null, env.modulesDir(), env.pluginsDir(), plugins);
+            pluginsService = new PluginsService(nodeSettings, env.modulesDir(), env.pluginsDir(), plugins);
 
             client = (Client) Proxy.newProxyInstance(Client.class.getClassLoader(), new Class[] { Client.class }, clientInvocationHandler);
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));

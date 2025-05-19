@@ -39,7 +39,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
-import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -58,6 +57,7 @@ import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.indices.TermsLookup;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -105,7 +105,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             this.type = type;
         }
 
-        static ValueType fromString(String type) {
+        public static ValueType fromString(String type) {
             for (ValueType valueType : ValueType.values()) {
                 if (valueType.type.equalsIgnoreCase(type)) {
                     return valueType;
@@ -272,6 +272,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     @Override
     public String fieldName() {
         return this.fieldName;
+    }
+
+    public ValueType valueType() {
+        return this.valueType;
     }
 
     public List<Object> values() {
@@ -548,7 +552,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
         if (valueType == ValueType.BITMAP) {
             if (values.size() == 1 && values.get(0) instanceof BytesArray) {
-                if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+                if (fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
                     return ((NumberFieldMapper.NumberFieldType) fieldType).bitmapQuery((BytesArray) values.get(0));
                 }
             }
@@ -618,7 +622,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
             MappedFieldType fieldType = context.fieldMapper(this.fieldName);
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
-            } else if (fieldType instanceof ConstantFieldType) {
+            } else if (fieldType.unwrap() instanceof ConstantFieldType) {
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.

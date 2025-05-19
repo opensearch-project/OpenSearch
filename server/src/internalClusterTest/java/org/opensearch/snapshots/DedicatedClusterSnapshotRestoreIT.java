@@ -43,8 +43,6 @@ import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.Client;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -71,6 +69,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
+import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
@@ -98,6 +97,8 @@ import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -450,7 +451,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository(
             "test-repo",
             "mock",
-            Settings.builder().put("location", repo).put("random", randomAlphaOfLength(10)).put("wait_after_unblock", 200)
+            Settings.builder()
+                .put("location", repo)
+                .put("random", randomAlphaOfLength(10))
+                .put("wait_after_unblock", 200)
+                // TODO: There's likely a bug with other path types where cleanup seems to leave unexpected files
+                .put(BlobStoreRepository.SHARD_PATH_TYPE.getKey(), RemoteStoreEnums.PathType.FIXED)
         );
 
         // Pick one node and block it

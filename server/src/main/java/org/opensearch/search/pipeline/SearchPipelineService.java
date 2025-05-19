@@ -10,6 +10,7 @@ package org.opensearch.search.pipeline;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
@@ -17,7 +18,6 @@ import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
@@ -26,7 +26,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.metrics.OperationMetrics;
@@ -48,12 +47,14 @@ import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -61,6 +62,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_SEARCH_PIPELINE;
+import static org.opensearch.cluster.service.ClusterManagerTask.PUT_SEARCH_PIPELINE;
 
 /**
  * The main entry point for search pipelines. Handles CRUD operations and exposes the API to execute search pipelines
@@ -73,6 +77,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
     public static final String AD_HOC_PIPELINE_ID = "_ad_hoc_pipeline";
     public static final String NOOP_PIPELINE_ID = "_none";
+    private static final int MAX_PIPELINE_ID_BYTES = 512;
     private static final Logger logger = LogManager.getLogger(SearchPipelineService.class);
     private final ClusterService clusterService;
     private final ScriptService scriptService;
@@ -123,8 +128,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             searchPipelinePlugins,
             p -> p.getSearchPhaseResultsProcessors(parameters)
         );
-        putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_SEARCH_PIPELINE_KEY, true);
-        deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SEARCH_PIPELINE_KEY, true);
+        putPipelineTaskKey = clusterService.registerClusterManagerTask(PUT_SEARCH_PIPELINE, true);
+        deletePipelineTaskKey = clusterService.registerClusterManagerTask(DELETE_SEARCH_PIPELINE, true);
     }
 
     private static <T extends Processor> Map<String, Processor.Factory<T>> processorFactories(
@@ -278,6 +283,21 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         if (searchPipelineInfos.isEmpty()) {
             throw new IllegalStateException("Search pipeline info is empty");
         }
+
+        int pipelineIdLength = UnicodeUtil.calcUTF16toUTF8Length(request.getId(), 0, request.getId().length());
+
+        if (pipelineIdLength > MAX_PIPELINE_ID_BYTES) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Search Pipeline id [%s] exceeds maximum length of %d UTF-8 bytes (actual: %d bytes)",
+                    request.getId(),
+                    MAX_PIPELINE_ID_BYTES,
+                    pipelineIdLength
+                )
+            );
+        }
+
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getMediaType()).v2();
         Pipeline pipeline = PipelineWithMetrics.create(
             request.getId(),

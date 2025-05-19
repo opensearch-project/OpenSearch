@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -55,6 +54,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;

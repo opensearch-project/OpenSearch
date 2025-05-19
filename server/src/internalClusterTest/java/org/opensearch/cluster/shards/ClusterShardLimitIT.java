@@ -38,7 +38,6 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRespons
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -57,6 +56,7 @@ import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.NodeConfigurationSource;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.client.Client;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;

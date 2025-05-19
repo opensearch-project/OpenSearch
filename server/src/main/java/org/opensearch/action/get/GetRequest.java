@@ -34,6 +34,7 @@ package org.opensearch.action.get;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.DocRequest;
 import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
@@ -45,26 +46,29 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to get a document (its source) from an index based on its id. Best created using
- * {@link org.opensearch.client.Requests#getRequest(String)}.
+ * {@link Requests#getRequest(String)}.
  * <p>
  * The operation requires the {@link #index()}} and {@link #id(String)}
  * to be set.
  *
  * @see GetResponse
- * @see org.opensearch.client.Requests#getRequest(String)
- * @see org.opensearch.client.Client#get(GetRequest)
+ * @see Requests#getRequest(String)
+ * @see Client#get(GetRequest)
  *
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
+public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest, DocRequest {
 
     private String id;
     private String routing;
@@ -161,6 +165,12 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this;
     }
 
+    @Override
+    public String index() {
+        return Objects.requireNonNull(super.index());
+    }
+
+    @Override
     public String id() {
         return id;
     }

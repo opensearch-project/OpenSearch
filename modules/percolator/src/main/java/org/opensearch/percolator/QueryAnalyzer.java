@@ -31,9 +31,7 @@
 
 package org.opensearch.percolator;
 
-import org.apache.lucene.document.BinaryRange;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -56,6 +54,7 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
+import org.opensearch.lucene.queries.BlendedTermQuery;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

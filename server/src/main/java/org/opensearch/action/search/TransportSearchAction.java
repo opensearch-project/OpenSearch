@@ -41,9 +41,6 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
-import org.opensearch.client.Client;
-import org.opensearch.client.OriginSettingClient;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -102,7 +99,10 @@ import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.OriginSettingClient;
+import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -447,8 +447,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
-            if (task instanceof QueryGroupTask) {
-                ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
+            if (task instanceof WorkloadGroupTask) {
+                ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
             }
 
             PipelinedRequest searchRequest;

@@ -38,7 +38,6 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.action.update.UpdateRequest;
-import org.opensearch.client.Requests;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -49,6 +48,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.script.Script;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

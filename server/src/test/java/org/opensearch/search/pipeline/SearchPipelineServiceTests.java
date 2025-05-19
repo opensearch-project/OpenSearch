@@ -28,7 +28,6 @@ import org.opensearch.action.search.SearchProgressListener;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -64,12 +63,14 @@ import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -878,7 +879,6 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         ProcessorInfo reqProcessor = new ProcessorInfo("scale_request_size");
         ProcessorInfo rspProcessor = new ProcessorInfo("fixed_score");
-        ProcessorInfo injProcessor = new ProcessorInfo("max_score");
         DiscoveryNode n1 = new DiscoveryNode("n1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode n2 = new DiscoveryNode("n2", buildNewFakeTransportAddress(), Version.CURRENT);
         PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(
@@ -890,6 +890,13 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     + "\"phase_results_processors\" : [ { \"max_score\" : { } } ]"
                     + "}"
             ),
+            MediaTypeRegistry.JSON
+        );
+
+        String longId = "a".repeat(512) + "a";
+        PutSearchPipelineRequest maxLengthIdPutRequest = new PutSearchPipelineRequest(
+            longId,
+            new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : \"foo\" } } ] }"),
             MediaTypeRegistry.JSON
         );
 
@@ -905,6 +912,18 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         // Discovery failed, no infos passed.
         expectThrows(IllegalStateException.class, () -> searchPipelineService.validatePipeline(Collections.emptyMap(), putRequest));
+
+        // Max length of pipeline length
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> searchPipelineService.validatePipeline(Map.of(n1, completePipelineInfo), maxLengthIdPutRequest)
+        );
+        String errorMessage = String.format(
+            Locale.ROOT,
+            "Search Pipeline id [%s] exceeds maximum length of 512 UTF-8 bytes (actual: 513 bytes)",
+            longId
+        );
+        assertEquals(errorMessage, e.getMessage());
 
         // Invalid configuration in request
         PutSearchPipelineRequest badPutRequest = new PutSearchPipelineRequest(

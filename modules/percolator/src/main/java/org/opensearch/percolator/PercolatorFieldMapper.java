@@ -31,7 +31,6 @@
 
 package org.opensearch.percolator;
 
-import org.apache.lucene.document.BinaryRange;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;

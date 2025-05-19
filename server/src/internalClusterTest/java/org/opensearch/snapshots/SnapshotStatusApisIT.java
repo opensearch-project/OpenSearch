@@ -44,7 +44,6 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
@@ -58,6 +57,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -72,7 +72,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.opensearch.snapshots.SnapshotsService.MAX_SHARDS_ALLOWED_IN_STATUS_API;
-import static org.opensearch.test.OpenSearchIntegTestCase.resolvePath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;

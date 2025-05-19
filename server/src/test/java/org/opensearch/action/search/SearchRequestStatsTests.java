@@ -16,6 +16,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
@@ -68,7 +69,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
 
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
+            when(mockSearchPhase.getSearchPhaseNameOptional()).thenReturn(Optional.of(searchPhaseName));
             testRequestStats.onPhaseStart(ctx);
             assertEquals(1, testRequestStats.getPhaseCurrent(searchPhaseName));
             testRequestStats.onPhaseFailure(ctx, new Throwable());
@@ -85,7 +86,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
 
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
+            when(mockSearchPhase.getSearchPhaseNameOptional()).thenReturn(Optional.of(searchPhaseName));
             long tookTimeInMillis = randomIntBetween(1, 10);
             testRequestStats.onPhaseStart(ctx);
             long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(tookTimeInMillis);
@@ -116,7 +117,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             SearchPhaseContext ctx = mock(SearchPhaseContext.class);
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
             when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
-            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
+            when(mockSearchPhase.getSearchPhaseNameOptional()).thenReturn(Optional.of(searchPhaseName));
             for (int i = 0; i < numTasks; i++) {
                 threads[i] = new Thread(() -> {
                     phaser.arriveAndAwaitAdvance();
@@ -145,7 +146,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             SearchPhaseContext ctx = mock(SearchPhaseContext.class);
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
             when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
-            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
+            when(mockSearchPhase.getSearchPhaseNameOptional()).thenReturn(Optional.of(searchPhaseName));
             long tookTimeInMillis = randomIntBetween(1, 10);
             long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(tookTimeInMillis);
             when(mockSearchPhase.getStartTimeInNanos()).thenReturn(startTime);
@@ -188,7 +189,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             SearchPhaseContext ctx = mock(SearchPhaseContext.class);
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
             when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
-            when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
+            when(mockSearchPhase.getSearchPhaseNameOptional()).thenReturn(Optional.of(searchPhaseName));
             for (int i = 0; i < numTasks; i++) {
                 threads[i] = new Thread(() -> {
                     phaser.arriveAndAwaitAdvance();
@@ -204,5 +205,52 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
         }
+    }
+
+    public void testUnrecognizedPhaseNamesAreIgnored() {
+        // Unrecognized phase names producing an empty optional should not throw any error and no stats should be incremented.
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
+        SearchPhaseContext ctx = mock(SearchPhaseContext.class);
+        SearchPhase mockSearchPhase = mock(SearchPhase.class);
+        when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
+
+        when(mockSearchPhase.getSearchPhaseNameOptional()).thenReturn(Optional.empty());
+        testRequestStats.onPhaseStart(ctx);
+        int minTimeNanos = 10;
+        long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(minTimeNanos);
+        when(mockSearchPhase.getStartTimeInNanos()).thenReturn(startTime);
+
+        for (SearchPhaseName name : SearchPhaseName.values()) {
+            assertEquals(0, testRequestStats.getPhaseCurrent(name));
+        }
+
+        testRequestStats.onPhaseEnd(
+            ctx,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequest(),
+                () -> null
+            )
+        );
+
+        for (SearchPhaseName name : SearchPhaseName.values()) {
+            assertEquals(0, testRequestStats.getPhaseCurrent(name));
+            assertEquals(0, testRequestStats.getPhaseTotal(name));
+            assertEquals(0, testRequestStats.getPhaseMetric(name));
+        }
+    }
+
+    public void testUnrecognizedSearchPhaseReturnsEmptyOptional() {
+        // Test search phases with unrecognized names return Optional.empty() when getSearchPhaseNameOptional() is called.
+        // These may exist, for example, "create_pit".
+        String unrecognizedName = "unrecognized_name";
+        SearchPhase dummyPhase = new SearchPhase(unrecognizedName) {
+            @Override
+            public void run() {}
+        };
+
+        assertEquals(unrecognizedName, dummyPhase.getName());
+        assertEquals(Optional.empty(), dummyPhase.getSearchPhaseNameOptional());
     }
 }

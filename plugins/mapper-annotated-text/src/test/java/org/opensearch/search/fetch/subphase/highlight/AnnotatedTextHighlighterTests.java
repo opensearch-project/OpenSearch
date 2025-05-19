@@ -51,15 +51,16 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
-import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
-import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
+import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
+import org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.opensearch.lucene.search.uhighlight.Snippet;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.URLEncoder;
@@ -67,8 +68,8 @@ import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.Locale;
 
+import static org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
 
@@ -123,9 +124,10 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
         TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
         assertThat(topDocs.totalHits.value(), equalTo(1L));
         String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
+        UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, hiliteAnalyzer);
+        builder.withFieldMatcher("text"::equals);
         CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-            searcher,
-            hiliteAnalyzer,
+            builder,
             null,
             passageFormatter,
             locale,
@@ -135,11 +137,9 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
             query,
             noMatchSize,
             expectedPassages.length,
-            name -> "text".equals(name),
             Integer.MAX_VALUE,
             null
         );
-        highlighter.setFieldMatcher((name) -> "text".equals(name));
         final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
         assertEquals(expectedPassages.length, snippets.length);
         for (int i = 0; i < snippets.length; i++) {

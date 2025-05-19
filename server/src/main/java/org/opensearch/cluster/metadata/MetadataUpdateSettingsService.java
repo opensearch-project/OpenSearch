@@ -43,10 +43,10 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -57,7 +57,6 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
@@ -83,6 +82,8 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validat
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogDurabilitySettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findComponentTemplate;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.cluster.service.ClusterManagerTask.UPDATE_SETTINGS;
 import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.index.IndexSettings.same;
 
@@ -125,7 +126,7 @@ public class MetadataUpdateSettingsService {
         this.awarenessReplicaBalance = awarenessReplicaBalance;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        updateSettingsTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_SETTINGS_KEY, true);
+        updateSettingsTaskKey = clusterService.registerClusterManagerTask(UPDATE_SETTINGS, true);
     }
 
     public void updateSettings(
@@ -139,6 +140,7 @@ public class MetadataUpdateSettingsService {
 
         validateRefreshIntervalSettings(normalizedSettings, clusterService.getClusterSettings());
         validateTranslogDurabilitySettings(normalizedSettings, clusterService.getClusterSettings(), clusterService.getSettings());
+        validateIndexTotalPrimaryShardsPerNodeSetting(normalizedSettings, clusterService);
         final int defaultReplicaCount = clusterService.getClusterSettings().get(Metadata.DEFAULT_REPLICA_COUNT_SETTING);
 
         Settings.Builder settingsForClosedIndices = Settings.builder();
@@ -293,12 +295,24 @@ public class MetadataUpdateSettingsService {
                     }
 
                     if (IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(openSettings)) {
-                        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
-                            validateSearchReplicaCountSettings(normalizedSettings, request.indices(), currentState);
-                        }
+                        validateSearchReplicaCountSettings(normalizedSettings, request.indices(), currentState);
                         final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(openSettings);
                         if (preserveExisting == false) {
-                            // TODO: Honor awareness validation to search replicas.
+                            for (Index index : request.indices()) {
+                                if (index.getName().charAt(0) != '.') {
+                                    // No replica count validation for system indices
+                                    Optional<String> error = awarenessReplicaBalance.validate(
+                                        updatedNumberOfSearchReplicas,
+                                        AutoExpandSearchReplicas.SETTING.get(openSettings)
+                                    );
+
+                                    if (error.isPresent()) {
+                                        ValidationException ex = new ValidationException();
+                                        ex.addValidationError(error.get());
+                                        throw ex;
+                                    }
+                                }
+                            }
 
                             // Verify that this won't take us over the cluster shard limit.
                             int totalNewShards = Arrays.stream(request.indices())
@@ -545,6 +559,33 @@ public class MetadataUpdateSettingsService {
                     "To set " + SETTING_NUMBER_OF_SEARCH_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
                 );
             }
+        }
+    }
+
+    /**
+     * Validates the 'index.routing.allocation.total_primary_shards_per_node' setting during index settings update.
+     * Ensures this setting can only be modified for existing indices in remote store enabled clusters.
+     */
+    public static void validateIndexTotalPrimaryShardsPerNodeSetting(Settings indexSettings, ClusterService clusterService) {
+        // Get the setting value
+        int indexPrimaryShardsPerNode = INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings);
+
+        // If default value (-1), no validation needed
+        if (indexPrimaryShardsPerNode == -1) {
+            return;
+        }
+
+        // Check if remote store is enabled
+        boolean isRemoteStoreEnabled = clusterService.state()
+            .nodes()
+            .getNodes()
+            .values()
+            .stream()
+            .allMatch(DiscoveryNode::isRemoteStoreNode);
+        if (!isRemoteStoreEnabled) {
+            throw new IllegalArgumentException(
+                "Setting [" + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey() + "] can only be used with remote store enabled clusters"
+            );
         }
     }
 }

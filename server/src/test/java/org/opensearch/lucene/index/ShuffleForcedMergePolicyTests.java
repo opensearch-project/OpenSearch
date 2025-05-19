@@ -43,11 +43,12 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.ShuffleForcedMergePolicy;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseMergePolicyTestCase;
+import org.opensearch.index.engine.ShuffleForcedMergePolicy;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -59,13 +60,17 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
     public void testDiagnostics() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig().setMaxFullFlushMergeWaitMillis(0);
-            MergePolicy mp = new ShuffleForcedMergePolicy(newTieredMergePolicy());
+            TieredMergePolicy tieredMergePolicy = newTieredMergePolicy();
+            // ensure only trigger one Merge when flushing, and there are remaining segments to be force merged
+            tieredMergePolicy.setSegmentsPerTier(8);
+            tieredMergePolicy.setMaxMergeAtOnce(8);
+            MergePolicy mp = new ShuffleForcedMergePolicy(tieredMergePolicy);
             iwc.setMergePolicy(mp);
             boolean sorted = random().nextBoolean();
             if (sorted) {
                 iwc.setIndexSort(new Sort(new SortField("sort", SortField.Type.INT)));
             }
-            int numDocs = atLeast(100);
+            int numDocs = 90 + random().nextInt(10);
 
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < numDocs; i++) {

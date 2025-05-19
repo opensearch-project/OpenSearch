@@ -31,12 +31,12 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.util.Collections;
 import java.util.List;

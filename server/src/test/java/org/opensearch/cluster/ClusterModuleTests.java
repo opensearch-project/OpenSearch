@@ -33,8 +33,8 @@
 package org.opensearch.cluster;
 
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.QueryGroupMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.WorkloadGroupMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -57,10 +57,12 @@ import org.opensearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActi
 import org.opensearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.WarmDiskThresholdDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.ClusterSettings;
@@ -249,8 +251,10 @@ public class ClusterModuleTests extends ModuleTestCase {
             SnapshotInProgressAllocationDecider.class,
             RestoreInProgressAllocationDecider.class,
             FilterAllocationDecider.class,
+            SearchReplicaAllocationDecider.class,
             SameShardAllocationDecider.class,
             DiskThresholdDecider.class,
+            WarmDiskThresholdDecider.class,
             ThrottlingAllocationDecider.class,
             ShardsLimitAllocationDecider.class,
             AwarenessAllocationDecider.class,
@@ -330,18 +334,19 @@ public class ClusterModuleTests extends ModuleTestCase {
         );
     }
 
-    public void testQueryGroupMetadataRegister() {
+    public void testWorkloadGroupMetadataRegister() {
         List<NamedWriteableRegistry.Entry> customEntries = ClusterModule.getNamedWriteables();
         List<NamedXContentRegistry.Entry> customXEntries = ClusterModule.getNamedXWriteables();
         assertTrue(
             customEntries.stream()
-                .anyMatch(entry -> entry.categoryClass == Metadata.Custom.class && entry.name.equals(QueryGroupMetadata.TYPE))
+                .anyMatch(entry -> entry.categoryClass == Metadata.Custom.class && entry.name.equals(WorkloadGroupMetadata.TYPE))
         );
 
         assertTrue(
             customXEntries.stream()
                 .anyMatch(
-                    entry -> entry.categoryClass == Metadata.Custom.class && entry.name.getPreferredName().equals(QueryGroupMetadata.TYPE)
+                    entry -> entry.categoryClass == Metadata.Custom.class
+                        && entry.name.getPreferredName().equals(WorkloadGroupMetadata.TYPE)
                 )
         );
     }

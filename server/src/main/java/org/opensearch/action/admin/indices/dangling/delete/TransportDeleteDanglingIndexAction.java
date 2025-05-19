@@ -44,7 +44,6 @@ import org.opensearch.action.admin.indices.dangling.list.NodeListDanglingIndices
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -52,7 +51,6 @@ import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -62,10 +60,13 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_DANGLING_INDEX;
 
 /**
  * Implements the deletion of a dangling index. When handling a {@link DeleteDanglingIndexAction},
@@ -105,7 +106,7 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
         this.settings = settings;
         this.nodeClient = nodeClient;
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        deleteDanglingIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_DANGLING_INDEX_KEY, true);
+        deleteDanglingIndexTaskKey = clusterService.registerClusterManagerTask(DELETE_DANGLING_INDEX, true);
     }
 
     @Override

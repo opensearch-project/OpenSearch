@@ -43,7 +43,7 @@ import org.opensearch.common.unit.TimeValue;
 public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequest<T>> implements AckedRequest {
 
     private TimeValue ackTimeout;
-    private TimeValue masterNodeTimeout;
+    private TimeValue clusterManagerNodeTimeout;
 
     /**
      * Returns the maximum time interval to wait for acknowledgements
@@ -67,16 +67,16 @@ public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequ
      * be completed on the cluster-manager node
      */
     @Override
-    public TimeValue masterNodeTimeout() {
-        return masterNodeTimeout;
+    public TimeValue clusterManagerNodeTimeout() {
+        return clusterManagerNodeTimeout;
     }
 
     /**
      * Sets the cluster-manager node timeout
      */
     @SuppressWarnings("unchecked")
-    public T masterNodeTimeout(TimeValue masterNodeTimeout) {
-        this.masterNodeTimeout = masterNodeTimeout;
+    public T clusterManagerNodeTimeout(TimeValue clusterManagerNodeTimeout) {
+        this.clusterManagerNodeTimeout = clusterManagerNodeTimeout;
         return (T) this;
     }
 }
