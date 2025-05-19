@@ -341,7 +341,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 // Case 1: Verify the slice count when lucene default slice computation is used
                 IndexSearcher.LeafSlice[] slices = searcher.slicesInternal(
                     leaves,
-                    SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_DEFAULT_VALUE
+                    SearchService.CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE
                 );
                 int expectedSliceCount = 2;
                 // 2 slices will be created since max segment per slice of 5 will be reached

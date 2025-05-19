@@ -362,7 +362,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<PathType> SHARD_PATH_TYPE = new Setting<>(
         "shard_path_type",
-        PathType.FIXED.toString(),
+        PathType.HASHED_PREFIX.toString(),
         PathType::parseString
     );
 
@@ -551,6 +551,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     protected volatile int bufferSize;
 
+    private volatile boolean closed;
+
     /**
      * Constructs new BlobStoreRepository
      * @param repositoryMetadata   The metadata for this repository including name and settings
@@ -630,6 +632,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         if (store != null) {
             try {
+                closed = true;
                 store.close();
             } catch (Exception t) {
                 logger.warn("cannot close blob store", t);
@@ -643,6 +646,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         String source,
         Consumer<Exception> onFailure
     ) {
+        if (this.closed) {
+            onFailure.accept(new RepositoryException(metadata.name(), "the repository has been changed, try again"));
+            return;
+        }
         final RepositoryMetadata repositoryMetadataStart = metadata;
         getRepositoryData(ActionListener.wrap(repositoryData -> {
             final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
@@ -4561,7 +4568,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             SnapshotId snapshotId = snapshotInfo.snapshotId();
             if (snapshotInfo.getPinnedTimestamp() != 0) {
                 return () -> IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0, 0, "1");
-            } else if (snapshotInfo.isRemoteStoreIndexShallowCopyEnabled()) {
+            } else if (Boolean.TRUE.equals(snapshotInfo.isRemoteStoreIndexShallowCopyEnabled())) {
                 if (shardContainer.blobExists(REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()))) {
                     return REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(
                         shardContainer,

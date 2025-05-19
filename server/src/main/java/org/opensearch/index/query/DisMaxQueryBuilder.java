@@ -254,7 +254,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         if (queries.isEmpty() == false) {
             QueryBuilderVisitor subVisitor = visitor.getChildVisitor(BooleanClause.Occur.SHOULD);
             for (QueryBuilder subQb : queries) {
-                subVisitor.accept(subQb);
+                subQb.visit(subVisitor);
             }
         }
     }

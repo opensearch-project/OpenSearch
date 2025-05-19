@@ -11,9 +11,11 @@ package org.opensearch.javaagent;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
 import java.lang.instrument.Instrumentation;
+import java.net.Socket;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
+import java.nio.file.spi.FileSystemProvider;
 import java.util.Map;
 
 import net.bytebuddy.ByteBuddy;
@@ -71,10 +73,12 @@ public class Agent {
         initAgent(instrumentation);
     }
 
-    private static AgentBuilder createAgentBuilder(Instrumentation inst) throws Exception {
-        final Junction<TypeDescription> systemType = ElementMatchers.isSubTypeOf(SocketChannel.class);
+    private static AgentBuilder createAgentBuilder() throws Exception {
+        final Junction<TypeDescription> socketType = ElementMatchers.isSubTypeOf(SocketChannel.class)
+            .or(ElementMatchers.isSubTypeOf(Socket.class));
         final Junction<TypeDescription> pathType = ElementMatchers.isSubTypeOf(Files.class);
         final Junction<TypeDescription> fileChannelType = ElementMatchers.isSubTypeOf(FileChannel.class);
+        final Junction<TypeDescription> fileSystemProviderType = ElementMatchers.isSubTypeOf(FileSystemProvider.class);
 
         final AgentBuilder.Transformer socketTransformer = (b, typeDescription, classLoader, module, pd) -> b.visit(
             Advice.to(SocketChannelInterceptor.class)
@@ -98,13 +102,13 @@ public class Agent {
             );
 
         final ByteBuddy byteBuddy = new ByteBuddy().with(Implementation.Context.Disabled.Factory.INSTANCE);
-        final AgentBuilder agentBuilder = new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
+        return new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
             .with(AgentBuilder.RedefinitionStrategy.REDEFINITION)
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
             .ignore(ElementMatchers.nameContains("$MockitoMock$")) /* ingore all Mockito mocks */
-            .type(systemType)
+            .type(socketType)
             .transform(socketTransformer)
-            .type(pathType.or(fileChannelType))
+            .type(pathType.or(fileChannelType).or(fileSystemProviderType))
             .transform(fileTransformer)
             .type(ElementMatchers.is(java.lang.System.class))
             .transform(
@@ -118,12 +122,10 @@ public class Agent {
                     Advice.to(RuntimeHaltInterceptor.class).on(ElementMatchers.named("halt"))
                 )
             );
-
-        return agentBuilder;
     }
 
     private static void initAgent(Instrumentation instrumentation) throws Exception {
-        AgentBuilder agentBuilder = createAgentBuilder(instrumentation);
+        AgentBuilder agentBuilder = createAgentBuilder();
         agentBuilder.installOn(instrumentation);
     }
 }

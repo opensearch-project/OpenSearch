@@ -12,7 +12,6 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.junit.After;
 import org.junit.Before;
 

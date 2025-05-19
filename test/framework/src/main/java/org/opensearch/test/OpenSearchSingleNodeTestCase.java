@@ -33,6 +33,7 @@ package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -66,6 +67,7 @@ import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
 import org.opensearch.node.NodeValidationException;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.SearchContext;
@@ -85,6 +87,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -257,7 +260,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true)
             // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
             // when tests are run with concurrent segment search enabled
-            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2)
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY, 2)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .put(featureFlagSettings);
 
@@ -272,7 +275,26 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         plugins.add(MockScriptService.TestPlugin.class);
 
         plugins.add(MockTelemetryPlugin.class);
-        Node node = new MockNode(settingsBuilder.build(), plugins, forbidPrivateIndexSettings());
+        Node node = new MockNode(
+            settingsBuilder.build(),
+            plugins.stream()
+                .map(
+                    p -> new PluginInfo(
+                        p.getName(),
+                        "classpath plugin",
+                        "NA",
+                        Version.CURRENT,
+                        "1.8",
+                        p.getName(),
+                        null,
+                        Collections.emptyList(),
+                        false
+                    )
+                )
+                .collect(Collectors.toList()),
+            null,
+            forbidPrivateIndexSettings()
+        );
         try {
             node.start();
         } catch (NodeValidationException e) {

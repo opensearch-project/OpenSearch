@@ -12,6 +12,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.opensearch.search.internal.SearchContext;
 
@@ -47,7 +48,11 @@ public final class ApproximateScoreQuery extends Query {
             // Default to the original query. This suggests that we were not called from ContextIndexSearcher.
             return originalQuery.rewrite(indexSearcher);
         }
-        return resolvedQuery.rewrite(indexSearcher);
+        Query rewritten = resolvedQuery.rewrite(indexSearcher);
+        if (rewritten != resolvedQuery) {
+            resolvedQuery = rewritten;
+        }
+        return this;
     }
 
     public void setContext(SearchContext context) {
@@ -76,6 +81,15 @@ public final class ApproximateScoreQuery extends Query {
             return false;
         }
         return true;
+    }
+
+    @Override
+    public Weight createWeight(IndexSearcher indexSearcher, ScoreMode scoreMode, float boost) throws IOException {
+        if (resolvedQuery == null) {
+            // Default to the original query.
+            return originalQuery.createWeight(indexSearcher, scoreMode, boost);
+        }
+        return resolvedQuery.createWeight(indexSearcher, scoreMode, boost);
     }
 
     @Override

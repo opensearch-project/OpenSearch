@@ -320,6 +320,17 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * This setting is used to enable fixed interval scheduling capability for refresh tasks to ensure consistent intervals
+     * between refreshes.
+     */
+    public static final Setting<Boolean> CLUSTER_REFRESH_SHARD_LEVEL_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.index.refresh.shard_level.enabled",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * This setting is used to restrict creation or updation of index where the `index.translog.durability` index setting
      * is set as ASYNC if enabled. If disabled, any of the durability mode can be used and switched at any later time from
      * one to another.
@@ -376,6 +387,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
+    private final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories;
     private final Map<String, IngestionConsumerFactory> ingestionConsumerFactories;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
@@ -393,6 +405,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private volatile TimeValue clusterDefaultRefreshInterval;
     private volatile boolean fixedRefreshIntervalSchedulingEnabled;
+    private volatile boolean shardLevelRefreshEnabled;
     private final SearchRequestStats searchRequestStats;
     private final FileCache fileCache;
     private final CompositeIndexSettings compositeIndexSettings;
@@ -426,6 +439,7 @@ public class IndicesService extends AbstractLifecycleComponent
         MetaStateService metaStateService,
         Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
@@ -490,6 +504,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.engineFactoryProviders = engineFactoryProviders;
 
         this.directoryFactories = directoryFactories;
+        this.compositeDirectoryFactories = compositeDirectoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
         this.ingestionConsumerFactories = ingestionConsumerFactories;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
@@ -553,6 +568,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 CLUSTER_REFRESH_FIXED_INTERVAL_SCHEDULE_ENABLED_SETTING,
                 this::setFixedRefreshIntervalSchedulingEnabled
             );
+        this.shardLevelRefreshEnabled = CLUSTER_REFRESH_SHARD_LEVEL_ENABLED_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CLUSTER_REFRESH_SHARD_LEVEL_ENABLED_SETTING, this::onRefreshLevelChange);
 
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
@@ -618,6 +636,7 @@ public class IndicesService extends AbstractLifecycleComponent
             metaStateService,
             engineFactoryProviders,
             directoryFactories,
+            Collections.emptyMap(),
             valuesSourceRegistry,
             recoveryStateFactories,
             remoteDirectoryFactory,
@@ -1033,6 +1052,7 @@ public class IndicesService extends AbstractLifecycleComponent
             getEngineFactory(idxSettings),
             getEngineConfigFactory(idxSettings),
             directoryFactories,
+            compositeDirectoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
@@ -1067,6 +1087,7 @@ public class IndicesService extends AbstractLifecycleComponent
             translogFactorySupplier,
             this::getClusterDefaultRefreshInterval,
             this::isFixedRefreshIntervalSchedulingEnabled,
+            this::isShardLevelRefreshEnabled,
             this.recoverySettings,
             this.remoteStoreSettings,
             replicator,
@@ -1150,6 +1171,7 @@ public class IndicesService extends AbstractLifecycleComponent
             getEngineFactory(idxSettings),
             getEngineConfigFactory(idxSettings),
             directoryFactories,
+            compositeDirectoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
@@ -2242,5 +2264,23 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private boolean isFixedRefreshIntervalSchedulingEnabled() {
         return fixedRefreshIntervalSchedulingEnabled;
+    }
+
+    private void onRefreshLevelChange(Boolean newShardLevelRefreshVal) {
+        if (this.shardLevelRefreshEnabled != newShardLevelRefreshVal) {
+            boolean prevShardLevelRefreshVal = this.shardLevelRefreshEnabled;
+            this.shardLevelRefreshEnabled = newShardLevelRefreshVal;
+            // The refresh mode has changed from index level to shard level and vice versa
+            logger.info("refresh tasks rescheduled oldVal={} newVal={}", prevShardLevelRefreshVal, newShardLevelRefreshVal);
+            for (Map.Entry<String, IndexService> entry : indices.entrySet()) {
+                IndexService indexService = entry.getValue();
+                indexService.onRefreshLevelChange(newShardLevelRefreshVal);
+            }
+        }
+    }
+
+    // Visible for testing
+    public boolean isShardLevelRefreshEnabled() {
+        return shardLevelRefreshEnabled;
     }
 }

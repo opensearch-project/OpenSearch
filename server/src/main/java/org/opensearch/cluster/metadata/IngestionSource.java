@@ -17,7 +17,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT;
 
 /**
@@ -31,6 +33,8 @@ public class IngestionSource {
     private final Map<String, Object> params;
     private final long maxPollSize;
     private final int pollTimeout;
+    private int numProcessorThreads;
+    private int blockingQueueSize;
 
     private IngestionSource(
         String type,
@@ -38,7 +42,9 @@ public class IngestionSource {
         IngestionErrorStrategy.ErrorStrategy errorStrategy,
         Map<String, Object> params,
         long maxPollSize,
-        int pollTimeout
+        int pollTimeout,
+        int numProcessorThreads,
+        int blockingQueueSize
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
@@ -46,6 +52,8 @@ public class IngestionSource {
         this.errorStrategy = errorStrategy;
         this.maxPollSize = maxPollSize;
         this.pollTimeout = pollTimeout;
+        this.numProcessorThreads = numProcessorThreads;
+        this.blockingQueueSize = blockingQueueSize;
     }
 
     public String getType() {
@@ -72,6 +80,14 @@ public class IngestionSource {
         return pollTimeout;
     }
 
+    public int getNumProcessorThreads() {
+        return numProcessorThreads;
+    }
+
+    public int getBlockingQueueSize() {
+        return blockingQueueSize;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -82,12 +98,23 @@ public class IngestionSource {
             && Objects.equals(errorStrategy, ingestionSource.errorStrategy)
             && Objects.equals(params, ingestionSource.params)
             && Objects.equals(maxPollSize, ingestionSource.maxPollSize)
-            && Objects.equals(pollTimeout, ingestionSource.pollTimeout);
+            && Objects.equals(pollTimeout, ingestionSource.pollTimeout)
+            && Objects.equals(numProcessorThreads, ingestionSource.numProcessorThreads)
+            && Objects.equals(blockingQueueSize, ingestionSource.blockingQueueSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, pointerInitReset, params, errorStrategy, maxPollSize, pollTimeout);
+        return Objects.hash(
+            type,
+            pointerInitReset,
+            params,
+            errorStrategy,
+            maxPollSize,
+            pollTimeout,
+            numProcessorThreads,
+            blockingQueueSize
+        );
     }
 
     @Override
@@ -108,6 +135,10 @@ public class IngestionSource {
             + maxPollSize
             + ", pollTimeout="
             + pollTimeout
+            + ", numProcessorThreads="
+            + numProcessorThreads
+            + ", blockingQueueSize="
+            + blockingQueueSize
             + '}';
     }
 
@@ -163,6 +194,8 @@ public class IngestionSource {
         private Map<String, Object> params;
         private long maxPollSize = INGESTION_SOURCE_MAX_POLL_SIZE.getDefault(Settings.EMPTY);
         private int pollTimeout = INGESTION_SOURCE_POLL_TIMEOUT.getDefault(Settings.EMPTY);
+        private int numProcessorThreads = INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING.getDefault(Settings.EMPTY);
+        private int blockingQueueSize = INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING.getDefault(Settings.EMPTY);
 
         public Builder(String type) {
             this.type = type;
@@ -174,6 +207,7 @@ public class IngestionSource {
             this.pointerInitReset = ingestionSource.pointerInitReset;
             this.errorStrategy = ingestionSource.errorStrategy;
             this.params = ingestionSource.params;
+            this.blockingQueueSize = ingestionSource.blockingQueueSize;
         }
 
         public Builder setPointerInitReset(PointerInitReset pointerInitReset) {
@@ -206,8 +240,27 @@ public class IngestionSource {
             return this;
         }
 
+        public Builder setNumProcessorThreads(int numProcessorThreads) {
+            this.numProcessorThreads = numProcessorThreads;
+            return this;
+        }
+
+        public Builder setBlockingQueueSize(int blockingQueueSize) {
+            this.blockingQueueSize = blockingQueueSize;
+            return this;
+        }
+
         public IngestionSource build() {
-            return new IngestionSource(type, pointerInitReset, errorStrategy, params, maxPollSize, pollTimeout);
+            return new IngestionSource(
+                type,
+                pointerInitReset,
+                errorStrategy,
+                params,
+                maxPollSize,
+                pollTimeout,
+                numProcessorThreads,
+                blockingQueueSize
+            );
         }
 
     }

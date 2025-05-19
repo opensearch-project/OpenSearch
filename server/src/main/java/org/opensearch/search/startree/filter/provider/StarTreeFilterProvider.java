@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -59,7 +60,9 @@ public interface StarTreeFilterProvider {
             TermsQueryBuilder.NAME,
             new TermsStarTreeFilterProvider(),
             RangeQueryBuilder.NAME,
-            new RangeStarTreeFilterProvider()
+            new RangeStarTreeFilterProvider(),
+            BoolQueryBuilder.NAME,
+            new BoolStarTreeFilterProvider()
         );
 
         public static StarTreeFilterProvider getProvider(QueryBuilder query) {
@@ -153,7 +156,5 @@ public interface StarTreeFilterProvider {
                 );
             }
         }
-
     }
-
 }

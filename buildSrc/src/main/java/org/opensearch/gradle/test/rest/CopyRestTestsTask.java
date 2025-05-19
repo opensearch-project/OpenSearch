@@ -54,7 +54,6 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
-import org.gradle.internal.Factory;
 
 import javax.inject.Inject;
 
@@ -83,13 +82,8 @@ public class CopyRestTestsTask extends DefaultTask {
     @Inject
     public CopyRestTestsTask(Project project) {
         this.project = project;
-        this.corePatternSet = getPatternSetFactory().create();
+        this.corePatternSet = new PatternSet();
         this.includeCore = project.getObjects().listProperty(String.class);
-    }
-
-    @Inject
-    protected Factory<PatternSet> getPatternSetFactory() {
-        throw new UnsupportedOperationException();
     }
 
     @Inject

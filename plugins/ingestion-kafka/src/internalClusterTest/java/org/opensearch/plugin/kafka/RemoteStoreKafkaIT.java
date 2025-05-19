@@ -22,6 +22,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Requests;
@@ -135,6 +136,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         // malformed message
         produceData("2", "", "");
         produceData("3", "name3", "25");
+        produceData("{\"_op_type\":\"invalid\",\"_source\":{\"name\":\"name4\", \"age\": 25}}");
+        produceData("5", "name5", "25");
 
         internalCluster().startClusterManagerOnlyNode();
         final String node = internalCluster().startDataOnlyNode();
@@ -147,6 +150,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.type", "kafka")
                 .put("ingestion_source.error_strategy", "block")
                 .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.internal_queue_size", "1000")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("index.replication.type", "SEGMENT")
@@ -164,7 +168,16 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             .setSettings(Settings.builder().put("ingestion_source.error_strategy", "drop"))
             .get();
         waitForState(() -> "drop".equalsIgnoreCase(getSettings(indexName, "index.ingestion_source.error_strategy")));
-        waitForSearchableDocs(2, Arrays.asList(node));
+        resumeIngestion(indexName);
+        waitForSearchableDocs(3, Arrays.asList(node));
+
+        PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(stats);
+        assertThat(stats.getMessageProcessorStats().totalFailedCount(), is(1L));
+        assertThat(stats.getMessageProcessorStats().totalFailuresDroppedCount(), is(1L));
+        assertThat(stats.getConsumerStats().totalConsumerErrorCount(), is(0L));
+        assertThat(stats.getConsumerStats().totalPollerMessageDroppedCount(), is(1L));
     }
 
     public void testPauseAndResumeIngestion() throws Exception {
@@ -185,8 +198,9 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         assertTrue(pauseResponse.isShardsAcknowledged());
         waitForState(() -> {
             GetIngestionStateResponse ingestionState = getIngestionState(indexName);
-            return Arrays.stream(ingestionState.getShardStates())
-                .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+            return ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
         });
 
         // verify ingestion state is persisted
@@ -248,8 +262,8 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         internalCluster().startDataOnlyNode();
-        createIndexWithDefaultSettings("index1", 5, 0);
-        createIndexWithDefaultSettings("index2", 5, 0);
+        createIndexWithDefaultSettings("index1", 5, 0, 1);
+        createIndexWithDefaultSettings("index2", 5, 0, 1);
         ensureGreen("index1");
         ensureGreen("index2");
 
@@ -371,6 +385,13 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             assertThat(rangeQueryResponse.getHits().getTotalHits().value(), is(2L));
             return true;
         });
+
+        // validate processor stats
+        PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(stats);
+        assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(11L));
+        assertThat(stats.getMessageProcessorStats().totalVersionConflictsCount(), is(3L));
     }
 
     public void testExternalVersioningWithDisabledGCDeletes() throws Exception {
@@ -426,6 +447,55 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
             return true;
         });
 
+    }
+
+    public void testClusterWriteBlock() throws Exception {
+        // setup nodes and index
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        createIndexWithDefaultSettings(1, 1);
+        ensureGreen(indexName);
+        waitForSearchableDocs(2, Arrays.asList(nodeA, nodeB));
+
+        // create a write block
+        setWriteBlock(indexName, true);
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isWriteBlockEnabled() && state.pollerState().equalsIgnoreCase("paused"));
+        });
+
+        // verify write block state in poller is persisted
+        produceData("3", "name3", "30");
+        produceData("4", "name4", "31");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+        ensureYellowAndNoInitializingShards(indexName);
+        assertTrue(nodeB.equals(primaryNodeName(indexName)));
+
+        final String nodeC = internalCluster().startDataOnlyNode();
+        client().admin().cluster().prepareReroute().add(new AllocateReplicaAllocationCommand(indexName, 0, nodeC)).get();
+        ensureGreen(indexName);
+        assertTrue(nodeC.equals(replicaNodeName(indexName)));
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return Arrays.stream(ingestionState.getShardStates())
+                .allMatch(state -> state.isWriteBlockEnabled() && state.pollerState().equalsIgnoreCase("paused"));
+        });
+        assertEquals(2, getSearchableDocCount(nodeB));
+
+        // remove write block
+        setWriteBlock(indexName, false);
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates()).allMatch(state -> state.isWriteBlockEnabled() == false);
+        });
+        waitForSearchableDocs(4, Arrays.asList(nodeB, nodeC));
     }
 
     private void verifyRemoteStoreEnabled(String node) {

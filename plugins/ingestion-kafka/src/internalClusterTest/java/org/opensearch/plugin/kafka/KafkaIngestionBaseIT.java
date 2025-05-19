@@ -177,10 +177,10 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
     }
 
     protected void createIndexWithDefaultSettings(int numShards, int numReplicas) {
-        createIndexWithDefaultSettings(indexName, numShards, numReplicas);
+        createIndexWithDefaultSettings(indexName, numShards, numReplicas, 1);
     }
 
-    protected void createIndexWithDefaultSettings(String indexName, int numShards, int numReplicas) {
+    protected void createIndexWithDefaultSettings(String indexName, int numShards, int numReplicas, int numProcessorThreads) {
         createIndex(
             indexName,
             Settings.builder()
@@ -191,6 +191,7 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.num_processor_threads", numProcessorThreads)
                 // set custom kafka consumer properties
                 .put("ingestion_source.param.fetch.min.bytes", 30000)
                 .put("ingestion_source.param.enable.auto.commit", false)
@@ -202,5 +203,13 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
     protected void recreateKafkaTopics(int numKafkaPartitions) {
         cleanup();
         setupKafka(numKafkaPartitions);
+    }
+
+    protected void setWriteBlock(String indexName, boolean isWriteBlockEnabled) {
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.blocks.write", isWriteBlockEnabled))
+            .get();
     }
 }

@@ -41,7 +41,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
 
         if (config.script() == null && config.missing() == null) {
             MappedFieldType fieldType = config.fieldType();
-            if (fieldType instanceof DateFieldMapper.DateFieldType) {
+            if (fieldType != null && fieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
                 if (fieldType.isSearchable()) {
                     this.fieldType = fieldType;
                     return true;
@@ -121,7 +121,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     private DateFieldMapper.DateFieldType getFieldType() {
-        assert fieldType instanceof DateFieldMapper.DateFieldType;
+        assert fieldType != null && fieldType.unwrap() instanceof DateFieldMapper.DateFieldType;
         return (DateFieldMapper.DateFieldType) fieldType;
     }
 

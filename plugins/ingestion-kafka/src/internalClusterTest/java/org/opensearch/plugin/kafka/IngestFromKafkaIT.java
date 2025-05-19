@@ -138,7 +138,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         client().admin().indices().close(Requests.closeIndexRequest(indexName)).get();
     }
 
-    public void testUpdateAndDelete() throws Exception {
+    public void testMessageOperationTypes() throws Exception {
         // Step 1: Produce message and wait for it to be searchable
 
         produceData("1", "name", "25", defaultMessageTimestamp, "index");
@@ -167,6 +167,15 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
             SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             return response.getHits().getTotalHits().value() == 0;
+        });
+
+        // Step 4: Validate create operation
+        produceData("2", "name", "30", defaultMessageTimestamp, "create");
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "2"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 30 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
         });
     }
 
@@ -198,6 +207,33 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(1L));
             return 30 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
+        });
+    }
+
+    public void testMultiThreadedWrites() throws Exception {
+        // create index with 5 writer threads
+        createIndexWithDefaultSettings(indexName, 1, 0, 5);
+        ensureGreen(indexName);
+
+        // Step 1: Produce messages
+        for (int i = 0; i < 1000; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        waitForState(() -> {
+            SearchResponse searchableDocsResponse = client().prepareSearch(indexName).setSize(2000).setPreference("_only_local").get();
+            return searchableDocsResponse.getHits().getTotalHits().value() == 1000;
+        });
+
+        // Step 2: Produce an update message and validate
+        for (int i = 0; i < 1000; i++) {
+            produceData(Integer.toString(i), "name" + i, "30");
+        }
+
+        waitForState(() -> {
+            RangeQueryBuilder query = new RangeQueryBuilder("age").gte(28);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            return response.getHits().getTotalHits().value() == 1000;
         });
     }
 }

@@ -103,7 +103,7 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         if (mappedFieldType == null) {
             throw new MapperException("prefilter_field[" + derivedField.getPrefilterField() + "] is not defined in the index mappings");
         }
-        if (!(mappedFieldType instanceof TextFieldMapper.TextFieldType)) {
+        if (!(mappedFieldType.unwrap() instanceof TextFieldMapper.TextFieldType)) {
             throw new MapperException(
                 "prefilter_field["
                     + derivedField.getPrefilterField()
@@ -477,7 +477,7 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
 
     @Override
     public Query existsQuery(QueryShardContext context) {
-        throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support exist queries");
+        throw new UnsupportedOperationException("Field [" + name() + "] of type [" + typeName() + "] does not support exist queries");
     }
 
     @Override
