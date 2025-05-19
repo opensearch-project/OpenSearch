@@ -39,7 +39,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.TimingProfileResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,13 +61,13 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     public static final String REWRITE_TIME = "rewrite_time";
     public static final String QUERY_ARRAY = "query";
 
-    private final List<ProfileResult> queryProfileResults;
+    private final List<TimingProfileResult> queryProfileResults;
 
     private final CollectorResult profileCollector;
 
     private final long rewriteTime;
 
-    public QueryProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime, CollectorResult profileCollector) {
+    public QueryProfileShardResult(List<TimingProfileResult> queryProfileResults, long rewriteTime, CollectorResult profileCollector) {
         assert (profileCollector != null);
         this.queryProfileResults = queryProfileResults;
         this.profileCollector = profileCollector;
@@ -81,7 +81,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         int profileSize = in.readVInt();
         queryProfileResults = new ArrayList<>(profileSize);
         for (int j = 0; j < profileSize; j++) {
-            queryProfileResults.add(new ProfileResult(in));
+            queryProfileResults.add(new TimingProfileResult(in));
         }
 
         profileCollector = new CollectorResult(in);
@@ -91,14 +91,14 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(queryProfileResults.size());
-        for (ProfileResult p : queryProfileResults) {
+        for (TimingProfileResult p : queryProfileResults) {
             p.writeTo(out);
         }
         profileCollector.writeTo(out);
         out.writeLong(rewriteTime);
     }
 
-    public List<ProfileResult> getQueryResults() {
+    public List<TimingProfileResult> getQueryResults() {
         return Collections.unmodifiableList(queryProfileResults);
     }
 
@@ -114,7 +114,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray(QUERY_ARRAY);
-        for (ProfileResult p : queryProfileResults) {
+        for (TimingProfileResult p : queryProfileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();
@@ -130,7 +130,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         String currentFieldName = null;
-        List<ProfileResult> queryProfileResults = new ArrayList<>();
+        List<TimingProfileResult> queryProfileResults = new ArrayList<>();
         long rewriteTime = 0;
         CollectorResult collector = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -145,7 +145,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (QUERY_ARRAY.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        queryProfileResults.add(ProfileResult.fromXContent(parser));
+                        queryProfileResults.add(TimingProfileResult.fromXContent(parser));
                     }
                 } else if (COLLECTOR.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

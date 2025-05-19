@@ -32,18 +32,32 @@
 
 package org.opensearch.search.profile.query;
 
-import org.opensearch.search.profile.ContextualProfileBreakdown;
-import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
+import org.opensearch.search.profile.TimingProfileResult;
+
+import java.util.List;
 
 /**
- * This class returns a list of {@link ProfileResult} that can be serialized back to the client in the non-concurrent execution.
+ * This class returns a list of {@link TimingProfileResult} that can be serialized back to the client in the non-concurrent execution.
  *
  * @opensearch.internal
  */
 public class InternalQueryProfileTree extends AbstractQueryProfileTree {
 
     @Override
-    protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new QueryProfileBreakdown();
+    protected AbstractTimingProfileBreakdown<QueryTimingType> createProfileBreakdown() {
+        return new QueryTimingProfileBreakdown();
+    }
+
+    @Override
+    protected TimingProfileResult createProfileResult(String type, String description, AbstractTimingProfileBreakdown<QueryTimingType> breakdown, List<TimingProfileResult> childrenProfileResults) {
+        return new TimingProfileResult(
+            type,
+            description,
+            breakdown.toBreakdownMap(),
+            breakdown.toDebugMap(),
+            breakdown.toNodeTime(),
+            childrenProfileResults
+        );
     }
 }

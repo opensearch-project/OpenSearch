@@ -35,6 +35,7 @@ package org.opensearch.search.profile.aggregation;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.profile.AbstractProfiler;
+import org.opensearch.search.profile.TimingProfileResult;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -45,9 +46,9 @@ import java.util.Map;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class AggregationProfiler extends AbstractProfiler<AggregationProfileBreakdown, Aggregator> {
+public class AggregationProfiler extends AbstractProfiler<AggregationTimingProfileBreakdown, AggregationTimingType, Aggregator, TimingProfileResult> {
 
-    private final Map<Aggregator, AggregationProfileBreakdown> profileBreakdownLookup = new HashMap<>();
+    private final Map<Aggregator, AggregationTimingProfileBreakdown> profileBreakdownLookup = new HashMap<>();
 
     public AggregationProfiler() {
         super(new InternalAggregationProfileTree());
@@ -55,13 +56,13 @@ public class AggregationProfiler extends AbstractProfiler<AggregationProfileBrea
 
     /**
      * This method does not need to be thread safe for concurrent search use case as well.
-     * The {@link AggregationProfileBreakdown} for each Aggregation operator is created in sync path when
+     * The {@link AggregationTimingProfileBreakdown} for each Aggregation operator is created in sync path when
      * {@link org.opensearch.search.aggregations.BucketCollector#preCollection()} is called
      * on the Aggregation collector instances during construction.
      */
     @Override
-    public AggregationProfileBreakdown getQueryBreakdown(Aggregator agg) {
-        AggregationProfileBreakdown aggregationProfileBreakdown = profileBreakdownLookup.get(agg);
+    public AggregationTimingProfileBreakdown getQueryBreakdown(Aggregator agg) {
+        AggregationTimingProfileBreakdown aggregationProfileBreakdown = profileBreakdownLookup.get(agg);
         if (aggregationProfileBreakdown == null) {
             aggregationProfileBreakdown = super.getQueryBreakdown(agg);
             profileBreakdownLookup.put(agg, aggregationProfileBreakdown);

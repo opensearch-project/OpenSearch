@@ -55,7 +55,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContent
 
 public class ProfileResultTests extends OpenSearchTestCase {
 
-    public static ProfileResult createTestItem(int depth, boolean concurrentSegmentSearchEnabled) {
+    public static TimingProfileResult createTestItem(int depth, boolean concurrentSegmentSearchEnabled) {
         String type = randomAlphaOfLengthBetween(5, 10);
         String description = randomAlphaOfLengthBetween(5, 10);
         int breakdownsSize = randomIntBetween(0, 5);
@@ -74,12 +74,12 @@ public class ProfileResultTests extends OpenSearchTestCase {
             debug.put(randomAlphaOfLength(5), randomAlphaOfLength(4));
         }
         int childrenSize = depth > 0 ? randomIntBetween(0, 1) : 0;
-        List<ProfileResult> children = new ArrayList<>(childrenSize);
+        List<TimingProfileResult> children = new ArrayList<>(childrenSize);
         for (int i = 0; i < childrenSize; i++) {
             children.add(createTestItem(depth - 1, concurrentSegmentSearchEnabled));
         }
         if (concurrentSegmentSearchEnabled) {
-            return new ProfileResult(
+            return new TimingProfileResult(
                 type,
                 description,
                 breakdown,
@@ -91,7 +91,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
                 randomNonNegativeLong()
             );
         } else {
-            return new ProfileResult(type, description, breakdown, debug, randomNonNegativeLong(), children);
+            return new TimingProfileResult(type, description, breakdown, debug, randomNonNegativeLong(), children);
         }
     }
 
@@ -110,23 +110,23 @@ public class ProfileResultTests extends OpenSearchTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields, boolean concurrentSegmentSearchEnabled) throws IOException {
-        ProfileResult profileResult = createTestItem(2, concurrentSegmentSearchEnabled);
+        TimingProfileResult profileResult = createTestItem(2, concurrentSegmentSearchEnabled);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(profileResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         BytesReference mutated;
         if (addRandomFields) {
             // "breakdown" and "debug" just consists of key/value pairs, we shouldn't add anything random there
-            Predicate<String> excludeFilter = (s) -> s.endsWith(ProfileResult.BREAKDOWN.getPreferredName())
-                || s.endsWith(ProfileResult.DEBUG.getPreferredName());
+            Predicate<String> excludeFilter = (s) -> s.endsWith(TimingProfileResult.BREAKDOWN.getPreferredName())
+                || s.endsWith(TimingProfileResult.DEBUG.getPreferredName());
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {
             mutated = originalBytes;
         }
-        ProfileResult parsed;
+        TimingProfileResult parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            parsed = ProfileResult.fromXContent(parser);
+            parsed = TimingProfileResult.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -138,16 +138,16 @@ public class ProfileResultTests extends OpenSearchTestCase {
     }
 
     public void testToXContent() throws IOException {
-        List<ProfileResult> children = new ArrayList<>();
-        children.add(new ProfileResult("child1", "desc1", Map.of("key1", 100L), Map.of(), 100L, List.of()));
-        children.add(new ProfileResult("child2", "desc2", Map.of("key1", 123356L), Map.of(), 123356L, List.of()));
+        List<TimingProfileResult> children = new ArrayList<>();
+        children.add(new TimingProfileResult("child1", "desc1", Map.of("key1", 100L), Map.of(), 100L, List.of()));
+        children.add(new TimingProfileResult("child2", "desc2", Map.of("key1", 123356L), Map.of(), 123356L, List.of()));
         Map<String, Long> breakdown = new LinkedHashMap<>();
         breakdown.put("key1", 123456L);
         breakdown.put("stuff", 10000L);
         Map<String, Object> debug = new LinkedHashMap<>();
         debug.put("a", "foo");
         debug.put("b", "bar");
-        ProfileResult result = new ProfileResult("someType", "some description", breakdown, debug, 223456L, children);
+        TimingProfileResult result = new TimingProfileResult("someType", "some description", breakdown, debug, 223456L, children);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
@@ -225,7 +225,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
             builder.toString()
         );
 
-        result = new ProfileResult("profileName", "some description", Map.of("key1", 12345678L), Map.of(), 12345678L, List.of());
+        result = new TimingProfileResult("profileName", "some description", Map.of("key1", 12345678L), Map.of(), 12345678L, List.of());
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
@@ -241,7 +241,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
             builder.toString()
         );
 
-        result = new ProfileResult("profileName", "some description", Map.of("key1", 1234567890L), Map.of(), 1234567890L, List.of());
+        result = new TimingProfileResult("profileName", "some description", Map.of("key1", 1234567890L), Map.of(), 1234567890L, List.of());
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
@@ -257,7 +257,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
             builder.toString()
         );
 
-        result = new ProfileResult("profileName", "some description", Map.of("key1", 1234L), Map.of(), 1234L, List.of(), 321L, 123L, 222L);
+        result = new TimingProfileResult("profileName", "some description", Map.of("key1", 1234L), Map.of(), 1234L, List.of(), 321L, 123L, 222L);
         builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
@@ -275,7 +275,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
             builder.toString()
         );
 
-        result = new ProfileResult(
+        result = new TimingProfileResult(
             "profileName",
             "some description",
             Map.of("key1", 1234567890L),
@@ -319,7 +319,7 @@ public class ProfileResultTests extends OpenSearchTestCase {
         assertEquals(123456L, (long) modifiedBreakdown.get("initialize_start_time"));
         assertEquals(1L, (long) modifiedBreakdown.get("initialize_count"));
         assertEquals(654321L, (long) modifiedBreakdown.get("initialize"));
-        ProfileResult.removeStartTimeFields(modifiedBreakdown);
+        TimingProfileResult.removeStartTimeFields(modifiedBreakdown);
         assertFalse(modifiedBreakdown.containsKey("initialize_start_time"));
         assertTrue(modifiedBreakdown.containsKey("initialize_count"));
         assertTrue(modifiedBreakdown.containsKey("initialize"));

@@ -84,7 +84,7 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         Query query = new MatchAllDocsQuery();
         Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
-        QueryProfileBreakdown profile = new QueryProfileBreakdown();
+        QueryTimingProfileBreakdown profile = new QueryTimingProfileBreakdown();
         ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
         profileScorer.setMinCompetitiveScore(0.42f);
         assertEquals(0.42f, fakeScorer.minCompetitiveScore, 0f);
@@ -94,7 +94,7 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         Query query = new MatchAllDocsQuery();
         Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
-        QueryProfileBreakdown profile = new QueryProfileBreakdown();
+        QueryTimingProfileBreakdown profile = new QueryTimingProfileBreakdown();
         ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
         profileScorer.setMinCompetitiveScore(0.42f);
         fakeScorer.maxScore = 42f;

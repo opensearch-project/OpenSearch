@@ -32,7 +32,7 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.search.profile.query.QueryProfileBreakdown;
+import org.opensearch.search.profile.query.QueryTimingProfileBreakdown;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<?>, E> {
+public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<T>, T extends Enum<T>, E, R extends AbstractProfileResult<R>> {
 
     protected ArrayList<PB> breakdowns;
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
@@ -67,7 +67,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
     }
 
     /**
-     * Returns a {@link QueryProfileBreakdown} for a scoring query.  Scoring queries (e.g. those
+     * Returns a {@link QueryTimingProfileBreakdown} for a scoring query.  Scoring queries (e.g. those
      * that are past the rewrite phase and are now being wrapped by createWeight() ) follow
      * a recursive progression.  We can track the dependency tree by a simple stack
      * <p>
@@ -149,8 +149,8 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      *
      * @return a hierarchical representation of the profiled query tree
      */
-    public List<ProfileResult> getTree() {
-        ArrayList<ProfileResult> results = new ArrayList<>(roots.size());
+    public List<R> getTree() {
+        ArrayList<R> results = new ArrayList<>(roots.size());
         for (Integer root : roots) {
             results.add(doGetTree(root));
         }
@@ -162,16 +162,16 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      * @param token  The node we are currently finalizing
      * @return       A hierarchical representation of the tree inclusive of children at this level
      */
-    private ProfileResult doGetTree(int token) {
+    private R doGetTree(int token) {
         E element = elements.get(token);
         PB breakdown = breakdowns.get(token);
         List<Integer> children = tree.get(token);
-        List<ProfileResult> childrenProfileResults = Collections.emptyList();
+        List<R> childrenProfileResults = Collections.emptyList();
 
         if (children != null) {
             childrenProfileResults = new ArrayList<>(children.size());
             for (Integer child : children) {
-                ProfileResult childNode = doGetTree(child);
+                R childNode = doGetTree(child);
                 childrenProfileResults.add(childNode);
             }
         }
@@ -183,16 +183,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         return createProfileResult(type, description, breakdown, childrenProfileResults);
     }
 
-    protected ProfileResult createProfileResult(String type, String description, PB breakdown, List<ProfileResult> childrenProfileResults) {
-        return new ProfileResult(
-            type,
-            description,
-            breakdown.toBreakdownMap(),
-            breakdown.toDebugMap(),
-            breakdown.toNodeTime(),
-            childrenProfileResults
-        );
-    }
+    protected abstract R createProfileResult(String type, String description, PB breakdown, List<R> childrenProfileResults);
 
     protected abstract String getTypeFromElement(E element);
 

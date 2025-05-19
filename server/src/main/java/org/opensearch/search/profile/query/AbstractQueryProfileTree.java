@@ -10,17 +10,17 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.AbstractInternalProfileTree;
-import org.opensearch.search.profile.ContextualProfileBreakdown;
-import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
+import org.opensearch.search.profile.TimingProfileResult;
 
 /**
  * This class tracks the dependency tree for queries (scoring and rewriting) and
- * generates {@link QueryProfileBreakdown} for each node in the tree.  It also finalizes the tree
- * and returns a list of {@link ProfileResult} that can be serialized back to the client
+ * generates {@link QueryTimingProfileBreakdown} for each node in the tree.  It also finalizes the tree
+ * and returns a list of {@link TimingProfileResult} that can be serialized back to the client
  *
  * @opensearch.internal
  */
-public abstract class AbstractQueryProfileTree extends AbstractInternalProfileTree<ContextualProfileBreakdown<QueryTimingType>, Query> {
+public abstract class AbstractQueryProfileTree extends AbstractInternalProfileTree<AbstractTimingProfileBreakdown<QueryTimingType>, QueryTimingType, Query, TimingProfileResult> {
 
     /** Rewrite time */
     private long rewriteTime;

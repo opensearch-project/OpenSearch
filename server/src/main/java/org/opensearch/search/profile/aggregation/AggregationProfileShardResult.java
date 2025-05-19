@@ -39,7 +39,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.TimingProfileResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,9 +58,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 public final class AggregationProfileShardResult implements Writeable, ToXContentFragment {
 
     public static final String AGGREGATIONS = "aggregations";
-    private final List<ProfileResult> aggProfileResults;
+    private final List<TimingProfileResult> aggProfileResults;
 
-    public AggregationProfileShardResult(List<ProfileResult> aggProfileResults) {
+    public AggregationProfileShardResult(List<TimingProfileResult> aggProfileResults) {
         this.aggProfileResults = aggProfileResults;
     }
 
@@ -71,26 +71,26 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
         int profileSize = in.readVInt();
         aggProfileResults = new ArrayList<>(profileSize);
         for (int j = 0; j < profileSize; j++) {
-            aggProfileResults.add(new ProfileResult(in));
+            aggProfileResults.add(new TimingProfileResult(in));
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(aggProfileResults.size());
-        for (ProfileResult p : aggProfileResults) {
+        for (TimingProfileResult p : aggProfileResults) {
             p.writeTo(out);
         }
     }
 
-    public List<ProfileResult> getProfileResults() {
+    public List<TimingProfileResult> getProfileResults() {
         return Collections.unmodifiableList(aggProfileResults);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(AGGREGATIONS);
-        for (ProfileResult p : aggProfileResults) {
+        for (TimingProfileResult p : aggProfileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();
@@ -100,9 +100,9 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
     public static AggregationProfileShardResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
-        List<ProfileResult> aggProfileResults = new ArrayList<>();
+        List<TimingProfileResult> aggProfileResults = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            aggProfileResults.add(ProfileResult.fromXContent(parser));
+            aggProfileResults.add(TimingProfileResult.fromXContent(parser));
         }
         return new AggregationProfileShardResult(aggProfileResults);
     }

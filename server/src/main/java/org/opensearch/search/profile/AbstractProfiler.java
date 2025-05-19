@@ -39,11 +39,11 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class AbstractProfiler<PB extends AbstractProfileBreakdown<?>, E> {
+public abstract class AbstractProfiler<PB extends AbstractProfileBreakdown<T>, T extends Enum<T>, E, R extends AbstractProfileResult<R>> {
 
-    protected final AbstractInternalProfileTree<PB, E> profileTree;
+    protected final AbstractInternalProfileTree<PB, T, E, R> profileTree;
 
-    public AbstractProfiler(AbstractInternalProfileTree<PB, E> profileTree) {
+    public AbstractProfiler(AbstractInternalProfileTree<PB, T, E, R> profileTree) {
         this.profileTree = profileTree;
     }
 
@@ -65,7 +65,7 @@ public class AbstractProfiler<PB extends AbstractProfileBreakdown<?>, E> {
     /**
      * @return a hierarchical representation of the profiled tree
      */
-    public List<ProfileResult> getTree() {
+    public List<R> getTree() {
         return profileTree.getTree();
     }
 

@@ -38,8 +38,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParserUtils;
-import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileResultTests;
+import org.opensearch.search.profile.TimingProfileResult;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ public class AggregationProfileShardResultTests extends OpenSearchTestCase {
 
     public static AggregationProfileShardResult createTestItem(int depth) {
         int size = randomIntBetween(0, 5);
-        List<ProfileResult> aggProfileResults = new ArrayList<>(size);
+        List<TimingProfileResult> aggProfileResults = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             aggProfileResults.add(ProfileResultTests.createTestItem(depth, false));
         }
@@ -82,14 +82,14 @@ public class AggregationProfileShardResultTests extends OpenSearchTestCase {
     }
 
     public void testToXContent() throws IOException {
-        List<ProfileResult> profileResults = new ArrayList<>();
+        List<TimingProfileResult> profileResults = new ArrayList<>();
         Map<String, Long> breakdown = new LinkedHashMap<>();
         breakdown.put("timing1", 2000L);
         breakdown.put("timing2", 4000L);
         Map<String, Object> debug = new LinkedHashMap<>();
         debug.put("stuff", "stuff");
         debug.put("other_stuff", List.of("foo", "bar"));
-        ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, debug, 6000L, Collections.emptyList());
+        TimingProfileResult profileResult = new TimingProfileResult("someType", "someDescription", breakdown, debug, 6000L, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
         BytesReference xContent = toXContent(aggProfileResults, MediaTypeRegistry.JSON, false);

@@ -35,7 +35,8 @@ package org.opensearch.search.profile.query;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.profile.AbstractProfiler;
-import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
+import org.opensearch.search.profile.TimingProfileResult;
 
 import java.util.Objects;
 
@@ -53,7 +54,7 @@ import java.util.Objects;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown<QueryTimingType>, Query> {
+public class QueryProfiler extends AbstractProfiler<AbstractTimingProfileBreakdown<QueryTimingType>, QueryTimingType, Query, TimingProfileResult> {
 
     /**
      * The root Collector used in the search
