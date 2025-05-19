@@ -278,6 +278,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,
 
+                // Settings for Auto Force Merge
+                IndexSettings.INDEX_AUTO_FORCE_MERGES_ENABLED,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();
