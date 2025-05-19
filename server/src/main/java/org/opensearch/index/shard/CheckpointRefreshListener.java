@@ -39,7 +39,7 @@ public class CheckpointRefreshListener extends ReleasableRetryableRefreshListene
     }
 
     @Override
-    protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+    protected boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint) {
         if (didRefresh
             && shard.state() == IndexShardState.STARTED
             && shard.getReplicationTracker().isPrimaryMode()
@@ -52,5 +52,10 @@ public class CheckpointRefreshListener extends ReleasableRetryableRefreshListene
     @Override
     protected Logger getLogger() {
         return logger;
+    }
+
+    @Override
+    protected IndexShard getIndexShard() {
+        return shard;
     }
 }

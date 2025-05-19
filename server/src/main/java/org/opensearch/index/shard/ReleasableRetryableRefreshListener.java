@@ -14,6 +14,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -31,6 +32,27 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class ReleasableRetryableRefreshListener implements ReferenceManager.RefreshListener {
 
     /**
+     * Holds checkpoint information for refresh operations
+     */
+    public static class RefreshCheckpoint {
+        private final long lastRefreshedCheckpoint;
+        private final long ongoingRefreshCheckpoint;
+
+        public RefreshCheckpoint(long lastRefreshed, long ongoing) {
+            this.lastRefreshedCheckpoint = lastRefreshed;
+            this.ongoingRefreshCheckpoint = ongoing;
+        }
+
+        public long getLastRefreshedCheckpoint() {
+            return lastRefreshedCheckpoint;
+        }
+
+        public long getOngoingRefreshCheckpoint() {
+            return ongoingRefreshCheckpoint;
+        }
+    }
+
+    /**
      * Total permits = 1 ensures that there is only single instance of runAfterRefreshWithPermit that is running at a time.
      * In case there are use cases where concurrency is required, the total permit variable can be put inside the ctor.
      */
@@ -40,7 +62,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    private final Semaphore semaphore = new Semaphore(TOTAL_PERMITS);
+    protected final Semaphore semaphore = new Semaphore(TOTAL_PERMITS);
 
     private final ThreadPool threadPool;
 
@@ -48,6 +70,8 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
      * This boolean is used to ensure that there is only 1 retry scheduled/running at any time.
      */
     private final AtomicBoolean retryScheduled = new AtomicBoolean(false);
+
+    private final AtomicBoolean pendingRefresh = new AtomicBoolean(false);
 
     public ReleasableRetryableRefreshListener() {
         this.threadPool = null;
@@ -64,7 +88,25 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
             return;
         }
         runAfterRefreshExactlyOnce(didRefresh);
-        runAfterRefreshWithPermit(didRefresh, () -> {});
+        RefreshCheckpoint checkpoint = createRefreshCheckpoint();
+        runAfterRefreshWithPermissionHelper(didRefresh, checkpoint);
+    }
+
+    public final void runAfterRefreshWithPermissionHelper(boolean didRefresh, RefreshCheckpoint checkpoint) throws IOException {
+        if (isClosed()) {
+            return;
+        }
+
+        // Check if we should run asynchronously for critical operations
+        if (shouldRunAsync()) {
+            getLogger().debug("Using asynchronous processing for critical operation");
+            getIndexShard().getThreadPool().executor(getRemoteRefreshThreadPoolName()).execute(() -> {
+                runAfterRefreshWithPermit(didRefresh, checkpoint, () -> {});
+            });
+        } else {
+            getLogger().debug("Using synchronous processing");
+            runAfterRefreshWithPermit(didRefresh, checkpoint, () -> {});
+        }
     }
 
     /**
@@ -123,11 +165,10 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
 
         boolean scheduled = false;
         try {
-            this.threadPool.schedule(
-                () -> runAfterRefreshWithPermit(didRefresh, () -> retryScheduled.set(false)),
-                interval,
-                retryThreadPoolName
-            );
+            this.threadPool.schedule(() -> {
+                RefreshCheckpoint retryCheckpoint = createRefreshCheckpoint();
+                runAfterRefreshWithPermit(didRefresh, retryCheckpoint, () -> retryScheduled.set(false));
+            }, interval, retryThreadPoolName);
             scheduled = true;
             getLogger().info("Scheduled retry with didRefresh={}", didRefresh);
         } catch (OpenSearchRejectedExecutionException e) {
@@ -157,20 +198,26 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
      * The synchronised block ensures that if there is a retry or afterRefresh waiting, then it waits until the previous
      * execution finishes.
      */
-    private synchronized void runAfterRefreshWithPermit(boolean didRefresh, Runnable runFinally) {
+    private synchronized void runAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint, Runnable runFinally) {
         if (closed.get()) {
             return;
         }
-        boolean successful;
-        boolean permitAcquired = semaphore.tryAcquire();
+        if (!semaphore.tryAcquire()) {
+            pendingRefresh.set(true);
+            return;
+        }
+        boolean successful = false;
         try {
-            successful = permitAcquired && performAfterRefreshWithPermit(didRefresh);
+            do {
+                pendingRefresh.set(false);
+                successful = performAfterRefreshWithPermit(didRefresh, checkpoint);
+            } while (pendingRefresh.compareAndSet(true, false));
+
         } finally {
-            if (permitAcquired) {
-                semaphore.release();
-            }
+            semaphore.release();
             runFinally.run();
         }
+
         scheduleRetry(successful, didRefresh);
     }
 
@@ -180,7 +227,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
      * @param afterRefreshSuccessful is sent true if the performAfterRefresh(..) is successful.
      * @param didRefresh             if the refresh did open a new reference then didRefresh will be true
      */
-    private void scheduleRetry(boolean afterRefreshSuccessful, boolean didRefresh) {
+    protected void scheduleRetry(boolean afterRefreshSuccessful, boolean didRefresh) {
         if (afterRefreshSuccessful == false) {
             scheduleRetry(getNextRetryInterval(), getRetryThreadPoolName(), didRefresh);
         }
@@ -190,9 +237,10 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
      * This method needs to be overridden and be provided with what needs to be run on after refresh with permits.
      *
      * @param didRefresh true if the refresh opened a new reference
+     * @param checkpoint the refresh checkpoint containing lastRefreshed and ongoing refresh checkpoint values
      * @return true if a retry is needed else false.
      */
-    protected abstract boolean performAfterRefreshWithPermit(boolean didRefresh);
+    protected abstract boolean performAfterRefreshWithPermit(boolean didRefresh, RefreshCheckpoint checkpoint);
 
     public final Releasable drainRefreshes() {
         try {
@@ -214,6 +262,48 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
         } catch (InterruptedException | TimeoutException e) {
             throw new RuntimeException("Failed to acquire all permits", e);
         }
+    }
+
+    /**
+     * Creates a RefreshCheckpoint from the current IndexShard engine state.
+     * @return RefreshCheckpoint containing current checkpoint values
+     */
+    protected RefreshCheckpoint createRefreshCheckpoint() {
+        // Compute the lastRefreshedCheckpoint and store for later use
+        final long capturedCheckpoint;
+        final long capturedOngoingRefreshCheckpoint;
+        if (getIndexShard().getEngine() instanceof InternalEngine) {
+            capturedCheckpoint = ((InternalEngine) getIndexShard().getEngine()).lastRefreshedCheckpoint();
+            capturedOngoingRefreshCheckpoint = ((InternalEngine) getIndexShard().getEngine()).currentOngoingRefreshCheckpoint();
+        } else {
+            capturedCheckpoint = -1;
+            capturedOngoingRefreshCheckpoint = -1;
+        }
+
+        return new RefreshCheckpoint(capturedCheckpoint, capturedOngoingRefreshCheckpoint);
+    }
+
+    /**
+     * Returns whether async execution should be used for critical operations.
+     * By default returns false (synchronous execution).
+     * @return true if async execution should be used, false otherwise
+     */
+    protected boolean shouldRunAsync() {
+        return false;
+    }
+
+    /**
+     * Returns the IndexShard instance.
+     * @return the IndexShard instance
+     */
+    protected abstract IndexShard getIndexShard();
+
+    /**
+     * Returns the thread pool name to use for remote refresh operations.
+     * @return thread pool name for remote refresh
+     */
+    private String getRemoteRefreshThreadPoolName() {
+        return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
     }
 
     protected abstract Logger getLogger();
