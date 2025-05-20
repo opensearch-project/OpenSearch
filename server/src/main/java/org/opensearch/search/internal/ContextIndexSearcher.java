@@ -585,19 +585,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // Only applied on primary sort field and primary search_after.
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
             if (primarySortField != null) {
-                FieldStats stats = FieldSortBuilder.getFieldStatsForSegment(
+                final FieldStats fieldStats = FieldSortBuilder.getFieldStatsOrNullForSegment(
                     this.searchContext.getQueryShardContext(),
                     ctx,
                     primarySortField,
                     searchContext.sort()
                 );
-                assert stats != null;
                 return SearchService.canMatchSearchAfter(
                     searchContext.searchAfter(),
-                    stats.getMinAndMax(),
+                    fieldStats,
                     searchContext.sort(),
                     searchContext.trackTotalHitsUpTo(),
-                    stats.allDocsNonMissing()
+                    FieldSortBuilder.isSingleSort(searchContext.request().source())
                 );
             }
         }

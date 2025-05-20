@@ -39,6 +39,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.bulk.BulkRequestBuilder;
@@ -58,7 +59,6 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Setting;
@@ -119,6 +119,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.sort.FieldStats;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilders;
@@ -1188,52 +1189,34 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     private Number randomNumber(NumberFieldMapper.NumberType type) {
-        switch (type) {
-            case BYTE:
-                return randomByte();
-            case SHORT:
-                return randomShort();
-            case INTEGER:
-                return randomInt(10000);
-            case LONG:
-                return randomLongBetween(0L, 10000L);
-            case DOUBLE:
-                return randomDoubleBetween(0, 10000, false);
-            case FLOAT:
-            case HALF_FLOAT:
-                return (float) randomDoubleBetween(0, 10000, false);
-            case UNSIGNED_LONG:
+        return switch (type) {
+            case BYTE -> randomByte();
+            case SHORT -> randomShort();
+            case INTEGER -> randomInt(10000);
+            case LONG -> randomLongBetween(0L, 10000L);
+            case DOUBLE -> randomDoubleBetween(0, 10000, false);
+            case FLOAT, HALF_FLOAT -> (float) randomDoubleBetween(0, 10000, false);
+            case UNSIGNED_LONG -> {
                 BigInteger ul = randomUnsignedLong();
                 while (ul.compareTo(Numbers.MIN_UNSIGNED_LONG_VALUE) == 0 || ul.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) == 0) {
                     ul = randomUnsignedLong();
                 }
-                return ul;
-            default:
-                throw new AssertionError();
-        }
+                yield ul;
+            }
+        };
     }
 
-    private Number incDecNumber(Number number, NumberFieldMapper.NumberType type, boolean inc) {
-        switch (type) {
-            case BYTE:
-            case SHORT:
-            case INTEGER:
-                return number.intValue() + (inc ? 1 : -1);
-            case LONG:
-                return number.longValue() + (inc ? 1 : -1);
-            case DOUBLE:
-                return number.doubleValue() + (inc ? 1 : -1);
-            case FLOAT:
-            case HALF_FLOAT:
-                return number.floatValue() + (inc ? 1 : -1);
-            case UNSIGNED_LONG:
-                return ((BigInteger) number).add(inc ? BigInteger.valueOf(1) : BigInteger.valueOf(-1));
-            default:
-                throw new AssertionError();
-        }
+    private Number incOrDecNumber(Number number, NumberFieldMapper.NumberType type, boolean inc) {
+        return switch (type) {
+            case BYTE, SHORT, INTEGER -> number.intValue() + (inc ? 1 : -1);
+            case LONG -> number.longValue() + (inc ? 1 : -1);
+            case DOUBLE -> number.doubleValue() + (inc ? 1 : -1);
+            case FLOAT, HALF_FLOAT -> number.floatValue() + (inc ? 1 : -1);
+            case UNSIGNED_LONG -> ((BigInteger) number).add(inc ? BigInteger.valueOf(1) : BigInteger.valueOf(-1));
+        };
     }
 
-    private void canMatchSearchAfterNumericTestCase(NumberFieldMapper.NumberType type) throws Exception {
+    private void canMatchSearchAfterForOneNumericType(NumberFieldMapper.NumberType type) throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -1245,17 +1228,22 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject()
             .endObject();
-        IndexService indexService = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        IndexService indexService = createIndex(
+            "test",
+            Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build(),
+            MapperService.SINGLE_MAPPING_NAME,
+            mapping
+        );
         ensureGreen();
 
-        final boolean allDocsNonMissing = randomBoolean();
+        final boolean allDocsHaveValue = randomBoolean();
         final BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         final int numDocs = randomIntBetween(10, 20);
-        final Number[] nums1 = new Number[allDocsNonMissing ? numDocs : numDocs - 1];
+        final Number[] nums1 = new Number[allDocsHaveValue ? numDocs : numDocs - 1];
         final Number[] nums2 = new Number[numDocs];
         for (int i = 0; i < numDocs; i++) {
             String source;
-            if (i < numDocs - 1 || allDocsNonMissing) {
+            if (i < numDocs - 1 || allDocsHaveValue) {
                 nums1[i] = randomNumber(type);
                 nums2[i] = randomNumber(type);
                 source = String.format(Locale.ROOT, "{\"num1\": %s, \"num2\": %s}", nums1[i].toString(), nums2[i].toString());
@@ -1267,11 +1255,234 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         }
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
-        Arrays.sort(nums1);
-        Arrays.sort(nums2);
 
         final IndexShard shard = indexService.getShard(0);
+        final ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            shard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1f,
+            -1,
+            null,
+            null
+        );
+        shardRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).trackTotalHits(false));
+        assertFalse(shard.hasRefreshPending());
+
+        for (boolean singleSort : new boolean[] { true, false }) {
+            for (boolean searchAfterOutOfRange : new boolean[] { true, false }) {
+                for (boolean searchAfterEqualsToBoundary : new boolean[] { true, false }) {
+                    for (boolean missingValueOutOfRange : new boolean[] { true, false }) {
+                        for (boolean missingValueEqualsToSearchAfter : new boolean[] { true, false }) {
+                            runNumericCanMatchTest(
+                                type,
+                                shardRequest,
+                                nums1,
+                                nums2,
+                                allDocsHaveValue,
+                                singleSort,
+                                searchAfterOutOfRange,
+                                searchAfterEqualsToBoundary,
+                                missingValueOutOfRange,
+                                missingValueEqualsToSearchAfter
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        client().admin().indices().prepareDelete("test").get();
+        ensureGreen();
+    }
+
+    private void runNumericCanMatchTest(
+        NumberFieldMapper.NumberType type,
+        ShardSearchRequest shardRequest,
+        Number[] nums1,
+        Number[] nums2,
+        boolean allDocsHaveValue,
+        boolean singleSort,
+        boolean searchAfterOutOfRange,
+        boolean searchAfterEqualsToBoundary,
+        boolean missingValueOutOfRange,
+        boolean missingValueEqualsToSearchAfter
+    ) throws IOException {
+        Number searchAfter;
+        Object missingValue;
+        Arrays.sort(nums1);
+        Arrays.sort(nums2);
+        final boolean reverse = randomBoolean();
+        if (searchAfterOutOfRange) {
+            searchAfter = reverse ? incOrDecNumber(nums1[0], type, false) : incOrDecNumber(nums1[nums1.length - 1], type, true);
+        } else {
+            if (searchAfterEqualsToBoundary) {
+                searchAfter = reverse ? nums1[0] : nums1[nums1.length - 1];
+            } else {
+                int from = 1, to = nums1.length - 1;
+                while (nums1[from].equals(nums1[from - 1]))
+                    from++;
+                while (nums1[to - 1].equals(nums1[to]))
+                    to--;
+                assert from < to;
+                searchAfter = randomFrom(Arrays.asList(nums1).subList(from, to));
+            }
+        }
+        if (missingValueOutOfRange) {
+            missingValue = reverse
+                ? (randomBoolean() ? "_first" : incOrDecNumber(searchAfter, type, true))
+                : (randomBoolean() ? "_first" : incOrDecNumber(searchAfter, type, false));
+        } else {
+            missingValue = missingValueEqualsToSearchAfter ? searchAfter
+                : reverse ? (randomBoolean() ? "_last" : incOrDecNumber(searchAfter, type, false))
+                : (randomBoolean() ? "_last" : incOrDecNumber(searchAfter, type, true));
+        }
+        shardRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).trackTotalHits(false));
+        shardRequest.source().sort(SortBuilders.fieldSort("num1").missing(missingValue).order(reverse ? SortOrder.DESC : SortOrder.ASC));
+        List<Object> searchAfterFields = new ArrayList<>();
+        searchAfterFields.add(searchAfter);
+        if (singleSort == false) {
+            shardRequest.source().sort("num2");
+            searchAfterFields.add(randomFrom(nums2));
+        }
+        shardRequest.source().searchAfter(searchAfterFields.toArray());
         final SearchService service = getInstanceFromNode(SearchService.class);
+        SearchService.CanMatchResponse response = service.canMatch(shardRequest);
+
+        if (type == NumberFieldMapper.NumberType.HALF_FLOAT || type == NumberFieldMapper.NumberType.UNSIGNED_LONG) {
+            assertTrue(response.canMatch());
+            return;
+        }
+
+        final boolean nonMatch;
+        if (allDocsHaveValue) {
+            nonMatch = searchAfterOutOfRange || (singleSort && searchAfterEqualsToBoundary);
+        } else {
+            if (searchAfterOutOfRange) {
+                nonMatch = missingValueOutOfRange || (singleSort && missingValueEqualsToSearchAfter);
+            } else {
+                nonMatch = singleSort && searchAfterEqualsToBoundary && (missingValueOutOfRange || missingValueEqualsToSearchAfter);
+            }
+        }
+
+        boolean canMatch = response.canMatch();
+        assertEquals(nonMatch == false, canMatch);
+    }
+
+    public void testNumericCanMatch() throws Exception {
+        for (var type : NumberFieldMapper.NumberType.values()) {
+            canMatchSearchAfterForOneNumericType(type);
+        }
+    }
+
+    private void runStringCanMatchTest(
+        ShardSearchRequest shardRequest,
+        BytesRef[] values,
+        boolean allDocsHaveValue,
+        boolean singleSort,
+        boolean searchAfterOutOfRange,
+        boolean searchAfterEqualsToBoundary,
+        boolean customMissingValue,
+        boolean sortMissingLast
+    ) throws IOException {
+        Object searchAfter;
+        Object missingValue;
+        Arrays.sort(values, BytesRef::compareTo);
+        final String minValue = values[0].utf8ToString();
+        final String maxValue = values[values.length - 1].utf8ToString();
+        final boolean reverse = randomBoolean();
+        if (searchAfterOutOfRange) {
+            searchAfter = reverse ? minValue.substring(0, minValue.length() - 1) : maxValue + randomAlphaOfLength(1);
+        } else {
+            if (searchAfterEqualsToBoundary) {
+                searchAfter = reverse ? minValue : maxValue;
+            } else {
+                int from = 1, to = values.length - 1;
+                while (values[from].equals(values[0]))
+                    from++;
+                while (values[to - 1].equals(values[values.length - 1]))
+                    to--;
+                assert from < to;
+                searchAfter = randomFrom(Arrays.asList(values).subList(from, to)).utf8ToString();
+            }
+        }
+        if (customMissingValue) {
+            missingValue = randomBoolean() ? randomFrom(values).utf8ToString() : searchAfter;
+        } else {
+            missingValue = sortMissingLast ? "_last" : "_first";
+        }
+        shardRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).trackTotalHits(false));
+        shardRequest.source().sort(SortBuilders.fieldSort("field1").missing(missingValue).order(reverse ? SortOrder.DESC : SortOrder.ASC));
+        List<Object> searchAfterFields = new ArrayList<>();
+        searchAfterFields.add(searchAfter);
+        if (singleSort == false) {
+            shardRequest.source().sort("field2");
+            searchAfterFields.add(randomAlphaOfLength(10));
+        }
+        shardRequest.source().searchAfter(searchAfterFields.toArray());
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        SearchService.CanMatchResponse response = service.canMatch(shardRequest);
+
+        if (customMissingValue) {
+            assertTrue(response.canMatch());
+            return;
+        }
+
+        final boolean nonMatch;
+        if (allDocsHaveValue) {
+            nonMatch = searchAfterOutOfRange || (singleSort && searchAfterEqualsToBoundary);
+        } else {
+            if (searchAfterOutOfRange) {
+                nonMatch = sortMissingLast == false;
+            } else {
+                nonMatch = singleSort && searchAfterEqualsToBoundary && sortMissingLast == false;
+            }
+        }
+
+        boolean canMatch = response.canMatch();
+        assertEquals(nonMatch == false, canMatch);
+    }
+
+    public void testStringCanMatch() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("field1")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("field2")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        IndexService indexService = createIndex(
+            "test",
+            Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build(),
+            MapperService.SINGLE_MAPPING_NAME,
+            mapping
+        );
+        ensureGreen();
+
+        final boolean allDocsHaveValue = randomBoolean();
+        final BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        final int numDocs = randomIntBetween(10, 20);
+        final BytesRef[] field1 = new BytesRef[allDocsHaveValue ? numDocs : numDocs - 1];
+        for (int i = 0; i < numDocs; i++) {
+            String source;
+            if (i < numDocs - 1 || allDocsHaveValue) {
+                String str = randomAlphaOfLengthBetween(10, 20);
+                field1[i] = new BytesRef(str);
+                source = String.format(Locale.ROOT, "{\"field1\": \"%s\", \"field2\": \"%s\"}", str, randomAlphaOfLength(10));
+            } else {
+                source = String.format(Locale.ROOT, "{\"field2\": \"%s\"}", randomAlphaOfLength(10));
+            }
+            bulkRequestBuilder.add(client().prepareIndex("test").setId(String.valueOf(i)).setSource(source, MediaTypeRegistry.JSON));
+        }
+        bulkRequestBuilder.get();
+        client().admin().indices().prepareRefresh().get();
+
+        final IndexShard shard = indexService.getShard(0);
         final ShardSearchRequest shardRequest = new ShardSearchRequest(
             OriginalIndices.NONE,
             new SearchRequest().allowPartialSearchResults(true),
@@ -1285,60 +1496,25 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         );
         assertFalse(shard.hasRefreshPending());
 
-        final CheckedTriFunction<Boolean, Boolean, Boolean, Void, Exception> outOfRangeTester = (outOfRange, missingMatch, reverse) -> {
-            Number searchAfter;
-            Object missing;
-            if (outOfRange) {
-                searchAfter = reverse ? incDecNumber(nums1[0], type, false) : incDecNumber(nums1[nums1.length - 1], type, true);
-            } else {
-                searchAfter = randomFrom(nums1);
-            }
-            if (missingMatch) {
-                missing = reverse
-                    ? (randomBoolean() ? "_last" : incDecNumber(searchAfter, type, false))
-                    : (randomBoolean() ? "_last" : incDecNumber(searchAfter, type, true));
-            } else {
-                missing = reverse
-                    ? (randomBoolean() ? "_first" : incDecNumber(searchAfter, type, true))
-                    : (randomBoolean() ? "_first" : incDecNumber(searchAfter, type, false));
-            }
-            shardRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).trackTotalHits(false));
-            shardRequest.source().sort(SortBuilders.fieldSort("num1").missing(missing).order(reverse ? SortOrder.DESC : SortOrder.ASC));
-            List<Object> searchAfterFields = new ArrayList<>();
-            searchAfterFields.add(searchAfter);
-            if (randomBoolean()) {
-                shardRequest.source().sort("num2");
-                searchAfterFields.add(randomFrom(nums2));
-            }
-            shardRequest.source().searchAfter(searchAfterFields.toArray());
-            SearchService.CanMatchResponse response = service.canMatch(shardRequest);
-
-            if (type == NumberFieldMapper.NumberType.HALF_FLOAT || type == NumberFieldMapper.NumberType.UNSIGNED_LONG) {
-                assertTrue(response.canMatch());
-                return null;
-            }
-
-            if (outOfRange == false || (allDocsNonMissing == false && missingMatch)) {
-                assertTrue(response.canMatch());
-            } else {
-                assertFalse(response.canMatch());
-            }
-            return null;
-        };
-        for (boolean outOfRange : new boolean[] { true, false }) {
-            for (boolean missingMatch : new boolean[] { true, false }) {
-                for (boolean reverse : new boolean[] { true, false }) {
-                    outOfRangeTester.apply(outOfRange, missingMatch, reverse);
+        for (boolean singleSort : new boolean[] { false, true }) {
+            for (boolean searchAfterOutOfRange : new boolean[] { false, true }) {
+                for (boolean searchAfterEqualsToBoundary : new boolean[] { false, true }) {
+                    for (boolean customMissingValue : new boolean[] { false, true }) {
+                        for (boolean sortMissingLast : new boolean[] { false, true }) {
+                            runStringCanMatchTest(
+                                shardRequest,
+                                field1,
+                                allDocsHaveValue,
+                                singleSort,
+                                searchAfterOutOfRange,
+                                searchAfterEqualsToBoundary,
+                                customMissingValue,
+                                sortMissingLast
+                            );
+                        }
+                    }
                 }
             }
-        }
-        client().admin().indices().prepareDelete("test").get();
-        ensureGreen();
-    }
-
-    public void testNumericCanMatch() throws Exception {
-        for (var type : NumberFieldMapper.NumberType.values()) {
-            canMatchSearchAfterNumericTestCase(type);
         }
     }
 
@@ -2330,9 +2506,18 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 10L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         SortField sortField = new SortField("test", SortField.Type.LONG);
-        sortField.setMissingValue(Long.MIN_VALUE);
+        sortField.setMissingValue(randomLongBetween(Long.MIN_VALUE, 9L));
         final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
-        assertFalse(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
+        final FieldStats fieldStats = new FieldStats(minMax, randomBoolean());
+        assertFalse(
+            SearchService.canMatchSearchAfter(
+                searchAfter,
+                fieldStats,
+                primarySort,
+                SearchContext.TRACK_TOTAL_HITS_DISABLED,
+                randomBoolean()
+            )
+        );
     }
 
     /**
@@ -2346,7 +2531,16 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         SortField sortField = new SortField("test", SortField.Type.LONG);
         sortField.setMissingValue(11L);
         final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
-        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
+        final FieldStats fieldStats = new FieldStats(minMax, randomBoolean());
+        assertTrue(
+            SearchService.canMatchSearchAfter(
+                searchAfter,
+                fieldStats,
+                primarySort,
+                SearchContext.TRACK_TOTAL_HITS_DISABLED,
+                randomBoolean()
+            )
+        );
     }
 
     /**
@@ -2360,21 +2554,35 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         SortField sortField = new SortField("test", SortField.Type.LONG);
         sortField.setMissingValue(randomFrom(Long.MIN_VALUE, 10L));
         final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
-        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
+        final FieldStats fieldStats = new FieldStats(minMax, randomBoolean());
+        assertTrue(
+            SearchService.canMatchSearchAfter(
+                searchAfter,
+                fieldStats,
+                primarySort,
+                SearchContext.TRACK_TOTAL_HITS_DISABLED,
+                randomBoolean()
+            )
+        );
     }
 
     /**
      * Test for ASC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 9L, missing = Long.MIN_VALUE/10L
+     * Min = 0L, Max = 9L, search_after = 9L, missing = 9L
      * Expected result is canMatch = true
      */
-    public void testCanMatchSearchAfterAscEqualMax() throws IOException {
+    public void testCanMatchSearchAfterAscEqualMaxAndMissing() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 9L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         SortField sortField = new SortField("test", SortField.Type.LONG);
-        sortField.setMissingValue(randomFrom(Long.MIN_VALUE, 10L));
+        sortField.setMissingValue(9L);
         final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
-        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
+        final FieldStats fieldStats = new FieldStats(minMax, randomBoolean());
+        final boolean singleSort = randomBoolean();
+        assertEquals(
+            singleSort == false,
+            SearchService.canMatchSearchAfter(searchAfter, fieldStats, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, singleSort)
+        );
     }
 
     /**
@@ -2388,7 +2596,16 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         SortField sortField = new SortField("test", SortField.Type.LONG, true);
         sortField.setMissingValue(randomFrom(Long.MAX_VALUE, Long.MIN_VALUE));
         final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
-        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
+        final FieldStats fieldStats = new FieldStats(minMax, randomBoolean());
+        assertTrue(
+            SearchService.canMatchSearchAfter(
+                searchAfter,
+                fieldStats,
+                primarySort,
+                SearchContext.TRACK_TOTAL_HITS_DISABLED,
+                randomBoolean()
+            )
+        );
     }
 
     /**
@@ -2402,38 +2619,35 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         SortField sortField = new SortField("test", SortField.Type.LONG, true);
         sortField.setMissingValue(randomLongBetween(0L, Long.MAX_VALUE));
         final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
-        assertFalse(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
+        final FieldStats fieldStats = new FieldStats(minMax, randomBoolean());
+        assertFalse(
+            SearchService.canMatchSearchAfter(
+                searchAfter,
+                fieldStats,
+                primarySort,
+                SearchContext.TRACK_TOTAL_HITS_DISABLED,
+                randomBoolean()
+            )
+        );
     }
 
     /**
      * Test for DESC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 0L, missing > search_after
+     * Min = 0L, Max = 9L, search_after = 0L, missing = 0L
      * Expected result is canMatch = true
      */
-    public void testCanMatchSearchAfterDescEqualMinAndLessThanMissing() throws IOException {
+    public void testCanMatchSearchAfterDescEqualMinAndMissing() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 0L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         SortField sortField = new SortField("test", SortField.Type.LONG, true);
-        sortField.setMissingValue(randomLongBetween(1L, Long.MAX_VALUE));
+        sortField.setMissingValue(0L);
         final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
-        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
-    }
-
-    /**
-     * Test canMatchSearchAfter with missing value, even if min/max is out of range
-     * Min = 0L, Max = 9L, search_after = -1L
-     */
-    public void testCanMatchSearchAfterWithMinMaxOutOfRangeAndDifferentMissing() throws IOException {
-        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
-        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        SortField sortField = new SortField("test", SortField.Type.LONG, true);
-        sortField.setMissingValue(randomLongBetween(0L, Long.MAX_VALUE));
-        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
-        // Should be false with missing values is larger than search_after
-        assertFalse(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
-        sortField.setMissingValue(Long.MIN_VALUE);
-        // Should be true with missing values is less than search_after
-        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
+        final FieldStats fieldStats = new FieldStats(minMax, randomBoolean());
+        final boolean singleSort = randomBoolean();
+        assertEquals(
+            singleSort == false,
+            SearchService.canMatchSearchAfter(searchAfter, fieldStats, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, singleSort)
+        );
     }
 
     /**
@@ -2449,6 +2663,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         SortField sortField = new SortField("test", SortField.Type.LONG, true);
         sortField.setMissingValue(randomLongBetween(0L, Long.MAX_VALUE));
         final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
-        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, 1000, false));
+        final FieldStats fieldStats = new FieldStats(minMax, randomBoolean());
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, fieldStats, primarySort, 1000, randomBoolean()));
     }
 }

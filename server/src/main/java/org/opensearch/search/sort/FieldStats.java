@@ -8,33 +8,17 @@
 
 package org.opensearch.search.sort;
 
+import java.util.Objects;
+
 /**
- * A class that encapsulates some stats about a field, including min/max etc.
+ * A class that encapsulates some stats for a given field.
  *
+ * @param minAndMax the minimum and maximum value of the given field
+ * @param allDocsHaveValue whether all docs have value for the given field
  * @opensearch.internal
  */
-public class FieldStats {
-    public static final FieldStats UNKNOWN = new FieldStats(null, false);
-
-    private final MinAndMax<?> minAndMax;
-    private final boolean allDocsNonMissing;
-
-    public FieldStats(MinAndMax<?> minAndMax, boolean allDocsNonMissing) {
-        this.minAndMax = minAndMax;
-        this.allDocsNonMissing = allDocsNonMissing;
-    }
-
-    /**
-     * Return the minimum and maximum value.
-     */
-    public MinAndMax<?> getMinAndMax() {
-        return minAndMax;
-    }
-
-    /**
-     * Indicates whether all docs have values for corresponding field
-     */
-    public boolean allDocsNonMissing() {
-        return allDocsNonMissing;
+public record FieldStats(MinAndMax<?> minAndMax, boolean allDocsHaveValue) {
+    public FieldStats {
+        Objects.requireNonNull(minAndMax);
     }
 }

@@ -81,6 +81,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolverFactory;
@@ -142,7 +143,6 @@ import org.opensearch.search.sort.FieldStats;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
-import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.suggest.Suggest;
@@ -1699,7 +1699,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final SortAndFormats primarySort = sortBuilder != null
                     ? SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get()
                     : null;
-                FieldStats stats = sortBuilder != null ? FieldSortBuilder.getFieldStatsForShard(context, sortBuilder) : FieldStats.UNKNOWN;
+                final FieldStats fieldStats = sortBuilder != null
+                    ? FieldSortBuilder.getFieldStatsOrNullForShard(context, sortBuilder)
+                    : null;
                 boolean canMatch;
                 if (canRewriteToMatchNone(request.source())) {
                     QueryBuilder queryBuilder = request.source().query();
@@ -1713,78 +1715,78 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 canMatch = canMatch
                     && canMatchSearchAfter(
                         searchAfterFieldDoc,
-                        stats.getMinAndMax(),
+                        fieldStats,
                         primarySort,
                         trackTotalHitsUpto,
-                        stats.allDocsNonMissing()
+                        FieldSortBuilder.isSingleSort(request.source())
                     );
 
-                return new CanMatchResponse(canMatch || hasRefreshPending, stats.getMinAndMax());
+                return new CanMatchResponse(canMatch || hasRefreshPending, fieldStats != null ? fieldStats.minAndMax() : null);
             }
         }
     }
 
     public static boolean canMatchSearchAfter(
         FieldDoc searchAfter,
-        MinAndMax<?> minMax,
+        FieldStats fieldStats,
         SortAndFormats primarySort,
         Integer trackTotalHitsUpto,
-        boolean allDocsNonMissing
+        boolean singleSort
     ) {
-        // Check for sort.missing == null, since in case of missing values sort queries, if segment/shard's min/max
-        // is out of search_after range, it still should be printed and hence we should not skip segment/shard.
         // Skipping search on shard/segment entirely can cause mismatch on total_tracking_hits, hence skip only if
         // track_total_hits is false.
         if (searchAfter != null
             && searchAfter.fields[0] != null
-            && minMax != null
+            && fieldStats != null
             && primarySort != null
             && Objects.equals(trackTotalHitsUpto, TRACK_TOTAL_HITS_DISABLED)) {
             final Object searchAfterPrimary = searchAfter.fields[0];
-            SortField primarySortField = primarySort.sort.getSort()[0];
+            final SortField primarySortField = primarySort.sort.getSort()[0];
             if (primarySortField.getReverse()) {
-                if (minMax.compareMin(searchAfterPrimary) > 0) {
+                final boolean nonMatch = fieldStats.minAndMax().compareMin(searchAfterPrimary) > (singleSort ? -1 : 0);
+                if (nonMatch) {
                     // In Desc order, if segment/shard minimum is gt search_after, the segment/shard won't be competitive
-                    return allDocsNonMissing == false && canMatchMissingValue(primarySortField, searchAfterPrimary);
+                    return fieldStats.allDocsHaveValue() == false && canMatchMissingValue(primarySortField, searchAfterPrimary, singleSort);
                 }
             } else {
-                if (minMax.compareMax(searchAfterPrimary) < 0) {
+                final boolean nonMatch = fieldStats.minAndMax().compareMax(searchAfterPrimary) < (singleSort ? 1 : 0);
+                if (nonMatch) {
                     // In ASC order, if segment/shard maximum is lt search_after, the segment/shard won't be competitive
-                    return allDocsNonMissing == false && canMatchMissingValue(primarySortField, searchAfterPrimary);
+                    return fieldStats.allDocsHaveValue() == false && canMatchMissingValue(primarySortField, searchAfterPrimary, singleSort);
                 }
             }
         }
         return true;
     }
 
-    private static boolean canMatchMissingValue(SortField primarySortField, Object primarySearchAfter) {
+    private static boolean canMatchMissingValue(SortField primarySortField, Object primarySearchAfter, boolean singleSort) {
         final Object missingValue = primarySortField.getMissingValue();
         if (primarySortField.getReverse()) {
             // the missing value of Type.STRING can only be SortField.STRING_FIRS or SortField.STRING_LAST
             if (primarySearchAfter instanceof BytesRef) {
+                assert IndexSortConfig.getSortFieldType(primarySortField) == SortField.Type.STRING;
                 return missingValue == SortField.STRING_FIRST;
             }
-            return compare(primarySearchAfter, missingValue) >= 0;
+            return compare(primarySearchAfter, missingValue) > (singleSort ? 0 : -1);
         } else {
             if (primarySearchAfter instanceof BytesRef) {
+                assert IndexSortConfig.getSortFieldType(primarySortField) == SortField.Type.STRING;
                 return missingValue == SortField.STRING_LAST;
             }
-            return compare(primarySearchAfter, missingValue) <= 0;
+            return compare(primarySearchAfter, missingValue) < (singleSort ? 0 : 1);
         }
     }
 
-    private static int compare(Object one, Object two) {
-        if (one instanceof Long) {
-            return Long.compare((Long) one, (Long) two);
-        } else if (one instanceof Integer) {
-            return Integer.compare((Integer) one, (Integer) two);
-        } else if (one instanceof Float) {
-            return Float.compare((Float) one, (Float) two);
-        } else if (one instanceof Double) {
-            return Double.compare((Double) one, (Double) two);
-        } else {
-            throw new UnsupportedOperationException("compare type not supported : " + one.getClass());
-        }
+    private static int compare(Object lh, Object rh) {
+        assert lh != null;
+        assert rh != null;
+        return switch (lh) {
+            case Long l -> Long.compare(l, (Long) rh);
+            case Integer i -> Integer.compare(i, (Integer) rh);
+            case Float v -> Float.compare(v, (Float) rh);
+            case Double v -> Double.compare(v, (Double) rh);
+            default -> throw new UnsupportedOperationException("compare type not supported : " + lh.getClass());
+        };
     }
 
     private static FieldDoc getSearchAfterFieldDoc(ShardSearchRequest request, QueryShardContext context) throws IOException {
