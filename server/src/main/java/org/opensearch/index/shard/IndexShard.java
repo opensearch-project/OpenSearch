@@ -363,6 +363,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RemoteStoreFileDownloader fileDownloader;
     private final RecoverySettings recoverySettings;
     private final RemoteStoreSettings remoteStoreSettings;
+    private final RemoteUploaderService remoteUploaderService;
     /*
      On source doc rep node,  It will be DOCREP_NON_MIGRATING.
      On source remote node , it will be REMOTE_MIGRATING_SEEDED when relocating from remote node
@@ -410,13 +411,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final DiscoveryNodes discoveryNodes,
         final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
-        final boolean shardLevelRefreshEnabled,
+        final boolean shardLevelRefreshEnabled, RemoteUploaderService remoteUploaderService,
         final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         final Supplier<TimeValue> refreshInterval,
         final Object refreshMutex,
         final ClusterApplierService clusterApplierService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
+        this.remoteUploaderService = remoteUploaderService;
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
         final Settings settings = indexSettings.getSettings();
@@ -4084,7 +4086,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     this,
                     this.checkpointPublisher,
                     remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId()),
-                    remoteStoreSettings
+                    remoteStoreSettings,
+                    remoteUploaderService
                 )
             );
         }
