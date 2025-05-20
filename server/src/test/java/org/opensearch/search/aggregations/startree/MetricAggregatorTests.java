@@ -554,17 +554,15 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         }
 
         public QueryBuilder getRangeQueryBuilder() {
-            RangeQueryBuilder qb = new RangeQueryBuilder(fieldName).from(valueSupplier.get())
+            return new RangeQueryBuilder(fieldName).from(valueSupplier.get())
                 .to(valueSupplier.get())
                 .includeLower(randomBoolean())
                 .includeUpper(randomBoolean());
-            return qb;
         }
 
         public QueryBuilder getBoolQueryBuilder() {
             // MUST only
             BoolQueryBuilder mustOnly = new BoolQueryBuilder().must(getTermQueryBuilder());
-            // Keyword terms are not always supported for range queries.
             if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
                 mustOnly.must(getTermQueryBuilder());
             } else {
@@ -578,7 +576,6 @@ public class MetricAggregatorTests extends AggregatorTestCase {
             // SHOULD only on same dimension
             BoolQueryBuilder shouldOnly = new BoolQueryBuilder().should(getTermQueryBuilder());
 
-            // Keyword terms are not always supported for range queries.
             if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
                 shouldOnly.should(getTermQueryBuilder());
             } else {
