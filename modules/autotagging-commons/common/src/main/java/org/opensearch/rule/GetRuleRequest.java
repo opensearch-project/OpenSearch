@@ -26,10 +26,9 @@ import java.util.Set;
 /**
  * A request for get Rule
  * Example Request:
- * The endpoint "localhost:9200/_wlm/rule" is specific to the Workload Management feature to manage rules
- * curl -X GET "localhost:9200/_wlm/rule" - get all rules
- * curl -X GET "localhost:9200/_wlm/rule/{_id}" - get single rule by id
- * curl -X GET "localhost:9200/_wlm/rule?index_pattern=a,b" - get all rules containing attribute index_pattern as a or b
+ * curl -X GET "localhost:9200/_rules/{featureType}/" - get all rules for {featureType}
+ * curl -X GET "localhost:9200/_rules/{featureType}/{_id}" - get single rule by id
+ * curl -X GET "localhost:9200/_rules/{featureType}?index_pattern=a,b" - get all rules containing attribute index_pattern as a or b for {featureType}
  * @opensearch.experimental
  */
 @ExperimentalApi

@@ -74,6 +74,31 @@ public class RuleValidator {
         }
     }
 
+    /**
+     * validates the updated rule object fields
+     */
+    public List<String> validateUpdatingRuleParams() {
+        List<String> errorMessages = new ArrayList<>();
+        if (isEmpty(description)) {
+            errorMessages.add("Rule description can't be empty");
+        }
+        if (isEmpty(featureValue)) {
+            errorMessages.add("Rule featureValue can't be empty");
+        }
+        FeatureValueValidator featureValueValidator = featureType.getFeatureValueValidator();
+        if (featureValue != null && !featureValue.isEmpty() && featureValueValidator != null) {
+            try {
+                featureValueValidator.validate(featureValue);
+            } catch (Exception e) {
+                errorMessages.add(e.getMessage());
+            }
+        }
+        if (attributeMap != null && !attributeMap.isEmpty()) {
+            errorMessages.addAll(validateAttributeMap());
+        }
+        return errorMessages;
+    }
+
     private List<String> validateStringFields() {
         List<String> errors = new ArrayList<>();
         if (isNullOrEmpty(description)) {
