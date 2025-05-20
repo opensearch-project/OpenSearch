@@ -21,6 +21,9 @@ public class FipsBuildParamsTests extends GradleUnitTestCase {
         FipsBuildParams.init(cryptoEntryFnWithBooleanParam);
         assertTrue(FipsBuildParams.isInFipsMode());
 
+        FipsBuildParams.init(param -> "FIPS-140-2");
+        assertFalse(FipsBuildParams.isInFipsMode());
+
         FipsBuildParams.init(param -> null);
         assertFalse(FipsBuildParams.isInFipsMode());
     }
@@ -31,6 +34,9 @@ public class FipsBuildParamsTests extends GradleUnitTestCase {
 
         FipsBuildParams.init(cryptoEntryFnWithBooleanParam);
         assertEquals("FIPS-140-3", FipsBuildParams.getFipsMode());
+
+        FipsBuildParams.init(param -> "FIPS-140-2");
+        assertEquals("any-supported", FipsBuildParams.getFipsMode());
 
         FipsBuildParams.init(param -> null);
         assertEquals("any-supported", FipsBuildParams.getFipsMode());
