@@ -38,6 +38,7 @@ apply plugin: 'opensearch.jdk-download'
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
 
 opensearchplugin {
   description = 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
@@ -67,7 +68,7 @@ dependencies {
   api project(":libs:opensearch-ssl-config")
   // for http - testing reindex from remote
   testImplementation project(':modules:transport-netty4')
-  testImplementation "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
   // for parent/child testing
   testImplementation project(':modules:parent-join')
 }
