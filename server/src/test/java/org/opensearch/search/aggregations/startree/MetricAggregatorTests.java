@@ -559,7 +559,6 @@ public class MetricAggregatorTests extends AggregatorTestCase {
                 .includeLower(randomBoolean())
                 .includeUpper(randomBoolean());
         }
-        //HI
 
         public QueryBuilder getBoolQueryBuilder() {
             // MUST only
