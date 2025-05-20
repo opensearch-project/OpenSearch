@@ -8,7 +8,6 @@
 
 package org.opensearch.gradle.info;
 
-import java.util.Objects;
 import java.util.function.Function;
 
 public class FipsBuildParams {
@@ -18,18 +17,16 @@ public class FipsBuildParams {
     public static final String FIPS_BUILD_PARAM = "crypto.standard";
     public static final String DEFAULT_FIPS_MODE = "FIPS-140-3";
 
-    private static Boolean fipsBuildParamForTests;
-    private static String fipsBuildParam;
     private static String fipsMode;
 
     public static void init(Function<String, Object> fipsValue) {
-        fipsBuildParamForTests = Boolean.parseBoolean((String) fipsValue.apply(FIPS_BUILD_PARAM_FOR_TESTS));
-        fipsBuildParam = (String) fipsValue.apply(FIPS_BUILD_PARAM);
+        var fipsBuildParamForTests = Boolean.parseBoolean((String) fipsValue.apply(FIPS_BUILD_PARAM_FOR_TESTS));
+        var fipsBuildParam = (String) fipsValue.apply(FIPS_BUILD_PARAM);
 
-        if (fipsBuildParamForTests) {
+        if (fipsBuildParamForTests || DEFAULT_FIPS_MODE.equals(fipsBuildParam)) {
             fipsMode = DEFAULT_FIPS_MODE;
         } else {
-            fipsMode = Objects.requireNonNullElse(fipsBuildParam, "any-supported");
+            fipsMode = "any-supported";
         }
     }
 
