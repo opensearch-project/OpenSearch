@@ -172,6 +172,7 @@ public class InternalEngine extends Engine {
     protected final String historyUUID;
 
     private final OpenSearchConcurrentMergeScheduler mergeScheduler;
+    private MergePolicy noMergeOnFlushPolicy;
     private final ExternalReaderManager externalReaderManager;
     private final OpenSearchReaderManager internalReaderManager;
 
@@ -2337,16 +2338,16 @@ public class InternalEngine extends Engine {
         iwc.setMergeScheduler(mergeScheduler);
         // Give us the opportunity to upgrade old segments while performing
         // background merges
-        MergePolicy mergePolicy = config().getMergePolicy();
+        this.noMergeOnFlushPolicy = config().getMergePolicy();
         // always configure soft-deletes field so an engine with soft-deletes disabled can open a Lucene index with soft-deletes.
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
-        mergePolicy = new RecoverySourcePruneMergePolicy(
+        noMergeOnFlushPolicy = new RecoverySourcePruneMergePolicy(
             SourceFieldMapper.RECOVERY_SOURCE_NAME,
             softDeletesPolicy::getRetentionQuery,
             new SoftDeletesRetentionMergePolicy(
                 Lucene.SOFT_DELETES_FIELD,
                 softDeletesPolicy::getRetentionQuery,
-                new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
+                new PrunePostingsMergePolicy(noMergeOnFlushPolicy, IdFieldMapper.NAME)
             )
         );
         boolean shuffleForcedMerge = Booleans.parseBoolean(System.getProperty("opensearch.shuffle_forced_merge", Boolean.TRUE.toString()));
@@ -2354,9 +2355,10 @@ public class InternalEngine extends Engine {
             // We wrap the merge policy for all indices even though it is mostly useful for time-based indices
             // but there should be no overhead for other type of indices so it's simpler than adding a setting
             // to enable it.
-            mergePolicy = new ShuffleForcedMergePolicy(mergePolicy);
+            noMergeOnFlushPolicy = new ShuffleForcedMergePolicy(noMergeOnFlushPolicy);
         }
 
+        MergePolicy mergePolicy = noMergeOnFlushPolicy;
         if (config().getIndexSettings().isMergeOnFlushEnabled()) {
             final long maxFullFlushMergeWaitMillis = config().getIndexSettings().getMaxFullFlushMergeWaitTime().millis();
             if (maxFullFlushMergeWaitMillis > 0) {
@@ -2609,6 +2611,33 @@ public class InternalEngine extends Engine {
             // only if a shard starts up again due to relocation or if the index is closed
             // the setting will be re-interpreted if it's set to true
             updateAutoIdTimestamp(Long.MAX_VALUE, true);
+        }
+        IndexSettings indexSettings = engineConfig.getIndexSettings();
+        // In InternalEngine, indexWriter.getConfig() must be a IndexWriterConfig instance.
+        IndexWriterConfig indexWriterConfig = (IndexWriterConfig) indexWriter.getConfig();
+        if (indexSettings.isCheckPendingFlushEnabled() != indexWriterConfig.isCheckPendingFlushOnUpdate()) {
+            indexWriterConfig.setCheckPendingFlushUpdate(indexSettings.isCheckPendingFlushEnabled());
+        }
+        if (indexSettings.isMergeOnFlushEnabled()) {
+            final long maxFullFlushMergeWaitMillis = indexSettings.getMaxFullFlushMergeWaitTime().millis();
+            if (maxFullFlushMergeWaitMillis > 0) {
+                indexWriterConfig.setMaxFullFlushMergeWaitMillis(maxFullFlushMergeWaitMillis);
+                final Optional<UnaryOperator<MergePolicy>> mergeOnFlushPolicy = indexSettings.getMergeOnFlushPolicy();
+                if (mergeOnFlushPolicy.isPresent()) {
+                    indexWriterConfig.setMergePolicy(new OpenSearchMergePolicy(mergeOnFlushPolicy.get().apply(noMergeOnFlushPolicy)));
+                } else {
+                    indexWriterConfig.setMergePolicy(new OpenSearchMergePolicy(noMergeOnFlushPolicy));
+                }
+            } else {
+                logger.warn(
+                    "The {} is enabled but {} is set to 0, merge on flush will not be activated",
+                    IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(),
+                    IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME.getKey()
+                );
+            }
+        } else {
+            indexWriterConfig.setMaxFullFlushMergeWaitMillis(0);
+            indexWriterConfig.setMergePolicy(new OpenSearchMergePolicy(noMergeOnFlushPolicy));
         }
         final TranslogDeletionPolicy translogDeletionPolicy = translogManager.getDeletionPolicy();
         translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
