@@ -137,7 +137,6 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
-    // @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18110")
     public void testStarTreeDocValues() throws IOException {
         final List<Supplier<Integer>> MAX_LEAF_DOC_VARIATIONS = List.of(
             () -> 1,
@@ -559,32 +558,32 @@ public class MetricAggregatorTests extends AggregatorTestCase {
                 .to(valueSupplier.get())
                 .includeLower(randomBoolean())
                 .includeUpper(randomBoolean());
-            // Keyword terms are not always supported for range queries.
-            if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
-                // This is essentially a match none query because the value of the keyword will
-                // never have the string value of "-1". Just using a match none query is not possible
-                // because the match none query does not correspond with a fieldname, making star tree
-                // precomputation unavailable in boolean queries as the queries must be on the same
-                // dimension.
-                return new TermQueryBuilder(fieldName, String.valueOf(-1));
-            }
             return qb;
         }
 
         public QueryBuilder getBoolQueryBuilder() {
             // MUST only
-            BoolQueryBuilder mustOnly = new BoolQueryBuilder().must(getTermQueryBuilder()).must(getRangeQueryBuilder());
+            BoolQueryBuilder mustOnly = new BoolQueryBuilder().must(getTermQueryBuilder());
+            // Keyword terms are not always supported for range queries.
+            if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
+                mustOnly.must(getTermQueryBuilder());
+            } else {
+                mustOnly.must(getRangeQueryBuilder());
+            }
 
             // MUST with nested SHOULD on same dimension
             BoolQueryBuilder mustWithShould = new BoolQueryBuilder().must(getTermQueryBuilder())
-                .must(
-                    new BoolQueryBuilder().should(new TermQueryBuilder(fieldName, valueSupplier.get()))
-                        .should(new TermQueryBuilder(fieldName, valueSupplier.get()))
-                );
+                .must(new BoolQueryBuilder().should(getTermQueryBuilder()).should(getTermQueryBuilder()));
 
             // SHOULD only on same dimension
-            BoolQueryBuilder shouldOnly = new BoolQueryBuilder().should(new TermQueryBuilder(fieldName, valueSupplier.get()))
-                .should(getRangeQueryBuilder());
+            BoolQueryBuilder shouldOnly = new BoolQueryBuilder().should(getTermQueryBuilder());
+
+            // Keyword terms are not always supported for range queries.
+            if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
+                shouldOnly.should(getTermQueryBuilder());
+            } else {
+                shouldOnly.should(getRangeQueryBuilder());
+            }
 
             return randomFrom(mustOnly, mustWithShould, shouldOnly);
         }
