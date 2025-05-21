@@ -1767,26 +1767,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 assert IndexSortConfig.getSortFieldType(primarySortField) == SortField.Type.STRING;
                 return missingValue == SortField.STRING_FIRST;
             }
-            return compare(primarySearchAfter, missingValue) > (singleSort ? 0 : -1);
+            return MinAndMax.compare(primarySearchAfter, missingValue) > (singleSort ? 0 : -1);
         } else {
             if (primarySearchAfter instanceof BytesRef) {
                 assert IndexSortConfig.getSortFieldType(primarySortField) == SortField.Type.STRING;
                 return missingValue == SortField.STRING_LAST;
             }
-            return compare(primarySearchAfter, missingValue) < (singleSort ? 0 : 1);
+            return MinAndMax.compare(primarySearchAfter, missingValue) < (singleSort ? 0 : 1);
         }
-    }
-
-    private static int compare(Object lh, Object rh) {
-        assert lh != null;
-        assert rh != null;
-        return switch (lh) {
-            case Long l -> Long.compare(l, (Long) rh);
-            case Integer i -> Integer.compare(i, (Integer) rh);
-            case Float v -> Float.compare(v, (Float) rh);
-            case Double v -> Double.compare(v, (Double) rh);
-            default -> throw new UnsupportedOperationException("compare type not supported : " + lh.getClass());
-        };
     }
 
     private static FieldDoc getSearchAfterFieldDoc(ShardSearchRequest request, QueryShardContext context) throws IOException {
