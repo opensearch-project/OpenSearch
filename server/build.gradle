@@ -132,7 +132,7 @@ tasks.withType(JavaCompile).configureEach {
 
 compileJava {
   options.compilerArgs += ['-processor', ['org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor',
-                                          'org.opensearch.common.annotation.processor.ApiAnnotationProcessor'].join(',')]
+    'org.opensearch.common.annotation.processor.ApiAnnotationProcessor'].join(',')]
 }
 
 tasks.named("internalClusterTest").configure {
@@ -141,68 +141,68 @@ tasks.named("internalClusterTest").configure {
 }
 
 tasks.named("forbiddenPatterns").configure {
-  dependsOn("generateProto")
-  exclude '**/*.json'
-  exclude '**/*.jmx'
-  exclude '**/*.dic'
-  exclude '**/*.binary'
-  exclude '**/*.st'
-  exclude '**/*.meta'
+    dependsOn("generateProto")
+    exclude '**/*.json'
+    exclude '**/*.jmx'
+    exclude '**/*.dic'
+    exclude '**/*.binary'
+    exclude '**/*.st'
+    exclude '**/*.meta'
 }
 
 tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass "org.apache.lucene.tests.util.LuceneTestCase"
+    naming.clear()
+    naming {
+        Tests {
+            baseClass "org.apache.lucene.tests.util.LuceneTestCase"
+        }
+        IT {
+            baseClass "org.opensearch.test.OpenSearchIntegTestCase"
+            baseClass "org.opensearch.test.OpenSearchSingleNodeTestCase"
+        }
     }
-    IT {
-      baseClass "org.opensearch.test.OpenSearchIntegTestCase"
-      baseClass "org.opensearch.test.OpenSearchSingleNodeTestCase"
-    }
-  }
 }
 
 // Set to current version by default
 def japicmpCompareTarget = System.getProperty("japicmp.compare.version")
 if (japicmpCompareTarget == null) { /* use latest released version */
-  // Read the list from maven central.
-  // Fetch the metadata and parse the xml into Version instances, pick the latest one
-  japicmpCompareTarget = new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
-    new XmlParser().parse(s)
-      .versioning.versions.version
-      .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
-      .collect { org.opensearch.gradle.Version.fromString(it) }
-      .toSorted()
-      .last()
-      .toString()
-  }
+    // Read the list from maven central.
+    // Fetch the metadata and parse the xml into Version instances, pick the latest one
+    japicmpCompareTarget = new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
+        new XmlParser().parse(s)
+           .versioning.versions.version
+           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
+           .collect { org.opensearch.gradle.Version.fromString(it) }
+           .toSorted()
+           .last()
+           .toString()
+        }
 }
 
 def generateModulesList = tasks.register("generateModulesList") {
-  List<String> modules = project(':modules').subprojects.collect { it.name }
-  File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
-  processResources.from(modulesFile)
-  inputs.property('modules', modules)
-  outputs.file(modulesFile)
-  doLast {
-    modulesFile.parentFile.mkdirs()
-    modulesFile.setText(modules.join('\n'), 'UTF-8')
-  }
+    List<String> modules = project(':modules').subprojects.collect { it.name }
+    File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
+    processResources.from(modulesFile)
+    inputs.property('modules', modules)
+    outputs.file(modulesFile)
+    doLast {
+        modulesFile.parentFile.mkdirs()
+        modulesFile.setText(modules.join('\n'), 'UTF-8')
+    }
 }
 
 def generatePluginsList = tasks.register("generatePluginsList") {
-  Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
-  plugins.remove('example')
+    Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
+    plugins.remove('example')
 
-  File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
-  processResources.from(pluginsFile)
-  inputs.property('plugins', plugins)
-  outputs.file(pluginsFile)
-  doLast {
-    pluginsFile.parentFile.mkdirs()
-    pluginsFile.setText(plugins.join('\n'), 'UTF-8')
-  }
+    File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
+    processResources.from(pluginsFile)
+    inputs.property('plugins', plugins)
+    outputs.file(pluginsFile)
+    doLast {
+        pluginsFile.parentFile.mkdirs()
+        pluginsFile.setText(plugins.join('\n'), 'UTF-8')
+    }
 }
 
 protobuf {
@@ -222,143 +222,143 @@ protobuf {
 }
 
 tasks.named("processResources").configure {
-  dependsOn generateModulesList, generatePluginsList
+    dependsOn generateModulesList, generatePluginsList
 }
 
 tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    *[
-      // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-      'com.fasterxml.jackson.databind.ObjectMapper',
+    ignoreMissingClasses(
+        *[
+            // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
+            'com.fasterxml.jackson.databind.ObjectMapper',
 
-      // from log4j
-      'com.conversantmedia.util.concurrent.SpinPolicy',
-      'com.fasterxml.jackson.annotation.JsonInclude$Include',
-      'com.fasterxml.jackson.databind.DeserializationContext',
-      'com.fasterxml.jackson.databind.DeserializationFeature',
-      'com.fasterxml.jackson.databind.JsonMappingException',
-      'com.fasterxml.jackson.databind.JsonNode',
-      'com.fasterxml.jackson.databind.Module$SetupContext',
-      'com.fasterxml.jackson.databind.ObjectReader',
-      'com.fasterxml.jackson.databind.ObjectWriter',
-      'com.fasterxml.jackson.databind.SerializerProvider',
-      'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
-      'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
-      'com.fasterxml.jackson.databind.module.SimpleModule',
-      'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
-      'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
-      'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
-      'com.fasterxml.jackson.databind.ser.std.StdSerializer',
-      'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
-      'com.fasterxml.jackson.dataformat.xml.XmlMapper',
-      'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-      'com.fasterxml.jackson.databind.node.ObjectNode',
-      'org.fusesource.jansi.Ansi',
-      'org.fusesource.jansi.AnsiRenderer$Code',
-      'com.lmax.disruptor.EventFactory',
-      'com.lmax.disruptor.EventTranslator',
-      'com.lmax.disruptor.EventTranslatorTwoArg',
-      'com.lmax.disruptor.EventTranslatorVararg',
-      'com.lmax.disruptor.ExceptionHandler',
-      'com.lmax.disruptor.LifecycleAware',
-      'com.lmax.disruptor.RingBuffer',
-      'com.lmax.disruptor.Sequence',
-      'com.lmax.disruptor.SequenceReportingEventHandler',
-      'com.lmax.disruptor.WaitStrategy',
-      'com.lmax.disruptor.dsl.Disruptor',
-      'com.lmax.disruptor.dsl.ProducerType',
-      'javax.jms.Connection',
-      'javax.jms.ConnectionFactory',
-      'javax.jms.Destination',
-      'javax.jms.JMSException',
-      'javax.jms.MapMessage',
-      'javax.jms.Message',
-      'javax.jms.MessageConsumer',
-      'javax.jms.MessageProducer',
-      'javax.jms.Session',
-      'javax.mail.Authenticator',
-      'javax.mail.Message$RecipientType',
-      'javax.mail.PasswordAuthentication',
-      'javax.mail.Session',
-      'javax.mail.Transport',
-      'javax.mail.internet.InternetAddress',
-      'javax.mail.internet.InternetHeaders',
-      'javax.mail.internet.MimeMessage',
-      'javax.mail.internet.MimeMultipart',
-      'javax.mail.internet.MimeUtility',
-      'org.apache.commons.compress.compressors.CompressorStreamFactory',
-      'org.apache.commons.compress.utils.IOUtils',
-      'org.apache.commons.csv.CSVFormat',
-      'org.apache.commons.csv.QuoteMode',
-      'org.apache.kafka.clients.producer.Producer',
-      'org.apache.kafka.clients.producer.RecordMetadata',
-      'org.codehaus.stax2.XMLStreamWriter2',
-      'org.jctools.queues.MpscArrayQueue',
-      'org.osgi.framework.Bundle',
-      'org.osgi.framework.BundleActivator',
-      'org.osgi.framework.BundleContext',
-      'org.osgi.framework.BundleEvent',
-      'org.osgi.framework.BundleReference',
-      'org.osgi.framework.FrameworkUtil',
-      'org.osgi.framework.ServiceRegistration',
-      'org.osgi.framework.SynchronousBundleListener',
-      'org.osgi.framework.wiring.BundleWire',
-      'org.osgi.framework.wiring.BundleWiring',
-      'org.zeromq.ZMQ$Context',
-      'org.zeromq.ZMQ$Socket',
-      'org.zeromq.ZMQ',
+            // from log4j
+            'com.conversantmedia.util.concurrent.SpinPolicy',
+            'com.fasterxml.jackson.annotation.JsonInclude$Include',
+            'com.fasterxml.jackson.databind.DeserializationContext',
+            'com.fasterxml.jackson.databind.DeserializationFeature',
+            'com.fasterxml.jackson.databind.JsonMappingException',
+            'com.fasterxml.jackson.databind.JsonNode',
+            'com.fasterxml.jackson.databind.Module$SetupContext',
+            'com.fasterxml.jackson.databind.ObjectReader',
+            'com.fasterxml.jackson.databind.ObjectWriter',
+            'com.fasterxml.jackson.databind.SerializerProvider',
+            'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
+            'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
+            'com.fasterxml.jackson.databind.module.SimpleModule',
+            'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
+            'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
+            'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
+            'com.fasterxml.jackson.databind.ser.std.StdSerializer',
+            'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
+            'com.fasterxml.jackson.dataformat.xml.XmlMapper',
+            'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
+            'com.fasterxml.jackson.databind.node.ObjectNode',
+            'org.fusesource.jansi.Ansi',
+            'org.fusesource.jansi.AnsiRenderer$Code',
+            'com.lmax.disruptor.EventFactory',
+            'com.lmax.disruptor.EventTranslator',
+            'com.lmax.disruptor.EventTranslatorTwoArg',
+            'com.lmax.disruptor.EventTranslatorVararg',
+            'com.lmax.disruptor.ExceptionHandler',
+            'com.lmax.disruptor.LifecycleAware',
+            'com.lmax.disruptor.RingBuffer',
+            'com.lmax.disruptor.Sequence',
+            'com.lmax.disruptor.SequenceReportingEventHandler',
+            'com.lmax.disruptor.WaitStrategy',
+            'com.lmax.disruptor.dsl.Disruptor',
+            'com.lmax.disruptor.dsl.ProducerType',
+            'javax.jms.Connection',
+            'javax.jms.ConnectionFactory',
+            'javax.jms.Destination',
+            'javax.jms.JMSException',
+            'javax.jms.MapMessage',
+            'javax.jms.Message',
+            'javax.jms.MessageConsumer',
+            'javax.jms.MessageProducer',
+            'javax.jms.Session',
+            'javax.mail.Authenticator',
+            'javax.mail.Message$RecipientType',
+            'javax.mail.PasswordAuthentication',
+            'javax.mail.Session',
+            'javax.mail.Transport',
+            'javax.mail.internet.InternetAddress',
+            'javax.mail.internet.InternetHeaders',
+            'javax.mail.internet.MimeMessage',
+            'javax.mail.internet.MimeMultipart',
+            'javax.mail.internet.MimeUtility',
+            'org.apache.commons.compress.compressors.CompressorStreamFactory',
+            'org.apache.commons.compress.utils.IOUtils',
+            'org.apache.commons.csv.CSVFormat',
+            'org.apache.commons.csv.QuoteMode',
+            'org.apache.kafka.clients.producer.Producer',
+            'org.apache.kafka.clients.producer.RecordMetadata',
+            'org.codehaus.stax2.XMLStreamWriter2',
+            'org.jctools.queues.MpscArrayQueue',
+            'org.osgi.framework.Bundle',
+            'org.osgi.framework.BundleActivator',
+            'org.osgi.framework.BundleContext',
+            'org.osgi.framework.BundleEvent',
+            'org.osgi.framework.BundleReference',
+            'org.osgi.framework.FrameworkUtil',
+            'org.osgi.framework.ServiceRegistration',
+            'org.osgi.framework.SynchronousBundleListener',
+            'org.osgi.framework.wiring.BundleWire',
+            'org.osgi.framework.wiring.BundleWiring',
+            'org.zeromq.ZMQ$Context',
+            'org.zeromq.ZMQ$Socket',
+            'org.zeromq.ZMQ',
 
-      // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
-      'org.noggit.JSONParser',
+            // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
+            'org.noggit.JSONParser',
 
-      // from lucene-spatial
-      'com.fasterxml.jackson.databind.JsonSerializer',
-      'com.fasterxml.jackson.databind.JsonDeserializer',
-      'com.fasterxml.jackson.databind.node.ArrayNode',
-      'com.google.common.geometry.S2Cell',
-      'com.google.common.geometry.S2CellId',
-      'com.google.common.geometry.S2Projections',
-      'com.google.common.geometry.S2Point',
-      'com.google.common.geometry.S2$Metric',
-      'com.google.common.geometry.S2LatLng'
-    ] + (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_20) ? [] : [
-      'jdk.incubator.vector.ByteVector',
-      'jdk.incubator.vector.FloatVector',
-      'jdk.incubator.vector.IntVector',
-      'jdk.incubator.vector.ShortVector',
-      'jdk.incubator.vector.Vector',
-      'jdk.incubator.vector.VectorOperators',
-      'jdk.incubator.vector.VectorSpecies'
-    ]
-  )
-  ignoreViolations(
-    'com.google.protobuf.MessageSchema',
-    'com.google.protobuf.UnsafeUtil',
-    'com.google.protobuf.UnsafeUtil$1',
-    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
-    'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
-    'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
-    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
-    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException'
-  )
+            // from lucene-spatial
+            'com.fasterxml.jackson.databind.JsonSerializer',
+            'com.fasterxml.jackson.databind.JsonDeserializer',
+            'com.fasterxml.jackson.databind.node.ArrayNode',
+            'com.google.common.geometry.S2Cell',
+            'com.google.common.geometry.S2CellId',
+            'com.google.common.geometry.S2Projections',
+            'com.google.common.geometry.S2Point',
+            'com.google.common.geometry.S2$Metric',
+            'com.google.common.geometry.S2LatLng'
+        ] + (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_20) ? [] : [
+            'jdk.incubator.vector.ByteVector',
+            'jdk.incubator.vector.FloatVector',
+            'jdk.incubator.vector.IntVector',
+            'jdk.incubator.vector.ShortVector',
+            'jdk.incubator.vector.Vector',
+            'jdk.incubator.vector.VectorOperators',
+            'jdk.incubator.vector.VectorSpecies'
+        ]
+    )
+    ignoreViolations(
+            'com.google.protobuf.MessageSchema',
+            'com.google.protobuf.UnsafeUtil',
+            'com.google.protobuf.UnsafeUtil$1',
+            'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+            'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+            'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+            'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+            'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
+            'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
+            'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
+            'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException'
+    )
 }
 
 tasks.named("dependencyLicenses").configure {
-  mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /reactor-.*/, to: 'reactor'
-  mapping from: /lucene-.*/, to: 'lucene'
-  dependencies = project.configurations.runtimeClasspath.incoming.artifactView {
-    componentFilter {
-      it instanceof ModuleComponentIdentifier &&
-        (it.group.startsWith('org.opensearch') == false ||
-          // keep the following org.opensearch jars in
-          (it.name == 'jna' ||
-            it.name == 'securesm'))
-    }
-  }.files
+    mapping from: /jackson-.*/, to: 'jackson'
+    mapping from: /reactor-.*/, to: 'reactor'
+    mapping from: /lucene-.*/, to: 'lucene'
+    dependencies = project.configurations.runtimeClasspath.incoming.artifactView {
+        componentFilter {
+            it instanceof ModuleComponentIdentifier &&
+                (it.group.startsWith('org.opensearch') == false ||
+                    // keep the following org.opensearch jars in
+                    (it.name == 'jna' ||
+                            it.name == 'securesm'))
+        }
+    }.files
 }
 
 tasks.named("filepermissions").configure {
@@ -366,19 +366,19 @@ tasks.named("filepermissions").configure {
 }
 
 tasks.named("licenseHeaders").configure {
-  dependsOn("generateProto")
-  // Ignore our vendored version of Google Guice
-  excludes << 'org/opensearch/common/inject/**/*'
-  // Ignore temporary copies of impending 8.7 Lucene classes
-  excludes << 'org/apache/lucene/search/RegExp87*'
-  excludes << 'org/apache/lucene/search/RegexpQuery87*'
-  // Ignore for protobuf generated code
-  excludes << 'org/opensearch/extensions/proto/*'
+    dependsOn("generateProto")
+    // Ignore our vendored version of Google Guice
+    excludes << 'org/opensearch/common/inject/**/*'
+    // Ignore temporary copies of impending 8.7 Lucene classes
+    excludes << 'org/apache/lucene/search/RegExp87*'
+    excludes << 'org/apache/lucene/search/RegexpQuery87*'
+    // Ignore for protobuf generated code
+    excludes << 'org/opensearch/extensions/proto/*'
 }
 
 tasks.test {
-  environment "node.roles.test", "[]"
-  jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED", "-Djdk.attach.allowAttachSelf=true", "-XX:+EnableDynamicAgentLoading"]
+    environment "node.roles.test", "[]"
+    jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED", "-Djdk.attach.allowAttachSelf=true", "-XX:+EnableDynamicAgentLoading" ]
 }
 
 tasks.named("sourcesJar").configure {
@@ -390,88 +390,88 @@ tasks.named("sourcesJar").configure {
 
 /** Compares the current build against a laltest released version or the version supplied through 'japicmp.compare.version' system property */
 tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
-  logger.info("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
-  // See please https://github.com/siom79/japicmp/issues/201
-  compatibilityChangeExcludes = ["METHOD_ABSTRACT_NOW_DEFAULT"]
-  oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
-  newClasspath.from(tasks.named('jar'))
-  onlyModified = true
-  failOnModification = true
-  ignoreMissingClasses = true
-  failOnSourceIncompatibility = true
-  annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
-  annotationExcludes = ['@org.opensearch.common.annotation.InternalApi']
-  txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
-  htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
-  dependsOn downloadJapicmpCompareTarget
+    logger.info("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
+    // See please https://github.com/siom79/japicmp/issues/201
+    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT" ]
+    oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
+    newClasspath.from(tasks.named('jar'))
+    onlyModified = true
+    failOnModification = true
+    ignoreMissingClasses = true
+    failOnSourceIncompatibility = true
+    annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
+    annotationExcludes = ['@org.opensearch.common.annotation.InternalApi']
+    txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
+    htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
+    dependsOn downloadJapicmpCompareTarget
 }
 
 /** If the Java API Comparison task failed, print a hint if the change should be merged from its target branch */
 gradle.taskGraph.afterTask { Task task, TaskState state ->
-  if (task.name == 'japicmp' && state.failure != null) {
-    logger.info("Public APIs changes incompatiable with ${japicmpCompareTarget} target have been detected")
-  }
+    if (task.name == 'japicmp' && state.failure != null) {
+        logger.info("Public APIs changes incompatiable with ${japicmpCompareTarget} target have been detected")
+    }
 }
 
 /** Downloads latest released version from maven repository */
 tasks.register("downloadJapicmpCompareTarget", Copy) {
-  def mavenSnapshotRepoUrl = "https://aws.oss.sonatype.org/content/repositories/snapshots/"
-  def groupId = "org.opensearch"
-  def artifactId = "opensearch"
+    def mavenSnapshotRepoUrl = "https://aws.oss.sonatype.org/content/repositories/snapshots/"
+    def groupId = "org.opensearch"
+    def artifactId = "opensearch"
 
-  // Add repository for snapshot artifacts if japicmp compare target version is snapshot
-  if (japicmpCompareTarget.endsWith("-SNAPSHOT")) {
-    def repos = project.getRepositories();
-    MavenArtifactRepository opensearchRepo = repos.maven(repo -> {
-      repo.setName("opensearch-snapshots");
-      repo.setUrl(mavenSnapshotRepoUrl);
-    });
+    // Add repository for snapshot artifacts if japicmp compare target version is snapshot
+    if (japicmpCompareTarget.endsWith("-SNAPSHOT")) {
+        def repos = project.getRepositories();
+        MavenArtifactRepository opensearchRepo = repos.maven(repo -> {
+            repo.setName("opensearch-snapshots");
+            repo.setUrl(mavenSnapshotRepoUrl);
+        });
 
-    repos.exclusiveContent(exclusiveRepo -> {
-      exclusiveRepo.filter(descriptor -> descriptor.includeGroup(groupId));
-      exclusiveRepo.forRepositories(opensearchRepo);
-    });
-  }
-
-  configurations {
-    japicmpCompareTargetArtifact {
-      exclude group: 'org.apache.lucene'
+        repos.exclusiveContent(exclusiveRepo -> {
+            exclusiveRepo.filter(descriptor -> descriptor.includeGroup(groupId));
+            exclusiveRepo.forRepositories(opensearchRepo);
+        });
     }
-  }
 
-  dependencies {
-    japicmpCompareTargetArtifact("${groupId}:${artifactId}:${japicmpCompareTarget}:")
-  }
+    configurations {
+        japicmpCompareTargetArtifact {
+            exclude group: 'org.apache.lucene'
+        }
+    }
 
-  from configurations.japicmpCompareTargetArtifact
-  into "$buildDir/japicmp-target"
+    dependencies {
+        japicmpCompareTargetArtifact("${groupId}:${artifactId}:${japicmpCompareTarget}:")
+    }
+
+    from configurations.japicmpCompareTargetArtifact
+    into "$buildDir/japicmp-target"
 }
 
 /** Check if the sha is in the current history */
 def inHistory(String sha) {
-  try {
-    def commandCheckSha = "git merge-base --is-ancestor ${sha} HEAD"
-    commandCheckSha.execute()
-    return true
-  } catch (Exception) {
-    return false
-  }
+    try {
+      def commandCheckSha = "git merge-base --is-ancestor ${sha} HEAD"
+      commandCheckSha.execute()
+      return true
+    } catch (Exception) {
+      return false
+    }
 }
 
 /** Extracts the Git SHA used to build a jar from its manifest */
 def getGitShaFromJar(String jarPath) {
-  def sha = ''
-  try {
-    // Open the JAR file
-    def jarFile = new java.util.jar.JarFile(jarPath)
-    // Get the manifest from the JAR file
-    def manifest = jarFile.manifest
-    def attributes = manifest.mainAttributes
-    // Assuming the Git SHA is stored under an attribute named 'Git-SHA'
-    sha = attributes.getValue('Change')
-    jarFile.close()
-  } catch (IOException e) {
-    println "Failed to read the JAR file: $e.message"
-  }
-  return sha
+    def sha = ''
+    try {
+        // Open the JAR file
+        def jarFile = new java.util.jar.JarFile(jarPath)
+        // Get the manifest from the JAR file
+        def manifest = jarFile.manifest
+        def attributes = manifest.mainAttributes
+        // Assuming the Git SHA is stored under an attribute named 'Git-SHA'
+        sha = attributes.getValue('Change')
+        jarFile.close()
+    } catch (IOException e) {
+        println "Failed to read the JAR file: $e.message"
+    }
+    return sha
 }
