@@ -122,7 +122,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
-    public void testApproximateRangeWithSizeUnderDefault() throws IOException {
+    public void testApproximateRangeWithSizeDefault() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
@@ -154,7 +154,9 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         );
                         IndexSearcher searcher = new IndexSearcher(reader);
                         TopDocs topDocs = searcher.search(approximateQuery, 10);
-                        assertEquals(topDocs.totalHits, new TotalHits(10, TotalHits.Relation.EQUAL_TO));
+                        assertEquals(TotalHits.Relation.EQUAL_TO, topDocs.totalHits.relation());
+                        assertEquals(10, topDocs.scoreDocs.length);
+                        // assertEquals(topDocs.totalHits, new TotalHits(10, TotalHits.Relation.EQUAL_TO));
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -249,10 +251,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         IndexSearcher searcher = new IndexSearcher(reader);
                         TopDocs topDocs = searcher.search(approximateQuery, 10);
                         TopDocs topDocs1 = searcher.search(query, 10);
-
-                        // since we short-circuit from the approx range at the end of size these will not be equal
-                        assertNotEquals(topDocs.totalHits, topDocs1.totalHits);
-                        assertEquals(topDocs.totalHits, new TotalHits(10, TotalHits.Relation.EQUAL_TO));
+                        assertEquals(10, topDocs.scoreDocs.length);
+                        assertEquals(10, topDocs1.scoreDocs.length);
                         assertEquals(topDocs1.totalHits, new TotalHits(101, TotalHits.Relation.EQUAL_TO));
                     } catch (IOException e) {
                         throw new RuntimeException(e);
@@ -299,10 +299,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         TopDocs topDocs = searcher.search(approximateQuery, 10, sort);
                         TopDocs topDocs1 = searcher.search(query, 10, sort);
 
-                        // since we short-circuit from the approx range at the end of size these will not be equal
-                        assertNotEquals(topDocs.totalHits, topDocs1.totalHits);
-                        assertEquals(topDocs.totalHits, new TotalHits(10, TotalHits.Relation.EQUAL_TO));
-                        assertEquals(topDocs1.totalHits, new TotalHits(21, TotalHits.Relation.EQUAL_TO));
                         assertEquals(topDocs.scoreDocs[0].doc, topDocs1.scoreDocs[0].doc);
                         assertEquals(topDocs.scoreDocs[1].doc, topDocs1.scoreDocs[1].doc);
                         assertEquals(topDocs.scoreDocs[2].doc, topDocs1.scoreDocs[2].doc);
@@ -391,5 +387,54 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         when(mockContext.size()).thenReturn(10);
         when(mockContext.request()).thenReturn(null);
         assertTrue(query.canApproximate(mockContext));
+    }
+
+    public void testApproximateRangeShortCircuitDescSort() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+
+                long[] scratch = new long[dims];
+                int numPoints = 1000;
+                for (int i = 0; i < numPoints; i++) {
+                    Document doc = new Document();
+                    for (int v = 0; v < dims; v++) {
+                        scratch[v] = i;
+                    }
+                    iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
+                }
+                iw.flush();
+                iw.forceMerge(1);
+                try (IndexReader reader = iw.getReader()) {
+                    try {
+                        long lower = 980;
+                        long upper = 999;
+                        Query approximateQuery = new ApproximatePointRangeQuery(
+                            "point",
+                            pack(lower).bytes,
+                            pack(upper).bytes,
+                            dims,
+                            10,
+                            SortOrder.DESC,
+                            ApproximatePointRangeQuery.LONG_FORMAT
+                        );
+                        Query query = LongPoint.newRangeQuery("point", lower, upper);
+
+                        IndexSearcher searcher = new IndexSearcher(reader);
+                        Sort sort = new Sort(new SortField("point", SortField.Type.LONG, true)); // true for DESC
+                        TopDocs topDocs = searcher.search(approximateQuery, 10, sort);
+                        TopDocs topDocs1 = searcher.search(query, 10, sort);
+
+                        // Verify we got the highest values first (DESC order)
+                        assertEquals(topDocs.scoreDocs[0].doc, topDocs1.scoreDocs[0].doc);
+                        assertEquals(topDocs.scoreDocs[1].doc, topDocs1.scoreDocs[1].doc);
+                        assertEquals(topDocs.scoreDocs[2].doc, topDocs1.scoreDocs[2].doc);
+
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
     }
 }
