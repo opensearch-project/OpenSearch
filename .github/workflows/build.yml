@@ -305,7 +305,7 @@ jobs:
         if: ${{ inputs.upload }}
         run: |
           src="artifacts/dist/${{ steps.package.outputs.name }}"
-          dest="s3://packages-dev.internal.wazuh.com/development/wazuh/4.x/main/packages/"
+          dest="s3://packages-dev.internal.wazuh.com/development/wazuh/5.x/main/packages/"
           aws s3 cp "$src" "$dest"
           s3uri="${dest}${{ steps.package.outputs.name }}"
           echo "S3 URI: ${s3uri}"
@@ -314,7 +314,7 @@ jobs:
         if: ${{ inputs.upload && inputs.checksum }}
         run: |
           src="artifacts/dist/${{ steps.package.outputs.name }}.sha512"
-          dest="s3://packages-dev.internal.wazuh.com/development/wazuh/4.x/main/packages/"
+          dest="s3://packages-dev.internal.wazuh.com/development/wazuh/5.x/main/packages/"
           aws s3 cp "$src" "$dest"
           s3uri="${dest}${{ steps.package.outputs.name }}.sha512"
           echo "S3 sha512 URI: ${s3uri}"
