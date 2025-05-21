@@ -36,10 +36,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.profile.aggregation.AggregationProfiler;
 import org.opensearch.search.profile.aggregation.ConcurrentAggregationProfiler;
-import org.opensearch.search.profile.query.ConcurrentQueryProfileTree;
-import org.opensearch.search.profile.query.ConcurrentQueryProfiler;
-import org.opensearch.search.profile.query.InternalQueryProfileTree;
-import org.opensearch.search.profile.query.QueryProfiler;
+import org.opensearch.search.profile.query.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,6 +54,7 @@ public final class Profilers {
     private final List<QueryProfiler> queryProfilers;
     private final AggregationProfiler aggProfiler;
     private final boolean isConcurrentSegmentSearchEnabled;
+    private final List<AbstractProfileBreakdown<?>> pluginProfileBreakdowns;
 
     /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
     public Profilers(ContextIndexSearcher searcher, boolean isConcurrentSegmentSearchEnabled) {
@@ -64,6 +62,8 @@ public final class Profilers {
         this.isConcurrentSegmentSearchEnabled = isConcurrentSegmentSearchEnabled;
         this.queryProfilers = new ArrayList<>();
         this.aggProfiler = isConcurrentSegmentSearchEnabled ? new ConcurrentAggregationProfiler() : new AggregationProfiler();
+        this.pluginProfileBreakdowns = new ArrayList<>();
+        this.pluginProfileBreakdowns.add(new QueryTimingProfileBreakdown());
         addQueryProfiler();
     }
 

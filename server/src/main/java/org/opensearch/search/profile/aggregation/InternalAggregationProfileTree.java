@@ -34,6 +34,8 @@ package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.profile.AbstractInternalProfileTree;
+import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.AbstractProfileResult;
 import org.opensearch.search.profile.TimingProfileResult;
 
 import java.util.List;
@@ -43,24 +45,27 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class InternalAggregationProfileTree extends AbstractInternalProfileTree<AggregationTimingProfileBreakdown, AggregationTimingType, Aggregator, TimingProfileResult> {
-
-    @Override
-    protected AggregationTimingProfileBreakdown createProfileBreakdown() {
-        return new AggregationTimingProfileBreakdown();
+public class InternalAggregationProfileTree extends AbstractInternalProfileTree<Aggregator> {
+    public InternalAggregationProfileTree(List<Class<? extends AbstractProfileBreakdown<?>>> breakdownClasses, List<Class<? extends AbstractProfileResult<?>>> resultClasses) {
+        super(breakdownClasses, resultClasses);
     }
 
-    @Override
-    protected TimingProfileResult createProfileResult(String type, String description, AggregationTimingProfileBreakdown breakdown, List<TimingProfileResult> childrenProfileResults) {
-        return new TimingProfileResult(
-            type,
-            description,
-            breakdown.toBreakdownMap(),
-            breakdown.toDebugMap(),
-            breakdown.toNodeTime(),
-            childrenProfileResults
-        );
-    }
+//    @Override
+//    protected AggregationTimingProfileBreakdown createProfileBreakdown() {
+//        return new AggregationTimingProfileBreakdown();
+//    }
+//
+//    @Override
+//    protected TimingProfileResult createProfileResult(String type, String description, AggregationTimingProfileBreakdown breakdown, List<TimingProfileResult> childrenProfileResults) {
+//        return new TimingProfileResult(
+//            type,
+//            description,
+//            breakdown.toBreakdownMap(),
+//            breakdown.toDebugMap(),
+//            breakdown.toNodeTime(),
+//            childrenProfileResults
+//        );
+//    }
 
     @Override
     protected String getTypeFromElement(Aggregator element) {

@@ -54,7 +54,7 @@ import java.util.Objects;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class QueryProfiler extends AbstractProfiler<AbstractTimingProfileBreakdown<QueryTimingType>, QueryTimingType, Query, TimingProfileResult> {
+public class QueryProfiler extends AbstractProfiler<Query> {
 
     /**
      * The root Collector used in the search

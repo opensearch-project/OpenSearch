@@ -32,8 +32,7 @@
 
 package org.opensearch.search.profile.query;
 
-import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
-import org.opensearch.search.profile.TimingProfileResult;
+import org.opensearch.search.profile.*;
 
 import java.util.List;
 
@@ -44,20 +43,20 @@ import java.util.List;
  */
 public class InternalQueryProfileTree extends AbstractQueryProfileTree {
 
-    @Override
-    protected AbstractTimingProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new QueryTimingProfileBreakdown();
-    }
-
-    @Override
-    protected TimingProfileResult createProfileResult(String type, String description, AbstractTimingProfileBreakdown<QueryTimingType> breakdown, List<TimingProfileResult> childrenProfileResults) {
-        return new TimingProfileResult(
-            type,
-            description,
-            breakdown.toBreakdownMap(),
-            breakdown.toDebugMap(),
-            breakdown.toNodeTime(),
-            childrenProfileResults
-        );
-    }
+//    @Override
+//    protected AbstractTimingProfileBreakdown<QueryTimingType> createProfileBreakdown() {
+//        return new QueryTimingProfileBreakdown();
+//    }
+//
+//    @Override
+//    protected TimingProfileResult createProfileResult(String type, String description, AbstractTimingProfileBreakdown<QueryTimingType> breakdown, List<TimingProfileResult> childrenProfileResults) {
+//        return new TimingProfileResult(
+//            type,
+//            description,
+//            breakdown.toBreakdownMap(),
+//            breakdown.toDebugMap(),
+//            breakdown.toNodeTime(),
+//            childrenProfileResults
+//        );
+//    }
 }

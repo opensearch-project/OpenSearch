@@ -32,6 +32,7 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.common.recycler.Recycler;
 import org.opensearch.search.profile.query.QueryTimingProfileBreakdown;
 
 import java.util.ArrayDeque;
@@ -45,9 +46,14 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<T>, T extends Enum<T>, E, R extends AbstractProfileResult<R>> {
+public abstract class AbstractInternalProfileTree<E> {
 
-    protected ArrayList<PB> breakdowns;
+    protected ArrayList<CompositeProfileBreakdown> breakdowns; /*
+                                        TODO: instead of each node having one breakdown like previous, have a List of breakdowns per query node
+                                            i.e. kNN could have a TimingPB, MemoryPB, FilterPB. Each node in the tree would have multiple breakdowns
+                                            and getProfileBreakdown/getQueryBreakdown would now return many breakdowns instead of just one. Then,
+                                            in createWeight you would iterate through them all calling start(), end(), metrics(), etc.
+                                        */
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
     protected ArrayList<ArrayList<Integer>> tree;
     /** A list of the original queries, keyed by index position */
@@ -58,12 +64,17 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
     protected Deque<Integer> stack;
     private int currentToken = 0;
 
-    public AbstractInternalProfileTree() {
+    private List<Class<? extends AbstractProfileBreakdown<?>>> breakdownClasses;
+    private List<Class<? extends AbstractProfileResult<?>>> resultClasses;
+
+    public AbstractInternalProfileTree(List<Class<? extends AbstractProfileBreakdown<?>>> breakdownClasses, List<Class<? extends AbstractProfileResult<?>>> resultClasses) {
         breakdowns = new ArrayList<>(10);
         stack = new ArrayDeque<>(10);
         tree = new ArrayList<>(10);
         elements = new ArrayList<>(10);
         roots = new ArrayList<>(10);
+        this.breakdownClasses = breakdownClasses;
+        this.resultClasses = resultClasses;
     }
 
     /**
@@ -77,7 +88,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      * @param query The scoring query we wish to profile
      * @return      A ProfileBreakdown for this query
      */
-    public PB getProfileBreakdown(E query) {
+    public CompositeProfileBreakdown getProfileBreakdown(E query) throws Exception {
         int token = currentToken;
 
         boolean stackEmpty = stack.isEmpty();
@@ -120,7 +131,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      *            The assigned token for this element
      * @return A {@link AbstractProfileBreakdown} to profile this element
      */
-    private PB addDependencyNode(E element, int token) {
+    private CompositeProfileBreakdown addDependencyNode(E element, int token) throws Exception {
 
         // Add a new slot in the dependency tree
         tree.add(new ArrayList<>(5));
@@ -128,13 +139,15 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // Save our query for lookup later
         elements.add(element);
 
-        PB breakdown = createProfileBreakdown();
+        CompositeProfileBreakdown breakdown = createProfileBreakdown();
         breakdowns.add(token, breakdown);
         return breakdown;
     }
 
-    protected abstract PB createProfileBreakdown();
-
+//    protected abstract CompositeProfileBreakdown createProfileBreakdown();
+    protected CompositeProfileBreakdown createProfileBreakdown() throws Exception {
+       return new CompositeProfileBreakdown(breakdownClasses, resultClasses);
+    }
     /**
      * Removes the last (e.g. most recent) value on the stack
      */
@@ -149,8 +162,8 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      *
      * @return a hierarchical representation of the profiled query tree
      */
-    public List<R> getTree() {
-        ArrayList<R> results = new ArrayList<>(roots.size());
+    public List<CompositeProfileResult> getTree() {
+        ArrayList<CompositeProfileResult> results = new ArrayList<>(roots.size());
         for (Integer root : roots) {
             results.add(doGetTree(root));
         }
@@ -162,16 +175,16 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      * @param token  The node we are currently finalizing
      * @return       A hierarchical representation of the tree inclusive of children at this level
      */
-    private R doGetTree(int token) {
+    private CompositeProfileResult doGetTree(int token) {
         E element = elements.get(token);
-        PB breakdown = breakdowns.get(token);
+        CompositeProfileBreakdown breakdown = breakdowns.get(token);
         List<Integer> children = tree.get(token);
-        List<R> childrenProfileResults = Collections.emptyList();
+        List<CompositeProfileResult> childrenProfileResults = Collections.emptyList();
 
         if (children != null) {
             childrenProfileResults = new ArrayList<>(children.size());
             for (Integer child : children) {
-                R childNode = doGetTree(child);
+                CompositeProfileResult childNode = doGetTree(child);
                 childrenProfileResults.add(childNode);
             }
         }
@@ -180,10 +193,15 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // calculating the same times over and over...but worth the effort?
         String type = getTypeFromElement(element);
         String description = getDescriptionFromElement(element);
-        return createProfileResult(type, description, breakdown, childrenProfileResults);
+        CompositeProfileResult result = new CompositeProfileResult();
+        for(AbstractProfileResult<?> r : breakdown.getResults().values()) {
+            result.addResult(r);
+        }
+        return result;
+//        return createProfileResult(type, description, breakdown, childrenProfileResults);
     }
 
-    protected abstract R createProfileResult(String type, String description, PB breakdown, List<R> childrenProfileResults);
+//    protected abstract CompositeProfileResult createProfileResult(String type, String description, CompositeProfileBreakdown breakdown, List<CompositeProfileResult> childrenProfileResults);
 
     protected abstract String getTypeFromElement(E element);
 
