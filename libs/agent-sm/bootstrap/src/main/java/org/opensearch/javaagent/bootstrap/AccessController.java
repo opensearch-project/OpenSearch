@@ -31,12 +31,7 @@ public final class AccessController {
      * @return the value returned by the action's {@code run} method
      */
     public static <T> T doPrivileged(PrivilegedAction<T> action) {
-        T result = action.run();
-        return result;
-    }
-
-    private static PrivilegedActionException wrapException(Exception e) {
-        return new PrivilegedActionException(e);
+        return action.run();
     }
 
     /**
@@ -57,12 +52,11 @@ public final class AccessController {
      */
     public static <T> T doPrivileged(PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
         try {
-            T result = action.run();
-            return result;
+            return action.run();
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
-            throw wrapException(e);
+            throw new PrivilegedActionException(e);
         }
     }
 }
