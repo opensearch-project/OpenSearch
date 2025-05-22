@@ -10,16 +10,16 @@ package org.opensearch.action.pagination;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
+import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.wlm.stats.SortBy;
+import org.opensearch.wlm.stats.SortOrder;
 import org.opensearch.wlm.stats.WlmStats;
 import org.opensearch.wlm.stats.WorkloadGroupStats;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
@@ -80,17 +80,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
     }
 
     private String sha256Hex(String input) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance(HASH_ALGORITHM);
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                hexString.append(String.format(Locale.ROOT, "%02x", b));
-            }
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 algorithm not available", e);
-        }
+        return MessageDigests.toHexString(MessageDigests.sha256().digest(input.getBytes(StandardCharsets.UTF_8)));
     }
 
     /**
@@ -199,10 +189,6 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         return paginatedStats;
     }
 
-    public List<WlmStats> getPaginatedStats() {
-        return paginatedStats;
-    }
-
     /**
      * Represents a token used in the WLM strategy for pagination.
      * This class encapsulates the token data required for identifying the current state of pagination.
@@ -226,8 +212,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
 
         public WlmStrategyToken(String requestedTokenString) {
             validateToken(requestedTokenString);
-            String decryptedToken = PaginationStrategy.decryptStringToken(requestedTokenString);
-            final String[] parts = decryptedToken.split(SPLIT_REGEX);
+            final String[] parts = validateToken(requestedTokenString);
 
             this.nodeId = parts[NODE_ID_POS];
             this.workloadGroupId = parts[WORKLOAD_GROUP_ID_POS];
@@ -273,18 +258,23 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
             return sortBy;
         }
 
-        private static void validateToken(String token) {
+        private static boolean isNullOrBlank(String str) {
+            return str == null || str.trim().isEmpty();
+        }
+
+        private static String[] validateToken(String token) {
             Objects.requireNonNull(token, "Token cannot be null");
             String decrypted = PaginationStrategy.decryptStringToken(token);
             final String[] parts = decrypted.split(SPLIT_REGEX);
             if (parts.length != 6
-                || parts[NODE_ID_POS].isEmpty()
-                || parts[WORKLOAD_GROUP_ID_POS].isEmpty()
-                || parts[HASH_POS].isEmpty()
-                || parts[SORT_ORDER_POS].isEmpty()
-                || parts[SORT_BY_POS].isEmpty()) {
+                || isNullOrBlank(parts[NODE_ID_POS])
+                || isNullOrBlank(parts[WORKLOAD_GROUP_ID_POS])
+                || isNullOrBlank(parts[HASH_POS])
+                || isNullOrBlank(parts[SORT_ORDER_POS])
+                || isNullOrBlank(parts[SORT_BY_POS])) {
                 throw new OpenSearchParseException("Invalid pagination token format");
             }
+            return parts;
         }
     }
 }

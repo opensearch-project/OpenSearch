@@ -6,9 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.pagination;
-
-import org.opensearch.wlm.stats.WlmStats;
+package org.opensearch.wlm.stats;
 
 import java.util.Comparator;
 import java.util.Locale;

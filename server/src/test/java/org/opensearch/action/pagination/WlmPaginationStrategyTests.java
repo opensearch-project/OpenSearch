@@ -13,6 +13,8 @@ import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.wlm.stats.SortBy;
+import org.opensearch.wlm.stats.SortOrder;
 import org.opensearch.wlm.stats.WlmStats;
 import org.opensearch.wlm.stats.WorkloadGroupStats;
 
@@ -147,7 +149,7 @@ public class WlmPaginationStrategyTests extends OpenSearchTestCase {
                     sortOrder,
                     new WlmStatsResponse(ClusterName.DEFAULT, statsList, Collections.emptyList())
                 );
-                List<WlmStats> stats = strategy.getPaginatedStats();
+                List<WlmStats> stats = strategy.getRequestedEntities();
 
                 assertNotNull(stats);
                 assertFalse(stats.isEmpty());

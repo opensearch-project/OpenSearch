@@ -14,8 +14,6 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
 import org.opensearch.action.pagination.PageToken;
-import org.opensearch.action.pagination.SortBy;
-import org.opensearch.action.pagination.SortOrder;
 import org.opensearch.action.pagination.WlmPaginationStrategy;
 import org.opensearch.common.Table;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -32,6 +30,8 @@ import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rest.action.cat.RestTable;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.stats.SortBy;
+import org.opensearch.wlm.stats.SortOrder;
 import org.opensearch.wlm.stats.WlmStats;
 import org.opensearch.wlm.stats.WorkloadGroupStats;
 
@@ -108,7 +108,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
                 try {
                     WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(pageSize, nextToken, sortBy, sortOrder, response);
 
-                    List<WlmStats> paginatedStats = paginationStrategy.getPaginatedStats();
+                    List<WlmStats> paginatedStats = paginationStrategy.getRequestedEntities();
                     PageToken nextPageToken = paginationStrategy.getResponseToken();
 
                     Table paginatedTable = createTableWithHeaders(nextPageToken, verbose);
