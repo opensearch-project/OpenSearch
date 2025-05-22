@@ -630,8 +630,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
-        final boolean serverSideEncryption = randomBoolean();
-        when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLength(10);
+        final String kmsContext = randomAlphaOfLength(10);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+        when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);
@@ -666,7 +677,12 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(storageClass, request.storageClass());
         assertEquals(cannedAccessControlList, request.acl());
         assertEquals(metadata, request.metadata());
-        if (serverSideEncryption) {
+        if (useSseKms) {
+            assertEquals(ServerSideEncryption.AWS_KMS, request.serverSideEncryption());
+            assertEquals(kmsKeyId, request.ssekmsKeyId());
+            assertEquals(kmsContext, request.ssekmsEncryptionContext());
+            assertEquals(useBucketKey, request.bucketKeyEnabled());
+        } else {
             assertEquals(ServerSideEncryption.AES256, request.serverSideEncryption());
         }
     }
@@ -716,8 +732,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
 
-        final boolean serverSideEncryption = randomBoolean();
-        when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLength(10);
+        final String kmsContext = randomAlphaOfLength(10);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+        when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);
@@ -776,7 +803,12 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(cannedAccessControlList, initRequest.acl());
         assertEquals(metadata, initRequest.metadata());
 
-        if (serverSideEncryption) {
+        if (useSseKms) {
+            assertEquals(ServerSideEncryption.AWS_KMS, initRequest.serverSideEncryption());
+            assertEquals(kmsKeyId, initRequest.ssekmsKeyId());
+            assertEquals(kmsContext, initRequest.ssekmsEncryptionContext());
+            assertEquals(useBucketKey, initRequest.bucketKeyEnabled());
+        } else {
             assertEquals(ServerSideEncryption.AES256, initRequest.serverSideEncryption());
         }
 
@@ -827,6 +859,20 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
         when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
         when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLength(10);
+        final String kmsContext = randomAlphaOfLength(10);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+        when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
 
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = new AmazonS3Reference(client);
@@ -1144,8 +1190,21 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
-        when(blobStore.serverSideEncryption()).thenReturn(false);
         when(blobStore.asyncClientReference()).thenReturn(amazonAsyncS3Reference);
+
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLength(10);
+        final String kmsContext = randomAlphaOfLength(10);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+        when(blobStore.expectedBucketOwner()).thenReturn(null);
 
         CompletableFuture<GetObjectAttributesResponse> getObjectAttributesResponseCompletableFuture = new CompletableFuture<>();
         getObjectAttributesResponseCompletableFuture.complete(
@@ -1201,8 +1260,21 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
-        when(blobStore.serverSideEncryption()).thenReturn(false);
         when(blobStore.asyncClientReference()).thenReturn(amazonAsyncS3Reference);
+
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLength(10);
+        final String kmsContext = randomAlphaOfLength(10);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+        when(blobStore.expectedBucketOwner()).thenReturn(null);
 
         CompletableFuture<GetObjectAttributesResponse> getObjectAttributesResponseCompletableFuture = new CompletableFuture<>();
         getObjectAttributesResponseCompletableFuture.complete(
@@ -1257,7 +1329,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
-        when(blobStore.serverSideEncryption()).thenReturn(false);
         when(blobStore.asyncClientReference()).thenReturn(amazonAsyncS3Reference);
 
         CompletableFuture<GetObjectAttributesResponse> getObjectAttributesResponseCompletableFuture = new CompletableFuture<>();
@@ -1300,7 +1371,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
-        when(blobStore.serverSideEncryption()).thenReturn(false);
         when(blobStore.asyncClientReference()).thenReturn(amazonAsyncS3Reference);
 
         CompletableFuture<GetObjectAttributesResponse> getObjectAttributesResponseCompletableFuture = new CompletableFuture<>();
@@ -1339,7 +1409,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final BlobPath blobPath = new BlobPath();
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
-        when(blobStore.serverSideEncryption()).thenReturn(false);
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
         CompletableFuture<GetObjectAttributesResponse> getObjectAttributesResponseCompletableFuture = new CompletableFuture<>();
@@ -1374,7 +1443,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final BlobPath blobPath = new BlobPath();
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
-        when(blobStore.serverSideEncryption()).thenReturn(false);
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
         GetObjectResponse getObjectResponse = GetObjectResponse.builder().contentLength(contentLength).contentRange(contentRange).build();
@@ -1389,6 +1457,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                 ArgumentMatchers.<AsyncResponseTransformer<GetObjectResponse, ResponseInputStream<GetObjectResponse>>>any()
             )
         ).thenReturn(getObjectPartResponse);
+
+        when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
 
         // Header based offset in case of a multi part object request
         InputStreamContainer inputStreamContainer = blobContainer.getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobName, 0)
