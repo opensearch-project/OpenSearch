@@ -134,6 +134,11 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         @Override
+        protected org.opensearch.action.bulk.BulkRequest buildBulkRequest() {
+            return new org.opensearch.action.bulk.BulkRequest().pipeline(mainRequest.getPipeline());
+        }
+
+        @Override
         protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
             index.index(doc.getIndex());

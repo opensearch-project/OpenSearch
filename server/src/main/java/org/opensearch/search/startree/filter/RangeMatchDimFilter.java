@@ -26,7 +26,6 @@ import java.util.Optional;
 public class RangeMatchDimFilter implements DimensionFilter {
 
     private final String dimensionName;
-
     private final Object low;
     private final Object high;
     private final boolean includeLow;
@@ -35,6 +34,7 @@ public class RangeMatchDimFilter implements DimensionFilter {
     private Long lowOrdinal;
     private Long highOrdinal;
 
+    // TODO - see if we need to handle this while intersecting
     private boolean skipRangeCollection = false;
 
     private DimensionFilterMapper dimensionFilterMapper;
@@ -88,6 +88,27 @@ public class RangeMatchDimFilter implements DimensionFilter {
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
         return dimensionFilterMapper.comparator().compare(lowOrdinal, ordinal) <= 0
             && dimensionFilterMapper.comparator().compare(ordinal, highOrdinal) <= 0;
+    }
+
+    @Override
+    public String getDimensionName() {
+        return dimensionName;
+    }
+
+    public Object getLow() {
+        return low;
+    }
+
+    public Object getHigh() {
+        return high;
+    }
+
+    public boolean isIncludeLow() {
+        return includeLow;
+    }
+
+    public boolean isIncludeHigh() {
+        return includeHigh;
     }
 
 }

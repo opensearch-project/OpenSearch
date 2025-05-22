@@ -263,6 +263,21 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
+    public Integer getRef(K key) {
+        Objects.requireNonNull(key);
+        lock.lock();
+        try {
+            Node<K, V> node = data.get(key);
+            if (node != null) {
+                return node.refCount;
+            }
+            return null;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
     public long prune(Predicate<K> keyPredicate) {
         long sum = 0L;
         lock.lock();

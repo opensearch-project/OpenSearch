@@ -127,7 +127,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         logger.debug("Stopping resource tracking for task: {}", task.getId());
         try {
             if (isCurrentThreadWorkingOnTask(task)) {
-                taskExecutionFinishedOnThread(task.getId(), Thread.currentThread().getId());
+                taskExecutionFinishedOnThread(task.getId(), Thread.currentThread().threadId());
             }
         } catch (Exception e) {
             logger.warn("Failed while trying to mark the task execution on current thread completed.", e);
@@ -234,7 +234,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     private boolean isCurrentThreadWorkingOnTask(Task task) {
-        long threadId = Thread.currentThread().getId();
+        long threadId = Thread.currentThread().threadId();
         List<ThreadResourceInfo> threadResourceInfos = task.getResourceStats().getOrDefault(threadId, Collections.emptyList());
 
         for (ThreadResourceInfo threadResourceInfo : threadResourceInfos) {
@@ -284,7 +284,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         try {
             // Get resource usages from when the task started
             ThreadResourceInfo threadResourceInfo = task.getActiveThreadResourceInfo(
-                Thread.currentThread().getId(),
+                Thread.currentThread().threadId(),
                 ResourceStatsType.WORKER_STATS
             );
             if (threadResourceInfo == null) {
@@ -295,7 +295,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
                 return;
             }
             // Get current resource usages
-            ResourceUsageMetric[] endValues = getResourceUsageMetricsForThread(Thread.currentThread().getId());
+            ResourceUsageMetric[] endValues = getResourceUsageMetricsForThread(Thread.currentThread().threadId());
             long cpu = -1, mem = -1;
             for (ResourceUsageMetric endValue : endValues) {
                 if (endValue.getStats() == ResourceStats.MEMORY) {

@@ -302,12 +302,8 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
      * Returns the rest status code associated with this exception.
      */
     public RestStatus status() {
-        return status(this);
-    }
-
-    public static RestStatus status(Throwable t) {
-        Throwable cause = ExceptionsHelper.unwrapCause(t);
-        if (cause == t) {
+        Throwable cause = unwrapCause();
+        if (cause == this) {
             return RestStatus.INTERNAL_SERVER_ERROR;
         } else {
             return ExceptionsHelper.status(cause);

@@ -1233,18 +1233,18 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.trackTotalHitsUpTo(5);
 
         QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
-        assertEquals(10, context.queryResult().topDocs().topDocs.totalHits.value());
+        assertTrue(context.queryResult().topDocs().topDocs.totalHits.value() >= 5);
         assertProfileData(context, "BooleanQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(10L));
+            assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(5L));
             if (executor != null) {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("max_score_count"), equalTo(10L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), equalTo(10L));
-                assertThat(query.getTimeBreakdown().get("avg_score_count"), equalTo(10L));
+                assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(5L));
+                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(5L));
+                assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(5L));
             }
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));

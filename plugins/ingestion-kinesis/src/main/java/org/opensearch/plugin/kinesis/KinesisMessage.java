@@ -15,17 +15,25 @@ import org.opensearch.index.Message;
  */
 public class KinesisMessage implements Message<byte[]> {
     private final byte[] payload;
+    private final Long timestamp;
 
     /**
      * Constructor
      * @param payload the payload of the message
+     * @param timestamp the timestamp of the message in milliseconds
      */
-    public KinesisMessage(byte[] payload) {
+    public KinesisMessage(byte[] payload, Long timestamp) {
         this.payload = payload;
+        this.timestamp = timestamp;
     }
 
     @Override
     public byte[] getPayload() {
         return payload;
+    }
+
+    @Override
+    public Long getTimestamp() {
+        return timestamp;
     }
 }

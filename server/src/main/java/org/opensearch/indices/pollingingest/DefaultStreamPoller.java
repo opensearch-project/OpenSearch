@@ -10,8 +10,12 @@ package org.opensearch.indices.pollingingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
@@ -30,6 +34,7 @@ import java.util.concurrent.Executors;
  */
 public class DefaultStreamPoller implements StreamPoller {
     private static final Logger logger = LogManager.getLogger(DefaultStreamPoller.class);
+    private static final int DEFAULT_POLLER_SLEEP_PERIOD_MS = 100;
 
     private volatile State state = State.NONE;
 
@@ -38,6 +43,11 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile boolean closed;
     private volatile boolean paused;
     private volatile IngestionErrorStrategy errorStrategy;
+
+    // indicates if a local or global cluster write block is in effect
+    private volatile boolean isWriteBlockEnabled;
+
+    private volatile long lastPolledMessageTimestamp = 0;
 
     private IngestionShardConsumer consumer;
 
@@ -54,8 +64,12 @@ public class DefaultStreamPoller implements StreamPoller {
     private int pollTimeout;
 
     private Set<IngestionShardPointer> persistedPointers;
+    private final String indexName;
 
     private final CounterMetric totalPolledCount = new CounterMetric();
+    private final CounterMetric totalConsumerErrorCount = new CounterMetric();
+    private final CounterMetric totalPollerMessageFailureCount = new CounterMetric();
+    private final CounterMetric totalPollerMessageDroppedCount = new CounterMetric();
 
     // A pointer to the max persisted pointer for optimizing the check
     @Nullable
@@ -74,19 +88,27 @@ public class DefaultStreamPoller implements StreamPoller {
         State initialState,
         long maxPollSize,
         int pollTimeout,
-        int numProcessorThreads
+        int numProcessorThreads,
+        int blockingQueueSize
     ) {
         this(
             startPointer,
             persistedPointers,
             consumer,
-            new PartitionedBlockingQueueContainer(numProcessorThreads, consumer.getShardId(), ingestionEngine, errorStrategy),
+            new PartitionedBlockingQueueContainer(
+                numProcessorThreads,
+                consumer.getShardId(),
+                ingestionEngine,
+                errorStrategy,
+                blockingQueueSize
+            ),
             resetState,
             resetValue,
             errorStrategy,
             initialState,
             maxPollSize,
-            pollTimeout
+            pollTimeout,
+            ingestionEngine.config().getIndexSettings()
         );
     }
 
@@ -100,7 +122,8 @@ public class DefaultStreamPoller implements StreamPoller {
         IngestionErrorStrategy errorStrategy,
         State initialState,
         long maxPollSize,
-        int pollTimeout
+        int pollTimeout,
+        IndexSettings indexSettings
     ) {
         this.consumer = Objects.requireNonNull(consumer);
         this.resetState = resetState;
@@ -121,6 +144,8 @@ public class DefaultStreamPoller implements StreamPoller {
             )
         );
         this.errorStrategy = errorStrategy;
+        this.indexName = indexSettings.getIndex().getName();
+
     }
 
     @Override
@@ -187,11 +212,10 @@ public class DefaultStreamPoller implements StreamPoller {
                     resetState = ResetState.NONE;
                 }
 
-                if (paused) {
+                if (paused || isWriteBlockEnabled) {
                     state = State.PAUSED;
                     try {
-                        // TODO: make sleep time configurable
-                        Thread.sleep(100);
+                        Thread.sleep(DEFAULT_POLLER_SLEEP_PERIOD_MS);
                     } catch (Throwable e) {
                         logger.error("Error in pausing the poller of shard {}: {}", consumer.getShardId(), e);
                     }
@@ -225,6 +249,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 // The user will have the option to manually update the offset and resume ingestion.
                 // todo: support retry?
                 logger.error("Pausing ingestion. Fatal error occurred in polling the shard {}: {}", consumer.getShardId(), e);
+                totalConsumerErrorCount.inc();
                 pause();
             }
         }
@@ -247,7 +272,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 }
                 totalPolledCount.inc();
                 blockingQueueContainer.add(result);
-
+                lastPolledMessageTimestamp = result.getMessage().getTimestamp() == null ? 0 : result.getMessage().getTimestamp();
                 logger.debug(
                     "Put message {} with pointer {} to the blocking queue",
                     String.valueOf(result.getMessage().getPayload()),
@@ -261,12 +286,15 @@ public class DefaultStreamPoller implements StreamPoller {
                     e
                 );
                 errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.POLLING);
+                totalPollerMessageFailureCount.inc();
 
-                if (!errorStrategy.shouldIgnoreError(e, IngestionErrorStrategy.ErrorStage.POLLING)) {
+                if (errorStrategy.shouldIgnoreError(e, IngestionErrorStrategy.ErrorStage.POLLING) == false) {
                     // Blocking error encountered. Pause poller to stop processing remaining updates.
                     pause();
                     failedShardPointer = result.getPointer();
                     break;
+                } else {
+                    totalPollerMessageDroppedCount.inc();
                 }
             }
         }
@@ -362,11 +390,29 @@ public class DefaultStreamPoller implements StreamPoller {
 
     @Override
     public PollingIngestStats getStats() {
+        MessageProcessorRunnable.MessageProcessorMetrics processorMetrics = blockingQueueContainer.getMessageProcessorMetrics();
         PollingIngestStats.Builder builder = new PollingIngestStats.Builder();
+        // set processor stats
+        builder.setTotalProcessedCount(processorMetrics.processedCounter().count());
+        builder.setTotalInvalidMessageCount(processorMetrics.invalidMessageCounter().count());
+        builder.setTotalProcessorVersionConflictsCount(processorMetrics.versionConflictCounter().count());
+        builder.setTotalProcessorFailedCount(processorMetrics.failedMessageCounter().count());
+        builder.setTotalProcessorFailuresDroppedCount(processorMetrics.failedMessageDroppedCounter().count());
+        builder.setTotalProcessorThreadInterruptCount(processorMetrics.processorThreadInterruptCounter().count());
+        // set consumer stats
         builder.setTotalPolledCount(totalPolledCount.count());
-        builder.setTotalProcessedCount(blockingQueueContainer.getTotalProcessedCount());
-        builder.setTotalSkippedCount(blockingQueueContainer.getTotalSkippedCount());
+        builder.setTotalConsumerErrorCount(totalConsumerErrorCount.count());
+        builder.setTotalPollerMessageFailureCount(totalPollerMessageFailureCount.count());
+        builder.setTotalPollerMessageDroppedCount(totalPollerMessageDroppedCount.count());
+        builder.setLagInMillis(computeLag());
         return builder.build();
+    }
+
+    /**
+     * Returns the lag in milliseconds since the last polled message
+     */
+    private long computeLag() {
+        return System.currentTimeMillis() - lastPolledMessageTimestamp;
     }
 
     public State getState() {
@@ -382,5 +428,31 @@ public class DefaultStreamPoller implements StreamPoller {
     public void updateErrorStrategy(IngestionErrorStrategy errorStrategy) {
         this.errorStrategy = errorStrategy;
         blockingQueueContainer.updateErrorStrategy(errorStrategy);
+    }
+
+    @Override
+    public boolean isWriteBlockEnabled() {
+        return isWriteBlockEnabled;
+    }
+
+    @Override
+    public void setWriteBlockEnabled(boolean isWriteBlockEnabled) {
+        this.isWriteBlockEnabled = isWriteBlockEnabled;
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        try {
+            if (event.blocksChanged() == false) {
+                return;
+            }
+
+            final ClusterState state = event.state();
+            isWriteBlockEnabled = state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName);
+
+        } catch (Exception e) {
+            logger.error("Error applying cluster state in stream poller", e);
+            throw e;
+        }
     }
 }
