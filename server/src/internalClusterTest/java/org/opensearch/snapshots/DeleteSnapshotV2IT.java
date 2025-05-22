@@ -28,6 +28,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
+import org.junit.After;
 
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -77,6 +78,18 @@ public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
             .build();
+    }
+
+    @After
+    public void teardown() {
+        if (WRITABLE_WARM_INDEX_SETTING.get(settings)) {
+            assertAcked(client().admin().indices().prepareDelete("_all").get());
+            var nodes = internalCluster().getDataNodeInstances(Node.class);
+            for (var node : nodes) {
+                var fileCache = node.fileCache();
+                fileCache.clear();
+            }
+        }
     }
 
     private static final String REMOTE_REPO_NAME = "remote-store-repo-name";

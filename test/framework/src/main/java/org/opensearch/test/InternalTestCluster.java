@@ -1132,9 +1132,6 @@ public final class InternalTestCluster extends TestCluster {
 
         private void markNodeDataDirsAsPendingForWipe(Node node) {
             assert Thread.holdsLock(InternalTestCluster.this);
-            if (node.fileCache() != null) {
-                node.fileCache().clear();
-            }
             NodeEnvironment nodeEnv = node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
                 dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPaths()));
