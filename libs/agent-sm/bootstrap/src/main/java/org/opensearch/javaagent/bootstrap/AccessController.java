@@ -8,6 +8,8 @@
 
 package org.opensearch.javaagent.bootstrap;
 
+import java.util.concurrent.Callable;
+
 /**
  * Utility class to run code in a privileged block.
  */
@@ -23,15 +25,10 @@ public final class AccessController {
      * <p> If the action's {@code run} method throws an (unchecked)
      * exception, it will propagate through this method.
      *
-     * @param <T> the type of the value returned by the PrivilegedAction's
-     *                  {@code run} method
-     *
      * @param action the action to be performed
-     *
-     * @return the value returned by the action's {@code run} method
      */
-    public static <T> T doPrivileged(PrivilegedAction<T> action) {
-        return action.run();
+    public static void doPrivileged(Runnable action) {
+        action.run();
     }
 
     /**
@@ -47,16 +44,10 @@ public final class AccessController {
      *
      * @return the value returned by the action's {@code run} method
      *
-     * @throws    PrivilegedActionException if the specified action's
-     *         {@code run} method threw a <i>checked</i> exception
+     * @throws Exception if the specified action's
+     *         {@code call} method threw a <i>checked</i> exception
      */
-    public static <T> T doPrivileged(PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
-        try {
-            return action.run();
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new PrivilegedActionException(e);
-        }
+    public static <T> T doPrivileged(Callable<T> action) throws Exception {
+        return action.call();
     }
 }
