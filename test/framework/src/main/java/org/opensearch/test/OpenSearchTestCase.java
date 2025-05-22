@@ -61,7 +61,6 @@ import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.cluster.ClusterModule;
@@ -114,6 +113,7 @@ import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.fips.FipsMode;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -1811,7 +1811,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return CryptoServicesRegistrar.isInApprovedOnlyMode();
+        return FipsMode.CHECK.isFipsEnabled();
     }
 
     /**

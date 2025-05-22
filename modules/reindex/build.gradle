@@ -68,7 +68,10 @@ dependencies {
   api project(":libs:opensearch-ssl-config")
   // for http - testing reindex from remote
   testImplementation project(':modules:transport-netty4')
-  testFipsOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  testFipsRuntimeOnly "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
+  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
   // for parent/child testing
   testImplementation project(':modules:parent-join')
 }

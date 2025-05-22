@@ -8,30 +8,34 @@
 
 package org.opensearch.common;
 
-import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 
 import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
 import java.security.Security;
 
 public class RandomnessTests extends OpenSearchTestCase {
 
+    private static final String BCFIPS = "BCFIPS";
+    private static final String SUN = "SUN";
     private static final String originalStrongAlgos = Security.getProperty("securerandom.strongAlgorithms");
 
     @After
-    void restore() {
+    void restore() throws Exception {
         if (originalStrongAlgos != null) {
             Security.setProperty("securerandom.strongAlgorithms", originalStrongAlgos);
         }
 
-        if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
-            Security.insertProviderAt(new BouncyCastleFipsProvider(), 1);
+        if (inFipsJvm() && Security.getProvider(BCFIPS) == null) {
+            Class<?> clazz = Class.forName("org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider");
+            Provider bcFips = (Provider) clazz.getConstructor().newInstance();
+            Security.insertProviderAt(bcFips, 1);
         }
     }
 
     public void testCreateSecure() {
-        assertEquals(inFipsJvm() ? "BCFIPS_RNG" : "SUN", Randomness.createSecure().getProvider().getName());
+        assertEquals(inFipsJvm() ? "BCFIPS_RNG" : SUN, Randomness.createSecure().getProvider().getName());
     }
 
     public void testFailsCreateSecureRandomWithoutStrongAlgos() {
@@ -45,7 +49,7 @@ public class RandomnessTests extends OpenSearchTestCase {
         assumeTrue("Tests in FIPS mode with BC on classpath", inFipsJvm());
         // remove the BouncyCastle provider so that reflection throws a ReflectiveOperationException,
         // and the default SUN SecureRandom implementation is returned.
-        Security.removeProvider(BouncyCastleFipsProvider.PROVIDER_NAME);
-        assertEquals("SUN", Randomness.createSecure().getProvider().getName());
+        Security.removeProvider(BCFIPS);
+        assertEquals(SUN, Randomness.createSecure().getProvider().getName());
     }
 }
