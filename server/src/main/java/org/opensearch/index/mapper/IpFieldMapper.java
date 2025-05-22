@@ -43,6 +43,7 @@ import org.apache.lucene.sandbox.search.DocValuesMultiRangeQuery;
 import org.apache.lucene.sandbox.search.MultiRangeQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -336,7 +337,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                         combiner.add(multiRange.build());
                     }
                 }
-                indexLeg = union(combiner);
+                indexLeg = combiner.size() == 1 ? combiner.getFirst() : new ConstantScoreQuery(union(combiner));
                 if (!hasDocValues()) {
                     return indexLeg;
                 }
