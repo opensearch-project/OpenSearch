@@ -95,7 +95,8 @@ public class AsyncPartsHandler {
                     .key(uploadRequest.getKey())
                     .uploadId(uploadId)
                     .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector))
-                    .contentLength(inputStreamContainer.getContentLength());
+                    .contentLength(inputStreamContainer.getContentLength())
+                    .expectedBucketOwner(uploadRequest.getExpectedBucketOwner());
                 if (uploadRequest.doRemoteDataIntegrityCheck()) {
                     uploadPartRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
                 }
@@ -136,6 +137,7 @@ public class AsyncPartsHandler {
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
             .uploadId(uploadId)
+            .expectedBucketOwner(uploadRequest.getExpectedBucketOwner())
             .build();
         SocketAccess.doPrivileged(() -> s3AsyncClient.abortMultipartUpload(abortMultipartUploadRequest).exceptionally(throwable -> {
             log.warn(

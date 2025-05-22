@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
+- [repository-s3] Add support for SSE-KMS and S3 bucket owner verification ([#18312](https://github.com/opensearch-project/OpenSearch/pull/18312))
+
+### Changed
 
 ### Dependencies
 - Updated netty to 4.1.132.Final
@@ -12,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Deprecated
 
 ### Removed
+- [repository-s3] Removed existing ineffective `server_side_encryption` setting ([#18312](https://github.com/opensearch-project/OpenSearch/pull/18312))
 
 ### Fixed
 - Harden the circuit breaker and failure handle logic in query result consumer ([#19396](https://github.com/opensearch-project/OpenSearch/pull/19396))
