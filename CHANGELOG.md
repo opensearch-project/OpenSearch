@@ -32,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Changed
 - Create generic DocRequest to better categorize ActionRequests ([#18269](https://github.com/opensearch-project/OpenSearch/pull/18269)))
+- Fix permissions issue with _update_by_query API that requires permission for indices:data/read/scroll/clear ([#17250](https://github.com/opensearch-project/OpenSearch/pull/17250)))
 
 ### Dependencies
 - Update Apache Lucene from 10.1.0 to 10.2.1 ([#17961](https://github.com/opensearch-project/OpenSearch/pull/17961))

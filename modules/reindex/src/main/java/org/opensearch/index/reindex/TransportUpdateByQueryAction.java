@@ -39,6 +39,8 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContextAccess;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.mapper.IdFieldMapper;
@@ -85,25 +87,37 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
-        BulkByScrollParallelizationHelper.startSlicedAction(
-            request,
-            bulkByScrollTask,
-            UpdateByQueryAction.INSTANCE,
-            listener,
-            client,
-            clusterService.localNode(),
-            () -> {
-                ClusterState state = clusterService.state();
-                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
-                    client,
-                    clusterService.localNode(),
-                    bulkByScrollTask
-                );
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, scriptService, request, state, listener)
-                    .start();
-            }
-        );
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
+            BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+            BulkByScrollParallelizationHelper.startSlicedAction(
+                request,
+                bulkByScrollTask,
+                UpdateByQueryAction.INSTANCE,
+                listener,
+                client,
+                clusterService.localNode(),
+                () -> {
+                    ClusterState state = clusterService.state();
+                    ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
+                        client,
+                        clusterService.localNode(),
+                        bulkByScrollTask
+                    );
+                    new AsyncIndexBySearchAction(
+                        bulkByScrollTask,
+                        logger,
+                        assigningClient,
+                        threadPool,
+                        scriptService,
+                        request,
+                        state,
+                        listener
+                    ).start();
+                }
+            );
+        }
     }
 
     /**
