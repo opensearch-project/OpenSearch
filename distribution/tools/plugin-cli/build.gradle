@@ -37,6 +37,7 @@ base {
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:opensearch-cli")
+  api project(":libs:agent-sm:agent-policy")
   api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   api "org.bouncycastle:bcpg-fips:${versions.bouncycastle_pg}"
   testImplementation project(":test:framework")
