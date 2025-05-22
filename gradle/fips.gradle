@@ -1,30 +1,33 @@
 // Create isolated configurations for FIPS-specific dependencies.
 // These are used to isolate BC FIPS libraries from regular build classpaths,
 // avoiding accidental propagation to non-FIPS code paths.
-def fips = project.configurations.maybeCreate("fipsOnly")
-def testFips = configurations.maybeCreate("testFipsOnly")
+def fipsOnly = project.configurations.maybeCreate("fipsOnly")
+def fipsRuntimeOnly = configurations.maybeCreate("fipsRuntimeOnly")
+def testFipsOnly = configurations.maybeCreate("testFipsOnly")
+def testFipsRuntimeOnly = configurations.maybeCreate("testFipsRuntimeOnly")
 
-// Wire fipsOnly into main classpaths so that declared dependencies are available for compiling/running
-["compileClasspath", "testCompileClasspath", "runtimeClasspath", "testRuntimeClasspath"].each { configName ->
-    configurations.named(configName).configure {
-        extendsFrom(fips)
-    }
-}
+// Map standard Gradle configurations to one or more custom FIPS configurations
+def fipsWiring = [
+    compileClasspath    : [fipsOnly],
+    runtimeClasspath    : [fipsOnly, fipsRuntimeOnly],
+    testCompileClasspath: [fipsOnly, testFipsOnly],
+    testRuntimeClasspath: [fipsOnly, fipsRuntimeOnly, testFipsOnly, testFipsRuntimeOnly]
+]
 
-// Wire testFipsOnly into test-specific classpaths
-["testCompileClasspath", "testRuntimeClasspath"].each {configName ->
-    configurations.named(configName).configure {
-        extendsFrom(testFips)
-    }
+fipsWiring.each { configName, fipsConfigs ->
+  configurations.named(configName).configure {
+    extendsFrom(*fipsConfigs)
+  }
 }
 
 // This prevents unintended BC transitive dependencies (like bcutil, bc-fips) from being pulled in.
 afterEvaluate {
-    [fips, testFips].each { config ->
-        config.dependencies.configureEach { dep ->
-            if (dep.metaClass.hasProperty(dep, "transitive")) {
-                dep.transitive = false
-            }
-        }
+  def allFipsConfigs = fipsWiring.values().flatten().toSet();
+  allFipsConfigs.each { config ->
+    config.dependencies.configureEach { dep ->
+      if (dep.metaClass.hasProperty(dep, "transitive")) {
+        dep.transitive = false
+      }
     }
+  }
 }

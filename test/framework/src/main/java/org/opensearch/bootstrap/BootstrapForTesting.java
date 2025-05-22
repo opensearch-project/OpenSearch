@@ -37,7 +37,6 @@ import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bootstrap.JarHell;
@@ -47,6 +46,7 @@ import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.fips.FipsMode;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.plugins.PluginInfo;
 import org.junit.Assert;
@@ -146,7 +146,7 @@ public class BootstrapForTesting {
                 SecurityProviderManager.getPosition(SUN_JCE)
             );
 
-            if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
+            if (FipsMode.CHECK.isFipsEnabled()) {
                 SecurityProviderManager.excludeSunJCE();
             }
         }
