@@ -50,7 +50,7 @@ public class SequenceNumberTests extends OpenSearchTestCase {
         String sequenceNumber = "12345";
         SequenceNumber seqNum = new SequenceNumber(sequenceNumber);
 
-        Assert.assertEquals("The string representation should be correct", sequenceNumber, seqNum.toString());
+        Assert.assertEquals("The string representation should be correct", sequenceNumber, seqNum.asString());
     }
 
     public void testCompareTo() {

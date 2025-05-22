@@ -160,8 +160,13 @@ public class FakeIngestionSource {
         }
 
         @Override
-        public String toString() {
+        public String asString() {
             return String.valueOf(offset);
+        }
+
+        @Override
+        public String toString() {
+            return asString();
         }
 
         @Override

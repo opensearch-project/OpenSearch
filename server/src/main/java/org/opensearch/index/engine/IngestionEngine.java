@@ -403,7 +403,7 @@ public class IngestionEngine extends InternalEngine {
                  * poller has been completely initialized.
                  */
                 if (streamPoller.getBatchStartPointer() != null) {
-                    commitData.put(StreamPoller.BATCH_START, streamPoller.getBatchStartPointer().toString());
+                    commitData.put(StreamPoller.BATCH_START, streamPoller.getBatchStartPointer().asString());
                 } else {
                     logger.warn("ignore null batch start pointer");
                 }

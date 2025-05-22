@@ -33,7 +33,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  */
 @ExperimentalApi
 public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionRequest> implements IndicesRequest.Replaceable {
-
+    public static final String RESET_SETTINGS = "reset_settings";
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private ResetSettings[] resetSettings;
@@ -146,7 +146,7 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
             String currentFieldName = parser.currentName();
             parser.nextToken();
 
-            if ("reset_settings".equals(currentFieldName)) {
+            if (RESET_SETTINGS.equals(currentFieldName)) {
                 if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
                     throw new IllegalArgumentException("Expected START_ARRAY for 'reset_settings'");
                 }
