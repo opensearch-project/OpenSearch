@@ -31,7 +31,6 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
-import org.junit.After;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -41,7 +40,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,18 +78,6 @@ public class ConcurrentSnapshotsV2IT extends RemoteSnapshotIT {
             .put(super.nodeSettings(nodeOrdinal))
             .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
             .build();
-    }
-
-    @After
-    public void teardown() {
-        if (WRITABLE_WARM_INDEX_SETTING.get(settings)) {
-            assertAcked(client().admin().indices().prepareDelete("_all").get());
-            var nodes = internalCluster().getDataNodeInstances(Node.class);
-            for (var node : nodes) {
-                var fileCache = node.fileCache();
-                fileCache.clear();
-            }
-        }
     }
 
     public void testLongRunningSnapshotDontAllowConcurrentSnapshot() throws Exception {

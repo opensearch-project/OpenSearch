@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.node.Node;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.transport.client.Client;
@@ -27,6 +28,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
 import static org.opensearch.repositories.fs.ReloadableFsRepository.REPOSITORIES_FAILRATE_SETTING;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public abstract class RemoteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
@@ -49,6 +51,14 @@ public abstract class RemoteSnapshotIT extends AbstractSnapshotIntegTestCase {
     @After
     public void teardown() {
         clusterAdmin().prepareCleanupRepository(BASE_REMOTE_REPO).get();
+        if (WRITABLE_WARM_INDEX_SETTING.get(settings)) {
+            assertAcked(client().admin().indices().prepareDelete("_all").get());
+            var nodes = internalCluster().getDataNodeInstances(Node.class);
+            for (var node : nodes) {
+                var fileCache = node.fileCache();
+                fileCache.clear();
+            }
+        }
     }
 
     @Override
