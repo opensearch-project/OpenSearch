@@ -47,37 +47,21 @@ public class ObjectMapProtoUtils {
             return;
         }
 
-        // Use instanceof checks in order of most common types first for better performance
-        if (javaObject instanceof String) {
-            valueBuilder.setString((String) javaObject);
-        } else if (javaObject instanceof Integer) {
-            // Integer
-            valueBuilder.setInt32((int) javaObject);
-        } else if (javaObject instanceof Long) {
-            // Long
-            valueBuilder.setInt64((long) javaObject);
-        } else if (javaObject instanceof Double) {
-            // Double
-            valueBuilder.setDouble((double) javaObject);
-        } else if (javaObject instanceof Float) {
-            // Float
-            valueBuilder.setFloat((float) javaObject);
-        } else if (javaObject instanceof Boolean) {
-            // Boolean
-            valueBuilder.setBool((Boolean) javaObject);
-        } else if (javaObject instanceof Enum) {
-            // Enum
-            valueBuilder.setString(javaObject.toString());
-        } else if (javaObject instanceof List) {
-            // List
-            handleListValue((List<?>) javaObject, valueBuilder);
-        } else if (javaObject instanceof Map) {
-            // Map
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) javaObject;
-            handleMapValue(map, valueBuilder);
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + javaObject.toString() + " to google.protobuf.Struct");
+        switch (javaObject) {
+            case String s -> valueBuilder.setString(s);
+            case Integer i -> valueBuilder.setInt32(i);
+            case Long l -> valueBuilder.setInt64(l);
+            case Double d -> valueBuilder.setDouble(d);
+            case Float f -> valueBuilder.setFloat(f);
+            case Boolean b -> valueBuilder.setBool(b);
+            case Enum<?> e -> valueBuilder.setString(e.toString());
+            case List<?> list -> handleListValue(list, valueBuilder);
+            case Map<?, ?> m -> {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) m;
+                handleMapValue(map, valueBuilder);
+            }
+            default -> throw new IllegalArgumentException("Cannot convert " + javaObject + " to google.protobuf.Struct");
         }
     }
 

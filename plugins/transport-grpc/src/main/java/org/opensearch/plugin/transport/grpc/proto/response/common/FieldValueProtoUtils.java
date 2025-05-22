@@ -49,40 +49,24 @@ public class FieldValueProtoUtils {
      * @throws IllegalArgumentException if the Java object type cannot be converted
      */
     public static void toProto(Object javaObject, FieldValue.Builder fieldValueBuilder) {
-        // Use instanceof checks in order of most common types first for better performance
-        if (javaObject instanceof String) {
-            fieldValueBuilder.setStringValue((String) javaObject);
-        } else if (javaObject instanceof Integer) {
-            // Integer
-            GeneralNumber generalNumber = GeneralNumber.newBuilder().setInt32Value((int) javaObject).build();
-            fieldValueBuilder.setGeneralNumber(generalNumber);
-        } else if (javaObject instanceof Long) {
-            // Long
-            GeneralNumber generalNumber = GeneralNumber.newBuilder().setInt64Value((long) javaObject).build();
-            fieldValueBuilder.setGeneralNumber(generalNumber);
-        } else if (javaObject instanceof Double) {
-            // Double
-            GeneralNumber generalNumber = GeneralNumber.newBuilder().setDoubleValue((double) javaObject).build();
-            fieldValueBuilder.setGeneralNumber(generalNumber);
-        } else if (javaObject instanceof Float) {
-            // Float
-            GeneralNumber generalNumber = GeneralNumber.newBuilder().setFloatValue((float) javaObject).build();
-            fieldValueBuilder.setGeneralNumber(generalNumber);
-        } else if (javaObject instanceof Boolean) {
-            // Boolean
-            fieldValueBuilder.setBoolValue((Boolean) javaObject);
-        } else if (javaObject instanceof Enum) {
-            // Enum
-            fieldValueBuilder.setStringValue(javaObject.toString());
-        } else if (javaObject instanceof Map) {
-            // Map
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) javaObject;
-            handleMapValue(map, fieldValueBuilder);
-        } else if (javaObject == null) {
+        if (javaObject == null) {
             throw new IllegalArgumentException("Cannot convert null to FieldValue");
-        } else {
-            throw new IllegalArgumentException("Cannot convert " + javaObject.toString() + " to FieldValue");
+        }
+
+        switch (javaObject) {
+            case String s -> fieldValueBuilder.setStringValue(s);
+            case Integer i -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setInt32Value(i).build());
+            case Long l -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setInt64Value(l).build());
+            case Double d -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setDoubleValue(d).build());
+            case Float f -> fieldValueBuilder.setGeneralNumber(GeneralNumber.newBuilder().setFloatValue(f).build());
+            case Boolean b -> fieldValueBuilder.setBoolValue(b);
+            case Enum<?> e -> fieldValueBuilder.setStringValue(e.toString());
+            case Map<?, ?> m -> {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) m;
+                handleMapValue(map, fieldValueBuilder);
+            }
+            default -> throw new IllegalArgumentException("Cannot convert " + javaObject + " to FieldValue");
         }
     }
 
