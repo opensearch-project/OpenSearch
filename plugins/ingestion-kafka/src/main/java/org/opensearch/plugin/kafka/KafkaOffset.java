@@ -39,6 +39,11 @@ public class KafkaOffset implements IngestionShardPointer {
     }
 
     @Override
+    public String asString() {
+        return String.valueOf(offset);
+    }
+
+    @Override
     public Field asPointField(String fieldName) {
         return new LongPoint(fieldName, offset);
     }
@@ -58,7 +63,7 @@ public class KafkaOffset implements IngestionShardPointer {
 
     @Override
     public String toString() {
-        return String.valueOf(offset);
+        return "KafkaOffset{" + "offset=" + offset + '}';
     }
 
     @Override

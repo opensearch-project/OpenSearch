@@ -27,6 +27,12 @@ public interface IngestionShardPointer extends Comparable<IngestionShardPointer>
     byte[] serialize();
 
     /**
+     * Convert the pointer to a string.
+     * @return the string representation of the pointer
+     */
+    String asString();
+
+    /**
      * Creates a point field for this pointer. This is used to store the pointer in the index for range search during
      * checkpoint recovery.
      * @param fieldName the field name to create the point field

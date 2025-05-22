@@ -193,22 +193,22 @@ public class DefaultStreamPoller implements StreamPoller {
                     switch (resetState) {
                         case EARLIEST:
                             initialBatchStartPointer = consumer.earliestPointer();
-                            logger.info("Resetting offset by seeking to earliest offset {}", initialBatchStartPointer);
+                            logger.info("Resetting offset by seeking to earliest offset {}", initialBatchStartPointer.asString());
                             break;
                         case LATEST:
                             initialBatchStartPointer = consumer.latestPointer();
-                            logger.info("Resetting offset by seeking to latest offset {}", initialBatchStartPointer);
+                            logger.info("Resetting offset by seeking to latest offset {}", initialBatchStartPointer.asString());
                             break;
                         case RESET_BY_OFFSET:
                             initialBatchStartPointer = consumer.pointerFromOffset(resetValue);
-                            logger.info("Resetting offset by seeking to offset {}", initialBatchStartPointer);
+                            logger.info("Resetting offset by seeking to offset {}", initialBatchStartPointer.asString());
                             break;
                         case RESET_BY_TIMESTAMP:
                             initialBatchStartPointer = consumer.pointerFromTimestampMillis(Long.parseLong(resetValue));
                             logger.info(
                                 "Resetting offset by seeking to timestamp {}, corresponding offset {}",
                                 resetValue,
-                                initialBatchStartPointer
+                                initialBatchStartPointer.asString()
                             );
                             break;
                     }
@@ -270,7 +270,7 @@ public class DefaultStreamPoller implements StreamPoller {
             try {
                 // check if the message is already processed
                 if (isProcessed(result.getPointer())) {
-                    logger.debug("Skipping message with pointer {} as it is already processed", result.getPointer());
+                    logger.debug("Skipping message with pointer {} as it is already processed", result.getPointer().asString());
                     totalDuplicateMessageSkippedCount.inc();
                     continue;
                 }
@@ -280,10 +280,15 @@ public class DefaultStreamPoller implements StreamPoller {
                 logger.debug(
                     "Put message {} with pointer {} to the blocking queue",
                     String.valueOf(result.getMessage().getPayload()),
-                    result.getPointer()
+                    result.getPointer().asString()
                 );
             } catch (Exception e) {
-                logger.error("Error in processing a record. Shard {}, pointer {}: {}", consumer.getShardId(), result.getPointer(), e);
+                logger.error(
+                    "Error in processing a record. Shard {}, pointer {}: {}",
+                    consumer.getShardId(),
+                    result.getPointer().asString(),
+                    e
+                );
                 errorStrategy.handleError(e, IngestionErrorStrategy.ErrorStage.POLLING);
                 totalPollerMessageFailureCount.inc();
 
