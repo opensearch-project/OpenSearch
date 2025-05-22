@@ -11,7 +11,6 @@ package org.opensearch.snapshots;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.support.PlainActionFuture;
@@ -47,8 +46,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-// TODO : Delete Index in teardown and prune cache to remove Index Files
-@LuceneTestCase.SuppressFileSystems("*")
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ConcurrentSnapshotsV2IT extends RemoteSnapshotIT {
@@ -63,7 +60,7 @@ public class ConcurrentSnapshotsV2IT extends RemoteSnapshotIT {
     */
     @Override
     protected boolean addMockIndexStorePlugin() {
-        return !WRITABLE_WARM_INDEX_SETTING.get(settings);
+        return WRITABLE_WARM_INDEX_SETTING.get(settings) == false;
     }
 
     @ParametersFactory

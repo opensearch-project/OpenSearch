@@ -94,8 +94,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-// TODO : Delete Index in teardown and prune cache to remove Index Files
-@LuceneTestCase.SuppressFileSystems("*")
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RestoreShallowSnapshotV2IT extends AbstractSnapshotIntegTestCase {
@@ -123,7 +121,7 @@ public class RestoreShallowSnapshotV2IT extends AbstractSnapshotIntegTestCase {
      */
     @Override
     protected boolean addMockIndexStorePlugin() {
-        return !WRITABLE_WARM_INDEX_SETTING.get(settings);
+        return WRITABLE_WARM_INDEX_SETTING.get(settings) == false;
     }
 
     @ParametersFactory
