@@ -90,6 +90,12 @@ public final class AccessController {
      * @param <E> the type of the exception that can be thrown
      */
     public interface CheckedRunnable<E extends Exception> {
+
+        /**
+         * Executes the action.
+         *
+         * @throws E
+         */
         void run() throws E;
     }
 }
