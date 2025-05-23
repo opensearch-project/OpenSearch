@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.indices.streamingingestion.state;
 
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
@@ -30,7 +31,11 @@ public class UpdateIngestionStateRequestTests extends OpenSearchTestCase {
         String[] indices = new String[] { "index1", "index2" };
         int[] shards = new int[] { 0, 1, 2 };
         UpdateIngestionStateRequest request = new UpdateIngestionStateRequest(indices, shards);
-        request.setIngestionPaused(true);
+        request.setIngestionPaused(false);
+        request.setResetSettings(
+            new ResumeIngestionRequest.ResetSettings[] {
+                new ResumeIngestionRequest.ResetSettings(0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "0") }
+        );
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
@@ -39,7 +44,10 @@ public class UpdateIngestionStateRequestTests extends OpenSearchTestCase {
                 UpdateIngestionStateRequest deserializedRequest = new UpdateIngestionStateRequest(in);
                 assertArrayEquals(request.getIndex(), deserializedRequest.getIndex());
                 assertArrayEquals(request.getShards(), deserializedRequest.getShards());
-                assertTrue(deserializedRequest.getIngestionPaused());
+                assertEquals(request.getResetSettings()[0].getShard(), deserializedRequest.getResetSettings()[0].getShard());
+                assertEquals(request.getResetSettings()[0].getMode(), deserializedRequest.getResetSettings()[0].getMode());
+                assertEquals(request.getResetSettings()[0].getValue(), deserializedRequest.getResetSettings()[0].getValue());
+                assertFalse(deserializedRequest.getIngestionPaused());
             }
         }
     }

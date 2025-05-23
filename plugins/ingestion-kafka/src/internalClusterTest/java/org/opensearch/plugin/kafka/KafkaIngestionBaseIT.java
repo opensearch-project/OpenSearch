@@ -15,6 +15,7 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.pagination.PageParams;
@@ -174,6 +175,15 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
 
     protected ResumeIngestionResponse resumeIngestion(String indexName) throws ExecutionException, InterruptedException {
         return client().admin().indices().resumeIngestion(Requests.resumeIngestionRequest(indexName)).get();
+    }
+
+    protected ResumeIngestionResponse resumeIngestion(
+        String index,
+        int shard,
+        ResumeIngestionRequest.ResetSettings.ResetMode mode,
+        String value
+    ) throws ExecutionException, InterruptedException {
+        return client().admin().indices().resumeIngestion(Requests.resumeIngestionRequest(index, shard, mode, value)).get();
     }
 
     protected void createIndexWithDefaultSettings(int numShards, int numReplicas) {
