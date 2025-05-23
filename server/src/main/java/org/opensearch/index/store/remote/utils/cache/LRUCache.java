@@ -28,7 +28,8 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 /**
- * LRU implementation of {@link RefCountedCache}. As long as {@link Node#refCount} greater than 0 then node is not eligible for eviction.
+ * LRU implementation of {@link RefCountedCache}.
+ * As long as {@link Node#refCount} greater than 0 or is pinned then node is not eligible for eviction.
  * So this is the best effort lazy cache to maintain capacity. <br>
  * For more context why in-house cache implementation exist look at
  * <a href="https://github.com/opensearch-project/OpenSearch/issues/4964#issuecomment-1421689586">this comment</a> and
@@ -39,6 +40,7 @@ import java.util.function.Predicate;
  * <li>This cache has max capacity and this cache will best-effort maintain it's size to not exceed defined capacity</li>
  * <li>Cache capacity is computed as the sum of all {@link Weigher#weightOf(Object)}</li>
  * <li>Supports RemovalListener</li>
+ * <li>Supports Cache Pinning.</li>
  * <li>Cache maintains it's capacity using LRU Eviction while ignoring entries with {@link Node#refCount} greater than 0 from eviction</li>
  * </ul>
  * @see RefCountedCache
@@ -71,15 +73,18 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
 
         int refCount;
 
+        boolean pinned;
+
         Node(K key, V value, long weight) {
             this.key = key;
             this.value = value;
             this.weight = weight;
             this.refCount = 0;
+            this.pinned = false;
         }
 
         public boolean evictable() {
-            return (refCount == 0);
+            return ((refCount == 0) && (pinned == false));
         }
     }
 
@@ -107,7 +112,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
             }
             // hit
             incRef(key);
-            statsCounter.recordHits(key, node.value, 1);
+            statsCounter.recordHits(key, node.value, node.pinned, 1);
             return node.value;
         } finally {
             lock.unlock();
@@ -127,7 +132,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
                 replaceNode(node, value);
                 return oldValue;
             } else {
-                addNode(key, value);
+                addNode(key, false, value);
                 return null;
             }
         } finally {
@@ -148,7 +153,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
                     // Remapping function asked for removal, but nothing to remove
                     return null;
                 } else {
-                    addNode(key, newValue);
+                    addNode(key, node.pinned, newValue);
                     statsCounter.recordMisses(key, 1);
                     return newValue;
                 }
@@ -158,7 +163,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
                     removeNode(key);
                     return null;
                 } else {
-                    statsCounter.recordHits(key, node.value, 1);
+                    statsCounter.recordHits(key, node.value, node.pinned, 1);
                     replaceNode(node, newValue);
                     return newValue;
                 }
@@ -188,11 +193,12 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
             while (iterator.hasNext()) {
                 Node<K, V> node = iterator.next();
                 iterator.remove();
-                statsCounter.recordRemoval(node.value, node.weight);
+                statsCounter.recordRemoval(node.value, node.pinned, node.weight);
                 listener.onRemoval(new RemovalNotification<>(node.key, node.value, RemovalReason.EXPLICIT));
             }
             statsCounter.resetUsage();
             statsCounter.resetActiveUsage();
+            statsCounter.resetPinnedUsage();
         } finally {
             lock.unlock();
         }
@@ -212,7 +218,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
             if (node != null) {
                 if (node.refCount == 0) {
                     // if it was inactive, we should add the weight to active usage from now
-                    statsCounter.recordActiveUsage(node.value, node.weight, false);
+                    statsCounter.recordActiveUsage(node.value, node.weight, node.pinned, false);
                 }
 
                 if (node.evictable()) {
@@ -244,9 +250,66 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
 
                 if (node.refCount == 0) {
                     // if it was active, we should remove its weight from active usage
-                    statsCounter.recordActiveUsage(node.value, node.weight, true);
+                    statsCounter.recordActiveUsage(node.value, node.weight, node.pinned, true);
                 }
             }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Pins the key in the cache, preventing it from being evicted.
+     *
+     * @param key
+     */
+    @Override
+    public void pin(K key) {
+        Objects.requireNonNull(key);
+        lock.lock();
+        try {
+            Node<K, V> node = data.get(key);
+            if (node != null) {
+                if (node.pinned == false) {
+                    statsCounter.recordPinnedUsage(node.value, node.weight, false);
+                }
+
+                if (node.evictable()) {
+                    // since its pinned, we should remove it from eviction list
+                    lru.remove(node.key, node);
+                }
+
+                node.pinned = true;
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Unpins the key in the cache, allowing it to be evicted.
+     *
+     * @param key
+     */
+    @Override
+    public void unpin(K key) {
+        Objects.requireNonNull(key);
+        lock.lock();
+
+        try {
+            Node<K, V> node = data.get(key);
+            if (node != null && (node.pinned == true)) {
+
+                node.pinned = false;
+
+                if (node.evictable()) {
+                    // if it becomes evictable, we should add it to eviction list
+                    lru.put(node.key, node);
+                }
+
+                statsCounter.recordPinnedUsage(node.value, node.weight, true);
+            }
+
         } finally {
             lock.unlock();
         }
@@ -281,7 +344,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
                 iterator.remove();
                 data.remove(node.key, node);
                 sum += node.weight;
-                statsCounter.recordRemoval(node.value, node.weight);
+                statsCounter.recordRemoval(node.value, node.pinned, node.weight);
                 listener.onRemoval(new RemovalNotification<>(node.key, node.value, RemovalReason.EXPLICIT));
             }
         } finally {
@@ -301,11 +364,25 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
-
     public long activeUsage() {
         lock.lock();
         try {
             return statsCounter.activeUsage();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Returns the pinned usage of this cache.
+     *
+     * @return the combined pinned weight of the values in this cache.
+     */
+    @Override
+    public long pinnedUsage() {
+        lock.lock();
+        try {
+            return statsCounter.pinnedUsage();
         } finally {
             lock.unlock();
         }
@@ -344,11 +421,11 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
         }
     }
 
-    private void addNode(K key, V value) {
+    private void addNode(K key, boolean pinned, V value) {
         final long weight = weigher.weightOf(value);
         Node<K, V> newNode = new Node<>(key, value, weight);
         data.put(key, newNode);
-        statsCounter.recordUsage(value, weight, false);
+        statsCounter.recordUsage(value, weight, pinned, false);
         incRef(key);
         evict();
     }
@@ -363,7 +440,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
             node.weight = newWeight;
 
             // update stats
-            statsCounter.recordReplacement(oldValue, newValue, oldWeight, newWeight, node.refCount > 0);
+            statsCounter.recordReplacement(oldValue, newValue, oldWeight, newWeight, node.refCount > 0, node.pinned);
             listener.onRemoval(new RemovalNotification<>(node.key, oldValue, RemovalReason.REPLACED));
         }
         incRef(node.key);
@@ -374,12 +451,17 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
         Node<K, V> node = data.remove(key);
         if (node != null) {
             if (node.refCount > 0) {
-                statsCounter.recordActiveUsage(node.value, node.weight, true);
+                statsCounter.recordActiveUsage(node.value, node.weight, node.pinned, true);
             }
             if (node.evictable()) {
                 lru.remove(node.key);
             }
-            statsCounter.recordRemoval(node.value, node.weight);
+
+            if (node.pinned) {
+                statsCounter.recordPinnedUsage(node.value, node.weight, true);
+            }
+
+            statsCounter.recordRemoval(node.value, node.pinned, node.weight);
             listener.onRemoval(new RemovalNotification<>(node.key, node.value, RemovalReason.EXPLICIT));
         }
     }
