@@ -56,7 +56,7 @@ public class AutoTaggingActionFilter implements ActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
-        final boolean isValidRequest = request instanceof SearchRequest || request instanceof SearchScrollRequest;
+        final boolean isValidRequest = request instanceof SearchRequest;
 
         if (!isValidRequest) {
             chain.proceed(task, action, request, listener);
