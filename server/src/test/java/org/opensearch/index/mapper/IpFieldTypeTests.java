@@ -225,6 +225,17 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             SortedSetDocValuesField.newSlowSetQuery("field", List.of(ipToByteRef("::2"), ipToByteRef("::5"))),
             dvOnly.termsQuery(Arrays.asList("::2", "::5"), null)
         );
+        assertEquals(SortedSetDocValuesField.newSlowExactQuery("field", ipToByteRef("::2")), dvOnly.termsQuery(List.of("::2"), null));
+        assertEquals(
+            SortedSetDocValuesField.newSlowRangeQuery(
+                "field",
+                ipToByteRef("::"),
+                ipToByteRef("::ffff:ffff:ffff:ffff:ffff:ffff:ffff"),
+                true,
+                true
+            ),
+            dvOnly.termsQuery(List.of("::2/16"), null)
+        );
         // multirange handles both
         DocValuesMultiRangeQuery.SortedSetStabbingBuilder expect = new DocValuesMultiRangeQuery.SortedSetStabbingBuilder("field");
         expect.add(ipToByteRef("::42"));

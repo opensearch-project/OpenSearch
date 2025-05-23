@@ -300,80 +300,109 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
+
             List<InetAddress> concreteIPs = new ArrayList<>();
             List<PointRangeQuery> masks = new ArrayList<>();
-            for (final Object value : values) {
+            parseIps(values, concreteIPs, masks);
+
+            if (!isSearchable()) {
+                return hasDocValues() ? docValuesTermsQuery(concreteIPs, masks) : new MatchNoDocsQuery("never happened");
+            }
+
+            if (!hasDocValues()) {
+                return indexTermsQuery(concreteIPs, masks);
+            }
+
+            // Both searchable and doc values available - create composite query
+            return new IndexOrDocValuesQuery(indexTermsQuery(concreteIPs, masks), docValuesTermsQuery(concreteIPs, masks));
+        }
+
+        private void parseIps(List<?> values, List<InetAddress> concreteIPs, List<PointRangeQuery> masks) {
+            for (Object value : values) {
                 if (value instanceof InetAddress) {
                     concreteIPs.add((InetAddress) value);
+                    continue;
+                }
+
+                String strVal = value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
+
+                if (strVal.contains("/")) {
+                    Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(strVal);
+                    masks.add((PointRangeQuery) InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2()));
                 } else {
-                    final String strVal = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-                    if (strVal.contains("/")) {
-                        final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(strVal);
-                        PointRangeQuery query = (PointRangeQuery) InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
-                        masks.add(query);
-                    } else {
-                        concreteIPs.add(InetAddresses.forString(strVal));
-                    }
+                    concreteIPs.add(InetAddresses.forString(strVal));
                 }
             }
-            Query indexLeg = new MatchNoDocsQuery();
-            if (isSearchable()) {
-                List<Query> combiner = new ArrayList<>();
-                if (!concreteIPs.isEmpty()) {
-                    combiner.add(
-                        concreteIPs.size() == 1
-                            ? InetAddressPoint.newExactQuery(name(), concreteIPs.iterator().next())
-                            : InetAddressPoint.newSetQuery(name(), concreteIPs.toArray(new InetAddress[0]))
+        }
+
+        private Query indexTermsQuery(List<InetAddress> concreteIPs, List<PointRangeQuery> masks) {
+            List<Query> queries = new ArrayList<>();
+            addConcreteIpQuery(concreteIPs, queries);
+            addMaskQueries(masks, queries);
+
+            return combineQueries(queries);
+        }
+
+        private void addConcreteIpQuery(List<InetAddress> ips, List<Query> queries) {
+            if (ips.isEmpty()) return;
+
+            queries.add(
+                ips.size() == 1
+                    ? InetAddressPoint.newExactQuery(name(), ips.getFirst())
+                    : InetAddressPoint.newSetQuery(name(), ips.toArray(new InetAddress[0]))
+            );
+        }
+
+        private void addMaskQueries(List<PointRangeQuery> masks, List<Query> queries) {
+            if (masks.isEmpty()) return;
+
+            if (masks.size() == 1) {
+                queries.add(masks.getFirst());
+            } else {
+                MultiIpRangeQueryBuilder multiRange = new MultiIpRangeQueryBuilder(name());
+                masks.forEach(q -> multiRange.add(q.getLowerPoint(), q.getUpperPoint()));
+                queries.add(multiRange.build());
+            }
+        }
+
+        private Query combineQueries(List<Query> queries) {
+            return switch (queries.size()) {
+                case 0 -> new MatchNoDocsQuery();
+                case 1 -> queries.getFirst();
+                default -> new ConstantScoreQuery(union(queries));
+            };
+        }
+
+        private Query docValuesTermsQuery(List<InetAddress> concreteIPs, List<PointRangeQuery> masks) {
+            List<BytesRef> ipsBytes = concreteIPs.stream().map(addr -> new BytesRef(InetAddressPoint.encode(addr))).toList();
+
+            if (ipsBytes.isEmpty() && masks.isEmpty()) {
+                return new MatchNoDocsQuery();
+            }
+            if (masks.isEmpty()) {
+                if (ipsBytes.size() == 1) {
+                    return SortedSetDocValuesField.newSlowExactQuery(name(), ipsBytes.getFirst());
+                } else {
+                    return SortedSetDocValuesField.newSlowSetQuery(name(), ipsBytes);
+                }
+            } else {
+                if (masks.size() == 1 && ipsBytes.isEmpty()) {
+                    return SortedSetDocValuesField.newSlowRangeQuery(
+                        name(),
+                        new BytesRef(masks.getFirst().getLowerPoint()),
+                        new BytesRef(masks.getFirst().getUpperPoint()),
+                        true,
+                        true
                     );
-                }
-                if (!masks.isEmpty()) {
-                    if (masks.size() == 1) {
-                        combiner.add(masks.getFirst());
-                    } else {
-                        MultiIpRangeQueryBuilder multiRange = new MultiIpRangeQueryBuilder(name());
-                        for (PointRangeQuery query : masks) {
-                            multiRange.add(query.getLowerPoint(), query.getUpperPoint());
-                        }
-                        combiner.add(multiRange.build());
-                    }
-                }
-                indexLeg = combiner.size() == 1 ? combiner.getFirst() : new ConstantScoreQuery(union(combiner));
-                if (!hasDocValues()) {
-                    return indexLeg;
-                }
-            }
-            // if dv
-            Query dvQuery = new MatchNoDocsQuery();
-            if (hasDocValues()) {
-                List<BytesRef> ipsBytes = new ArrayList<>(concreteIPs.size());
-                for (final InetAddress address : concreteIPs) {
-                    ipsBytes.add(new BytesRef(InetAddressPoint.encode(address)));
-                }
-                if (ipsBytes.size() == 1 && masks.isEmpty()) {
-                    dvQuery = SortedSetDocValuesField.newSlowExactQuery(name(), ipsBytes.iterator().next());
                 } else {
-                    if (ipsBytes.size() > 1 && masks.isEmpty()) {
-                        dvQuery = SortedSetDocValuesField.newSlowSetQuery(name(), ipsBytes);
-                    } else {
-                        if (!masks.isEmpty() || !ipsBytes.isEmpty()) {
-                            DocValuesMultiRangeQuery.SortedSetStabbingBuilder stabbingBuilder =
-                                new DocValuesMultiRangeQuery.SortedSetStabbingBuilder(name());
-                            for (PointRangeQuery query : masks) {
-                                stabbingBuilder.add(new BytesRef(query.getLowerPoint()), new BytesRef(query.getUpperPoint()));
-                            }
-                            for (BytesRef ip : ipsBytes) {
-                                stabbingBuilder.add(ip);
-                            }
-                            dvQuery = stabbingBuilder.build();
-                        }
-                    }
-                }
-                if (!isSearchable()) {
-                    return dvQuery;
+                    DocValuesMultiRangeQuery.SortedSetStabbingBuilder builder = new DocValuesMultiRangeQuery.SortedSetStabbingBuilder(
+                        name()
+                    );
+                    masks.forEach(q -> builder.add(new BytesRef(q.getLowerPoint()), new BytesRef(q.getUpperPoint())));
+                    ipsBytes.forEach(builder::add);
+                    return builder.build();
                 }
             }
-            // both legs
-            return new IndexOrDocValuesQuery(indexLeg, dvQuery);
         }
 
         private Query union(List<Query> combiner) {
