@@ -352,16 +352,20 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 if (ipsBytes.size() == 1 && masks.isEmpty()) {
                     dvQuery = SortedSetDocValuesField.newSlowExactQuery(name(), ipsBytes.iterator().next());
                 } else {
-                    if (!masks.isEmpty() || !ipsBytes.isEmpty()) {
-                        DocValuesMultiRangeQuery.SortedSetStabbingBuilder stabbingBuilder =
-                            new DocValuesMultiRangeQuery.SortedSetStabbingBuilder(name());
-                        for (PointRangeQuery query : masks) {
-                            stabbingBuilder.add(new BytesRef(query.getLowerPoint()), new BytesRef(query.getUpperPoint()));
+                    if (ipsBytes.size() > 1 && masks.isEmpty()) {
+                        dvQuery = SortedSetDocValuesField.newSlowSetQuery(name(), ipsBytes);
+                    } else {
+                        if (!masks.isEmpty() || !ipsBytes.isEmpty()) {
+                            DocValuesMultiRangeQuery.SortedSetStabbingBuilder stabbingBuilder =
+                                new DocValuesMultiRangeQuery.SortedSetStabbingBuilder(name());
+                            for (PointRangeQuery query : masks) {
+                                stabbingBuilder.add(new BytesRef(query.getLowerPoint()), new BytesRef(query.getUpperPoint()));
+                            }
+                            for (BytesRef ip : ipsBytes) {
+                                stabbingBuilder.add(ip);
+                            }
+                            dvQuery = stabbingBuilder.build();
                         }
-                        for (BytesRef ip : ipsBytes) {
-                            stabbingBuilder.add(ip);
-                        }
-                        dvQuery = stabbingBuilder.build();
                     }
                 }
                 if (!isSearchable()) {
@@ -369,7 +373,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 }
             }
             // both legs
-            return new IndexOrDocValuesQuery(indexLeg, dvQuery);// either or both
+            return new IndexOrDocValuesQuery(indexLeg, dvQuery);
         }
 
         private Query union(List<Query> combiner) {

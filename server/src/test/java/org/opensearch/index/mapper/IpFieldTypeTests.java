@@ -33,6 +33,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.sandbox.search.DocValuesMultiRangeQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -224,16 +225,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             SortedSetDocValuesField.newSlowSetQuery("field", List.of(ipToByteRef("::2"), ipToByteRef("::5"))),
             dvOnly.termsQuery(Arrays.asList("::2", "::5"), null)
         );
-
-        // if the list includes a prefix query we fallback to a bool query
-        assertEquals(
-            new ConstantScoreQuery(
-                new BooleanQuery.Builder().add(dvOnly.termQuery("::42", null), Occur.SHOULD)
-                    .add(dvOnly.termQuery("::2/16", null), Occur.SHOULD)
-                    .build()
-            ),
-            dvOnly.termsQuery(Arrays.asList("::42", "::2/16"), null)
-        );
+        // multirange handles both
+        DocValuesMultiRangeQuery.SortedSetStabbingBuilder expect = new DocValuesMultiRangeQuery.SortedSetStabbingBuilder("field");
+        expect.add(ipToByteRef("::42"));
+        expect.add(ipToByteRef("::"), ipToByteRef("::ffff:ffff:ffff:ffff:ffff:ffff:ffff"));
+        assertEquals(expect.build(), dvOnly.termsQuery(Arrays.asList("::42", "::2/16"), null));
     }
 
     public void testDvVsPoint() {
