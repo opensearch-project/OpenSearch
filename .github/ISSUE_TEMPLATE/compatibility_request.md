@@ -2,7 +2,7 @@
 name: Compatibility request
 about: Suggest supporting a new version of OpenSearch
 title: 'Compatibility with OpenSearch (version)'
-labels: compatibility, level/task, type/research
+labels: request/operational, level/task, type/maintenance
 assignees: ''
 
 ---
@@ -15,9 +15,10 @@ For that, we need to:
 
 - [ ] Review opensearch's release notes. 
 - [ ] Identify improvements and potential impact.
+- [ ] Identify changes on upstream files (listed on https://github.com/wazuh/wazuh-indexer/issues/94)
 - [ ] Create new development branch.
 - [ ] Develop a testing environment to verify our components would work under this new build.
-
+- [ ] Indexer-Dashboard compatibility testing (open issue using the [template](https://github.com/wazuh/wazuh-indexer/issues/new/choose)).
 
 ## Issues
 -  _List here the detected issues_
