@@ -11,6 +11,7 @@ package org.opensearch.action.admin.cluster.node.tasks;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
@@ -48,19 +49,6 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             .build();
     }
 
-    private int getSegmentCount(String indexName) {
-        return client().admin()
-            .indices()
-            .segments(new IndicesSegmentsRequest(indexName))
-            .actionGet()
-            .getIndices()
-            .get(indexName)
-            .getShards()
-            .get(0)
-            .getShards()[0].getSegments()
-            .size();
-    }
-
     @Override
     protected Settings featureFlagSettings() {
         Settings.Builder featureSettings = Settings.builder();
@@ -81,6 +69,8 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
         final String INDEX_NAME = "test";
         final int NUM_SHARDS = 1;
         final int NUM_DOCS = 7;
+        int maxSliceCount = randomIntBetween(1, NUM_DOCS);
+
 
         registerTaskManagerListeners(SearchAction.NAME);  // coordinator task
         registerTaskManagerListeners(SearchAction.NAME + "[*]");  // shard task
@@ -89,6 +79,7 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, NUM_SHARDS)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.MAX_SLICE_COUNT, maxSliceCount)
                 .build()
         );
         ensureGreen(INDEX_NAME); // Make sure all shards are allocated to catch replication tasks
@@ -110,8 +101,11 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             Map<Long, List<ThreadResourceInfo>> threadStats = getThreadStats(SearchAction.NAME + "[*]", taskInfo.getTaskId());
             // Concurrent search forks each slice of 5 segments to different thread (see please
             // https://github.com/apache/lucene/issues/12498)
-            assertEquals((int) Math.ceil(getSegmentCount(INDEX_NAME) / 5.0), threadStats.size());
-
+            Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
+            assertEquals(
+                Integer.parseInt(metadata.index(INDEX_NAME).getSettings().get(IndexMetadata.MAX_SLICE_COUNT)),
+                threadStats.size()
+            );
             // assert that all task descriptions have non-zero length
             MatcherAssert.assertThat(taskInfo.getDescription().length(), greaterThan(0));
         }
