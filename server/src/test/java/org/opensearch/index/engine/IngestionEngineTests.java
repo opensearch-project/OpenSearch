@@ -197,9 +197,11 @@ public class IngestionEngineTests extends EngineTestCase {
         waitForResults(ingestionEngine, 6);
 
         // pause ingestion
-        ingestionEngine.updateIngestionSettings(new IngestionSettings(true, null, null));
+        ingestionEngine.updateIngestionSettings(IngestionSettings.builder().setIsPaused(true).build());
         // resume ingestion with offset reset
-        ingestionEngine.updateIngestionSettings(new IngestionSettings(null, StreamPoller.ResetState.RESET_BY_OFFSET, "0"));
+        ingestionEngine.updateIngestionSettings(
+            IngestionSettings.builder().setIsPaused(false).setResetState(StreamPoller.ResetState.RESET_BY_OFFSET).setResetValue("0").build()
+        );
         ShardIngestionState resumedIngestionState = ingestionEngine.getIngestionState();
         assertEquals(false, resumedIngestionState.isPollerPaused());
 

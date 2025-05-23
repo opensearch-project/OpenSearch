@@ -545,12 +545,12 @@ public class IngestionEngine extends InternalEngine {
      */
     public void updateIngestionSettings(IngestionSettings ingestionSettings) {
         // reset poller position and reinitialize poller
-        if (ingestionSettings.resetState() != null && ingestionSettings.resetValue() != null) {
-            resetStreamPoller(ingestionSettings.resetState(), ingestionSettings.resetValue());
+        if (ingestionSettings.getResetState() != null && ingestionSettings.getResetValue() != null) {
+            resetStreamPoller(ingestionSettings.getResetState(), ingestionSettings.getResetValue());
         }
 
         // update ingestion state
-        if (ingestionSettings.isPaused() != null) {
+        if (ingestionSettings.getIsPaused() != null) {
             updateIngestionState(ingestionSettings);
         }
     }
@@ -559,7 +559,7 @@ public class IngestionEngine extends InternalEngine {
      * Update ingestion state of the poller.
      */
     private void updateIngestionState(IngestionSettings ingestionSettings) {
-        if (ingestionSettings.isPaused()) {
+        if (ingestionSettings.getIsPaused()) {
             streamPoller.pause();
         } else {
             streamPoller.resume();

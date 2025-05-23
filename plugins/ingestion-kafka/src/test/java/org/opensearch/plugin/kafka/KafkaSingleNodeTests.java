@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.kafka;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -15,6 +16,7 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -38,8 +40,8 @@ import java.util.concurrent.TimeUnit;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
-@ThreadLeakFilters(filters = TestContainerThreadLeakFilter.class)
-public class KafkaSingleNodeIT extends OpenSearchSingleNodeTestCase {
+@ThreadLeakFilters(filters = KafkaSingleNodeTests.TestContainerThreadLeakFilter.class)
+public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
     private KafkaContainer kafka;
     private Producer<String, String> producer;
     private final String topicName = "test";
@@ -78,12 +80,21 @@ public class KafkaSingleNodeIT extends OpenSearchSingleNodeTestCase {
                 .build(),
             mappings
         );
+        ensureGreen(indexName);
 
         waitForState(() -> {
             RangeQueryBuilder query = new RangeQueryBuilder("age").gte(0);
             SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             return response.getHits().getTotalHits().value() == 2;
         });
+
+        ResumeIngestionResponse resumeResponse = client().admin()
+            .indices()
+            .resumeIngestion(Requests.resumeIngestionRequest(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "0"))
+            .get();
+        assertTrue(resumeResponse.isAcknowledged());
+        assertFalse(resumeResponse.isShardsAcknowledged());
+        assertEquals(1, resumeResponse.getShardFailures().length);
 
         // pause ingestion
         client().admin().indices().pauseIngestion(Requests.pauseIngestionRequest(indexName)).get();
@@ -159,4 +170,12 @@ public class KafkaSingleNodeIT extends OpenSearchSingleNodeTestCase {
         }, 1, TimeUnit.MINUTES);
     }
 
+    public static final class TestContainerThreadLeakFilter implements ThreadFilter {
+        @Override
+        public boolean reject(Thread t) {
+            return t.getName().startsWith("testcontainers-pull-watchdog-")
+                || t.getName().startsWith("testcontainers-ryuk")
+                || t.getName().startsWith("stream-poller-consumer");
+        }
+    }
 }

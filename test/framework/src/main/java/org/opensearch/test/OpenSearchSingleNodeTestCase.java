@@ -382,13 +382,13 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
     /**
      * Create a new index on the singleton node with the provided index settings and mappings source.
      */
-        protected IndexService createIndexWithMappingSource(String index, Settings settings, String mappingSource) {
-            CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
-            if (mappingSource != null) {
-                createIndexRequestBuilder.setMapping(mappingSource);
-            }
-            return createIndex(index, createIndexRequestBuilder);
+    protected IndexService createIndexWithMappingSource(String index, Settings settings, String mappingSource) {
+        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
+        if (mappingSource != null) {
+            createIndexRequestBuilder.setMapping(mappingSource);
         }
+        return createIndex(index, createIndexRequestBuilder);
+    }
 
     protected IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
         assertAcked(createIndexRequestBuilder.get());

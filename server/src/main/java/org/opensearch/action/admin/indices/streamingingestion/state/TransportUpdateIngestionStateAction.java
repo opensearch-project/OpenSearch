@@ -142,13 +142,18 @@ public class TransportUpdateIngestionStateAction extends TransportBroadcastByNod
                 StreamPoller.ResetState resetState = getStreamPollerResetState(resetSettings);
                 String resetValue = resetSettings != null ? resetSettings.getValue() : null;
                 if (resetState != null && resetValue != null) {
-                    indexShard.updateShardIngestionState(new IngestionSettings(null, resetState, resetValue));
+                    IngestionSettings ingestionSettings = IngestionSettings.builder()
+                        .setResetState(resetState)
+                        .setResetValue(resetValue)
+                        .build();
+                    indexShard.updateShardIngestionState(ingestionSettings);
                 }
             }
 
             // update ingestion state
             if (request.getIngestionPaused() != null) {
-                indexShard.updateShardIngestionState(new IngestionSettings(request.getIngestionPaused(), null, null));
+                IngestionSettings ingestionSettings = IngestionSettings.builder().setIsPaused(request.getIngestionPaused()).build();
+                indexShard.updateShardIngestionState(ingestionSettings);
             }
 
             return indexShard.getIngestionState();

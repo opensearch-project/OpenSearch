@@ -149,6 +149,37 @@ public class ResumeIngestionRequestTests extends OpenSearchTestCase {
         );
     }
 
+    public void testFromXContentInvalidField() {
+        String json = """
+            {
+              "reset_settings": [
+                {
+                  "unknown_field": 0,
+                  "value": "123"
+                }
+              ]
+            }
+            """;
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> ResumeIngestionRequest.fromXContent(new String[] { "index" }, createParser(json))
+        );
+    }
+
+    public void testFromXContentInvalidJson() {
+        String json = """
+            {
+              "reset_settings": {}
+            }
+            """;
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> ResumeIngestionRequest.fromXContent(new String[] { "index" }, createParser(json))
+        );
+    }
+
     private XContentParser createParser(String json) throws IOException {
         return createParser(JsonXContent.jsonXContent, new BytesArray(json).streamInput());
     }
