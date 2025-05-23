@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.breaker.TestCircuitBreaker;
@@ -16,7 +18,6 @@ import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
-import org.opensearch.index.store.remote.utils.cache.CacheUsage;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -75,6 +76,69 @@ public class FileCacheTests extends OpenSearchTestCase {
         for (int i = 0; i < 4; i++) {
             assertNotNull(fileCache.get(createPath(Integer.toString(i))));
         }
+    }
+
+    public void testGetWithCachedFullFileIndexInput() throws IOException {
+        FileCache fileCache = createFileCache(1 * 1000);
+        for (int i = 0; i < 4; i++) {
+            Path filePath = path.resolve(NodeEnvironment.CACHE_FOLDER)
+                .resolve("indexName")
+                .resolve("shardId")
+                .resolve(Integer.toString(i))
+                .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION);
+            createFile("indexName", "shardId/".concat(Integer.toString(i)), "test_file");
+            FSDirectory fsDirectory = FSDirectory.open(filePath);
+            FileCachedIndexInput fileCachedIndexInput = new FileCachedIndexInput(
+                fileCache,
+                filePath,
+                fsDirectory.openInput("test_file", IOContext.DEFAULT)
+            );
+            fileCache.put(filePath.resolve("test_file"), new CachedFullFileIndexInput(fileCache, filePath, fileCachedIndexInput));
+        }
+        // verify all files are put into file cache
+        for (int i = 0; i < 4; i++) {
+            Path filePath = path.resolve(NodeEnvironment.CACHE_FOLDER)
+                .resolve("indexName")
+                .resolve("shardId")
+                .resolve(Integer.toString(i))
+                .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION);
+            assertNotNull(fileCache.get(filePath.resolve("test_file")));
+
+            fileCache.decRef(filePath);
+            fileCache.decRef(filePath);
+        }
+
+        // Test eviction by adding more files to exceed cache capacity
+        for (int i = 4; i < 8000; i++) {
+            Path filePath = path.resolve(NodeEnvironment.CACHE_FOLDER)
+                .resolve("indexName")
+                .resolve("shardId")
+                .resolve(Integer.toString(i))
+                .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION);
+            createFile("indexName", "shardId/".concat(Integer.toString(i)), "test_file");
+            FSDirectory fsDirectory = FSDirectory.open(filePath);
+            FileCachedIndexInput fileCachedIndexInput = new FileCachedIndexInput(
+                fileCache,
+                filePath,
+                fsDirectory.openInput("test_file", IOContext.DEFAULT)
+            );
+            fileCache.put(filePath.resolve("test_file"), new CachedFullFileIndexInput(fileCache, filePath, fileCachedIndexInput));
+        }
+
+        // Verify some of the original files were evicted
+        boolean someEvicted = false;
+        for (int i = 0; i < 8000; i++) {
+            Path filePath = path.resolve(NodeEnvironment.CACHE_FOLDER)
+                .resolve("indexName")
+                .resolve("shardId")
+                .resolve(Integer.toString(i))
+                .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION);
+            if (fileCache.get(filePath) == null) {
+                someEvicted = true;
+                break;
+            }
+        }
+        assertTrue("Expected some files to be evicted", someEvicted);
     }
 
     public void testGetThrowException() {
@@ -249,10 +313,13 @@ public class FileCacheTests extends OpenSearchTestCase {
         );
         putAndDecRef(fileCache, 0, 16 * MEGA_BYTES);
 
-        CacheUsage expectedCacheUsage = new CacheUsage(16 * MEGA_BYTES, 0);
-        CacheUsage realCacheUsage = fileCache.usage();
-        assertEquals(expectedCacheUsage.activeUsage(), realCacheUsage.activeUsage());
-        assertEquals(expectedCacheUsage.usage(), realCacheUsage.usage());
+        long expectedCacheUsage = 16 * MEGA_BYTES;
+        long expectedActiveCacheUsage = 0;
+        long realCacheUsage = fileCache.usage();
+        long realActiveCacheUsage = fileCache.activeUsage();
+
+        assertEquals(expectedCacheUsage, realCacheUsage);
+        assertEquals(expectedActiveCacheUsage, realActiveCacheUsage);
     }
 
     public void testStats() {
@@ -283,11 +350,11 @@ public class FileCacheTests extends OpenSearchTestCase {
         String shardId = "0";
         createFile(indexName, shardId, "test.0");
         FileCache fileCache = createFileCache(MEGA_BYTES);
-        assertEquals(0, fileCache.usage().usage());
+        assertEquals(0, fileCache.usage());
         Path fileCachePath = path.resolve(NodeEnvironment.CACHE_FOLDER).resolve(indexName).resolve(shardId);
         fileCache.restoreFromDirectory(List.of(fileCachePath));
-        assertTrue(fileCache.usage().usage() > 0);
-        assertEquals(0, fileCache.usage().activeUsage());
+        assertTrue(fileCache.usage() > 0);
+        assertEquals(0, fileCache.activeUsage());
     }
 
     private void putAndDecRef(FileCache cache, int path, long indexInputSize) {

@@ -74,6 +74,6 @@ public class FileCachedIndexInputTests extends OpenSearchTestCase {
     }
 
     protected boolean isActiveAndTotalUsageSame() {
-        return fileCache.usage().activeUsage() == fileCache.usage().usage();
+        return fileCache.activeUsage() == fileCache.usage();
     }
 }
