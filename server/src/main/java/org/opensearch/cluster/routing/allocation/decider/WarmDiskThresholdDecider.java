@@ -43,8 +43,8 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -280,7 +280,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
         ClusterInfo clusterInfo = allocation.clusterInfo();
         // TODO: Change the default value to 5 instead of 0
         final double dataToFileCacheSizeRatio = fileCacheSettings.getRemoteDataRatio();
-        final FileCacheStats fileCacheStats = clusterInfo.getNodeFileCacheStats().getOrDefault(node.nodeId(), null);
+        final AggregateFileCacheStats fileCacheStats = clusterInfo.getNodeFileCacheStats().getOrDefault(node.nodeId(), null);
         final long nodeCacheSize = fileCacheStats != null ? fileCacheStats.getTotal().getBytes() : 0;
         return (long) dataToFileCacheSizeRatio * nodeCacheSize;
     }
@@ -309,7 +309,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
         }
 
         // Fail open if there are no file cache stats available
-        final FileCacheStats fileCacheStats = clusterInfo.getNodeFileCacheStats().getOrDefault(node.nodeId(), null);
+        final AggregateFileCacheStats fileCacheStats = clusterInfo.getNodeFileCacheStats().getOrDefault(node.nodeId(), null);
         if (fileCacheStats == null) {
             if (logger.isTraceEnabled()) {
                 logger.trace("unable to get file cache stats for node [{}], allowing allocation", node.nodeId());
