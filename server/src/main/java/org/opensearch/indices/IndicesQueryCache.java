@@ -107,7 +107,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     // dynamic change the min frequency cache threshold for query
     public static final Setting<Integer> INDICES_QUERY_CACHE_MIN_FREQUENCY = Setting.intSetting(
-        "indices.query_cache.min_frequency",
+        "indices.queries.cache.min_frequency",
         5,
         1,
         Property.NodeScope,
@@ -116,7 +116,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     // dynamic change the min frequency cache threshold for costly query
     public static final Setting<Integer> INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY = Setting.intSetting(
-        "indices.query_cache.costly_min_frequency",
+        "indices.queries.cache.costly_min_frequency",
         2,
         1,
         Property.NodeScope,
