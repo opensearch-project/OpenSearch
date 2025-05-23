@@ -225,7 +225,7 @@ public class StackCallerProtectionDomainExtractorTests {
     }
 
     @Test
-    public void testStackTruncationWithOpenSearchAccessControllerUsingCheckedRunnable() {
+    public void testStackTruncationWithOpenSearchAccessControllerUsingCheckedRunnable() throws IllegalArgumentException {
         org.opensearch.javaagent.bootstrap.AccessController.doPrivilegedChecked((CheckedRunnable<IllegalArgumentException>) () -> {
             StackCallerProtectionDomainChainExtractor extractor = StackCallerProtectionDomainChainExtractor.INSTANCE;
             Set<ProtectionDomain> protectionDomains = (Set<ProtectionDomain>) extractor.apply(captureStackFrames().stream());
