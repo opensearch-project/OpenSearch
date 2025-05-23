@@ -54,15 +54,6 @@ public class ConcurrentSnapshotsV2IT extends RemoteSnapshotIT {
         super(nodeSettings);
     }
 
-    /*
-    Disabling MockFSIndexStore plugin as the MockFSDirectoryFactory wraps the FSDirectory over a OpenSearchMockDirectoryWrapper which extends FilterDirectory (whereas FSDirectory extends BaseDirectory)
-    As a result of this wrapping the local directory of Composite Directory does not satisfy the assertion that local directory must be of type FSDirectory
-    */
-    @Override
-    protected boolean addMockIndexStorePlugin() {
-        return WRITABLE_WARM_INDEX_SETTING.get(settings) == false;
-    }
-
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(

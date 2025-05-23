@@ -56,7 +56,9 @@ public abstract class RemoteSnapshotIT extends AbstractSnapshotIntegTestCase {
             var nodes = internalCluster().getDataNodeInstances(Node.class);
             for (var node : nodes) {
                 var fileCache = node.fileCache();
-                fileCache.clear();
+                if (fileCache != null) {
+                    fileCache.clear();
+                }
             }
         }
     }
