@@ -33,9 +33,14 @@
 package org.opensearch.indices;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -48,16 +53,23 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.cache.query.QueryCacheStats;
+import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class IndicesQueryCacheTests extends OpenSearchTestCase {
 
@@ -491,5 +503,73 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         IOUtils.close(r, dir);
         cache.onClose(shard);
         cache.close();
+    }
+
+    public void testDynamicChangeSettings() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig conf = newIndexWriterConfig();
+        conf.setMaxBufferedDocs(100000);
+        IndexWriter w = new IndexWriter(dir, conf);
+        // lucene will not cache segment whose docs is smaller than 10,000
+        for (int i = 0; i < 10001; i++) {
+            Document document = new Document();
+            document.add(new IntPoint("age", i));
+            final BytesRef binaryValue = new BytesRef(String.valueOf(i));
+            document.add(new KeywordFieldMapper.KeywordField("name", binaryValue, KeywordFieldMapper.Defaults.FIELD_TYPE));
+            w.addDocument(document);
+        }
+        DirectoryReader r = DirectoryReader.open(w);
+        w.close();
+        ShardId shard = new ShardId("index", "_na_", 0);
+        r = OpenSearchDirectoryReader.wrap(r, shard);
+
+        AtomicInteger queryCacheMinFrequency = new AtomicInteger(5);
+        IndexSearcher searcher = new IndexSearcher(r);
+        searcher.setQueryCachingPolicy(new IndexShard.OpenseachUsageTrackingQueryCachingPolicy(() -> queryCacheMinFrequency.get()));
+        Settings settings = Settings.builder().build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        IndicesQueryCache cache = new IndicesQueryCache(settings, clusterSettings);
+        searcher.setQueryCache(cache);
+        final TotalHitCountCollector collector = new TotalHitCountCollector();
+
+        // test changing queryCacheMinFrequency
+        {
+            BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
+            booleanQuery.add(IntPoint.newRangeQuery("age", 1, 9999), BooleanClause.Occur.FILTER);
+            booleanQuery.add(new TermQuery(new Term("name", "1")), BooleanClause.Occur.FILTER);
+            searcher.search(booleanQuery.build(), collector);
+            QueryCacheStats stats = cache.getStats(shard);
+            assertEquals(0L, stats.getCacheSize());
+            assertEquals(0L, stats.getCacheCount());
+            assertEquals(0L, stats.getHitCount());
+            assertEquals(6L, stats.getMissCount());
+
+            queryCacheMinFrequency.set(2);
+            searcher.search(booleanQuery.build(), collector);
+            stats = cache.getStats(shard);
+            // ensure result is cached
+            assertEquals(1L, stats.getCacheSize());
+            assertEquals(1L, stats.getCacheCount());
+        }
+
+        // test changing skipCacheFactor
+        {
+            // make sure the TermInSetQuery can be cached, because queryCacheMinFrequency is 2
+            queryCacheMinFrequency.set(4);
+            BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
+            booleanQuery.add(IntPoint.newRangeQuery("age", 2, 9999), BooleanClause.Occur.FILTER);
+            booleanQuery.add(new TermQuery(new Term("name", "3")), BooleanClause.Occur.MUST);
+            cache.setSkipCacheFactor(20000);
+            searcher.search(booleanQuery.build(), collector);
+            searcher.search(booleanQuery.build(), collector);
+            QueryCacheStats stats = cache.getStats(shard);
+            // only range can be cached, assert the range query has been cached because of skipCacheFactor
+            assertEquals(2L, stats.getCacheSize());
+            assertEquals(2L, stats.getCacheCount());
+            assertEquals(0L, stats.getHitCount());
+        }
+        IOUtils.close(r, dir);
+        cache.onClose(shard);
+        cache.close(); // this triggers some assertions
     }
 }

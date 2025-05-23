@@ -44,6 +44,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.ShardCoreKeyMap;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -91,6 +92,15 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         Property.NodeScope
     );
 
+    // dynamic change the skipCacheFactor for query_cache
+    public static final Setting<Float> INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR = Setting.floatSetting(
+        "indices.queries.cache.skip_cache_factor",
+        10,
+        1,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
@@ -101,16 +111,41 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     // See onDocIdSetEviction for more info
     private final Map<Object, StatsAndCount> stats2 = Collections.synchronizedMap(new IdentityHashMap<>());
 
+    // Compatible for public api
     public IndicesQueryCache(Settings settings) {
+        this(settings, null);
+    }
+
+    public IndicesQueryCache(Settings settings, ClusterSettings clusterSettings) {
         final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);
         final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
-        logger.debug("using [node] query cache with size [{}] max filter count [{}]", size, count);
+        float skipCacheFactor = INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.get(settings);
+        logger.debug("using [node] query cache with size [{}] max filter count [{}] skipCacheFactor [{}]", size, count, skipCacheFactor);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
             cache = new OpenSearchLRUQueryCache(count, size.getBytes(), context -> true, 1f);
         } else {
             cache = new OpenSearchLRUQueryCache(count, size.getBytes());
+            cache.setSkipCacheFactor(skipCacheFactor);
+            if (clusterSettings != null) {
+                clusterSettings.addSettingsUpdateConsumer(INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR, this::setSkipCacheFactor);
+            } else {
+                logger.warn("clusterSettings is null, so {} is not dynamic", INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.getKey());
+            }
         }
         sharedRamBytesUsed = 0;
+    }
+
+    public void setSkipCacheFactor(float skipCacheFactor) {
+        if (skipCacheFactor < 1) {
+            throw new IllegalArgumentException("skipCacheFactor must be no less than 1, get " + skipCacheFactor);
+        }
+        logger.debug(
+            "set cluster settings {} {} -> {}",
+            INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.getKey(),
+            this.cache.getSkipCacheFactor(),
+            skipCacheFactor
+        );
+        cache.setSkipCacheFactor(skipCacheFactor);
     }
 
     /** Get usage statistics for the given shard. */
