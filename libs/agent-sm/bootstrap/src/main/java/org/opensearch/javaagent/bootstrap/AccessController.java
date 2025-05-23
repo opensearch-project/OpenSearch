@@ -9,6 +9,7 @@
 package org.opensearch.javaagent.bootstrap;
 
 import java.util.concurrent.Callable;
+import java.util.function.Supplier;
 
 /**
  * Utility class to run code in a privileged block.
@@ -43,11 +44,52 @@ public final class AccessController {
      * @param action the action to be performed
      *
      * @return the value returned by the action's {@code run} method
+     */
+    public static <T> T doPrivileged(Supplier<T> action) {
+        return action.get();
+    }
+
+    /**
+     * Performs the specified action.
+     *
+     * <p> If the action's {@code run} method throws an <i>unchecked</i>
+     * exception, it will propagate through this method.
+     *
+     * @param <T> the type of the value returned by the
+     *                  PrivilegedExceptionAction's {@code run} method
+     *
+     * @param action the action to be performed
+     *
+     * @return the value returned by the action's {@code run} method
      *
      * @throws Exception if the specified action's
      *         {@code call} method threw a <i>checked</i> exception
      */
-    public static <T> T doPrivileged(Callable<T> action) throws Exception {
+    public static <T> T doPrivilegedChecked(Callable<T> action) throws Exception {
         return action.call();
+    }
+
+    /**
+     * Performs the specified action in a privileged block.
+     *
+     * <p> If the action's {@code run} method throws an (unchecked)
+     * exception, it will propagate through this method.
+     *
+     * @param action the action to be performed
+     *
+     * @throws T if the specified action's
+     *         {@code call} method threw a <i>checked</i> exception
+     */
+    public static <T extends Exception> void doPrivilegedChecked(CheckedRunnable<T> action) throws T {
+        action.run();
+    }
+
+    /**
+     * A functional interface that represents a runnable action that can throw a checked exception.
+     *
+     * @param <E> the type of the exception that can be thrown
+     */
+    public interface CheckedRunnable<E extends Exception> {
+        void run() throws E;
     }
 }
