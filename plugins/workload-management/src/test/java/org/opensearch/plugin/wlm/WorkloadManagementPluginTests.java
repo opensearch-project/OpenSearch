@@ -111,7 +111,7 @@ public class WorkloadManagementPluginTests extends OpenSearchTestCase {
             mock(IndexNameExpressionResolver.class),
             () -> mock(RepositoriesService.class)
         );
-        FeatureType featureType = plugin.getFeatureType();
+        FeatureType featureType = plugin.getFeatureTypeSupplier().get();
         assertEquals("workload_group", featureType.getName());
     }
 
