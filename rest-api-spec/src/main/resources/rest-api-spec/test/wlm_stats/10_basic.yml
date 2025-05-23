@@ -45,4 +45,4 @@
       wlm_stats_list:
         order: upside_down
   - match:
-      error.reason: "Invalid value for 'order'. Allowed: 'asc', 'desc'"
+          error.reason: "Invalid value for 'order'. Allowed: 'asc', 'desc'"
