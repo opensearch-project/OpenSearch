@@ -58,4 +58,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Security
 - 
 
-[Unreleased 5.0.0]: https://github.com/wazuh/wazuh-indexer/compare/4.13.0...5.0.0
+[Unreleased 5.0.0]: https://github.com/wazuh/wazuh-indexer/compare/4.14.0...5.0.0

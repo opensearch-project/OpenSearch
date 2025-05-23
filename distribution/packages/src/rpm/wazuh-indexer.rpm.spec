@@ -295,9 +295,11 @@ exit 0
 %ghost %attr(440, %{name}, %{name}) %{config_dir}/.was_active
 
 %changelog
-* Wed Jul 02 2025 support <info@wazuh.com> - 5.0.0
+* Thu Dec 18 2025 support <info@wazuh.com> - 5.0.0
 - More info: https://documentation.wazuh.com/current/release-notes/release-5-0-0.html
-* Wed Jul 02 2025 support <info@wazuh.com> - 4.13.0
+* Wed Jul 09 2025 support <info@wazuh.com> - 4.14.0
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-14-0.html
+* Wed Jul 09 2025 support <info@wazuh.com> - 4.13.0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-13-0.html
 * Wed May 14 2025 support <info@wazuh.com> - 4.12.2
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-12-2.html
@@ -311,6 +313,8 @@ exit 0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-11-1.html
 * Wed Feb 21 2025 support <info@wazuh.com> - 4.11.0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-11-0.html
+* Wed May 21 2025 support <info@wazuh.com> - 4.10.2
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-10-2.html
 * Thu Jan 16 2025 support <info@wazuh.com> - 4.10.1
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-10-1.html
 * Wed Jan 08 2025 support <info@wazuh.com> - 4.10.0

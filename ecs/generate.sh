@@ -78,6 +78,11 @@ generate_mappings() {
   jq 'del(.mappings.properties.tags)' "$IN_FILE" > "$OUT_FILE"
   mv "$OUT_FILE" "$IN_FILE"
 
+  # Delete the "@timestamp" field from the index template
+  echo "Deleting the \"@timestamp\" field from the index template"
+  jq 'del(.mappings.properties.["@timestamp"])' "$IN_FILE" > "$OUT_FILE"
+  mv "$OUT_FILE" "$IN_FILE"
+
   # Remove multi-fields from the generated index template
   echo "Removing multi-fields from the index template"
   remove_multi_fields "$IN_FILE" "$OUT_FILE"
