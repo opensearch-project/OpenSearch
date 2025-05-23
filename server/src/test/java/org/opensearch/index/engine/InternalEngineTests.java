@@ -6703,11 +6703,8 @@ public class InternalEngineTests extends EngineTestCase {
                 CountDownLatch awaitStarted = new CountDownLatch(1);
                 Thread thread = new Thread(() -> {
                     awaitStarted.countDown();
-                    try (
-                        Engine.GetResult getResult = engine.get(new Engine.Get(true, false, doc3.id(), doc3.uid()), engine::acquireSearcher)
-                    ) {
-                        assertTrue(getResult.exists());
-                    }
+                    Engine.GetResult getResult = engine.get(new Engine.Get(true, false, doc3.id(), doc3.uid()), engine::acquireSearcher);
+                    assertTrue(getResult.exists());
                 });
                 thread.start();
                 awaitStarted.await();
@@ -7732,10 +7729,9 @@ public class InternalEngineTests extends EngineTestCase {
                         int iters = randomIntBetween(1, 10);
                         for (int i = 0; i < iters; i++) {
                             ParsedDocument doc = createParsedDoc(randomFrom(ids), null);
-                            try (Engine.GetResult getResult = engine.get(newGet(true, doc), engine::acquireSearcher)) {
-                                assertThat(getResult.exists(), equalTo(true));
-                                assertThat(getResult.docIdAndVersion(), notNullValue());
-                            }
+                            Engine.GetResult getResult = engine.get(newGet(true, doc), engine::acquireSearcher);
+                            assertThat(getResult.exists(), equalTo(true));
+                            assertThat(getResult.docIdAndVersion(), notNullValue());
                         }
                     });
                     getters[t].start();
