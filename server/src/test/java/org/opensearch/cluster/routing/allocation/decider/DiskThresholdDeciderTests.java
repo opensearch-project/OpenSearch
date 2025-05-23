@@ -69,6 +69,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
@@ -300,10 +302,34 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
         shardSizes.put("[test][0][r]", 10L);
 
-        Map<String, FileCacheStats> fileCacheStatsMap = new HashMap<>();
-        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node3", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
+        Map<String, AggregateFileCacheStats> fileCacheStatsMap = new HashMap<>();
+        fileCacheStatsMap.put(
+            "node1",
+            new AggregateFileCacheStats(
+                0,
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                new FileCacheStats(0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS)
+            )
+        );
+        fileCacheStatsMap.put(
+            "node2",
+            new AggregateFileCacheStats(
+                0,
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                new FileCacheStats(0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS)
+            )
+        );
+        fileCacheStatsMap.put(
+            "node3",
+            new AggregateFileCacheStats(
+                0,
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                new FileCacheStats(0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS)
+            )
+        );
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -1546,7 +1572,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             final Map<String, DiskUsage> leastAvailableSpaceUsage,
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
             final Map<String, Long> shardSizes,
-            final Map<String, FileCacheStats> nodeFileCacheStats
+            final Map<String, AggregateFileCacheStats> nodeFileCacheStats
         ) {
             this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), nodeFileCacheStats);
         }
@@ -1556,7 +1582,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
             final Map<String, Long> shardSizes,
             Map<NodeAndPath, ReservedSpace> reservedSpace,
-            final Map<String, FileCacheStats> nodeFileCacheStats
+            final Map<String, AggregateFileCacheStats> nodeFileCacheStats
         ) {
             super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace, nodeFileCacheStats);
         }

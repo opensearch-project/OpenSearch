@@ -80,7 +80,7 @@ public class FsProbe {
             paths[i] = getFSInfo(dataLocations[i]);
             if (fileCache != null && dataLocations[i].fileCacheReservedSize != ByteSizeValue.ZERO) {
                 paths[i].fileCacheReserved = adjustForHugeFilesystems(dataLocations[i].fileCacheReservedSize.getBytes());
-                paths[i].fileCacheUtilized = adjustForHugeFilesystems(fileCache.usage().usage());
+                paths[i].fileCacheUtilized = adjustForHugeFilesystems(fileCache.usage());
                 // fileCacheFree will be less than zero if the cache being over-subscribed
                 long fileCacheFree = paths[i].fileCacheReserved - paths[i].fileCacheUtilized;
                 if (fileCacheFree > 0) {
