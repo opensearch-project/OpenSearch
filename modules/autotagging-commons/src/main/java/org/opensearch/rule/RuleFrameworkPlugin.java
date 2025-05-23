@@ -22,20 +22,20 @@ import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rule.action.CreateRuleAction;
 import org.opensearch.rule.action.DeleteRuleAction;
 import org.opensearch.rule.action.GetRuleAction;
+import org.opensearch.rule.action.TransportCreateRuleAction;
 import org.opensearch.rule.action.TransportDeleteRuleAction;
 import org.opensearch.rule.action.TransportGetRuleAction;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
-import org.opensearch.rule.rest.RestDeleteRuleAction;
-import org.opensearch.rule.action.CreateRuleAction;
-import org.opensearch.rule.action.GetRuleAction;
-import org.opensearch.rule.action.TransportCreateRuleAction;
-import org.opensearch.rule.action.TransportGetRuleAction;
-import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.rest.RestCreateRuleAction;
+import org.opensearch.rule.rest.RestDeleteRuleAction;
 import org.opensearch.rule.rest.RestGetRuleAction;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.FixedExecutorBuilder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,6 +48,19 @@ import java.util.function.Supplier;
  * their feature types and persistence services are automatically registered and available to the Rule Framework.
  */
 public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
+
+    /**
+     * The name of the thread pool dedicated to rule execution.
+     */
+    public static final String RULE_THREAD_POOL_NAME = "rule_serial_executor";
+    /**
+     * The number of threads allocated in the rule execution thread pool. This is set to 1 to ensure serial execution.
+     */
+    public static final int RULE_THREAD_COUNT = 1;
+    /**
+     * The maximum number of tasks that can be queued in the rule execution thread pool.
+     */
+    public static final int RULE_QUEUE_SIZE = 100;
 
     /**
      * constructor for RuleFrameworkPlugin
@@ -82,6 +95,11 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
     }
 
     @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return List.of(new FixedExecutorBuilder(settings, RULE_THREAD_POOL_NAME, RULE_THREAD_COUNT, RULE_QUEUE_SIZE, "rule-threadpool"));
+    }
+
+    @Override
     public Collection<Module> createGuiceModules() {
         return List.of(b -> { b.bind(RulePersistenceServiceRegistry.class).toInstance(rulePersistenceServiceRegistry); });
     }
@@ -92,10 +110,8 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
     }
 
     private void consumeFrameworkExtension(RuleFrameworkExtension ruleFrameworkExtension) {
-        AutoTaggingRegistry.registerFeatureType(ruleFrameworkExtension.getFeatureType());
-        rulePersistenceServiceRegistry.register(
-            ruleFrameworkExtension.getFeatureType(),
-            ruleFrameworkExtension.getRulePersistenceServiceSupplier().get()
-        );
+        FeatureType featureType = ruleFrameworkExtension.getFeatureTypeSupplier().get();
+        AutoTaggingRegistry.registerFeatureType(featureType);
+        rulePersistenceServiceRegistry.register(featureType, ruleFrameworkExtension.getRulePersistenceServiceSupplier().get());
     }
 }

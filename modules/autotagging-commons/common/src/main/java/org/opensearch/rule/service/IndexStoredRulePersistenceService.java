@@ -10,29 +10,22 @@ package org.opensearch.rule.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.ExceptionsHelper;
-import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteRequest;
-import org.opensearch.action.search.SearchRequestBuilder;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
-import org.opensearch.action.admin.indices.create.CreateIndexRequest;
-import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.index.engine.DocumentMissingException;
-import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.rule.DeleteRuleRequest;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.CreateRuleRequest;
 import org.opensearch.rule.CreateRuleResponse;
+import org.opensearch.rule.DeleteRuleRequest;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
@@ -67,9 +60,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final int maxRulesPerPage;
     private final RuleEntityParser parser;
     private final RuleQueryMapper<QueryBuilder> queryBuilder;
-    private final Object lock = new Object();
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
-    private static final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
 
     /**
      * Constructs an instance of {@link IndexStoredRulePersistenceService} with the specified parameters.
@@ -106,57 +97,13 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     public void createRule(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener) {
         try (ThreadContext.StoredContext ctx = getContext()) {
             if (!clusterService.state().metadata().hasIndex(indexName)) {
-                createIndex(listener, request.getRule());
+                logger.error("Index {} does not exist", indexName);
+                throw new IllegalStateException("Index" + indexName + " does not exist");
             } else {
-                synchronized (lock) {
-                    validateAndPersist(request.getRule(), listener);
-                }
+                Rule rule = request.getRule();
+                validateNoDuplicateRule(rule, ActionListener.wrap(unused -> persistRule(rule, listener), listener::onFailure));
             }
         }
-    }
-
-    /**
-     * Creates the system index, then validates and persists the given rule.
-     * @param listener - ActionListener for CreateRuleResponse
-     * @param rule - the rule to validate and persist
-     */
-    private void createIndex(ActionListener<CreateRuleResponse> listener, Rule rule) {
-        final CreateIndexRequest request = new CreateIndexRequest(indexName).settings(indexSettings);
-        client.admin().indices().create(request, new ActionListener<>() {
-            @Override
-            public void onResponse(CreateIndexResponse response) {
-                if (!response.isAcknowledged()) {
-                    logger.error("Index creation not acknowledged: {}", indexName);
-                    listener.onFailure(new IllegalStateException(indexName + " index creation failed and rule cannot be persisted"));
-                } else {
-                    synchronized (lock) {
-                        validateAndPersist(rule, listener);
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof ResourceAlreadyExistsException) {
-                    synchronized (lock) {
-                        validateAndPersist(rule, listener);
-                    }
-                } else {
-                    logger.error("Failed to create index {}: {}", indexName, e.getMessage());
-                    listener.onFailure(e);
-                }
-            }
-        });
-    }
-
-    /**
-     * Validates that the rule does not already exist, then persists it if validation succeeds
-     * @param rule - The rule to validate and persist
-     * @param listener - ActionListener for CreateRuleResponse
-     */
-    private void validateAndPersist(Rule rule, ActionListener<CreateRuleResponse> listener) {
-        validateNoDuplicateRule(rule, ActionListener.wrap(unused -> persistRule(rule, listener), listener::onFailure));
     }
 
     /**
@@ -165,7 +112,6 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param rule - the rule we check duplicate against
      * @param listener - listener for validateNoDuplicateRule response
      */
-
     private void validateNoDuplicateRule(Rule rule, ActionListener<Void> listener) {
         try (ThreadContext.StoredContext ctx = getContext()) {
             QueryBuilder query = queryBuilder.from(new GetRuleRequest(null, rule.getAttributeMap(), null, rule.getFeatureType()));
@@ -266,10 +212,6 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         listener.onResponse(new GetRuleResponse(ruleMap, nextSearchAfter));
     }
 
-    private ThreadContext.StoredContext getContext() {
-        return client.threadPool().getThreadContext().stashContext();
-    }
-
     @Override
     public void deleteRule(DeleteRuleRequest request, ActionListener<AcknowledgedResponse> listener) {
         try (ThreadContext.StoredContext context = getContext()) {
@@ -290,5 +232,16 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
                 }
             }));
         }
+    }
+
+    /**
+     * indexName getter
+     */
+    public String getIndexName() {
+        return indexName;
+    }
+
+    private ThreadContext.StoredContext getContext() {
+        return client.threadPool().getThreadContext().stashContext();
     }
 }

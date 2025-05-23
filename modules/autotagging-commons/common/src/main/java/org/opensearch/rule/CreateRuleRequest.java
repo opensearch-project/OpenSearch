@@ -8,8 +8,8 @@
 
 package org.opensearch.rule;
 
+import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.rule.autotagging.Rule;
@@ -19,16 +19,15 @@ import java.io.IOException;
 /**
  * A request for create Rule
  * Example request:
- * Note that the endpoint below is for wlm rules specifically and serves only as an example
- * curl -XPUT "localhost:9200/_wlm/rule/" -H 'Content-Type: application/json' -d '
+ * curl -X PUT "localhost:9200/_rules/{featureType}/" -H 'Content-Type: application/json' -d '
  * {
  *      "description": "description1",
- *      "index_pattern": ["log*", "event*"],
- *      "workload_group": "poOiU851RwyLYvV5lbvv5w"
+ *      "attribute_name": ["log*", "event*"],
+ *      "feature_type": "poOiU851RwyLYvV5lbvv5w"
  * }'
  * @opensearch.experimental
  */
-public class CreateRuleRequest extends ClusterManagerNodeRequest<CreateRuleRequest> {
+public class CreateRuleRequest extends ActionRequest {
     private final Rule rule;
 
     /**
