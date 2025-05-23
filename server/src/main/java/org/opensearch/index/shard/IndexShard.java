@@ -43,15 +43,10 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TermInSetQuery;
-import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -192,6 +187,7 @@ import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.warmer.ShardIndexWarmerService;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.indices.IndexingMemoryController;
+import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
@@ -499,7 +495,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             };
         } else {
-            cachingPolicy = new OpenseachUsageTrackingQueryCachingPolicy(() -> indexSettings.getQueryCacheMinFrequency());
+            cachingPolicy = new IndicesQueryCache.OpenseachUsageTrackingQueryCachingPolicy(clusterApplierService.clusterSettings());
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
         readerWrapper = indexReaderWrapper;
@@ -5583,51 +5579,4 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return refreshTask;
     }
 
-    /**
-     * Custom caching policy for Opensearch.
-     */
-    public static class OpenseachUsageTrackingQueryCachingPolicy extends UsageTrackingQueryCachingPolicy {
-        private Supplier<Integer> queryCacheMinFrequency;
-
-        public OpenseachUsageTrackingQueryCachingPolicy(Supplier<Integer> queryCacheMinFrequency) {
-            this.queryCacheMinFrequency = queryCacheMinFrequency;
-        }
-
-        @Override
-        protected int minFrequencyToCache(Query query) {
-            if (isCostly(query)) {
-                return 2;
-            }
-            int minFrequency = queryCacheMinFrequency.get();
-            if (query instanceof BooleanQuery || query instanceof DisjunctionMaxQuery) {
-                --minFrequency;
-            }
-
-            return Math.max(1, minFrequency);
-        }
-
-        /**
-         * Same to Lucene's UsageTrackingQueryCachingPolicy.isCostly, it's not public in Lucene.
-         * Given that lucene doesn't give the desired extensibility at this point.
-         * Also, we can extension point if needed.
-          */
-        private boolean isCostly(Query query) {
-            return query instanceof MultiTermQuery
-                || query.getClass().getSimpleName().equals("MultiTermQueryConstantScoreBlendedWrapper")
-                || query.getClass().getSimpleName().equals("MultiTermQueryConstantScoreWrapper")
-                || query instanceof TermInSetQuery
-                || isPointQuery(query);
-        }
-
-        // Same to Lucene's UsageTrackingQueryCachingPolicy.isPointQuery
-        private boolean isPointQuery(Query query) {
-            for (Class<?> clazz = query.getClass(); clazz != Query.class; clazz = clazz.getSuperclass()) {
-                final String simpleName = clazz.getSimpleName();
-                if (simpleName.startsWith("Point") && simpleName.endsWith("Query")) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
 }

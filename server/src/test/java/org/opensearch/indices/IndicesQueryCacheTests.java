@@ -47,12 +47,14 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
@@ -65,11 +67,15 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.mapper.KeywordFieldMapper;
-import org.opensearch.index.shard.IndexShard;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.opensearch.indices.IndicesQueryCache.OpenseachUsageTrackingQueryCachingPolicy;
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 
 public class IndicesQueryCacheTests extends OpenSearchTestCase {
 
@@ -523,10 +529,13 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         ShardId shard = new ShardId("index", "_na_", 0);
         r = OpenSearchDirectoryReader.wrap(r, shard);
 
-        AtomicInteger queryCacheMinFrequency = new AtomicInteger(5);
         IndexSearcher searcher = new IndexSearcher(r);
-        searcher.setQueryCachingPolicy(new IndexShard.OpenseachUsageTrackingQueryCachingPolicy(() -> queryCacheMinFrequency.get()));
         Settings settings = Settings.builder().build();
+        OpenseachUsageTrackingQueryCachingPolicy queryCachingPolicy = new OpenseachUsageTrackingQueryCachingPolicy(
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        searcher.setQueryCachingPolicy(queryCachingPolicy);
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         IndicesQueryCache cache = new IndicesQueryCache(settings, clusterSettings);
         searcher.setQueryCache(cache);
@@ -544,7 +553,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
             assertEquals(0L, stats.getHitCount());
             assertEquals(6L, stats.getMissCount());
 
-            queryCacheMinFrequency.set(2);
+            queryCachingPolicy.setMinFrequency(2);
             searcher.search(booleanQuery.build(), collector);
             stats = cache.getStats(shard);
             // ensure result is cached
@@ -554,8 +563,8 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
 
         // test changing skipCacheFactor
         {
-            // make sure the TermInSetQuery can be cached, because queryCacheMinFrequency is 2
-            queryCacheMinFrequency.set(4);
+            // make sure the range query can be cached, because queryCacheMinFrequency is 2
+            queryCachingPolicy.setMinFrequency(4);
             BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
             booleanQuery.add(IntPoint.newRangeQuery("age", 2, 9999), BooleanClause.Occur.FILTER);
             booleanQuery.add(new TermQuery(new Term("name", "3")), BooleanClause.Occur.MUST);
@@ -571,5 +580,35 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         IOUtils.close(r, dir);
         cache.onClose(shard);
         cache.close(); // this triggers some assertions
+    }
+
+    public void testCostlyMinFrequencyToCache() throws IOException {
+        Settings settings = Settings.builder().build();
+        OpenseachUsageTrackingQueryCachingPolicy queryCachingPolicy = new OpenseachUsageTrackingQueryCachingPolicy(
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        int minFrequencyForCostly = 3;
+        queryCachingPolicy.setMinFrequencyForCostly(minFrequencyForCostly);
+
+        // test MultiTermQuery
+        List<BytesRef> terms = new ArrayList<>();
+        terms.add(new BytesRef("foo"));
+        TermInSetQuery termInSetQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", terms);
+        assertEquals(minFrequencyForCostly, queryCachingPolicy.minFrequencyToCache(termInSetQuery));
+
+        // test MultiTermQueryConstantScoreBlendedWrapper
+        Query query = CONSTANT_SCORE_BLENDED_REWRITE.rewrite(null, termInSetQuery);
+        assertEquals(minFrequencyForCostly, queryCachingPolicy.minFrequencyToCache(query));
+
+        // test MultiTermQueryConstantScoreWrapper
+        query = CONSTANT_SCORE_REWRITE.rewrite(null, termInSetQuery);
+        assertEquals(minFrequencyForCostly, queryCachingPolicy.minFrequencyToCache(query));
+
+        // test TermInSetQuery
+        query = CONSTANT_SCORE_REWRITE.rewrite(null, termInSetQuery);
+        assertEquals(minFrequencyForCostly, queryCachingPolicy.minFrequencyToCache(query));
+
+        query = IntPoint.newRangeQuery("age", 2, 9999);
+        assertEquals(minFrequencyForCostly, queryCachingPolicy.minFrequencyToCache(query));
     }
 }

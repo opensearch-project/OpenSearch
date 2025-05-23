@@ -783,14 +783,6 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    public static final Setting<Integer> INDEX_QUERY_CACHE_MIN_FREQUENCY = Setting.intSetting(
-        "index.query_cache.min_frequency",
-        5,
-        1,
-        Property.Dynamic,
-        Property.IndexScope
-    );
-
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -840,7 +832,6 @@ public final class IndexSettings {
     private final RemoteStorePathStrategy remoteStorePathStrategy;
     private final boolean isTranslogMetadataEnabled;
     private volatile boolean allowDerivedField;
-    private volatile int queryCacheMinFrequency;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -1088,7 +1079,6 @@ public final class IndexSettings {
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
         isCompositeIndex = scopedSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
-        queryCacheMinFrequency = scopedSettings.get(INDEX_QUERY_CACHE_MIN_FREQUENCY);
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -1211,15 +1201,6 @@ public final class IndexSettings {
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
             this::setRemoteStoreTranslogRepository
         );
-        scopedSettings.addSettingsUpdateConsumer(INDEX_QUERY_CACHE_MIN_FREQUENCY, this::setQueryCacheMinFrequency);
-    }
-
-    private void setQueryCacheMinFrequency(int queryCacheMinFrequency) {
-        this.queryCacheMinFrequency = queryCacheMinFrequency;
-    }
-
-    public int getQueryCacheMinFrequency() {
-        return queryCacheMinFrequency;
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {

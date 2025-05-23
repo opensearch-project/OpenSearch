@@ -35,12 +35,16 @@ package org.opensearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.LRUQueryCache;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.ShardCoreKeyMap;
@@ -96,6 +100,24 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     public static final Setting<Float> INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR = Setting.floatSetting(
         "indices.queries.cache.skip_cache_factor",
         10,
+        1,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    // dynamic change the min frequency cache threshold for query
+    public static final Setting<Integer> INDICES_QUERY_CACHE_MIN_FREQUENCY = Setting.intSetting(
+        "indices.query_cache.min_frequency",
+        5,
+        1,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    // dynamic change the min frequency cache threshold for costly query
+    public static final Setting<Integer> INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY = Setting.intSetting(
+        "indices.query_cache.costly_min_frequency",
+        2,
         1,
         Property.NodeScope,
         Property.Dynamic
@@ -426,6 +448,65 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             super.onMiss(readerCoreKey, filter);
             final Stats shardStats = getOrCreateStats(readerCoreKey);
             shardStats.missCount += 1;
+        }
+    }
+
+    /**
+     * Custom caching policy for Opensearch.
+     */
+    public static class OpenseachUsageTrackingQueryCachingPolicy extends UsageTrackingQueryCachingPolicy {
+        private int minFrequency;
+        private int minFrequencyForCostly;
+
+        public OpenseachUsageTrackingQueryCachingPolicy(ClusterSettings clusterSettings) {
+            minFrequency = clusterSettings.get(INDICES_QUERY_CACHE_MIN_FREQUENCY);
+            minFrequencyForCostly = clusterSettings.get(INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY);
+            clusterSettings.addSettingsUpdateConsumer(INDICES_QUERY_CACHE_MIN_FREQUENCY, this::setMinFrequency);
+            clusterSettings.addSettingsUpdateConsumer(INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY, this::setMinFrequencyForCostly);
+        }
+
+        @Override
+        protected int minFrequencyToCache(Query query) {
+            if (isCostly(query)) {
+                return minFrequencyForCostly;
+            }
+            int minFrequency = this.minFrequency;
+            if (query instanceof BooleanQuery || query instanceof DisjunctionMaxQuery) {
+                --minFrequency;
+            }
+
+            return Math.max(1, minFrequency);
+        }
+
+        /**
+         * Same to Lucene's UsageTrackingQueryCachingPolicy.isCostly, it's not public in Lucene.
+         * Given that lucene doesn't give the desired extensibility at this point.
+         * Also, we can extend it if needed.
+         */
+        private boolean isCostly(Query query) {
+            return query instanceof MultiTermQuery
+                || query.getClass().getSimpleName().equals("MultiTermQueryConstantScoreBlendedWrapper")
+                || query.getClass().getSimpleName().equals("MultiTermQueryConstantScoreWrapper")
+                || isPointQuery(query);
+        }
+
+        // Same to Lucene's UsageTrackingQueryCachingPolicy.isPointQuery
+        private boolean isPointQuery(Query query) {
+            for (Class<?> clazz = query.getClass(); clazz != Query.class; clazz = clazz.getSuperclass()) {
+                final String simpleName = clazz.getSimpleName();
+                if (simpleName.startsWith("Point") && simpleName.endsWith("Query")) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void setMinFrequency(int minFrequency) {
+            this.minFrequency = minFrequency;
+        }
+
+        public void setMinFrequencyForCostly(int minFrequencyForCostly) {
+            this.minFrequencyForCostly = minFrequencyForCostly;
         }
     }
 }
