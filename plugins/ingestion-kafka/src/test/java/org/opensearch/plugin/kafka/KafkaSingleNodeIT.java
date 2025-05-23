@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.kafka;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -38,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
-@ThreadLeakFilters(filters = TestContainerThreadLeakFilter.class)
+@ThreadLeakFilters(filters = KafkaSingleNodeIT.TestContainerThreadLeakFilter.class)
 public class KafkaSingleNodeIT extends OpenSearchSingleNodeTestCase {
     private KafkaContainer kafka;
     private Producer<String, String> producer;
@@ -159,4 +160,12 @@ public class KafkaSingleNodeIT extends OpenSearchSingleNodeTestCase {
         }, 1, TimeUnit.MINUTES);
     }
 
+    public static final class TestContainerThreadLeakFilter implements ThreadFilter {
+        @Override
+        public boolean reject(Thread t) {
+            return t.getName().startsWith("testcontainers-pull-watchdog-")
+                || t.getName().startsWith("testcontainers-ryuk")
+                || t.getName().startsWith("stream-poller-consumer");
+        }
+    }
 }
