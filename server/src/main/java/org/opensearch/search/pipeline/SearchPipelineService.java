@@ -329,6 +329,15 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 }
             }
         }
+        for (SearchPhaseResultsProcessor processor : pipeline.getSearchPhaseResultsProcessors()) {
+            for (Map.Entry<DiscoveryNode, SearchPipelineInfo> entry : searchPipelineInfos.entrySet()) {
+                String type = processor.getType();
+                if (entry.getValue().containsProcessor(Pipeline.PHASE_PROCESSORS_KEY, type) == false) {
+                    String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
+                    exceptions.add(ConfigurationUtils.newConfigurationException(processor.getType(), processor.getTag(), null, message));
+                }
+            }
+        }
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
