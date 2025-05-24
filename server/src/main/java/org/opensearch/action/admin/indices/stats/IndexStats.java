@@ -33,6 +33,9 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import java.io.IOException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,7 +49,7 @@ import java.util.Map;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndexStats implements Iterable<IndexShardStats> {
+public class IndexStats implements Iterable<IndexShardStats>, ToXContentFragment {
 
     private final String index;
 
@@ -130,6 +133,29 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
         primary = stats;
         return stats;
+    }
+
+    /**
+     * Returns the latest lastIndexRequestTimestamp among all shards for this index.
+     */
+    public long getLastIndexRequestTimestamp() {
+        long max = -1L;
+        for (ShardStats shard : shards) {
+            if (shard.getLastIndexRequestTimestamp() > max) {
+                max = shard.getLastIndexRequestTimestamp();
+            }
+        }
+        return max;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("index", index);
+        builder.field("uuid", uuid);
+        builder.field("last_index_request_timestamp", getLastIndexRequestTimestamp());
+        builder.endObject();
+        return builder;
     }
 
     /**
