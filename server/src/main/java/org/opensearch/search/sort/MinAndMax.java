@@ -110,21 +110,15 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
         return compare(getMax(), object);
     }
 
-    private int compare(T one, Object two) {
-        if (one instanceof Long) {
-            return Long.compare((Long) one, (Long) two);
-        } else if (one instanceof Integer) {
-            return Integer.compare((Integer) one, (Integer) two);
-        } else if (one instanceof Float) {
-            return Float.compare((Float) one, (Float) two);
-        } else if (one instanceof Double) {
-            return Double.compare((Double) one, (Double) two);
-        } else if (one instanceof BigInteger) {
-            return ((BigInteger) one).compareTo((BigInteger) two);
-        } else if (one instanceof BytesRef) {
-            return ((BytesRef) one).compareTo((BytesRef) two);
-        } else {
-            throw new UnsupportedOperationException("compare type not supported : " + one.getClass());
-        }
+    public static int compare(Object one, Object two) {
+        return switch (one) {
+            case Long v -> Long.compare(v, (Long) two);
+            case Integer v -> Integer.compare(v, (Integer) two);
+            case Float v -> Float.compare(v, (Float) two);
+            case Double v -> Double.compare(v, (Double) two);
+            case BigInteger bigInteger -> bigInteger.compareTo((BigInteger) two);
+            case BytesRef bytesRef -> bytesRef.compareTo((BytesRef) two);
+            default -> throw new UnsupportedOperationException("compare type not supported : " + one.getClass());
+        };
     }
 }
