@@ -119,6 +119,7 @@ public class HdfsBlobStoreContainerTests extends OpenSearchTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/HADOOP-19486")
     public void testReadOnly() throws Exception {
         FileContext fileContext = createTestContext();
         // Constructor will not create dir if read only
