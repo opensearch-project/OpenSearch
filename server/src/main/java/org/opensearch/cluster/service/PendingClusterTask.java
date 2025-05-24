@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.service;
 
+import org.opensearch.Version;
 import org.opensearch.common.Priority;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
@@ -55,6 +56,7 @@ public class PendingClusterTask implements Writeable {
     private Text source;
     private long timeInQueue;
     private boolean executing;
+    private long timeInExecution;
 
     public PendingClusterTask(StreamInput in) throws IOException {
         insertOrder = in.readVLong();
@@ -62,16 +64,21 @@ public class PendingClusterTask implements Writeable {
         source = in.readText();
         timeInQueue = in.readLong();
         executing = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+            timeInExecution = in.readLong();
+        }
     }
 
-    public PendingClusterTask(long insertOrder, Priority priority, Text source, long timeInQueue, boolean executing) {
+    public PendingClusterTask(long insertOrder, Priority priority, Text source, long timeInQueue, boolean executing, long timeInExecution) {
         assert timeInQueue >= 0 : "got a negative timeInQueue [" + timeInQueue + "]";
         assert insertOrder >= 0 : "got a negative insertOrder [" + insertOrder + "]";
+        assert timeInExecution >= 0 : "got a negative timeInExecution [" + timeInExecution + "]";
         this.insertOrder = insertOrder;
         this.priority = priority;
         this.source = source;
         this.timeInQueue = timeInQueue;
         this.executing = executing;
+        this.timeInExecution = timeInExecution;
     }
 
     public long getInsertOrder() {
@@ -90,8 +97,16 @@ public class PendingClusterTask implements Writeable {
         return timeInQueue;
     }
 
+    public long getTimeInExecutionInMillis() {
+        return timeInExecution;
+    }
+
     public TimeValue getTimeInQueue() {
         return new TimeValue(getTimeInQueueInMillis());
+    }
+
+    public TimeValue getTimeInExecution() {
+        return new TimeValue(getTimeInExecutionInMillis());
     }
 
     public boolean isExecuting() {
@@ -105,5 +120,8 @@ public class PendingClusterTask implements Writeable {
         out.writeText(source);
         out.writeLong(timeInQueue);
         out.writeBoolean(executing);
+        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+            out.writeLong(timeInExecution);
+        }
     }
 }
