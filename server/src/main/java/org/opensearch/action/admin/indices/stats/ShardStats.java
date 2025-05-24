@@ -71,6 +71,15 @@ public class ShardStats implements Writeable, ToXContentFragment {
     @Nullable
     private PollingIngestStats pollingIngestStats;
 
+    /**
+     * Gets the current retention lease stats.
+     *
+     * @return the current retention lease stats
+     */
+    public RetentionLeaseStats getRetentionLeaseStats() {
+        return retentionLeaseStats;
+    }
+
     private String dataPath;
     private String statePath;
     private boolean isCustomDataPath;

@@ -35,8 +35,8 @@ package org.opensearch.action.admin.indices.stats;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import java.io.IOException;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
