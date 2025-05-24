@@ -425,7 +425,14 @@ public class RestIndicesAction extends AbstractListAction {
 
         table.addCell("creation.date", "alias:cd;default:false;desc:index creation date (millisecond value)");
         table.addCell("creation.date.string", "alias:cds;default:false;desc:index creation date (as string)");
-        table.addCell("last_index_request_timestamp", "alias:lirt;default:false;desc:timestamp of last index request processed (UTC ISO 8601 string)");
+        table.addCell(
+            "last_index_request_timestamp",
+            "alias:lirt;default:false;desc:timestamp of last index request processed (ms since epoch)"
+        );
+        table.addCell(
+            "last_index_request_timestamp.string",
+            "alias:lirts;default:false;desc:timestamp of last index request processed (as string)"
+        );
 
         table.addCell("store.size", "sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries & replicas");
         table.addCell("pri.store.size", "text-align:right;desc:store size of primaries");
@@ -856,7 +863,12 @@ public class RestIndicesAction extends AbstractListAction {
             ZonedDateTime creationTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetadata.getCreationDate()), ZoneOffset.UTC);
             table.addCell(STRICT_DATE_TIME_FORMATTER.format(creationTime));
             Long lastIndexRequestTs = (indexStats == null ? null : indexStats.getLastIndexRequestTimestamp());
-            table.addCell((lastIndexRequestTs == null || lastIndexRequestTs <= 0) ? null : STRICT_DATE_TIME_FORMATTER.format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(lastIndexRequestTs), ZoneOffset.UTC)));
+            table.addCell(lastIndexRequestTs);
+            table.addCell(
+                (lastIndexRequestTs == null || lastIndexRequestTs <= 0)
+                    ? null
+                    : STRICT_DATE_TIME_FORMATTER.format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(lastIndexRequestTs), ZoneOffset.UTC))
+            );
 
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
             table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());
