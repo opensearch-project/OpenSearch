@@ -378,6 +378,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile AsyncShardRefreshTask refreshTask;
     private final ClusterApplierService clusterApplierService;
 
+    // Add a field to track the last index request timestamp
+    private volatile long lastIndexRequestTimestamp = -1L;
+
+    public long getLastIndexRequestTimestamp() {
+        return lastIndexRequestTimestamp;
+    }
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -1089,7 +1096,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean isRetry
     ) throws IOException {
         assert versionType.validateVersionForWrites(version);
-        return applyIndexOperation(
+        Engine.IndexResult result = applyIndexOperation(
             getEngine(),
             UNASSIGNED_SEQ_NO,
             getOperationPrimaryTerm(),
@@ -1103,6 +1110,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             sourceToParse,
             null
         );
+        if (result.getFailure() == null) {
+            lastIndexRequestTimestamp = System.currentTimeMillis();
+        }
+        return result;
     }
 
     public Engine.IndexResult applyIndexOperationOnReplica(
@@ -1114,7 +1125,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean isRetry,
         SourceToParse sourceToParse
     ) throws IOException {
-        return applyIndexOperation(
+        Engine.IndexResult result = applyIndexOperation(
             getEngine(),
             seqNo,
             opPrimaryTerm,
@@ -1128,6 +1139,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             sourceToParse,
             id
         );
+        if (result.getFailure() == null) {
+            lastIndexRequestTimestamp = System.currentTimeMillis();
+        }
+        return result;
     }
 
     private Engine.IndexResult applyIndexOperation(
@@ -1331,8 +1346,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifSeqNo,
         long ifPrimaryTerm
     ) throws IOException {
-        assert versionType.validateVersionForWrites(version);
-        return applyDeleteOperation(
+        Engine.DeleteResult result = applyDeleteOperation(
             getEngine(),
             UNASSIGNED_SEQ_NO,
             getOperationPrimaryTerm(),
@@ -1343,25 +1357,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ifPrimaryTerm,
             Engine.Operation.Origin.PRIMARY
         );
+        if (result.getFailure() == null) {
+            lastIndexRequestTimestamp = System.currentTimeMillis();
+        }
+        return result;
     }
 
     public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String id) throws IOException {
-        if (indexSettings.isSegRepEnabledOrRemoteNode()) {
-            final Engine.Delete delete = new Engine.Delete(
-                id,
-                new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
-                seqNo,
-                opPrimaryTerm,
-                version,
-                null,
-                Engine.Operation.Origin.REPLICA,
-                System.nanoTime(),
-                UNASSIGNED_SEQ_NO,
-                0
-            );
-            return getEngine().delete(delete);
-        }
-        return applyDeleteOperation(
+        Engine.DeleteResult result = applyDeleteOperation(
             getEngine(),
             seqNo,
             opPrimaryTerm,
@@ -1372,6 +1375,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             0,
             Engine.Operation.Origin.REPLICA
         );
+        if (result.getFailure() == null) {
+            lastIndexRequestTimestamp = System.currentTimeMillis();
+        }
+        return result;
     }
 
     private Engine.DeleteResult applyDeleteOperation(

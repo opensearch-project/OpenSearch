@@ -59,6 +59,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
 
     private ShardRouting shardRouting;
     private CommonStats commonStats;
+    private long lastIndexRequestTimestamp = -1L;
     @Nullable
     private CommitStats commitStats;
     @Nullable
@@ -70,18 +71,17 @@ public class ShardStats implements Writeable, ToXContentFragment {
     @Nullable
     private PollingIngestStats pollingIngestStats;
 
-    /**
-     * Gets the current retention lease stats.
-     *
-     * @return the current retention lease stats
-     */
-    public RetentionLeaseStats getRetentionLeaseStats() {
-        return retentionLeaseStats;
-    }
-
     private String dataPath;
     private String statePath;
     private boolean isCustomDataPath;
+
+    public long getLastIndexRequestTimestamp() {
+        return lastIndexRequestTimestamp;
+    }
+
+    public void setLastIndexRequestTimestamp(long timestamp) {
+        this.lastIndexRequestTimestamp = timestamp;
+    }
 
     public ShardStats(StreamInput in) throws IOException {
         shardRouting = new ShardRouting(in);
@@ -95,6 +95,31 @@ public class ShardStats implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             pollingIngestStats = in.readOptionalWriteable(PollingIngestStats::new);
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            lastIndexRequestTimestamp = in.readLong();
+        }
+    }
+
+    public ShardStats(
+        final ShardRouting routing,
+        final ShardPath shardPath,
+        final CommonStats commonStats,
+        final CommitStats commitStats,
+        final SeqNoStats seqNoStats,
+        final RetentionLeaseStats retentionLeaseStats,
+        final PollingIngestStats pollingIngestStats,
+        final Long lastIndexRequestTimestamp
+    ) {
+        this.shardRouting = routing;
+        this.dataPath = shardPath.getRootDataPath().toString();
+        this.statePath = shardPath.getRootStatePath().toString();
+        this.isCustomDataPath = shardPath.isCustomDataPath();
+        this.commitStats = commitStats;
+        this.commonStats = commonStats;
+        this.seqNoStats = seqNoStats;
+        this.retentionLeaseStats = retentionLeaseStats;
+        this.pollingIngestStats = pollingIngestStats;
+        this.lastIndexRequestTimestamp = lastIndexRequestTimestamp;
     }
 
     public ShardStats(
@@ -106,15 +131,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         final RetentionLeaseStats retentionLeaseStats,
         final PollingIngestStats pollingIngestStats
     ) {
-        this.shardRouting = routing;
-        this.dataPath = shardPath.getRootDataPath().toString();
-        this.statePath = shardPath.getRootStatePath().toString();
-        this.isCustomDataPath = shardPath.isCustomDataPath();
-        this.commitStats = commitStats;
-        this.commonStats = commonStats;
-        this.seqNoStats = seqNoStats;
-        this.retentionLeaseStats = retentionLeaseStats;
-        this.pollingIngestStats = pollingIngestStats;
+        this(routing, shardPath, commonStats, commitStats, seqNoStats, retentionLeaseStats, pollingIngestStats, null);
     }
 
     /**
@@ -167,6 +184,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(retentionLeaseStats);
         if (out.getVersion().onOrAfter((Version.V_3_0_0))) {
             out.writeOptionalWriteable(pollingIngestStats);
+            out.writeLong(lastIndexRequestTimestamp);
         }
     }
 
@@ -192,6 +210,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         if (pollingIngestStats != null) {
             pollingIngestStats.toXContent(builder, params);
         }
+        builder.field("last_index_request_timestamp", lastIndexRequestTimestamp);
         builder.startObject(Fields.SHARD_PATH);
         builder.field(Fields.STATE_PATH, statePath);
         builder.field(Fields.DATA_PATH, dataPath);
