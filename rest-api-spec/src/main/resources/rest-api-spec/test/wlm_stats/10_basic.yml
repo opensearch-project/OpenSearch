@@ -1,0 +1,48 @@
+---
+"Custom size param still returns headers":
+  - do:
+      wlm_stats_list:
+        size: 1
+        v: true
+  - is_true: $body
+  - match:
+      $body: /TOTAL_REJECTIONS/
+
+---
+"Sort by node_id asc does not error":
+  - do:
+      wlm_stats_list:
+        sort: node_id
+        order: asc
+  - is_true: $body
+  - match:
+      $body: /DEFAULT_WORKLOAD_GROUP/
+
+---
+"Sort by workload_group_id desc does not error":
+  - do:
+      wlm_stats_list:
+        sort: workload_group
+        order: desc
+  - is_true: $body
+  - match:
+      $body: /DEFAULT_WORKLOAD_GROUP/
+
+---
+"Invalid sort field returns error":
+  - do:
+      catch: bad_request
+      wlm_stats_list:
+        sort: memory_usage
+        order: desc
+  - match:
+      error.reason: "Invalid value for 'sort'. Allowed: 'node_id', 'workload_group'"
+
+---
+"Invalid sort order returns error":
+  - do:
+      catch: bad_request
+      wlm_stats_list:
+        order: upside_down
+  - match:
+          error.reason: "Invalid value for 'order'. Allowed: 'asc', 'desc'"
