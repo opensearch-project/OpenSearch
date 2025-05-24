@@ -469,6 +469,10 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return responseProcessorFactories;
     }
 
+    Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessorFactories() {
+        return phaseInjectorProcessorFactories;
+    }
+
     @Override
     public SearchPipelineInfo info() {
         List<ProcessorInfo> requestProcessorInfoList = requestProcessorFactories.keySet()
