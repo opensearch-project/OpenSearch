@@ -146,6 +146,10 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             .getResponseProcessorFactories();
         assertEquals(1, responseProcessorFactories.size());
         assertTrue(responseProcessorFactories.containsKey("bar"));
+        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseInjectorProcessorFactories = searchPipelineService
+            .getSearchPhaseResultsProcessorFactories();
+        assertEquals(1, phaseInjectorProcessorFactories.size());
+        assertTrue(phaseInjectorProcessorFactories.containsKey("zoe"));
     }
 
     public void testSearchPipelinePluginDuplicate() {
