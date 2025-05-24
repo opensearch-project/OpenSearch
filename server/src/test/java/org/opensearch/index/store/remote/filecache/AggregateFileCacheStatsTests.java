@@ -30,6 +30,7 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
         final long hits = randomLongBetween(0, 10000);
         final long miss = randomLongBetween(0, 10000);
         final long usage = randomLongBetween(10000, BYTES_IN_GB);
+        final long pinnedUsage = randomLongBetween(10000, BYTES_IN_GB);
         final long activeUsage = randomLongBetween(10000, BYTES_IN_GB);
         final long fullFileHitCount = randomLongBetween(0, 10000);
         final long fullFileRemoveCount = randomLongBetween(0, 10000);
@@ -42,7 +43,7 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
 
         return new AggregateRefCountedCacheStats(
 
-            new RefCountedCacheStats(hits, miss, 0, removed, replaced, 0, evicted, usage, activeUsage),
+            new RefCountedCacheStats(hits, miss, 0, removed, replaced, 0, evicted, usage, activeUsage, pinnedUsage),
             new RefCountedCacheStats(
                 fullFileHitCount,
                 0,
@@ -52,7 +53,8 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
                 fullFileEvictionCount,
                 fullFileEvictionWeight,
                 fullFileUsage,
-                fullFileActiveUsage
+                fullFileActiveUsage,
+                pinnedUsage
             ),
             new RefCountedCacheStats(
                 fullFileHitCount,
@@ -63,7 +65,20 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
                 fullFileEvictionCount,
                 fullFileEvictionWeight,
                 fullFileUsage,
-                fullFileActiveUsage
+                fullFileActiveUsage,
+                pinnedUsage
+            ),
+            new RefCountedCacheStats(
+                fullFileHitCount,
+                0,
+                fullFileRemoveCount,
+                fullFileRemoveWeight,
+                fullFileReplaceCount,
+                fullFileEvictionCount,
+                fullFileEvictionWeight,
+                fullFileUsage,
+                fullFileActiveUsage,
+                pinnedUsage
             )
 
         );
@@ -81,6 +96,7 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
                 stats.activeUsage(),
                 fileCacheCapacity,
                 stats.usage(),
+                stats.pinnedUsage(),
                 stats.evictionWeight(),
                 stats.hitCount(),
                 stats.missCount(),
@@ -90,6 +106,7 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
                 stats.activeUsage(),
                 fileCacheCapacity,
                 stats.usage(),
+                stats.pinnedUsage(),
                 stats.evictionWeight(),
                 stats.hitCount(),
                 stats.missCount(),
@@ -99,10 +116,21 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
                 stats.activeUsage(),
                 fileCacheCapacity,
                 stats.usage(),
+                stats.pinnedUsage(),
                 stats.evictionWeight(),
                 stats.hitCount(),
                 stats.missCount(),
                 FileCacheStatsType.BLOCK_FILE_STATS
+            ),
+            new FileCacheStats(
+                stats.activeUsage(),
+                fileCacheCapacity,
+                stats.usage(),
+                stats.pinnedUsage(),
+                stats.evictionWeight(),
+                stats.hitCount(),
+                stats.missCount(),
+                FileCacheStatsType.PINNED_FILE_STATS
             )
         );
     }
@@ -111,10 +139,11 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
         final long active = randomLongBetween(100000, BYTES_IN_GB);
         final long total = randomLongBetween(100000, BYTES_IN_GB);
         final long used = randomLongBetween(100000, BYTES_IN_GB);
+        final long pinned = randomLongBetween(100000, BYTES_IN_GB);
         final long evicted = randomLongBetween(0, getMockCacheStats().getFullFileCacheStats().evictionWeight());
         final long hit = randomLongBetween(0, 10);
         final long misses = randomLongBetween(0, 10);
-        return new FileCacheStats(active, total, used, evicted, hit, misses, FileCacheStatsType.OVER_ALL_STATS);
+        return new FileCacheStats(active, total, used, pinned, evicted, hit, misses, FileCacheStatsType.OVER_ALL_STATS);
     }
 
     public static AggregateFileCacheStats getMockFileCacheStats() throws IOException {

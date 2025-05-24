@@ -77,6 +77,18 @@ public interface RefCountedCache<K, V> {
     void decRef(K key);
 
     /**
+     * Pins the key in the cache, preventing it from being evicted.
+     * @param key
+     */
+    void pin(K key);
+
+    /**
+     * Unpins the key in the cache, allowing it to be evicted.
+     * @param key
+     */
+    void unpin(K key);
+
+    /**
      * get the reference count for key {@code key}.
      */
     Integer getRef(K key);
@@ -111,6 +123,13 @@ public interface RefCountedCache<K, V> {
      * @return the combined active weight of the values in this cache.
      */
     long activeUsage();
+
+    /**
+     * Returns the pinned usage of this cache.
+     *
+     * @return the combined pinned weight of the values in this cache.
+     */
+    long pinnedUsage();
 
     /**
      * Returns a current snapshot of this cache's cumulative statistics. All statistics are
