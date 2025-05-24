@@ -154,9 +154,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 return new DenseGlobalOrds();
             });
         }
-        this.fieldName = (valuesSource instanceof ValuesSource.Bytes.WithOrdinals.FieldData)
-            ? ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName()
-            : null;
+        this.fieldName = valuesSource.getIndexFieldName();
     }
 
     String descriptCollectionStrategy() {
