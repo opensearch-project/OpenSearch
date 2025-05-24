@@ -216,6 +216,8 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             shards.refresh("test");
 
             final IndexShard primary = shards.getPrimary();
+            primary.waitForRemoteStoreSyncWithTimeout();
+
             final Engine primaryEngine = getEngine(primary);
             assertNotNull(primaryEngine);
             final SegmentInfos latestCommit = SegmentInfos.readLatestCommit(primary.store().directory());
@@ -234,7 +236,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                 );
             }
 
-            final IndexShard replica = shards.addReplica(remotePath);
+            IndexShard replica = shards.addReplica(remotePath);
             replica.store().createEmpty(Version.LATEST);
             assertEquals(
                 "Replica starts at empty segment 2",
@@ -292,6 +294,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             } else {
                 primary.refresh("test");
             }
+            primary.waitForRemoteStoreSyncWithTimeout();
             assertDocCount(primary, 10);
             // get a metadata map - we'll use segrep diff to ensure segments on reader are identical after restart.
             final Map<String, StoreFileMetadata> metadataBeforeRestart = primary.getSegmentMetadataMap();
@@ -322,6 +325,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             final SegmentInfos initialCommit = store.readLastCommittedSegmentsInfo();
             shards.indexDocs(1);
             flushShard(primary);
+            primary.waitForRemoteStoreSyncWithTimeout();
             replicateSegments(primary, shards.getReplicas());
 
             assertDocCount(primary, 1);
@@ -332,6 +336,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
             shards.indexDocs(1);
             primary.refresh("test");
+            primary.waitForRemoteStoreSyncWithTimeout();
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 2);
             assertSingleSegmentFile(replica);
@@ -339,6 +344,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
             shards.indexDocs(1);
             flushShard(primary);
+            primary.waitForRemoteStoreSyncWithTimeout();
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 3);
             assertSingleSegmentFile(replica);
@@ -363,6 +369,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             } else {
                 primary.refresh("test");
             }
+            primary.waitForRemoteStoreSyncWithTimeout();
             assertDocCount(primary, 10);
             // get a metadata map - we'll use segrep diff to ensure segments on reader are identical after restart.
             final Map<String, StoreFileMetadata> metadataBeforeRestart = primary.getSegmentMetadataMap();
@@ -392,6 +399,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
             shards.indexDocs(10);
             primary.refresh("Test");
+            primary.waitForRemoteStoreSyncWithTimeout();
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
@@ -486,6 +494,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             final int docCount = 10;
             shards.indexDocs(docCount);
             primary.refresh("Test");
+            primary.waitForRemoteStoreSyncWithTimeout();
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
@@ -538,6 +547,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             // Ingest more data and start next round of segment replication
             shards.indexDocs(docCount);
             primary.refresh("Post corruption");
+            primary.waitForRemoteStoreSyncWithTimeout();
             replicateSegments(primary, List.of(replica));
 
             assertDocCount(primary, 2 * docCount);

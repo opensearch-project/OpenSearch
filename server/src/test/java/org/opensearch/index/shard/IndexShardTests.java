@@ -2855,6 +2855,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(source, "_doc", "1");
         indexDoc(source, "_doc", "2");
         source.refresh("test");
+        source.waitForRemoteStoreSyncWithTimeout();
         assertTrue("At lease one remote sync should have been completed", source.isRemoteSegmentStoreInSync());
         assertDocs(source, "1", "2");
         indexDoc(source, "_doc", "3");
@@ -2866,7 +2867,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(source, "_doc", "4");
         source.refresh("test");
-
+        source.waitForRemoteStoreSyncWithTimeout();
         long primaryTerm;
         long commitGeneration;
         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = source.getSegmentInfosSnapshot()) {
@@ -3027,6 +3028,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "1");
         indexDoc(primary, "_doc", "2");
         primary.refresh("test");
+        primary.waitForRemoteStoreSyncWithTimeout();
         assertDocs(primary, "1", "2");
 
         ShardRouting searchReplicaShardRouting = TestShardRouting.newShardRouting(
@@ -3073,6 +3075,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "1");
         indexDoc(primary, "_doc", "2");
         primary.refresh("test");
+        primary.waitForRemoteStoreSyncWithTimeout();
         assertDocs(primary, "1", "2");
 
         // Setting the RecoverySource to ExistingStoreRecoverySource to simulate a shard initializing on a new node
@@ -3111,6 +3114,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "1");
         indexDoc(primary, "_doc", "2");
         primary.refresh("test");
+        primary.waitForRemoteStoreSyncWithTimeout();
         assertDocs(primary, "1", "2");
 
         // start search replica

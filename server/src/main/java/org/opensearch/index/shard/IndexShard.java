@@ -2197,21 +2197,51 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         waitForRemoteStoreSync(() -> {});
     }
 
+    public void waitForRemoteStoreSync(Runnable onProgress) throws IOException {
+        waitForRemoteStoreSync(onProgress, getRecoverySettings().internalRemoteUploadTimeout(), TimeValue.timeValueSeconds(30));
+    }
+
+    /**
+     * Waits for remote store sync with custom timeout and polling interval.
+     *
+     * @param timeout Maximum duration to wait for sync completion
+     * @param pollInterval Time between sync status checks
+     * @throws IOException If sync fails to complete within timeout
+     */
+    public void waitForRemoteStoreSyncWithTimeout(TimeValue timeout, TimeValue pollInterval) throws IOException {
+        if (indexSettings.isAssignedOnRemoteNode() == false) {
+            return;
+        }
+
+        waitForRemoteStoreSync(() -> {}, timeout, pollInterval);
+    }
+
+    /**
+     * Quick check for remote store sync using default short timeout (5s) and polling interval (100ms).
+     *
+     * @throws IOException If sync fails to complete within timeout
+     */
+    public void waitForRemoteStoreSyncWithTimeout() throws IOException {
+        waitForRemoteStoreSyncWithTimeout(TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(100));
+    }
+
     /*
     Blocks the calling thread,  waiting for the remote store to get synced till internal Remote Upload Timeout
     Calls onProgress on seeing an increased file count on remote
     Throws IOException if the remote store is not synced within the timeout
     */
-    public void waitForRemoteStoreSync(Runnable onProgress) throws IOException {
+    private void waitForRemoteStoreSync(Runnable onProgress, TimeValue remoteUploadTimeout, TimeValue waitBetweenChecks)
+        throws IOException {
         assert indexSettings.isAssignedOnRemoteNode();
         RemoteSegmentStoreDirectory directory = getRemoteDirectory();
         int segmentUploadeCount = 0;
-        if (shardRouting.primary() == false) {
+        if (shardRouting.primary() == false || remoteUploadTimeout == null || waitBetweenChecks == null) {
             return;
         }
+
         long startNanos = System.nanoTime();
 
-        while (System.nanoTime() - startNanos < getRecoverySettings().internalRemoteUploadTimeout().nanos()) {
+        while (System.nanoTime() - startNanos < remoteUploadTimeout.nanos()) {
             try {
                 if (isRemoteSegmentStoreInSync()) {
                     return;
@@ -2222,7 +2252,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         segmentUploadeCount = directory.getSegmentsUploadedToRemoteStore().size();
                     }
                     try {
-                        Thread.sleep(TimeValue.timeValueSeconds(30).millis());
+                        Thread.sleep(waitBetweenChecks.millis());
                     } catch (InterruptedException ie) {
                         throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
                     }

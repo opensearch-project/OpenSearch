@@ -251,6 +251,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     public void testAfterRefresh() throws IOException {
         setup(true, 3);
         assertDocs(indexShard, "1", "2", "3");
+        indexShard.waitForRemoteStoreSyncWithTimeout();
 
         try (Store remoteStore = indexShard.remoteStore()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
@@ -268,7 +269,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     public void testAfterCommit() throws IOException {
         setup(true, 3);
         assertDocs(indexShard, "1", "2", "3");
-        flushShard(indexShard);
+        indexShard.waitForRemoteStoreSyncWithTimeout();
 
         try (Store remoteStore = indexShard.remoteStore()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
@@ -293,6 +294,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
 
         indexDocs(8, 4);
         indexShard.refresh("test");
+        indexShard.waitForRemoteStoreSyncWithTimeout();
 
         try (Store remoteStore = indexShard.remoteStore()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
@@ -315,6 +317,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             indexDocs(4 * (i + 1), 4);
             flushShard(indexShard);
         }
+
+        indexShard.waitForRemoteStoreSyncWithTimeout();
 
         try (Store remoteStore = indexShard.remoteStore()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
@@ -875,6 +879,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     public void testRemoteSegmentStoreNotInSync() throws IOException {
         setup(true, 3);
         remoteStoreRefreshListener.afterRefresh(true);
+        indexShard.waitForRemoteStoreSyncWithTimeout();
         try (Store remoteStore = indexShard.remoteStore()) {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
                 (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
