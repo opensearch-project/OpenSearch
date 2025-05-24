@@ -15,8 +15,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RulePersistenceServiceRegistryTests extends OpenSearchTestCase {
-    RulePersistenceServiceRegistry registry = new RulePersistenceServiceRegistry();;
-    FeatureType mockFeatureType = mock(FeatureType.class);;
+    RulePersistenceServiceRegistry registry = new RulePersistenceServiceRegistry();
+    FeatureType mockFeatureType = mock(FeatureType.class);
     RulePersistenceService mockService = mock(RulePersistenceService.class);
 
     public void testRegisterAndGetService() {

@@ -6,7 +6,6 @@
  * compatible open source license.
  */
 
-
 opensearchplugin {
   name = "rule-framework"
   description = 'OpenSearch Rule Framework plugin'

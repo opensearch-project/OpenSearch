@@ -38,6 +38,7 @@ import org.opensearch.plugin.wlm.rest.RestDeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rest.RestUpdateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
+import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureValueValidator;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
@@ -67,6 +68,7 @@ import java.util.function.Supplier;
  * Plugin class for WorkloadManagement
  */
 public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin, RuleFrameworkExtension {
+
     /**
      * The name of the index where rules are stored.
      */
@@ -75,8 +77,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
      * The maximum number of rules allowed per GET request.
      */
     public static final int MAX_RULES_PER_PAGE = 50;
-
-    private final RulePersistenceServiceHolder rulePersistenceServiceHolder = new RulePersistenceServiceHolder();
+    private static FeatureType featureType;
+    private static RulePersistenceService rulePersistenceService;
 
     private AutoTaggingActionFilter autoTaggingActionFilter;
 
@@ -99,11 +101,13 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        RulePersistenceServiceHolder.rulePersistenceService = new IndexStoredRulePersistenceService(
+        featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService));
+        rulePersistenceService = new IndexStoredRulePersistenceService(
             INDEX_NAME,
             client,
+            clusterService,
             MAX_RULES_PER_PAGE,
-            new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE),
+            new XContentRuleParser(featureType),
             new IndexBasedRuleQueryMapper()
         );
         InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(
@@ -164,15 +168,11 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
 
     @Override
     public Supplier<RulePersistenceService> getRulePersistenceServiceSupplier() {
-        return () -> RulePersistenceServiceHolder.rulePersistenceService;
+        return () -> rulePersistenceService;
     }
 
     @Override
-    public FeatureType getFeatureType() {
-        return WorkloadGroupFeatureType.INSTANCE;
-    }
-
-    static class RulePersistenceServiceHolder {
-        private static RulePersistenceService rulePersistenceService;
+    public Supplier<FeatureType> getFeatureTypeSupplier() {
+        return () -> featureType;
     }
 }

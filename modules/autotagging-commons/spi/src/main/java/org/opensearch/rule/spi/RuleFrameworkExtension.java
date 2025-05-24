@@ -25,9 +25,8 @@ public interface RuleFrameworkExtension {
     Supplier<RulePersistenceService> getRulePersistenceServiceSupplier();
 
     /**
-     * It tells the framework its FeatureType which can be used by Transport classes to handle the
-     * consumer specific persistence
-     * @return
+     * Flow implementation from consumer plugins into framework plugin
+     * @return the specific implementation of FeatureType
      */
-    FeatureType getFeatureType();
+    Supplier<FeatureType> getFeatureTypeSupplier();
 }
