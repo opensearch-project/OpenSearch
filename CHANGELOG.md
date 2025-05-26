@@ -54,6 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.maxmind.geoip2:geoip2` from 4.2.1 to 4.3.0 ([#18263](https://github.com/opensearch-project/OpenSearch/pull/18263))
 - Bump `com.azure:azure-json` from 1.3.0 to 1.5.0 ([#18335](https://github.com/opensearch-project/OpenSearch/pull/18335))
 - Bump `org.jline:jline` from 3.29.0 to 3.30.3 ([#18368](https://github.com/opensearch-project/OpenSearch/pull/18368))
+- Bump `com.nimbusds:oauth2-oidc-sdk` from 11.23.1 to 11.25 ([#18369](https://github.com/opensearch-project/OpenSearch/pull/18369))
 
 ### Deprecated
 
