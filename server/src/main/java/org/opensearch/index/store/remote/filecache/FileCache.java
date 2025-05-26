@@ -14,10 +14,12 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
-import org.opensearch.index.store.remote.utils.cache.CacheUsage;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.utils.cache.RefCountedCache;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
-import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.AggregateRefCountedCacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.IRefCountedCacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.RefCountedCacheStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -138,20 +140,27 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     }
 
     @Override
-    public CacheUsage usage() {
-        return theCache.usage();
+    public long usage() {
+        long l = theCache.usage();
+        return l;
     }
 
     @Override
-    public CacheStats stats() {
+    public long activeUsage() {
+        long l = theCache.activeUsage();
+        return l;
+    }
+
+    @Override
+    public IRefCountedCacheStats stats() {
         return theCache.stats();
     }
 
     // To be used only for debugging purposes
     public void logCurrentState() {
         logger.trace("CURRENT STATE OF FILE CACHE \n");
-        CacheUsage cacheUsage = theCache.usage();
-        logger.trace("Total Usage: " + cacheUsage.usage() + " , Active Usage: " + cacheUsage.activeUsage());
+        long cacheUsage = theCache.usage();
+        logger.trace("Total Usage: " + cacheUsage + " , Active Usage: " + theCache.activeUsage());
         theCache.logCurrentState();
     }
 
@@ -208,19 +217,43 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     }
 
     /**
-     * Returns the current {@link FileCacheStats}
+     * Returns the current {@link AggregateFileCacheStats}
      */
-    public FileCacheStats fileCacheStats() {
-        CacheStats stats = stats();
-        CacheUsage usage = usage();
-        return new FileCacheStats(
+    public AggregateFileCacheStats fileCacheStats() {
+        final AggregateRefCountedCacheStats stats = (AggregateRefCountedCacheStats) stats();
+
+        final RefCountedCacheStats overallCacheStats = stats.getOverallCacheStats();
+        final RefCountedCacheStats fullFileCacheStats = stats.getFullFileCacheStats();
+        final RefCountedCacheStats blockFileCacheStats = stats.getBlockFileCacheStats();
+        return new AggregateFileCacheStats(
             System.currentTimeMillis(),
-            usage.activeUsage(),
-            capacity(),
-            usage.usage(),
-            stats.evictionWeight(),
-            stats.hitCount(),
-            stats.missCount()
+            new FileCacheStats(
+                overallCacheStats.activeUsage(),
+                capacity(),
+                overallCacheStats.usage(),
+                overallCacheStats.evictionWeight(),
+                overallCacheStats.hitCount(),
+                overallCacheStats.missCount(),
+                FileCacheStatsType.OVER_ALL_STATS
+            ),
+            new FileCacheStats(
+                fullFileCacheStats.activeUsage(),
+                capacity(),
+                fullFileCacheStats.usage(),
+                fullFileCacheStats.evictionWeight(),
+                fullFileCacheStats.hitCount(),
+                fullFileCacheStats.missCount(),
+                FileCacheStatsType.FULL_FILE_STATS
+            ),
+            new FileCacheStats(
+                blockFileCacheStats.activeUsage(),
+                capacity(),
+                blockFileCacheStats.usage(),
+                blockFileCacheStats.evictionWeight(),
+                blockFileCacheStats.hitCount(),
+                blockFileCacheStats.missCount(),
+                FileCacheStatsType.BLOCK_FILE_STATS
+            )
         );
     }
 

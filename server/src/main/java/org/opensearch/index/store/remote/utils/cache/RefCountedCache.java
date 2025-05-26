@@ -8,7 +8,7 @@
 
 package org.opensearch.index.store.remote.utils.cache;
 
-import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.IRefCountedCacheStats;
 
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -103,7 +103,14 @@ public interface RefCountedCache<K, V> {
      *
      * @return the combined weight of the values in this cache
      */
-    CacheUsage usage();
+    long usage();
+
+    /**
+     * Returns the active usage of this cache.
+     *
+     * @return the combined active weight of the values in this cache.
+     */
+    long activeUsage();
 
     /**
      * Returns a current snapshot of this cache's cumulative statistics. All statistics are
@@ -114,5 +121,5 @@ public interface RefCountedCache<K, V> {
      *
      * @return the current snapshot of the statistics of this cache
      */
-    CacheStats stats();
+    IRefCountedCacheStats stats();
 }

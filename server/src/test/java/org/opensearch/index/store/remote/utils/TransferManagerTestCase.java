@@ -67,10 +67,10 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     public void testSingleAccess() throws Exception {
         try (IndexInput i = fetchBlobWithName("file")) {
             assertIndexInputIsFunctional(i);
-            MatcherAssert.assertThat(fileCache.usage().activeUsage(), equalTo((long) EIGHT_MB));
+            MatcherAssert.assertThat(fileCache.activeUsage(), equalTo((long) EIGHT_MB));
         }
-        MatcherAssert.assertThat(fileCache.usage().activeUsage(), equalTo(0L));
-        MatcherAssert.assertThat(fileCache.usage().usage(), equalTo((long) EIGHT_MB));
+        MatcherAssert.assertThat(fileCache.activeUsage(), equalTo(0L));
+        MatcherAssert.assertThat(fileCache.usage(), equalTo((long) EIGHT_MB));
     }
 
     public void testConcurrentAccess() throws Exception {
@@ -152,8 +152,8 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
             IOException.class,
             () -> transferManager.fetchBlob(BlobFetchRequest.builder().fileName("file").directory(directory).blobParts(blobParts).build())
         );
-        MatcherAssert.assertThat(fileCache.usage().activeUsage(), equalTo(0L));
-        MatcherAssert.assertThat(fileCache.usage().usage(), equalTo(0L));
+        MatcherAssert.assertThat(fileCache.activeUsage(), equalTo(0L));
+        MatcherAssert.assertThat(fileCache.usage(), equalTo(0L));
     }
 
     public void testFetchesToDifferentBlobsDoNotBlockOnEachOther() throws Exception {
