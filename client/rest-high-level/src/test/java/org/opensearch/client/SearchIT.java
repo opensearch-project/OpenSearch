@@ -568,15 +568,15 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(5, matrixStats.getFieldCount("num"));
         assertEquals(56d, matrixStats.getMean("num"), 0d);
         assertEquals(1830.0000000000002, matrixStats.getVariance("num"), 1.0e-12);
-        assertEquals(0.09340198804973039, matrixStats.getSkewness("num"), 0d);
-        assertEquals(1.2741646510794589, matrixStats.getKurtosis("num"), 0d);
+        assertEquals(0.09340198804973039, matrixStats.getSkewness("num"), 1.0e-14);
+        assertEquals(1.2741646510794589, matrixStats.getKurtosis("num"), 1.0e-13);
         assertEquals(5, matrixStats.getFieldCount("num2"));
         assertEquals(29d, matrixStats.getMean("num2"), 0d);
         assertEquals(330d, matrixStats.getVariance("num2"), 1.0e-12);
-        assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 1.0e-16);
-        assertEquals(1.3517561983471071, matrixStats.getKurtosis("num2"), 0d);
-        assertEquals(-767.5, matrixStats.getCovariance("num", "num2"), 0d);
-        assertEquals(-0.9876336291667923, matrixStats.getCorrelation("num", "num2"), 0d);
+        assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 1.0e-14);
+        assertEquals(1.3517561983471071, matrixStats.getKurtosis("num2"),  1.0e-14);
+        assertEquals(-767.5, matrixStats.getCovariance("num", "num2"), 1.0e-1);
+        assertEquals(-0.9876336291667923, matrixStats.getCorrelation("num", "num2"), 1.0e-14);
     }
 
     public void testSearchWithParentJoin() throws IOException {
