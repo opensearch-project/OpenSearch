@@ -1,4 +1,0 @@
-pyarrow>=10.0.1
-parquet-tools>=0.2.15
-pydantic>=2.6.1
-boto3==1.34.46
