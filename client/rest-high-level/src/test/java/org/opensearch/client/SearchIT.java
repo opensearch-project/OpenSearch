@@ -574,7 +574,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(29d, matrixStats.getMean("num2"), 0d);
         assertEquals(330d, matrixStats.getVariance("num2"), 1.0e-12);
         assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 1.0e-14);
-        assertEquals(1.3517561983471071, matrixStats.getKurtosis("num2"),  1.0e-14);
+        assertEquals(1.3517561983471071, matrixStats.getKurtosis("num2"), 1.0e-14);
         assertEquals(-767.5, matrixStats.getCovariance("num", "num2"), 1.0e-1);
         assertEquals(-0.9876336291667923, matrixStats.getCorrelation("num", "num2"), 1.0e-14);
     }
