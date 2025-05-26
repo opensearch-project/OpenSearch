@@ -66,6 +66,12 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
             m -> ft(m).positiveScoreImpact,
             true
         );
+        private final Parameter<String> semanticFieldSearchAnalyzer = Parameter.stringParam(
+            "semantic_field_search_analyzer",
+            false,
+            m -> ft(m).semanticFieldSearchAnalyzer,
+            ""
+        );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -75,17 +81,23 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(meta, positiveScoreImpact);
+            return List.of(meta, positiveScoreImpact, semanticFieldSearchAnalyzer);
         }
 
         @Override
         public RankFeaturesFieldMapper build(BuilderContext context) {
             return new RankFeaturesFieldMapper(
                 name,
-                new RankFeaturesFieldType(buildFullName(context), meta.getValue(), positiveScoreImpact.getValue()),
+                new RankFeaturesFieldType(
+                    buildFullName(context),
+                    meta.getValue(),
+                    positiveScoreImpact.getValue(),
+                    semanticFieldSearchAnalyzer.getValue()
+                ),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
-                positiveScoreImpact.getValue()
+                positiveScoreImpact.getValue(),
+                semanticFieldSearchAnalyzer.getValue()
             );
         }
     }
@@ -95,11 +107,18 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
     public static final class RankFeaturesFieldType extends MappedFieldType {
 
         private final boolean positiveScoreImpact;
+        private final String semanticFieldSearchAnalyzer;
 
-        public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
+        public RankFeaturesFieldType(
+            String name,
+            Map<String, String> meta,
+            boolean positiveScoreImpact,
+            String semanticFieldSearchAnalyzer
+        ) {
             super(name, false, false, false, TextSearchInfo.NONE, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.positiveScoreImpact = positiveScoreImpact;
+            this.semanticFieldSearchAnalyzer = semanticFieldSearchAnalyzer;
         }
 
         @Override
@@ -109,6 +128,10 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
 
         public boolean positiveScoreImpact() {
             return positiveScoreImpact;
+        }
+
+        public String semanticFieldSearchAnalyzer() {
+            return semanticFieldSearchAnalyzer;
         }
 
         @Override
@@ -133,17 +156,20 @@ public class RankFeaturesFieldMapper extends ParametrizedFieldMapper {
     }
 
     private final boolean positiveScoreImpact;
+    private final String semanticFieldSearchAnalyzer;
 
     private RankFeaturesFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
-        boolean positiveScoreImpact
+        boolean positiveScoreImpact,
+        String semanticFieldSearchAnalyzer
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.positiveScoreImpact = positiveScoreImpact;
+        this.semanticFieldSearchAnalyzer = semanticFieldSearchAnalyzer;
     }
 
     @Override

@@ -58,6 +58,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
+        checker.registerConflictCheck("semantic_field_search_analyzer", b -> b.field("semantic_field_search_analyzer", "standard"));
     }
 
     @Override
@@ -91,6 +92,25 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(fieldMapping(this::minimalMapping).toString(), mapper.mappingSource().toString());
+
+        ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 10)));
+        IndexableField[] fields = doc1.rootDoc().getFields("_feature");
+        assertEquals(1, fields.length);
+        assertThat(fields[0], instanceOf(FeatureField.class));
+        FeatureField featureField1 = (FeatureField) fields[0];
+
+        ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", 12)));
+        FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature")[0];
+
+        int freq1 = getFrequency(featureField1.tokenStream(null, null));
+        int freq2 = getFrequency(featureField2.tokenStream(null, null));
+        assertTrue(freq1 < freq2);
+    }
+
+    public void testSemanticFieldSearchAnalyzer() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "rank_feature").field("semantic_field_search_analyzer", "standard"))
+        );
 
         ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 10)));
         IndexableField[] fields = doc1.rootDoc().getFields("_feature");
