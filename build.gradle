@@ -426,7 +426,10 @@ gradle.projectsEvaluated {
 
     project.tasks.withType(Test) { task ->
       if (task != null) {
-        task.jvmArgs += ["--add-modules=jdk.incubator.vector"]
+        task.jvmArgs += [
+            "--add-modules=jdk.incubator.vector",
+            "--add-exports=java.base/com.sun.crypto.provider=ALL-UNNAMED"
+        ]
 
         // Add Java Agent for security sandboxing
         if (!(project.path in [':build-tools', ":libs:agent-sm:bootstrap", ":libs:agent-sm:agent"])) {

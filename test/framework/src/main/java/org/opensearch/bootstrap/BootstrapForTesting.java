@@ -76,7 +76,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.bootstrap.SecurityProviderManager.SUN_JCE;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 
 /**
@@ -138,17 +137,8 @@ public class BootstrapForTesting {
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
-
-        var sunJceProvider = java.security.Security.getProvider(SUN_JCE);
-        if (sunJceProvider != null) {
-            sunJceInsertFunction = () -> java.security.Security.insertProviderAt(
-                sunJceProvider,
-                SecurityProviderManager.getPosition(SUN_JCE)
-            );
-
-            if (FipsMode.CHECK.isFipsEnabled()) {
-                SecurityProviderManager.excludeSunJCE();
-            }
+        if (FipsMode.CHECK.isFipsEnabled()) {
+            SecurityProviderManager.excludeSunJCE();
         }
 
         // install security manager if requested
