@@ -153,7 +153,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
                     // Remapping function asked for removal, but nothing to remove
                     return null;
                 } else {
-                    addNode(key, node.pinned, newValue);
+                    addNode(key, false, newValue);
                     statsCounter.recordMisses(key, 1);
                     return newValue;
                 }
