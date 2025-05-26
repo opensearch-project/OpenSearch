@@ -53,6 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `lycheeverse/lychee-action` from 2.4.0 to 2.4.1 ([#18264](https://github.com/opensearch-project/OpenSearch/pull/18264))
 - Bump `com.maxmind.geoip2:geoip2` from 4.2.1 to 4.3.0 ([#18263](https://github.com/opensearch-project/OpenSearch/pull/18263))
 - Bump `com.azure:azure-json` from 1.3.0 to 1.5.0 ([#18335](https://github.com/opensearch-project/OpenSearch/pull/18335))
+- Bump `gradle/actions` from 3 to 4 ([#18371](https://github.com/opensearch-project/OpenSearch/pull/18371))
 
 ### Deprecated
 
