@@ -1772,6 +1772,7 @@ public final class InternalTestCluster extends TestCluster {
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
             FileCache fileCache = nodeAndClient.node().fileCache();
             stopNodesAndClient(nodeAndClient);
+            // Clear file cache to avoid file leaks during node stop
             if (fileCache != null && WARM_NODE_PREDICATE.test(nodeAndClient)) {
                 fileCache.clear();
             }
