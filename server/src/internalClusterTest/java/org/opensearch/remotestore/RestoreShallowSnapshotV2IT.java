@@ -117,7 +117,7 @@ public class RestoreShallowSnapshotV2IT extends AbstractSnapshotIntegTestCase {
             var nodes = internalCluster().getDataNodeInstances(Node.class);
             for (var node : nodes) {
                 var fileCache = node.fileCache();
-                fileCache.clear();
+                fileCache.prune();
             }
         }
     }

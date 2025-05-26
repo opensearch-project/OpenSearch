@@ -57,7 +57,7 @@ public abstract class RemoteSnapshotIT extends AbstractSnapshotIntegTestCase {
             for (var node : nodes) {
                 var fileCache = node.fileCache();
                 if (fileCache != null) {
-                    fileCache.clear();
+                    fileCache.prune();
                 }
             }
         }
