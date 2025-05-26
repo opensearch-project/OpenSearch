@@ -78,7 +78,7 @@ public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
             var nodes = internalCluster().getDataNodeInstances(Node.class);
             for (var node : nodes) {
                 var fileCache = node.fileCache();
-                fileCache.prune();
+                fileCache.clear();
             }
         }
     }
