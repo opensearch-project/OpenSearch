@@ -15,11 +15,9 @@ import org.junit.Before;
 import javax.crypto.Cipher;
 
 import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
 import java.security.Security;
 import java.util.Arrays;
-import java.util.Locale;
-
-import static org.opensearch.bootstrap.BootstrapForTesting.sunJceInsertFunction;
 
 public class SecurityProviderManagerTests extends OpenSearchTestCase {
 
@@ -37,18 +35,11 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        var notInstalled = Arrays.stream(Security.getProviders()).noneMatch(provider -> SUN_JCE.equals(provider.getName()));
-        if (notInstalled && sunJceInsertFunction != null) {
-            sunJceInsertFunction.get();
+        if (Arrays.stream(Security.getProviders()).noneMatch(provider -> SUN_JCE.equals(provider.getName()))) {
+            var sunJceClass = Class.forName("com.sun.crypto.provider.SunJCE");
+            var originalSunProvider = (Provider) sunJceClass.getConstructor().newInstance();
+            Security.addProvider(originalSunProvider);
         }
-        assumeTrue(
-            String.format(
-                Locale.ROOT,
-                "SunJCE provider has to be initially installed through '%s' file",
-                System.getProperty("java.security.properties", "UNDEFINED")
-            ),
-            Arrays.stream(Security.getProviders()).anyMatch(provider -> SUN_JCE.equals(provider.getName()))
-        );
     }
 
     @AfterClass
