@@ -42,7 +42,6 @@ import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
-import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -204,10 +203,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
         assertDocsPresentInIndex(client, restoredIndexName2, numDocsInIndex2);
 
-        FileCache fileCache = internalCluster().getInstance(Node.class, primary).fileCache();
         // deleting data for restoredIndexName1 and restoring from remote store.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
-        fileCache.clear();
         ensureRed(restoredIndexName1);
         // Re-initialize client to make sure we are not using client from stopped node.
         client = client(clusterManagerNode);
@@ -426,10 +423,8 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         ensureGreen(indexName1);
         assertDocsPresentInIndex(client, indexName1, numDocsInIndex1 + 2);
 
-        FileCache fileCache = internalCluster().getInstance(Node.class, primary).fileCache();
         // deleting data for restoredIndexName1 and restoring from remote store.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
-        fileCache.clear();
         ensureRed(indexName1);
         // Re-initialize client to make sure we are not using client from stopped node.
         client = client(clusterManagerNode);
@@ -521,9 +516,7 @@ public class RemoteRestoreSnapshotIT extends RemoteSnapshotIT {
         try (Stream<Path> files = Files.list(indexShard.shardPath().resolveTranslog())) {
             IOUtils.deleteFilesIgnoringExceptions(files.collect(Collectors.toList()));
         }
-        FileCache fileCache = internalCluster().getInstance(Node.class, primaryNodeName(indexName1)).fileCache();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(indexName1)));
-        fileCache.clear();
 
         ensureRed(indexName1);
 
