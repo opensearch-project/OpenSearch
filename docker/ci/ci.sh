@@ -36,7 +36,7 @@ function main() {
     compose_file="docker/${current}/ci.yml"
     compose_cmd="docker compose -f $compose_file"
     REPO_PATH="$(pwd)"
-    VERSION="$(bash packaging_scripts/product_version.sh)"
+    VERSION="$(bash build-scripts/product_version.sh)"
     export REPO_PATH
     export VERSION
 

@@ -37,7 +37,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
   return copySpec {
     def commandLine = ['/bin/bash', 'product_version.sh']
     def execProcess = new ProcessBuilder(commandLine)
-        .directory(new File('./packaging_scripts'))
+        .directory(new File('./build-scripts'))
         .start()
     def version = new String(execProcess.getInputStream().readAllBytes(), "UTF-8").trim()
     execProcess.waitFor()

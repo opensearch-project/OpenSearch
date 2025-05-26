@@ -35,7 +35,7 @@ Use the `ci/ci.sh` script to start provisioned containers to generate packages.
 Usage: ./ci.sh {up|down|stop}
 ```
 
-Refer to [packaging_scripts/README.md](../packaging_scripts/README.md) for details about how to build packages.
+Refer to [build-scripts/README.md](../build-scripts/README.md) for details about how to build packages.
 
 [docker]: https://docs.docker.com/engine/install
 [wi-repo]: https://github.com/wazuh/wazuh-indexer
