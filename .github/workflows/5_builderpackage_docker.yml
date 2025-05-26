@@ -1,0 +1,108 @@
+run-name: Build Wazuh Indexer Docker image | ${{ inputs.id }}
+name: Build and push Docker image
+
+# This workflow runs when any of the following occur:
+# - Run manually
+# - Invoked from another workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: "Revision number of the package."
+        type: string
+        default: "0"
+        required: false
+      is_stage:
+        description: "Enable to use the release naming nomenclature."
+        type: boolean
+        default: false
+      id:
+        description: "ID used to identify the workflow uniquely."
+        type: string
+        required: false
+      wazuh_plugins_ref:
+        description: "Branch, commit or tag for the wazuh-indexer-plugins repository."
+        type: string
+        default: "main"
+        required: false
+  workflow_call:
+    inputs:
+      revision:
+        description: "Revision number of the package."
+        type: string
+        default: "0"
+        required: false
+      is_stage:
+        description: "Enable to use the release naming nomenclature."
+        type: boolean
+        default: false
+      id:
+        description: "ID used to identify the workflow uniquely."
+        type: string
+        required: false
+      wazuh_plugins_ref:
+        description: "Branch, commit or tag for the wazuh-indexer-plugins repository."
+        type: string
+        default: "main"
+        required: false
+    secrets:
+      QUAY_USERNAME:
+        required: true
+        description: "Quay.io username"
+      QUAY_TOKEN:
+        required: true
+        description: "Quay.io token"
+
+# ==========================
+# Bibliography
+# ==========================
+#
+# * Reusable workflows: limitations
+#   | https://docs.github.com/en/actions/using-workflows/reusing-workflows#limitations
+# * Using matrix in reusable workflows:
+#   | https://docs.github.com/en/actions/using-workflows/reusing-workflows#using-a-matrix-strategy-with-a-reusable-workflow
+# * Reading input from the called workflow
+#   | https://docs.github.com/en/enterprise-cloud@latest/actions/using-workflows/workflow-syntax-for-github-actions#onworkflow_callinputs
+# * Ternary operator
+#   | https://docs.github.com/en/actions/learn-github-actions/expressions#example
+
+jobs:
+  call-build-workflow:
+    uses: ./.github/workflows/5_builderpackage_indexer.yml
+    with:
+      revision: ${{ inputs.revision }}
+      is_stage: ${{ inputs.is_stage }}
+      distribution: '[ "tar" ]'
+      architecture: '[ "x64" ]'
+      id: ${{ inputs.id }}
+      wazuh_plugins_ref: ${{ inputs.wazuh_plugins_ref }}
+    secrets: inherit
+
+  build-and-push-docker-image:
+    needs: [call-build-workflow]
+    runs-on: ubuntu-24.04
+    env:
+      docker_path: ./build-scripts/docker
+    steps:
+      - uses: actions/checkout@v4
+
+      # Download tarball
+      - name: Download tarball
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{env.docker_path }}
+          merge-multiple: true
+
+      - name: Display structure of downloaded files
+        run: ls -lR ${{env.docker_path }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        env:
+          QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        run: |
+          bash build-scripts/build-and-push-docker-image.sh -n ${{ needs.call-build-workflow.outputs.name }}

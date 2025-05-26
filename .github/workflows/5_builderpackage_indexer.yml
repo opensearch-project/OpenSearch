@@ -1,0 +1,296 @@
+run-name: Build ${{ inputs.distribution }} Wazuh Indexer on ${{ inputs.architecture }} | ${{ inputs.id }}
+name: Build packages
+
+# This workflow runs when any of the following occur:
+# - Run manually
+# - Invoked from another workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: "Revision number of the package."
+        type: string
+        default: "0"
+        required: false
+      upload:
+        description: "Enable to upload the packages to the S3 bucket."
+        type: boolean
+        default: false
+      is_stage:
+        description: "Enable to use the release naming nomenclature."
+        type: boolean
+        default: false
+      distribution:
+        description: "Distribution format of the package [tar, rpm, deb]."
+        type: choice
+        options:
+          - '[ "tar" ]'
+          - '[ "deb" ]'
+          - '[ "rpm" ]'
+          - '[ "tar", "deb" ]'
+          - '[ "tar", "rpm" ]'
+          - '[ "deb", "rpm" ]'
+          - '[ "tar", "deb", "rpm" ]'
+        default: '[ "deb", "rpm" ]'
+        required: true
+      architecture:
+        description: "Architecture of the package [x64, arm64]."
+        type: choice
+        options:
+          - '[ "x64" ]'
+          - '[ "arm64" ]'
+          - '[ "x64", "arm64" ]'
+        default: '[ "x64", "arm64" ]'
+        required: true
+      checksum:
+        description: |
+          Enable to generate the MD5 checksums of the packages.
+          If the upload to the S3 bucket is enabled, these will be uploaded too.
+        type: boolean
+        default: false
+      id:
+        description: "ID used to identify the workflow uniquely."
+        type: string
+        required: false
+      wazuh_plugins_ref:
+        description: "Branch, commit or tag for the wazuh-indexer-plugins repository."
+        type: string
+        default: "main"
+  workflow_call:
+    inputs:
+      revision:
+        type: string
+        default: "0"
+        required: false
+      upload:
+        type: boolean
+        default: false
+      is_stage:
+        type: boolean
+        default: false
+      distribution:
+        type: string
+        default: '[ "rpm", "deb" ]'
+      architecture:
+        type: string
+        default: '[ "x64", "arm64"  ]'
+      checksum:
+        type: boolean
+        default: false
+      id:
+        type: string
+        required: false
+      wazuh_plugins_ref:
+        type: string
+        default: "main"
+    secrets:
+      CI_INTERNAL_DEVELOPMENT_BUCKET_USER_ACCESS_KEY:
+        required: true
+        description: "AWS user access key"
+      CI_INTERNAL_DEVELOPMENT_BUCKET_USER_SECRET_KEY:
+        required: true
+        description: "AWS user secret key"
+    outputs:
+      name:
+        description: Name of the package built.
+        value: ${{ jobs.build.outputs.name }}
+
+# ==========================
+# Bibliography
+# ==========================
+#
+# * Reusable workflows: limitations
+#   | https://docs.github.com/en/actions/using-workflows/reusing-workflows#limitations
+# * Using matrix in reusable workflows:
+#   | https://docs.github.com/en/actions/using-workflows/reusing-workflows#using-a-matrix-strategy-with-a-reusable-workflow
+# * Reading input from the called workflow
+#   | https://docs.github.com/en/enterprise-cloud@latest/actions/using-workflows/workflow-syntax-for-github-actions#onworkflow_callinputs
+# * Ternary operator
+#   | https://docs.github.com/en/actions/learn-github-actions/expressions#example
+
+jobs:
+  matrix:
+    name: Set up matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.setup.outputs.matrix }}
+      previous_version: ${{ steps.previous_release.outputs.previous_version }}
+    steps:
+      - id: setup
+        run: |
+          matrix=$(jq -cn \
+              --argjson distribution '${{ inputs.distribution }}' \
+              --argjson architecture '${{ inputs.architecture }}' \
+              '{distribution: $distribution, architecture: $architecture}'
+          )
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+  build-wazuh-plugins:
+    if: ${{ inputs.wazuh_plugins_ref != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        plugins: ["setup"]
+    runs-on: ubuntu-24.04
+    env:
+      plugin_name: wazuh-indexer-${{ matrix.plugins }}
+    outputs:
+      hash: ${{ steps.save-hash.outputs.hash }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: wazuh/wazuh-indexer-plugins
+          ref: ${{ inputs.wazuh_plugins_ref }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Get version
+        id: version
+        run: echo "version=$(jq .version -r VERSION.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Build with Gradle
+        working-directory: ./plugins/${{ matrix.plugins }}
+        run: ./gradlew build -Dversion=${{ steps.version.outputs.version }} -Drevision=${{ inputs.revision }}
+
+      - run: ls -lR build/distributions
+        working-directory: ./plugins/${{ matrix.plugins }}
+
+      - name: Save commit hash
+        id: save-hash
+        run: echo "hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
+          path: "./plugins/${{ matrix.plugins }}/build/distributions/${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip"
+          if-no-files-found: error
+
+  build:
+    needs: [matrix, build-wazuh-plugins]
+    runs-on: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'ubuntu-24.04' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    outputs:
+      name: ${{ steps.package.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Download plugins
+      - name: Download plugins
+        uses: actions/download-artifact@v4
+        if: ${{ inputs.wazuh_plugins_ref != '' }}
+        with:
+          path: ./artifacts/plugins
+          merge-multiple: true
+
+      - name: Display structure of downloaded files
+        if: ${{ inputs.wazuh_plugins_ref != '' }}
+        run: ls -lR ./artifacts/plugins
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Provision
+        if: ${{ matrix.distribution == 'deb' }}
+        run: |
+          sudo bash build-scripts/provision.sh
+
+      - name: Run `baptizer.sh` (min)
+        run: |
+          name=$(bash build-scripts/baptizer.sh -m \
+            -a ${{ matrix.architecture }} \
+            -d ${{ matrix.distribution }}  \
+            -r ${{ inputs.revision }} \
+            -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
+            ${{ inputs.is_stage && '-x' || '' }} \
+          )
+          echo "name=$name" >> $GITHUB_OUTPUT
+        id: min_package
+
+      - name: Run `baptizer.sh`
+        run: |
+          name=$(bash build-scripts/baptizer.sh \
+            -a ${{ matrix.architecture }} \
+            -d ${{ matrix.distribution }}  \
+            -r ${{ inputs.revision }} \
+            -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
+            ${{ inputs.is_stage && '-x' || '' }} \
+          )
+          echo "name=$name" >> $GITHUB_OUTPUT
+        id: package
+
+      - name: Run `build.sh`
+        run: |
+          bash build-scripts/build.sh \
+            -a ${{ matrix.architecture }} \
+            -d ${{ matrix.distribution }} \
+            -n ${{ steps.min_package.outputs.name }}
+
+      - name: Run `assemble.sh`
+        run: |
+          bash build-scripts/assemble.sh \
+            -a ${{ matrix.architecture }} \
+            -d ${{ matrix.distribution }} \
+            -r ${{ inputs.revision }} \
+            -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
+
+      - name: Test RPM package
+        if: ${{ matrix.distribution == 'rpm' }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: redhat/ubi9:latest
+          options: -v ${{ github.workspace }}/artifacts/dist:/artifacts/dist
+          run: |
+            yum localinstall "/artifacts/dist/${{ steps.package.outputs.name }}" -y
+
+      - name: Test DEB package
+        if: ${{ matrix.distribution == 'deb' }}
+        run: |
+          sudo dpkg -i "artifacts/dist/${{ steps.package.outputs.name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: artifacts/dist/${{ steps.package.outputs.name }}
+          if-no-files-found: error
+
+      - name: Set up AWS CLI
+        if: ${{ inputs.upload }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.CI_INTERNAL_DEVELOPMENT_BUCKET_USER_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.CI_INTERNAL_DEVELOPMENT_BUCKET_USER_SECRET_KEY }}
+          aws-region: ${{ secrets.CI_AWS_REGION }}
+
+      - name: Upload package to S3
+        if: ${{ inputs.upload }}
+        run: |
+          src="artifacts/dist/${{ steps.package.outputs.name }}"
+          dest="s3://packages-dev.internal.wazuh.com/development/wazuh/5.x/main/packages/"
+          aws s3 cp "$src" "$dest"
+          s3uri="${dest}${{ steps.package.outputs.name }}"
+          echo "::notice::S3 URI: ${s3uri}"
+
+      - name: Upload checksum to S3
+        if: ${{ inputs.upload && inputs.checksum }}
+        run: |
+          src="artifacts/dist/${{ steps.package.outputs.name }}.sha512"
+          dest="s3://packages-dev.internal.wazuh.com/development/wazuh/5.x/main/packages/"
+          aws s3 cp "$src" "$dest"
+          s3uri="${dest}${{ steps.package.outputs.name }}.sha512"
+          echo "::notice::S3 sha512 URI: ${s3uri}"

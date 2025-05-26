@@ -1,0 +1,21 @@
+services:
+  wazuh-indexer-builder:
+    image: wazuh-indexer-builder:${VERSION}
+    container_name: wazuh-indexer-builder_${VERSION}
+    build:
+      context: ./../..
+      dockerfile: ${REPO_PATH}/build-scripts/builder/Dockerfile
+    environment:
+      - INDEXER_PLUGINS_BRANCH=${INDEXER_PLUGINS_BRANCH:-main}
+      - REVISION=${REVISION:-0}
+      - IS_STAGE=${IS_STAGE:-false}
+      - DISTRIBUTION=${DISTRIBUTION:-rpm}
+      - ARCHITECTURE=${ARCHITECTURE:-x64}
+    volumes:
+      - ${REPO_PATH}:/home/wazuh-indexer
+      - wazuh-indexer-plugins:/home/wazuh-indexer/wazuh-indexer-plugins
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    user: "1000:1000"
+    working_dir: /home/wazuh-indexer
+volumes:
+  wazuh-indexer-plugins:

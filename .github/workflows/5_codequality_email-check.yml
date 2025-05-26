@@ -1,0 +1,17 @@
+name: "Email Checker"
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+jobs:
+  # Checks if the email domain is @wazuh.com, if not the workflow will fail
+  verify-email:
+    if: github.repository == 'wazuh/wazuh-indexer'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: semcelik/commit-author-action@v1.0.0
+        with:
+            email_domain: 'wazuh.com'
+            github_token: ${{ secrets.GITHUB_TOKEN }}
+            error_on_fail: 'true'
+            

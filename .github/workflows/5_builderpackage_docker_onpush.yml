@@ -1,0 +1,17 @@
+name: Build and push Docker image (on push)
+
+# This workflow runs when any of the following occur:
+# - Push
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  call-docker-workflow:
+    uses: ./.github/workflows/5_builderpackage_docker.yml
+    secrets: inherit
+    with:
+      id: ${{ github.ref }}
+      wazuh_plugins_ref: ${{ github.event.repository.default_branch }}

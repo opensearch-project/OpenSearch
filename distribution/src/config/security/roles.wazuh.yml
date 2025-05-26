@@ -1,0 +1,18 @@
+# Wazuh monitoring and statistics index permissions
+manage_wazuh_index:
+  reserved: true
+  hidden: false
+  cluster_permissions: []
+  index_permissions:
+  - index_patterns:
+    - "wazuh-*"
+    dls: ""
+    fls: []
+    masked_fields: []
+    allowed_actions:
+    - "read"
+    - "delete"
+    - "manage"
+    - "index"
+  tenant_permissions: []
+  static: false

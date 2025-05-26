@@ -1,0 +1,15 @@
+name: Version file integrity check
+
+on:
+  push:
+    paths:
+      - "VERSION.json"
+
+jobs:
+  check-version:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version
+        run: bash build-scripts/check-version.sh

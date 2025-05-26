@@ -1,0 +1,15 @@
+name: "Signed commits checker"
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+jobs:
+  # Checks if the commits are signed, if not the workflow will fail
+  verify-signed-commits:
+    if: github.repository == 'wazuh/wazuh-indexer'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: 1Password/check-signed-commits-action@v1
+      

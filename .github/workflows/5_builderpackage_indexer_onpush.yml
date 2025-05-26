@@ -1,0 +1,17 @@
+name: Build packages (on push)
+
+# This workflow runs when any of the following occur:
+# - Push
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  call-build-workflow:
+    uses: ./.github/workflows/5_builderpackage_indexer.yml
+    secrets: inherit
+    with:
+      id: ${{ github.ref }}
+      wazuh_plugins_ref: ${{ github.event.repository.default_branch }}

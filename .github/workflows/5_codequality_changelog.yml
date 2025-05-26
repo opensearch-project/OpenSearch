@@ -1,0 +1,20 @@
+name: "Changelog Verifier"
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+jobs:
+  # Enforces the update of a changelog file on every pull request
+  verify-changelog:
+    if: github.repository == 'wazuh/wazuh-indexer'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: dangoslen/changelog-enforcer@v3
+        id: verify-changelog
+        with:
+          skipLabels: "autocut, skip-changelog"
+          changeLogPath: "CHANGELOG.md"
