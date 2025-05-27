@@ -156,7 +156,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         TopDocs topDocs = searcher.search(approximateQuery, 10);
                         assertEquals(TotalHits.Relation.EQUAL_TO, topDocs.totalHits.relation());
                         assertEquals(10, topDocs.scoreDocs.length);
-                        // assertEquals(topDocs.totalHits, new TotalHits(10, TotalHits.Relation.EQUAL_TO));
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
