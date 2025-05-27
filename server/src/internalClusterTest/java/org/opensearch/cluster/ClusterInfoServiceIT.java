@@ -51,7 +51,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
@@ -193,7 +193,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
             assertThat("shard size is greater than 0", size, greaterThanOrEqualTo(0L));
         }
 
-        final Map<String, FileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
+        final Map<String, AggregateFileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
         assertNotNull(nodeFileCacheStats);
         assertThat("file cache is empty on non warm nodes", nodeFileCacheStats.size(), Matchers.equalTo(0));
 
@@ -227,12 +227,12 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
         ClusterInfo info = infoService.refresh();
         assertNotNull("info should not be null", info);
-        final Map<String, FileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
+        final Map<String, AggregateFileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
         assertNotNull(nodeFileCacheStats);
         assertThat("file cache is enabled on both warm nodes", nodeFileCacheStats.size(), Matchers.equalTo(2));
 
-        for (FileCacheStats fileCacheStats : nodeFileCacheStats.values()) {
-            assertThat("file cache is non empty", fileCacheStats.getTotal().getBytes(), greaterThan(0L));
+        for (AggregateFileCacheStats aggregateFileCacheStats : nodeFileCacheStats.values()) {
+            assertThat("file cache is non empty", aggregateFileCacheStats.getTotal().getBytes(), greaterThan(0L));
         }
     }
 

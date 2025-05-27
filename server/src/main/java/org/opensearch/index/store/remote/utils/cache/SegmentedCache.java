@@ -13,7 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.Weigher;
-import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.AggregateRefCountedCacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.IRefCountedCacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.RefCountedCacheStats;
 
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -158,38 +160,42 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
-    public CacheUsage usage() {
-        long usage = 0L;
-        long activeUsage = 0L;
+    public long usage() {
+        long totalUsage = 0L;
         for (RefCountedCache<K, V> cache : table) {
-            CacheUsage c = cache.usage();
-            usage += c.usage();
-            activeUsage += c.activeUsage();
+            IRefCountedCacheStats c = cache.stats();
+            totalUsage += c.usage();
+
         }
-        return new CacheUsage(usage, activeUsage);
+        return totalUsage;
     }
 
     @Override
-    public CacheStats stats() {
-        long hitCount = 0L;
-        long missCount = 0L;
-        long removeCount = 0L;
-        long removeWeight = 0L;
-        long replaceCount = 0L;
-        long evictionCount = 0L;
-        long evictionWeight = 0L;
+    public long activeUsage() {
+        long totalActiveUsage = 0L;
+        for (RefCountedCache<K, V> cache : table) {
+            IRefCountedCacheStats c = cache.stats();
+            totalActiveUsage += c.activeUsage();
+        }
+        return totalActiveUsage;
+    }
+
+    @Override
+    public IRefCountedCacheStats stats() {
+
+        final RefCountedCacheStats totalOverallCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0);
+        final RefCountedCacheStats totalFullFileCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0);
+        final RefCountedCacheStats totalBlockFileCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         for (RefCountedCache<K, V> cache : table) {
-            CacheStats c = cache.stats();
-            hitCount += c.hitCount();
-            missCount += c.missCount();
-            removeCount += c.removeCount();
-            removeWeight += c.removeWeight();
-            replaceCount += c.replaceCount();
-            evictionCount += c.evictionCount();
-            evictionWeight += c.evictionWeight();
+            AggregateRefCountedCacheStats aggregateStats = (AggregateRefCountedCacheStats) cache.stats();
+
+            totalOverallCacheStats.accumulate(aggregateStats.getOverallCacheStats());
+            totalFullFileCacheStats.accumulate(aggregateStats.getFullFileCacheStats());
+            totalBlockFileCacheStats.accumulate(aggregateStats.getBlockFileCacheStats());
         }
-        return new CacheStats(hitCount, missCount, removeCount, removeWeight, replaceCount, evictionCount, evictionWeight);
+
+        return new AggregateRefCountedCacheStats(totalOverallCacheStats, totalFullFileCacheStats, totalBlockFileCacheStats);
     }
 
     // To be used only for debugging purposes
