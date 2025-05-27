@@ -125,7 +125,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertTrue(reroute.compareAndSet(false, true));
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(null);
-            }
+            },
+            () -> 5.0
         ) {
 
             @Override
@@ -187,7 +188,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertTrue(reroute.compareAndSet(false, true));
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(null);
-            }
+            },
+            () -> 5.0
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
@@ -228,7 +230,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
                 assertTrue(listenerReference.compareAndSet(null, listener));
-            }
+            },
+            () -> 5.0
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
@@ -369,7 +372,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(clusterState);
-            }
+            },
+            () -> 5.0
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
@@ -431,7 +435,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(clusterStateWithBlocks);
-            }
+            },
+            () -> 5.0
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
@@ -544,7 +549,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             timeSupplier,
-            (reason, priority, listener) -> listener.onResponse(clusterStateRef.get())
+            (reason, priority, listener) -> listener.onResponse(clusterStateRef.get()),
+            () -> 5.0
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
@@ -696,7 +702,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertTrue(reroute.compareAndSet(false, true));
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(null);
-            }
+            },
+            () -> 5.0
         ) {
 
             @Override
@@ -773,7 +780,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             currentTime::get,
             (reason, priority, listener) -> {
                 listener.onResponse(null);
-            }
+            },
+            () -> 5.0
         ) {
 
             @Override
