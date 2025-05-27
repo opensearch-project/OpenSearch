@@ -6,6 +6,6 @@
  * compatible open source license.
  */
 /**
- * This package contains synchronization related constructs
+ * This package contains constructs to enable synchronization between index and in memory view of Rules
  */
 package org.opensearch.plugin.wlm.rule.sync;
