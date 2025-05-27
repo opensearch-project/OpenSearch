@@ -298,13 +298,12 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     case CELL_INSIDE_QUERY:
                     case CELL_CROSSES_QUERY:
                         if (pointTree.moveToChild() && docCount[0] < size) {
-                            while (pointTree.moveToSibling()) {
-                            }
-
+                            // BKD is binary today, so one moveToSibling() is enough to land on the right child.
+                            // If PointTree ever becomes n-ary, update the traversal below to visit all siblings or re-enable a full loop.
+                            pointTree.moveToSibling();
+                            assert pointTree.moveToSibling() == false;
                             intersectRight(visitor, pointTree, docCount);
-
                             pointTree.moveToParent();
-
                             if (docCount[0] < size) {
                                 pointTree.moveToChild();
                                 intersectRight(visitor, pointTree, docCount);
