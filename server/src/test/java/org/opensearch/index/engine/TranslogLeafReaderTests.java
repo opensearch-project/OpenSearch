@@ -28,7 +28,6 @@ import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.RoutingFieldMapper;
@@ -51,7 +50,6 @@ import static org.mockito.Mockito.when;
 
 public class TranslogLeafReaderTests extends OpenSearchTestCase {
 
-    private MapperService mapperService;
     private EngineConfig engineConfig;
     private Translog.Index operation;
     private TranslogLeafReader translogLeafReader;
@@ -70,11 +68,7 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
             .numberOfReplicas(1)
             .build();
         defaultIndexSettings = IndexSettingsModule.newIndexSettings("test", defaultIndexMetadata.getSettings());
-        mapperService = mock(MapperService.class);
-        when(mapperService.getIndexSettings()).thenReturn(defaultIndexSettings);
         documentMapper = mock(DocumentMapper.class);
-        when(mapperService.documentMapper()).thenReturn(documentMapper);
-        when(mapperService.index()).thenReturn(index);
 
         documentMapperForType = mock(DocumentMapperForType.class);
         when(documentMapperForType.getDocumentMapper()).thenReturn(documentMapper);
@@ -178,23 +172,26 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
         assertEquals(operation.routing(), routingVal[0]);
     }
 
-    // TODO: Update derived source index setting
     public void testDerivedSourceFields() throws IOException {
         // Setup mapper service with derived source enabled
         Settings derivedSourceSettings = Settings.builder()
             .put(defaultIndexSettings.getSettings())
-            .put("index.derive_source", true)
+            .put("index.derived_source.enabled", true)
             .build();
         IndexMetadata derivedMetadata = IndexMetadata.builder("test").settings(derivedSourceSettings).build();
         IndexSettings derivedIndexSettings = new IndexSettings(derivedMetadata, Settings.EMPTY);
 
-        when(mapperService.getIndexSettings()).thenReturn(derivedIndexSettings);
+        engineConfig = new EngineConfig.Builder().indexSettings(derivedIndexSettings)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .codecService(new CodecService(null, derivedIndexSettings, logger))
+            .documentMapperForTypeSupplier(() -> documentMapperForType)
+            .build();
 
         // Mock document mapper
         Document doc = new Document();
         doc.add(new StringField("field", "value", Field.Store.YES));
         ParsedDocument parsedDoc = new ParsedDocument(null, null, "1", null, null, source, MediaTypeRegistry.JSON, null);
-        when(mapperService.documentMapper().parse(any())).thenReturn(parsedDoc);
+        when(documentMapper.parse(any())).thenReturn(parsedDoc);
 
         StoredFields storedFields = translogLeafReader.storedFields();
 
@@ -253,7 +250,7 @@ public class TranslogLeafReaderTests extends OpenSearchTestCase {
         );
 
         // Mock necessary components
-        when(mapperService.documentMapper().parse(any())).thenReturn(parsedDoc);
+        when(documentMapper.parse(any())).thenReturn(parsedDoc);
 
         // Test creation of in-memory reader
         assertNotNull(TranslogLeafReader.createInMemoryIndexReader(operation, engineConfig));
