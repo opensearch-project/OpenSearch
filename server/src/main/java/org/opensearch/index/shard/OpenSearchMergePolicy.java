@@ -34,6 +34,9 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormatComparator;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
@@ -71,9 +74,12 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
 
     private static final int MAX_CONCURRENT_UPGRADE_MERGES = 5;
 
+    private final Codec actualCodec;
+
     /** @param delegate the merge policy to wrap */
-    public OpenSearchMergePolicy(MergePolicy delegate) {
+    public OpenSearchMergePolicy(MergePolicy delegate, Codec codec) {
         super(delegate);
+        this.actualCodec = codec;
     }
 
     /** return the wrapped merge policy */
@@ -81,22 +87,43 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
         return in;
     }
 
-    private boolean shouldUpgrade(SegmentCommitInfo info) {
+    boolean shouldUpgrade(SegmentCommitInfo info) {
         org.apache.lucene.util.Version old = info.info.getVersion();
         org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;
 
         // Something seriously wrong if this trips:
-        assert old.major <= cur.major;
+        assert cur.major >= old.major;
 
         if (cur.major > old.major) {
             // Always upgrade segment if Lucene's major version is too old
             return true;
         }
-        if (upgradeOnlyAncientSegments == false && cur.minor > old.minor) {
-            // If it's only a minor version difference, and we are not upgrading only ancient segments,
-            // also upgrade:
+
+        if (upgradeOnlyAncientSegments) {
+            // Skip other checks, because we already check major versions and we are upgrading only ancient segments
+            return false;
+        }
+
+        if (cur.minor > old.minor) {
             return true;
         }
+
+        if (!info.info.getCodec().getName().equals(actualCodec.getName())) {
+            // If difference in Codec we should upgrade segment
+            return true;
+        }
+
+        if (info.info.getAttributes() != null) {
+            if (info.info.getCodec().storedFieldsFormat() instanceof Lucene90StoredFieldsFormat
+                && actualCodec.storedFieldsFormat() instanceof Lucene90StoredFieldsFormat) {
+                var current = (Lucene90StoredFieldsFormat) info.info.getCodec().storedFieldsFormat();
+                var target = (Lucene90StoredFieldsFormat) actualCodec.storedFieldsFormat();
+                if (!Lucene90StoredFieldsFormatComparator.equal(current, target)) {
+                    return true;
+                }
+            }
+        }
+
         // Version matches, or segment is not ancient and we are only upgrading ancient segments:
         return false;
     }
@@ -115,8 +142,7 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
 
                 if (shouldUpgrade(info)) {
 
-                    // TODO: Use IndexUpgradeMergePolicy instead. We should be comparing codecs,
-                    // for now we just assume every minor upgrade has a new format.
+                    // TODO: Use IndexUpgradeMergePolicy instead
                     logger.debug("Adding segment {} to be upgraded", info.info.name);
                     spec.add(new OneMerge(Collections.singletonList(info)));
                 }
