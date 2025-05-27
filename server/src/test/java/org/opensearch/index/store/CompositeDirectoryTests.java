@@ -53,7 +53,7 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
     private final static String NON_EXISTENT_FILE = "non_existent_file";
     private final static String NEW_FILE = "new_file";
     private final static String TEMP_FILE = "temp_file.tmp";
-    private final static String LOCAL_SEGMENT_FILE = "segments_1";
+    private final static String LOCAL_SEGMENT_FILE = "segments_2";
     private final static int FILE_CACHE_CAPACITY = 10000;
 
     @Before
@@ -77,7 +77,7 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
     public void testListAll_withLocalSegmentFiles() throws IOException {
         addFilesToDirectory(new String[] { LOCAL_SEGMENT_FILE });
         String[] actualFileNames = compositeDirectory.listAll();
-        String[] expectedFileNames = new String[] { "_0.cfe", "_0.cfs", "_0.si", "_1.cfe", "_2.cfe", "segments_1", "temp_file.tmp" };
+        String[] expectedFileNames = new String[] { "_0.cfe", "_0.cfs", "_0.si", "_1.cfe", "_2.cfe", "segments_2", "temp_file.tmp" };
         assertArrayEquals(expectedFileNames, actualFileNames);
     }
 
