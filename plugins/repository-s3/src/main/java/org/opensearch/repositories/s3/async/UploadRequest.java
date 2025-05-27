@@ -10,6 +10,7 @@ package org.opensearch.repositories.s3.async;
 
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 
 import java.io.IOException;
@@ -28,6 +29,7 @@ public class UploadRequest {
     private final Long expectedChecksum;
     private final Map<String, String> metadata;
     private final boolean uploadRetryEnabled;
+    private final ConditionalWriteOptions conditionalOptions;
 
     /**
      * Construct a new UploadRequest object
@@ -40,6 +42,7 @@ public class UploadRequest {
      * @param doRemoteDataIntegrityCheck A boolean to inform vendor plugins whether remote data integrity checks need to be done
      * @param expectedChecksum           Checksum of the file being uploaded for remote data integrity check
      * @param metadata                   Metadata of the file being uploaded
+     * @param conditionalOptions         Conditions that must be satisfied for the write to succeed
      */
     public UploadRequest(
         String bucket,
@@ -50,7 +53,8 @@ public class UploadRequest {
         boolean doRemoteDataIntegrityCheck,
         Long expectedChecksum,
         boolean uploadRetryEnabled,
-        @Nullable Map<String, String> metadata
+        @Nullable Map<String, String> metadata,
+        @Nullable ConditionalWriteOptions conditionalOptions
     ) {
         this.bucket = bucket;
         this.key = key;
@@ -61,6 +65,7 @@ public class UploadRequest {
         this.expectedChecksum = expectedChecksum;
         this.uploadRetryEnabled = uploadRetryEnabled;
         this.metadata = metadata;
+        this.conditionalOptions = conditionalOptions;
     }
 
     public String getBucket() {
@@ -100,5 +105,13 @@ public class UploadRequest {
      */
     public Map<String, String> getMetadata() {
         return metadata;
+    }
+
+    /**
+     * @return conditional write options for this upload, or null if none are specified
+     */
+    @Nullable
+    public ConditionalWriteOptions getConditionalOptions() {
+        return conditionalOptions;
     }
 }
