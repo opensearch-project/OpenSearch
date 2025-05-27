@@ -19,17 +19,19 @@ import java.util.Objects;
  * @opensearch.api
  */
 @PublicApi(since = "2.7.0")
-public final class CacheStats {
-    private final long hitCount;
-    private final long missCount;
-    private final long removeCount;
-    private final long removeWeight;
-    private final long replaceCount;
-    private final long evictionCount;
-    private final long evictionWeight;
+public final class RefCountedCacheStats implements IRefCountedCacheStats {
+    private long hitCount;
+    private long missCount;
+    private long removeCount;
+    private long removeWeight;
+    private long replaceCount;
+    private long evictionCount;
+    private long evictionWeight;
+    private long usage;
+    private long activeUsage;
 
     /**
-     * Constructs a new {@code CacheStats} instance.
+     * Constructs a new {@code AggregateRefCountedCacheStats} instance.
      * <p>
      * Many parameters of the same type in a row is a bad thing, but this class is not constructed
      * by end users and is too fine-grained for a builder.
@@ -42,14 +44,16 @@ public final class CacheStats {
      * @param evictionCount  the number of entries evicted from the cache
      * @param evictionWeight the sum of weights of entries evicted from the cache
      */
-    public CacheStats(
+    public RefCountedCacheStats(
         long hitCount,
         long missCount,
         long removeCount,
         long removeWeight,
         long replaceCount,
         long evictionCount,
-        long evictionWeight
+        long evictionWeight,
+        long usage,
+        long activeUsage
     ) {
         if ((hitCount < 0)
             || (missCount < 0)
@@ -67,6 +71,8 @@ public final class CacheStats {
         this.replaceCount = replaceCount;
         this.evictionCount = evictionCount;
         this.evictionWeight = evictionWeight;
+        this.usage = usage;
+        this.activeUsage = activeUsage;
     }
 
     /**
@@ -75,6 +81,7 @@ public final class CacheStats {
      *
      * @return the {@code hitCount + missCount}
      */
+    @Override
     public long requestCount() {
         return hitCount + missCount;
     }
@@ -84,6 +91,7 @@ public final class CacheStats {
      *
      * @return the number of times {@link RefCountedCache} lookup methods have returned a cached value
      */
+    @Override
     public long hitCount() {
         return hitCount;
     }
@@ -95,6 +103,7 @@ public final class CacheStats {
      *
      * @return the ratio of cache requests which were hits
      */
+    @Override
     public double hitRate() {
         long requestCount = requestCount();
         return (requestCount == 0) ? 1.0 : (double) hitCount / requestCount;
@@ -109,6 +118,7 @@ public final class CacheStats {
      * @return the number of times {@link RefCountedCache} lookup methods have returned an uncached (newly
      * loaded) value, or null
      */
+    @Override
     public long missCount() {
         return missCount;
     }
@@ -124,6 +134,7 @@ public final class CacheStats {
      *
      * @return the ratio of cache requests which were misses
      */
+    @Override
     public double missRate() {
         long requestCount = requestCount();
         return (requestCount == 0) ? 0.0 : (double) missCount / requestCount;
@@ -134,6 +145,7 @@ public final class CacheStats {
      *
      * @return the number of times an entry has been removed
      */
+    @Override
     public long removeCount() {
         return removeCount;
     }
@@ -143,6 +155,7 @@ public final class CacheStats {
      *
      * @return the sum of weights of explicitly removed entries
      */
+    @Override
     public long removeWeight() {
         return removeWeight;
     }
@@ -152,6 +165,7 @@ public final class CacheStats {
      *
      * @return the number of times an entry has been replaced
      */
+    @Override
     public long replaceCount() {
         return replaceCount;
     }
@@ -162,6 +176,7 @@ public final class CacheStats {
      *
      * @return the number of times an entry has been evicted
      */
+    @Override
     public long evictionCount() {
         return evictionCount;
     }
@@ -172,30 +187,90 @@ public final class CacheStats {
      *
      * @return the sum of weights of evicted entities
      */
+    @Override
     public long evictionWeight() {
         return evictionWeight;
     }
 
+    /**
+     * Returns the total weight of the cache.
+     *
+     * @return the total weight of the cache
+     */
+    @Override
+    public long usage() {
+        return usage;
+    }
+
+    /**
+     * Returns the total active weight of the cache.
+     *
+     * @return the total active weight of the cache
+     */
+    @Override
+    public long activeUsage() {
+        return activeUsage;
+    }
+
+    /**
+     * Accumulates the values of another {@link RefCountedCacheStats} into this one.
+     *
+     * @param other another {@link RefCountedCacheStats}
+     * @return result of accumulation of the other {@link RefCountedCacheStats} into this one.
+     */
+    @Override
+    public IRefCountedCacheStats accumulate(IRefCountedCacheStats other) {
+        if (other instanceof RefCountedCacheStats == false) {
+            throw new IllegalArgumentException("Invalid Argument passed for Accumulating RefCountedCacheStats");
+        }
+
+        final RefCountedCacheStats otherStats = (RefCountedCacheStats) other;
+
+        this.hitCount += otherStats.hitCount();
+        this.missCount += otherStats.missCount();
+        this.removeCount += otherStats.removeCount();
+        this.removeWeight += otherStats.removeWeight();
+        this.replaceCount += otherStats.replaceCount();
+        this.evictionCount += otherStats.evictionCount();
+        this.evictionWeight += otherStats.evictionWeight();
+        this.usage += otherStats.usage();
+        this.activeUsage += otherStats.activeUsage();
+
+        return this;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(hitCount, missCount, removeCount, removeWeight, replaceCount, evictionCount, evictionWeight);
+        return Objects.hash(
+            hitCount,
+            missCount,
+            removeCount,
+            removeWeight,
+            replaceCount,
+            evictionCount,
+            evictionWeight,
+            usage,
+            activeUsage
+        );
     }
 
     @Override
     public boolean equals(Object o) {
         if (o == this) {
             return true;
-        } else if (!(o instanceof CacheStats)) {
+        } else if (!(o instanceof RefCountedCacheStats)) {
             return false;
         }
-        CacheStats other = (CacheStats) o;
+        RefCountedCacheStats other = (RefCountedCacheStats) o;
         return hitCount == other.hitCount
             && missCount == other.missCount
             && removeCount == other.removeCount
             && removeWeight == other.removeWeight
             && replaceCount == other.replaceCount
             && evictionCount == other.evictionCount
-            && evictionWeight == other.evictionWeight;
+            && evictionWeight == other.evictionWeight
+            && usage == other.usage
+            && activeUsage == other.activeUsage;
     }
 
     @Override
@@ -222,6 +297,12 @@ public final class CacheStats {
             + ", "
             + "evictionWeight="
             + evictionWeight
+            + ", "
+            + "usage="
+            + usage
+            + ", "
+            + "activeUsage="
+            + activeUsage
             + '}';
     }
 }
