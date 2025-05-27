@@ -43,6 +43,7 @@ import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureValueValidator;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupRuleRoutingService;
 import org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism;
+import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.DiscoveryPlugin;
@@ -124,20 +125,21 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             client,
             clusterService,
             MAX_RULES_PER_PAGE,
-            new XContentRuleParser(featureType),
+            parser,
             new IndexBasedRuleQueryMapper()
         );
 
         ruleRoutingService = new WorkloadGroupRuleRoutingService(client, clusterService);
 
         RefreshBasedSyncMechanism refreshMechanism = new RefreshBasedSyncMechanism(
-            client,
             threadPool,
             clusterService.getSettings(),
             clusterService.getClusterSettings(),
             parser,
             ruleProcessingService,
-            featureType
+            featureType,
+            rulePersistenceService,
+            new RuleEventClassifier(Collections.emptySet(), ruleProcessingService)
         );
 
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);

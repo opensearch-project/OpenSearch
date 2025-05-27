@@ -10,25 +10,28 @@ package org.opensearch.plugin.wlm.rule.sync;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
+import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
+import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
+import org.opensearch.rule.GetRuleRequest;
+import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RuleEntityParser;
+import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.autotagging.FeatureType;
-import org.opensearch.rule.storage.AttributeValueStore;
-import org.opensearch.rule.storage.AttributeValueStoreFactory;
+import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * This class pulls the latest rules from the RULES system index to update the in-memory view
@@ -58,68 +61,71 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    private final Client client;
     private final ThreadPool threadPool;
     private long refreshInterval;
     private volatile Scheduler.Cancellable scheduledFuture;
     private final RuleEntityParser parser;
     private final InMemoryRuleProcessingService ruleProcessingService;
+    private final RulePersistenceService rulePersistenceService;
+    private final RuleEventClassifier ruleEventClassifier;
     private final FeatureType featureType;
+    // This var keeps the Rules which were present during last run of this service
+    private Set<Rule> lastRunIndexedRules;
     private static final Logger logger = LogManager.getLogger(RefreshBasedSyncMechanism.class);
 
     /**
      * Constructor
      *
-     * @param client
      * @param threadPool
      * @param settings
      * @param clusterSettings
      * @param parser
      * @param ruleProcessingService
      * @param featureType
+     * @param rulePersistenceService
+     * @param ruleEventClassifier
      */
     public RefreshBasedSyncMechanism(
-        Client client,
         ThreadPool threadPool,
         Settings settings,
         ClusterSettings clusterSettings,
         RuleEntityParser parser,
         InMemoryRuleProcessingService ruleProcessingService,
-        FeatureType featureType
+        FeatureType featureType,
+        RulePersistenceService rulePersistenceService,
+        RuleEventClassifier ruleEventClassifier
     ) {
-        this.client = client;
         this.threadPool = threadPool;
         refreshInterval = RULE_SYNC_REFRESH_INTERVAL_SETTING.get(settings);
         this.parser = parser;
         this.ruleProcessingService = ruleProcessingService;
         this.featureType = featureType;
+        this.rulePersistenceService = rulePersistenceService;
+        this.lastRunIndexedRules = new HashSet<>();
+        this.ruleEventClassifier = ruleEventClassifier;
         clusterSettings.addSettingsUpdateConsumer(RULE_SYNC_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
     }
 
     void doRun() {
-        clearRulesFromInMemoryService();
-        client.prepareSearch(WorkloadManagementPlugin.INDEX_NAME).execute(new ActionListener<SearchResponse>() {
-            @Override
-            public void onResponse(SearchResponse searchResponse) {
-                Arrays.stream(searchResponse.getHits().getHits())
-                    .forEach(hit -> { ruleProcessingService.add(parser.parse(hit.getSourceAsString())); });
-            }
+        rulePersistenceService.getRule(
+            new GetRuleRequest(null, Collections.emptyMap(), null, WorkloadGroupFeatureType.INSTANCE),
+            new ActionListener<GetRuleResponse>() {
+                @Override
+                public void onResponse(GetRuleResponse response) {
+                    final Set<Rule> newRules = new HashSet<>(response.getRules().values());
+                    ruleEventClassifier.setPreviousRules(lastRunIndexedRules);
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.info("Failed to refresh rules from in-memory service.");
-            }
-        });
-    }
+                    ruleEventClassifier.getRuleEvents(newRules).forEach(event -> { event.process(ruleProcessingService); });
 
-    private void clearRulesFromInMemoryService() {
-        final AttributeValueStoreFactory attributeValueStoreFactory = ruleProcessingService.getAttributeValueStoreFactory();
-        featureType.getAllowedAttributesRegistry().values().stream().forEach(attribute -> {
-            final AttributeValueStore<String, String> attributeValueStore = attributeValueStoreFactory.getAttributeValueStore(attribute);
-            if (attributeValueStore != null) {
-                attributeValueStore.clear();
+                    lastRunIndexedRules = newRules;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("Failed to get rules from persistence service", e);
+                }
             }
-        });
+        );
     }
 
     @Override
@@ -152,7 +158,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
     public void setRefreshInterval(long refreshInterval) {
         if (refreshInterval < MIN_SYNC_REFRESH_INTERVAL_MS) {
             logger.warn("Refresh interval must be at least {}ms. Neglecting this change", MIN_SYNC_REFRESH_INTERVAL_MS);
-            throw new IllegalArgumentException("Refresh interval must be at least " + MIN_SYNC_REFRESH_INTERVAL_MS+ "ms");
+            throw new IllegalArgumentException("Refresh interval must be at least " + MIN_SYNC_REFRESH_INTERVAL_MS + "ms");
         }
         this.refreshInterval = refreshInterval;
     }

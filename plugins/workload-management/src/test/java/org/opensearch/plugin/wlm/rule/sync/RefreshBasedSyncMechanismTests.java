@@ -8,59 +8,53 @@
 
 package org.opensearch.plugin.wlm.rule.sync;
 
-import org.apache.lucene.search.TotalHits;
-import org.opensearch.action.search.SearchRequestBuilder;
-import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.plugin.wlm.AutoTaggingActionFilterTests;
 import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
+import org.opensearch.plugin.wlm.rule.sync.detect.AddRuleEvent;
+import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
+import org.opensearch.rule.GetRuleRequest;
+import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RuleEntityParser;
-import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.RulePersistenceService;
+import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.rule.storage.XContentRuleParser;
-import org.opensearch.search.SearchHit;
-import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.HashSet;
-import java.util.Locale;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
-    public static final String VALID_JSON = String.format(Locale.ROOT, """
-        {
-            "description": "%s",
-            "workload_group": "feature value",
-            "index_pattern": ["attribute_value_one", "attribute_value_two"],
-            "updated_at": "%s"
-        }
-        """, "test description", Instant.now().toString());
-
     RefreshBasedSyncMechanism sut;
 
     Client mockClient;
     InMemoryRuleProcessingService ruleProcessingService;
-    FeatureType featureType;
+    RulePersistenceService rulePersistenceService;
     AttributeValueStoreFactory attributeValueStoreFactory;
     ThreadPool mockThreadPool;
     Scheduler.Cancellable scheduledFuture;
+    RuleEventClassifier ruleEventClassifier;
 
     @Override
     public void setUp() throws Exception {
@@ -69,6 +63,8 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             Settings settings = Settings.builder().put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000).build();
             ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(plugin.getSettings()));
             mockThreadPool = mock(ThreadPool.class);
+            rulePersistenceService = mock(RulePersistenceService.class);
+            ruleEventClassifier = mock(RuleEventClassifier.class);
             attributeValueStoreFactory = new AttributeValueStoreFactory(WorkloadGroupFeatureType.INSTANCE, DefaultAttributeValueStore::new);
             RuleEntityParser parser = new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE);
             ruleProcessingService = mock(InMemoryRuleProcessingService.class);
@@ -78,13 +74,14 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             when(mockThreadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(scheduledFuture);
 
             sut = new RefreshBasedSyncMechanism(
-                mockClient,
                 mockThreadPool,
                 settings,
                 clusterSettings,
                 parser,
                 ruleProcessingService,
-                WorkloadGroupFeatureType.INSTANCE
+                WorkloadGroupFeatureType.INSTANCE,
+                rulePersistenceService,
+                ruleEventClassifier
             );
         }
     }
@@ -118,18 +115,17 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testDoRunSearchFailure() {
-        SearchRequestBuilder requestBuilder = mock(SearchRequestBuilder.class);
-        when(mockClient.prepareSearch(eq(WorkloadManagementPlugin.INDEX_NAME))).thenReturn(requestBuilder);
         doAnswer(invocation -> {
-            ActionListener<SearchResponse> listener = invocation.getArgument(0);
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
             listener.onFailure(new RuntimeException("Search failed"));
             return null;
-        }).when(requestBuilder).execute(any(ActionListener.class));
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
 
         sut.doRun();
 
-        verify(mockClient).prepareSearch(eq(WorkloadManagementPlugin.INDEX_NAME));
-        verify(ruleProcessingService, times(1)).getAttributeValueStoreFactory();
+        verify(rulePersistenceService, times(1)).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+        verify(ruleProcessingService, times(0)).add(any(Rule.class));
+        verify(ruleProcessingService, times(0)).remove(any(Rule.class));
     }
 
     /**
@@ -138,26 +134,28 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
      * and attempts to refresh rules by executing a search request.
      */
     @SuppressWarnings("unchecked")
-    public void test_doRun_clearsAndRefreshesRules() {
-        SearchRequestBuilder requestBuilder = mock(SearchRequestBuilder.class);
-        SearchResponse searchResponse = mock(SearchResponse.class);
+    public void test_doRun_RefreshesRules() {
+        GetRuleResponse getRuleResponse = mock(GetRuleResponse.class);
+        Map<Attribute, Set<String>> attributeSetMap = Map.of(AutoTaggingActionFilterTests.TestAttribute.TEST_ATTRIBUTE, Set.of("test"));
+        Rule rule = Rule.builder()
+            .description("test description")
+            .attributeMap(attributeSetMap)
+            .featureType(AutoTaggingActionFilterTests.WLMFeatureType.WLM)
+            .featureValue("test_value")
+            .updatedAt("2025-05-27T08:58:57.558Z")
+            .id("test_id")
+            .build();
 
-        SearchHits searchHits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
-        SearchHit hit = searchHits.getHits()[0];
-        hit.sourceRef(new BytesArray(VALID_JSON));
-        when(searchResponse.getHits()).thenReturn(searchHits);
-
-        when(mockClient.prepareSearch(eq(WorkloadManagementPlugin.INDEX_NAME))).thenReturn(requestBuilder);
+        when(getRuleResponse.getRules()).thenReturn(Map.of("test_id", rule));
+        when(ruleEventClassifier.getRuleEvents(anySet())).thenReturn(List.of(new AddRuleEvent(rule)));
         doAnswer(invocation -> {
-            ActionListener<SearchResponse> listener = invocation.getArgument(0);
-            listener.onResponse(searchResponse);
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
+            listener.onResponse(getRuleResponse);
             return null;
-        }).when(requestBuilder).execute(any(ActionListener.class));
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
 
         sut.doRun();
 
-        verify(ruleProcessingService, times(1)).getAttributeValueStoreFactory();
-        verify(ruleProcessingService, times(1)).add(any());
-        verify(mockClient, times(1)).prepareSearch(WorkloadManagementPlugin.INDEX_NAME);
+        verify(ruleProcessingService, times(1)).add(rule);
     }
 }

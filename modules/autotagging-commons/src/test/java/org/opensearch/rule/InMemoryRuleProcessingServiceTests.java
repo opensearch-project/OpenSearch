@@ -102,6 +102,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
 
     private static Rule getRule(Set<String> attributeValues, String label) {
         return new Rule(
+            randomAlphaOfLength(5),
             "test description",
             Map.of(TestAttribute.TEST_ATTRIBUTE, attributeValues),
             WLMFeatureType.WLM,
