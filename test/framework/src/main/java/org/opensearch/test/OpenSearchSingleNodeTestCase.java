@@ -368,6 +368,17 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         return createIndex(index, createIndexRequestBuilder);
     }
 
+    /**
+     * Creates an index with mappings provided in the format expected by {@link org.opensearch.action.admin.indices.create.CreateIndexRequest#simpleMapping(String...)}
+     */
+    protected IndexService createIndexWithSimpleMappings(String index, Settings settings, String... mappings) {
+        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
+        if (mappings != null) {
+            createIndexRequestBuilder.setMapping(mappings);
+        }
+        return createIndex(index, createIndexRequestBuilder);
+    }
+
     protected IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
         assertAcked(createIndexRequestBuilder.get());
         // Wait for the index to be allocated so that cluster state updates don't override
