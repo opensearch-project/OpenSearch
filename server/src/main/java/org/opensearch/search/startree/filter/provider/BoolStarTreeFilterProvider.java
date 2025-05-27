@@ -116,7 +116,8 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
                     // We have existing filters for this dimension
                     // Get the appropriate mapper for this dimension
                     DimensionFilterMapper mapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-                        context.mapperService().fieldType(dimension)
+                        context.mapperService().fieldType(dimension),
+                        context
                     );
                     if (mapper == null) {
                         return null; // Unsupported field type
