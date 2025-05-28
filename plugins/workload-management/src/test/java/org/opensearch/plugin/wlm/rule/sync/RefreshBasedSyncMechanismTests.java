@@ -14,7 +14,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.AutoTaggingActionFilterTests;
 import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
-import org.opensearch.plugin.wlm.rule.sync.detect.AddRuleEvent;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
@@ -32,13 +31,15 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifierTests.getRandomRule;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -64,7 +65,7 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(plugin.getSettings()));
             mockThreadPool = mock(ThreadPool.class);
             rulePersistenceService = mock(RulePersistenceService.class);
-            ruleEventClassifier = mock(RuleEventClassifier.class);
+            ruleEventClassifier = new RuleEventClassifier(Collections.emptySet());
             attributeValueStoreFactory = new AttributeValueStoreFactory(WorkloadGroupFeatureType.INSTANCE, DefaultAttributeValueStore::new);
             RuleEntityParser parser = new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE);
             ruleProcessingService = mock(InMemoryRuleProcessingService.class);
@@ -147,7 +148,6 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             .build();
 
         when(getRuleResponse.getRules()).thenReturn(Map.of("test_id", rule));
-        when(ruleEventClassifier.getRuleEvents(anySet())).thenReturn(List.of(new AddRuleEvent(rule)));
         doAnswer(invocation -> {
             ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
             listener.onResponse(getRuleResponse);
@@ -157,5 +157,65 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
         sut.doRun();
 
         verify(ruleProcessingService, times(1)).add(rule);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void test_doRun_RefreshesRulesAndCheckInMemoryView() {
+        GetRuleResponse getRuleResponse = mock(GetRuleResponse.class);
+        Map<String, Rule> existingRules = new HashMap<>();
+        for (int i = 0; i < 10; i++) {
+            final String randomRuleId = randomAlphaOfLength(5);
+            existingRules.put(randomRuleId, getRandomRule(randomRuleId));
+        }
+
+        when(getRuleResponse.getRules()).thenReturn(existingRules);
+        doAnswer(invocation -> {
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
+            listener.onResponse(getRuleResponse);
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+
+        // marks the first run of service
+        sut.doRun();
+
+        Set<Rule> previousRules = new HashSet<>(existingRules.values());
+
+        Set<Rule> newRules = new HashSet<>();
+
+        int deletionEventCount = 10;
+        // Mark some deletions
+        for (Map.Entry<String, Rule> rule : existingRules.entrySet()) {
+            if (randomBoolean()) {
+                deletionEventCount--;
+                newRules.add(rule.getValue());
+            }
+        }
+
+        // add new rule
+        newRules.add(getRandomRule("10"));
+
+        int updateEventCount = 0;
+        // Update some rules
+        for (Rule rule : previousRules) {
+            if (randomBoolean() && !newRules.contains(rule)) {
+                updateEventCount++;
+                // since we are updating a new existing rule but we have marked it for deletion above hence decrement it
+                deletionEventCount--;
+                newRules.add(getRandomRule(rule.getId()));
+            }
+        }
+
+        when(getRuleResponse.getRules()).thenReturn(newRules.stream().collect(Collectors.toMap(Rule::getId, rule -> rule)));
+        doAnswer(invocation -> {
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
+            listener.onResponse(getRuleResponse);
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+
+        sut.doRun();
+
+        verify(ruleProcessingService, times(deletionEventCount + updateEventCount)).remove(any(Rule.class));
+        // Here 1 is due to add in the second run and 10 for adding 10 rules as part of first run
+        verify(ruleProcessingService, times(updateEventCount + 1 + 10)).add(any(Rule.class));
     }
 }

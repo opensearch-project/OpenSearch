@@ -8,8 +8,7 @@
 
 package org.opensearch.plugin.wlm.rule.sync.detect;
 
-import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
-import org.opensearch.rule.RuleAttribute;
+import org.opensearch.plugin.wlm.AutoTaggingActionFilterTests;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -78,14 +77,14 @@ public class RuleEventClassifierTests extends OpenSearchTestCase {
 
     }
 
-    Rule getRandomRule(String id) {
+    public static Rule getRandomRule(String id) {
         return Rule.builder()
             .id(id)
             .description("description")
-            .attributeMap(Map.of(RuleAttribute.INDEX_PATTERN, Set.of(randomAlphaOfLengthBetween(2, 10))))
+            .attributeMap(Map.of(AutoTaggingActionFilterTests.TestAttribute.TEST_ATTRIBUTE, Set.of(randomAlphaOfLengthBetween(2, 10))))
             .featureValue(randomAlphaOfLengthBetween(2, 10))
             .updatedAt("2025-05-27T08:58:57.558Z")
-            .featureType(WorkloadGroupFeatureType.INSTANCE)
+            .featureType(AutoTaggingActionFilterTests.WLMFeatureType.WLM)
             .build();
     }
 }
