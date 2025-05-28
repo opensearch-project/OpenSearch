@@ -10,6 +10,7 @@ package org.opensearch.indices.pollingingest;
 
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
 import java.io.Closeable;
@@ -42,12 +43,12 @@ public interface StreamPoller extends Closeable, ClusterStateListener {
     boolean isPaused();
 
     /**
-     * check if the poller is closed
+     * Check if the poller is closed
      */
     boolean isClosed();
 
     /**
-     * get the pointer to the start of the current batch of messages.
+     * Get the pointer to the start of the current batch of messages.
      */
     IngestionShardPointer getBatchStartPointer();
 
@@ -72,8 +73,10 @@ public interface StreamPoller extends Closeable, ClusterStateListener {
      */
     void setWriteBlockEnabled(boolean isWriteBlockEnabled);
 
+    IngestionShardConsumer getConsumer();
+
     /**
-     * a state to indicate the current state of the poller
+     * A state to indicate the current state of the poller
      */
     enum State {
         NONE,
@@ -84,14 +87,14 @@ public interface StreamPoller extends Closeable, ClusterStateListener {
     }
 
     /**
-     *  a reset state to indicate how to reset the pointer
+     *  A reset state to indicate how to reset the pointer
      */
     @ExperimentalApi
     enum ResetState {
         EARLIEST,
         LATEST,
-        REWIND_BY_OFFSET,
-        REWIND_BY_TIMESTAMP,
+        RESET_BY_OFFSET,
+        RESET_BY_TIMESTAMP,
         NONE,
     }
 }
