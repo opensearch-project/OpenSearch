@@ -239,7 +239,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             persistedPointers,
             fakeConsumer,
             partitionedBlockingQueueContainer,
-            StreamPoller.ResetState.REWIND_BY_OFFSET,
+            StreamPoller.ResetState.RESET_BY_OFFSET,
             "1",
             errorStrategy,
             StreamPoller.State.NONE,

@@ -29,6 +29,7 @@ public final class RefCountedCacheStats implements IRefCountedCacheStats {
     private long evictionWeight;
     private long usage;
     private long activeUsage;
+    private long pinnedUsage;
 
     /**
      * Constructs a new {@code AggregateRefCountedCacheStats} instance.
@@ -53,7 +54,8 @@ public final class RefCountedCacheStats implements IRefCountedCacheStats {
         long evictionCount,
         long evictionWeight,
         long usage,
-        long activeUsage
+        long activeUsage,
+        long pinnedUsage
     ) {
         if ((hitCount < 0)
             || (missCount < 0)
@@ -73,6 +75,7 @@ public final class RefCountedCacheStats implements IRefCountedCacheStats {
         this.evictionWeight = evictionWeight;
         this.usage = usage;
         this.activeUsage = activeUsage;
+        this.pinnedUsage = pinnedUsage;
     }
 
     /**
@@ -213,6 +216,16 @@ public final class RefCountedCacheStats implements IRefCountedCacheStats {
     }
 
     /**
+     * Returns the total pinned weight of the cache.
+     *
+     * @return the total pinned weight of the cache
+     */
+    @Override
+    public long pinnedUsage() {
+        return pinnedUsage;
+    }
+
+    /**
      * Accumulates the values of another {@link RefCountedCacheStats} into this one.
      *
      * @param other another {@link RefCountedCacheStats}
@@ -270,7 +283,8 @@ public final class RefCountedCacheStats implements IRefCountedCacheStats {
             && evictionCount == other.evictionCount
             && evictionWeight == other.evictionWeight
             && usage == other.usage
-            && activeUsage == other.activeUsage;
+            && activeUsage == other.activeUsage
+            && pinnedUsage == other.pinnedUsage;
     }
 
     @Override
@@ -303,6 +317,9 @@ public final class RefCountedCacheStats implements IRefCountedCacheStats {
             + ", "
             + "activeUsage="
             + activeUsage
+            + ", "
+            + "pinnedUsage="
+            + pinnedUsage
             + '}';
     }
 }

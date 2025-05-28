@@ -69,7 +69,10 @@ public class DefaultStreamPoller implements StreamPoller {
     private final CounterMetric totalPolledCount = new CounterMetric();
     private final CounterMetric totalConsumerErrorCount = new CounterMetric();
     private final CounterMetric totalPollerMessageFailureCount = new CounterMetric();
+    // indicates number of messages dropped due to error
     private final CounterMetric totalPollerMessageDroppedCount = new CounterMetric();
+    // indicates number of duplicate messages that are already processed, and hence skipped
+    private final CounterMetric totalDuplicateMessageSkippedCount = new CounterMetric();
 
     // A pointer to the max persisted pointer for optimizing the check
     @Nullable
@@ -196,11 +199,11 @@ public class DefaultStreamPoller implements StreamPoller {
                             initialBatchStartPointer = consumer.latestPointer();
                             logger.info("Resetting offset by seeking to latest offset {}", initialBatchStartPointer.asString());
                             break;
-                        case REWIND_BY_OFFSET:
+                        case RESET_BY_OFFSET:
                             initialBatchStartPointer = consumer.pointerFromOffset(resetValue);
                             logger.info("Resetting offset by seeking to offset {}", initialBatchStartPointer.asString());
                             break;
-                        case REWIND_BY_TIMESTAMP:
+                        case RESET_BY_TIMESTAMP:
                             initialBatchStartPointer = consumer.pointerFromTimestampMillis(Long.parseLong(resetValue));
                             logger.info(
                                 "Resetting offset by seeking to timestamp {}, corresponding offset {}",
@@ -267,7 +270,8 @@ public class DefaultStreamPoller implements StreamPoller {
             try {
                 // check if the message is already processed
                 if (isProcessed(result.getPointer())) {
-                    logger.debug("Skipping message with pointer {} as it is already processed", () -> result.getPointer().asString());
+                    logger.debug("Skipping message with pointer {} as it is already processed", result.getPointer().asString());
+                    totalDuplicateMessageSkippedCount.inc();
                     continue;
                 }
                 totalPolledCount.inc();
@@ -404,6 +408,7 @@ public class DefaultStreamPoller implements StreamPoller {
         builder.setTotalConsumerErrorCount(totalConsumerErrorCount.count());
         builder.setTotalPollerMessageFailureCount(totalPollerMessageFailureCount.count());
         builder.setTotalPollerMessageDroppedCount(totalPollerMessageDroppedCount.count());
+        builder.setTotalDuplicateMessageSkippedCount(totalDuplicateMessageSkippedCount.count());
         builder.setLagInMillis(computeLag());
         return builder.build();
     }
@@ -438,6 +443,11 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public void setWriteBlockEnabled(boolean isWriteBlockEnabled) {
         this.isWriteBlockEnabled = isWriteBlockEnabled;
+    }
+
+    @Override
+    public IngestionShardConsumer getConsumer() {
+        return consumer;
     }
 
     @Override

@@ -17,9 +17,12 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.util.CollectionUtils;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Locale;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -30,17 +33,16 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  */
 @ExperimentalApi
 public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionRequest> implements IndicesRequest.Replaceable {
-
+    public static final String RESET_SETTINGS = "reset_settings";
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-    // todo: support reset settings
-    private final ResetSettings[] resetSettingsList;
+    private ResetSettings[] resetSettings;
 
     public ResumeIngestionRequest(StreamInput in) throws IOException {
         super(in);
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-        this.resetSettingsList = in.readArray(ResetSettings::new, ResetSettings[]::new);
+        this.resetSettings = in.readArray(ResetSettings::new, ResetSettings[]::new);
     }
 
     /**
@@ -53,9 +55,9 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
     /**
      * Constructs a new resume ingestion request with reset settings.
      */
-    public ResumeIngestionRequest(String[] indices, ResetSettings[] resetSettingsList) {
+    public ResumeIngestionRequest(String[] indices, ResetSettings[] resetSettings) {
         this.indices = indices;
-        this.resetSettingsList = resetSettingsList;
+        this.resetSettings = resetSettings;
     }
 
     @Override
@@ -65,17 +67,14 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
             validationException = addValidationError("index is missing", validationException);
         }
 
-        if (resetSettingsList.length > 0) {
-            boolean invalidResetSettingsFound = Arrays.stream(resetSettingsList)
+        if (resetSettings.length > 0) {
+            boolean invalidResetSettingsFound = Arrays.stream(resetSettings)
                 .anyMatch(
                     resetSettings -> resetSettings.getShard() < 0 || resetSettings.getMode() == null || resetSettings.getValue() == null
                 );
             if (invalidResetSettingsFound) {
                 validationException = addValidationError("ResetSettings is missing either shard, mode or value", validationException);
             }
-
-            // todo: remove this when reset settings support is added
-            validationException = addValidationError("reset settings is currently not supported", validationException);
         }
         return validationException;
     }
@@ -125,7 +124,43 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeArray(resetSettingsList);
+        out.writeArray(resetSettings);
+    }
+
+    public ResetSettings[] getResetSettings() {
+        return resetSettings;
+    }
+
+    public static ResumeIngestionRequest fromXContent(String[] indices, XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("Expected START_OBJECT but got: " + parser.currentToken());
+        }
+
+        ArrayList<ResetSettings> resetSettingsList = new ArrayList<>();
+
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            String currentFieldName = parser.currentName();
+            parser.nextToken();
+
+            if (RESET_SETTINGS.equals(currentFieldName)) {
+                if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+                    throw new IllegalArgumentException("Expected START_ARRAY for 'reset_settings'");
+                }
+
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    resetSettingsList.add(ResetSettings.fromXContent(parser));
+                }
+
+            } else {
+                throw new IllegalArgumentException("Unexpected field: " + currentFieldName);
+            }
+        }
+
+        return new ResumeIngestionRequest(indices, resetSettingsList.toArray(new ResetSettings[0]));
     }
 
     /**
@@ -135,10 +170,10 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
     @ExperimentalApi
     public static class ResetSettings implements Writeable {
         private final int shard;
-        private final String mode;
+        private final ResetMode mode;
         private final String value;
 
-        public ResetSettings(int shard, String mode, String value) {
+        public ResetSettings(int shard, ResetMode mode, String value) {
             this.shard = shard;
             this.mode = mode;
             this.value = value;
@@ -146,14 +181,14 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
 
         public ResetSettings(StreamInput in) throws IOException {
             this.shard = in.readVInt();
-            this.mode = in.readString();
+            this.mode = in.readEnum(ResetMode.class);
             this.value = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(shard);
-            out.writeString(mode);
+            out.writeEnum(mode);
             out.writeString(value);
         }
 
@@ -161,12 +196,59 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
             return shard;
         }
 
-        public String getMode() {
+        public ResetMode getMode() {
             return mode;
         }
 
         public String getValue() {
             return value;
         }
+
+        /**
+         * Reset options for Resume API. Offset mode supports kafka offsets or Kinesis sequence numbers and timestamp
+         * mode supports a timestamp in milliseconds that will be used to retrieve corresponding offset.
+         */
+        @ExperimentalApi
+        public enum ResetMode {
+            OFFSET,
+            TIMESTAMP
+        }
+
+        public static ResetSettings fromXContent(XContentParser parser) throws IOException {
+            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Expected START_OBJECT for ResetSettings but got: " + parser.currentToken());
+            }
+
+            int shard = -1;
+            ResetMode mode = null;
+            String value = null;
+
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                String fieldName = parser.currentName();
+                parser.nextToken();
+
+                switch (fieldName) {
+                    case "shard" -> shard = parser.intValue();
+                    case "mode" -> {
+                        try {
+                            mode = ResetMode.valueOf(parser.text().toUpperCase(Locale.ROOT));
+                        } catch (IllegalArgumentException e) {
+                            throw new IllegalArgumentException("Invalid value for 'mode': " + parser.text());
+                        }
+                    }
+                    case "value" -> value = parser.text();
+                    default -> throw new IllegalArgumentException("Unexpected field in ResetSettings: " + fieldName);
+                }
+            }
+
+            if (shard < 0 || mode == null || value == null) {
+                throw new IllegalArgumentException(
+                    "Missing required fields in ResetSettings: shard=" + shard + ", mode=" + mode + ", value=" + value
+                );
+            }
+
+            return new ResetSettings(shard, mode, value);
+        }
+
     }
 }

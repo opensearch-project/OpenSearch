@@ -22,11 +22,21 @@ public class FileCacheStatsTests extends OpenSearchTestCase {
         final long active = randomLongBetween(100000, BYTES_IN_GB);
         final long total = randomLongBetween(100000, BYTES_IN_GB);
         final long used = randomLongBetween(100000, BYTES_IN_GB);
+        final long pinned = randomLongBetween(100000, BYTES_IN_GB);
         final long evicted = randomLongBetween(0, active);
         final long hits = randomLongBetween(0, 10);
         final long misses = randomLongBetween(0, 10);
 
-        return new FileCacheStats(active, total, used, evicted, hits, misses, AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS);
+        return new FileCacheStats(
+            active,
+            total,
+            used,
+            pinned,
+            evicted,
+            hits,
+            misses,
+            AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS
+        );
     }
 
     public static void validateFullFileCacheStats(FileCacheStats expected, FileCacheStats actual) {
