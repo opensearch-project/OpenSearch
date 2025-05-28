@@ -57,8 +57,6 @@ import static org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter.M
 class CustomFieldHighlighter extends FieldHighlighter {
     private static final Passage[] EMPTY_PASSAGE = new Passage[0];
 
-    private static final Comparator<Passage> DEFAULT_PASSAGE_SORT_COMPARATOR = Comparator.comparingInt(Passage::getStartOffset);
-
     private final Locale breakIteratorLocale;
     private final int noMatchSize;
     private String fieldValue;
@@ -72,7 +70,8 @@ class CustomFieldHighlighter extends FieldHighlighter {
         int maxPassages,
         int maxNoHighlightPassages,
         PassageFormatter passageFormatter,
-        int noMatchSize
+        int noMatchSize,
+        Comparator<Passage> passageSortComparator
     ) {
         super(
             field,
@@ -82,7 +81,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
             maxPassages,
             maxNoHighlightPassages,
             passageFormatter,
-            DEFAULT_PASSAGE_SORT_COMPARATOR
+            passageSortComparator
         );
         this.breakIteratorLocale = breakIteratorLocale;
         this.noMatchSize = noMatchSize;

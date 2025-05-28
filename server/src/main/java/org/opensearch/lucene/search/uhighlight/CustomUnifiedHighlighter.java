@@ -32,7 +32,6 @@
 
 package org.opensearch.lucene.search.uhighlight;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
@@ -40,18 +39,15 @@ import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.uhighlight.FieldHighlighter;
 import org.apache.lucene.search.uhighlight.FieldOffsetStrategy;
-import org.apache.lucene.search.uhighlight.LabelledCharArrayMatcher;
 import org.apache.lucene.search.uhighlight.NoOpOffsetStrategy;
+import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
-import org.apache.lucene.search.uhighlight.PhraseHelper;
-import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
-import org.apache.lucene.search.uhighlight.UHComponents;
+import org.apache.lucene.search.uhighlight.PassageScorer;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -61,9 +57,9 @@ import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * Subclass of the {@link UnifiedHighlighter} that works for a single field in a single document.
@@ -91,7 +87,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
      *
-     * @param analyzer the analyzer used for the field at index time, used for multi term queries internally.
+     * @param builder the unified highlighter builder
      * @param offsetSource the {@link OffsetSource} to used for offsets retrieval.
      * @param passageFormatter our own {@link CustomPassageFormatter}
      *                    which generates snippets in forms of {@link Snippet} objects.
@@ -104,14 +100,12 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * @param query the query we're highlighting
      * @param noMatchSize The size of the text that should be returned when no highlighting can be performed.
      * @param maxPassages the maximum number of passes to highlight
-     * @param fieldMatcher decides which terms should be highlighted
      * @param maxAnalyzedOffset if the field is more than this long we'll refuse to use the ANALYZED
      *                          offset source for it because it'd be super slow
      * @param fieldMaxAnalyzedOffset this is used to limit the length of input that will be ANALYZED, this allows bigger fields to be partially highligthed
      */
     public CustomUnifiedHighlighter(
-        IndexSearcher searcher,
-        Analyzer analyzer,
+        UnifiedHighlighter.Builder builder,
         OffsetSource offsetSource,
         PassageFormatter passageFormatter,
         @Nullable Locale breakIteratorLocale,
@@ -121,11 +115,10 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         Query query,
         int noMatchSize,
         int maxPassages,
-        Predicate<String> fieldMatcher,
         int maxAnalyzedOffset,
         Integer fieldMaxAnalyzedOffset
     ) throws IOException {
-        super(searcher, analyzer);
+        super(builder);
         this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
         this.breakIteratorLocale = breakIteratorLocale == null ? Locale.ROOT : breakIteratorLocale;
@@ -133,9 +126,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.index = index;
         this.field = field;
         this.noMatchSize = noMatchSize;
-        this.setFieldMatcher(fieldMatcher);
         this.maxAnalyzedOffset = maxAnalyzedOffset;
-        fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
+        fieldHighlighter = (CustomFieldHighlighter) getFieldHighlighter(field, query, extractTerms(query), maxPassages);
         this.fieldMaxAnalyzedOffset = fieldMaxAnalyzedOffset;
     }
 
@@ -203,26 +195,27 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     }
 
     @Override
-    protected CustomFieldHighlighter getFieldHighlighter(String field, Query query, Set<Term> allTerms, int maxPassages) {
-        Predicate<String> fieldMatcher = getFieldMatcher(field);
-        BytesRef[] terms = filterExtractedTerms(fieldMatcher, allTerms);
-        Set<HighlightFlag> highlightFlags = getFlags(field);
-        PhraseHelper phraseHelper = getPhraseHelper(field, query, highlightFlags);
-        LabelledCharArrayMatcher[] automata = getAutomata(field, query, highlightFlags);
-        UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, false, highlightFlags);
-        OffsetSource offsetSource = getOptimizedOffsetSource(components);
-        BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field), UnifiedHighlighter.MULTIVAL_SEP_CHAR);
-        FieldOffsetStrategy strategy = getOffsetStrategy(offsetSource, components);
+    protected FieldHighlighter newFieldHighlighter(
+        String field,
+        FieldOffsetStrategy fieldOffsetStrategy,
+        BreakIterator breakIterator,
+        PassageScorer passageScorer,
+        int maxPassages,
+        int maxNoHighlightPassages,
+        PassageFormatter passageFormatter,
+        Comparator<Passage> passageSortComparator
+    ) {
         return new CustomFieldHighlighter(
             field,
-            strategy,
+            fieldOffsetStrategy,
             breakIteratorLocale,
             breakIterator,
             getScorer(field),
             maxPassages,
             (noMatchSize > 0 ? 1 : 0),
             getFormatter(field),
-            noMatchSize
+            noMatchSize,
+            passageSortComparator
         );
     }
 

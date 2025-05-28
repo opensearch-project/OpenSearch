@@ -14,6 +14,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.protobufs.ClusterStatistics;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Utility class for converting SearchResponse objects to Protocol Buffers.
@@ -35,16 +36,24 @@ public class SearchResponseProtoUtils {
      * @throws IOException if there's an error during conversion
      */
     public static org.opensearch.protobufs.SearchResponse toProto(SearchResponse response) throws IOException {
-        return innerToProto(response);
+        org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder = org.opensearch.protobufs.SearchResponse.newBuilder();
+        toProto(response, searchResponseProtoBuilder);
+        return searchResponseProtoBuilder.build();
     }
 
     /**
+     * Converts a SearchResponse to its Protocol Buffer representation.
      * Similar to {@link SearchResponse#innerToXContent(XContentBuilder, ToXContent.Params)}
+     *
+     * @param response The SearchResponse to convert
+     * @param searchResponseProtoBuilder The builder to populate with the SearchResponse data
+     * @throws IOException if there's an error during conversion
      */
-    private static org.opensearch.protobufs.SearchResponse innerToProto(SearchResponse response) throws IOException {
-        org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder = org.opensearch.protobufs.SearchResponse.newBuilder();
+    public static void toProto(SearchResponse response, org.opensearch.protobufs.SearchResponse.Builder searchResponseProtoBuilder)
+        throws IOException {
         org.opensearch.protobufs.ResponseBody.Builder searchResponseBodyProtoBuilder = org.opensearch.protobufs.ResponseBody.newBuilder();
 
+        // Set optional fields only if they exist
         if (response.getScrollId() != null) {
             searchResponseBodyProtoBuilder.setScrollId(response.getScrollId());
         }
@@ -52,14 +61,18 @@ public class SearchResponseProtoUtils {
             searchResponseBodyProtoBuilder.setPitId(response.pointInTimeId());
         }
 
+        // Set required fields
         searchResponseBodyProtoBuilder.setTook(response.getTook().getMillis());
-
-        if (response.getPhaseTook() != null) {
-            searchResponseBodyProtoBuilder.setPhaseTook(PhaseTookProtoUtils.toProto(response.getPhaseTook()));
-        }
-
         searchResponseBodyProtoBuilder.setTimedOut(response.isTimedOut());
 
+        // Set phase took information if available
+        if (response.getPhaseTook() != null) {
+            org.opensearch.protobufs.PhaseTook.Builder phaseTookBuilder = org.opensearch.protobufs.PhaseTook.newBuilder();
+            PhaseTookProtoUtils.toProto(response.getPhaseTook(), phaseTookBuilder);
+            searchResponseBodyProtoBuilder.setPhaseTook(phaseTookBuilder.build());
+        }
+
+        // Set optional fields only if they differ from defaults
         if (response.isTerminatedEarly() != null) {
             searchResponseBodyProtoBuilder.setTerminatedEarly(response.isTerminatedEarly());
         }
@@ -67,6 +80,7 @@ public class SearchResponseProtoUtils {
             searchResponseBodyProtoBuilder.setNumReducePhases(response.getNumReducePhases());
         }
 
+        // Build broadcast shards header
         ProtoActionsProtoUtils.buildBroadcastShardsHeader(
             searchResponseBodyProtoBuilder,
             response.getTotalShards(),
@@ -76,12 +90,14 @@ public class SearchResponseProtoUtils {
             response.getShardFailures()
         );
 
+        // Add clusters information
         ClustersProtoUtils.toProto(searchResponseBodyProtoBuilder, response.getClusters());
+
+        // Add search response sections
         SearchResponseSectionsProtoUtils.toProto(searchResponseBodyProtoBuilder, response);
 
+        // Set the response body in the main builder
         searchResponseProtoBuilder.setResponseBody(searchResponseBodyProtoBuilder.build());
-
-        return searchResponseProtoBuilder.build();
     }
 
     /**
@@ -101,25 +117,26 @@ public class SearchResponseProtoUtils {
         /**
          * Similar to {@link SearchResponse.PhaseTook#toXContent(XContentBuilder, ToXContent.Params)}
          *
-         * @param phaseTook
-         * @return
+         * @param phaseTook The PhaseTook to convert
+         * @param phaseTookProtoBuilder The builder to populate with the PhaseTook data
          */
-        protected static org.opensearch.protobufs.PhaseTook toProto(SearchResponse.PhaseTook phaseTook) {
-
-            org.opensearch.protobufs.PhaseTook.Builder phaseTookProtoBuilder = org.opensearch.protobufs.PhaseTook.newBuilder();
-
+        protected static void toProto(
+            SearchResponse.PhaseTook phaseTook,
+            org.opensearch.protobufs.PhaseTook.Builder phaseTookProtoBuilder
+        ) {
             if (phaseTook == null) {
-                return phaseTookProtoBuilder.build();
+                return;
             }
 
-            for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
-                long value;
-                if (phaseTook.getPhaseTookMap().containsKey(searchPhaseName.getName())) {
-                    value = phaseTook.getPhaseTookMap().get(searchPhaseName.getName());
-                } else {
-                    value = 0;
-                }
+            // Get the phase took map once to avoid repeated method calls
+            Map<String, Long> phaseTookMap = phaseTook.getPhaseTookMap();
 
+            // Process each search phase
+            for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+                // Get the value from the map or default to 0
+                long value = phaseTookMap.getOrDefault(searchPhaseName.getName(), 0L);
+
+                // Set the appropriate field based on the phase name
                 switch (searchPhaseName) {
                     case DFS_PRE_QUERY:
                         phaseTookProtoBuilder.setDfsPreQuery(value);
@@ -143,7 +160,6 @@ public class SearchResponseProtoUtils {
                         throw new UnsupportedOperationException("searchPhaseName cannot be converted to phaseTook protobuf type");
                 }
             }
-            return phaseTookProtoBuilder.build();
         }
 
     }
@@ -165,22 +181,24 @@ public class SearchResponseProtoUtils {
         /**
          * Similar to {@link SearchResponse.Clusters#toXContent(XContentBuilder, ToXContent.Params)}
          *
-         * @param protoResponseBuilder
-         * @param clusters
-         * @throws IOException
+         * @param protoResponseBuilder The builder to populate with the Clusters data
+         * @param clusters The Clusters to convert
          */
-        protected static void toProto(org.opensearch.protobufs.ResponseBody.Builder protoResponseBuilder, SearchResponse.Clusters clusters)
-            throws IOException {
-
+        protected static void toProto(
+            org.opensearch.protobufs.ResponseBody.Builder protoResponseBuilder,
+            SearchResponse.Clusters clusters
+        ) {
+            // Only add clusters information if there are clusters
             if (clusters.getTotal() > 0) {
-                ClusterStatistics.Builder clusterStatistics = ClusterStatistics.newBuilder();
-                clusterStatistics.setTotal(clusters.getTotal());
-                clusterStatistics.setSuccessful(clusters.getSuccessful());
-                clusterStatistics.setSkipped(clusters.getSkipped());
+                // Create and populate the cluster statistics builder
+                ClusterStatistics.Builder clusterStatistics = ClusterStatistics.newBuilder()
+                    .setTotal(clusters.getTotal())
+                    .setSuccessful(clusters.getSuccessful())
+                    .setSkipped(clusters.getSkipped());
 
+                // Set the clusters field in the response builder
                 protoResponseBuilder.setClusters(clusterStatistics.build());
             }
-
         }
     }
 }

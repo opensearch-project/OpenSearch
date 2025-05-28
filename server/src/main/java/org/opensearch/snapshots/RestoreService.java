@@ -89,7 +89,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -889,7 +889,7 @@ public class RestoreService implements ClusterStateApplier {
                     private void validateSearchableSnapshotRestorable(long totalRestorableRemoteIndexesSize) {
                         ClusterInfo clusterInfo = clusterInfoSupplier.get();
                         final double remoteDataToFileCacheRatio = dataToFileCacheSizeRatioSupplier.get();
-                        Map<String, FileCacheStats> nodeFileCacheStats = clusterInfo.getNodeFileCacheStats();
+                        Map<String, AggregateFileCacheStats> nodeFileCacheStats = clusterInfo.getNodeFileCacheStats();
                         if (nodeFileCacheStats.isEmpty() || remoteDataToFileCacheRatio <= 0.01f) {
                             return;
                         }

@@ -118,7 +118,7 @@ public class RemoteSplitIndexIT extends RemoteStoreBaseIntegTestCase {
                 } catch (IOException e) {
                     fail();
                 }
-            }, 30, TimeUnit.SECONDS);
+            }, 60, TimeUnit.SECONDS);
         }
         super.teardown();
     }

@@ -33,6 +33,7 @@
 package org.opensearch.repositories.s3;
 
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.apache.logging.log4j.LogManager;
@@ -122,11 +123,53 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
 
+    static final String BUCKET_DEFAULT_ENCRYPTION_TYPE = "bucket_default";
     /**
-     * When set to true files are encrypted on server side using AES256 algorithm.
-     * Defaults to false.
+     * The type of S3 Server Side Encryption to use.
+     * Defaults to AES256.
+     * Supports: AES256, aws:kms
      */
-    static final Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false);
+    static final Setting<String> SERVER_SIDE_ENCRYPTION_TYPE_SETTING = Setting.simpleString(
+        "server_side_encryption_type",
+        BUCKET_DEFAULT_ENCRYPTION_TYPE,
+        value -> {
+            if (!(value.equals(ServerSideEncryption.AES256.toString())
+                || value.equals(ServerSideEncryption.AWS_KMS.toString())
+                || value.equals(BUCKET_DEFAULT_ENCRYPTION_TYPE))) {
+                throw new IllegalArgumentException("server_side_encryption_type must be one of [AES256, aws:kms, bucket_default]");
+            }
+        }
+    );
+
+    /**
+     * The KMS key id to be used for SSE-KMS. Must be used when server_side_encryption_type setting is set to aws:kms.
+     */
+    static final Setting<String> SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING = Setting.simpleString("server_side_encryption_kms_key_id");
+
+    /**
+     * Whether to use S3 Bucket Keys along with SSE-KMS.
+     * Defaults to true.
+     */
+    static final Setting<Boolean> SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING = Setting.boolSetting(
+        "server_side_encryption_bucket_key_enabled",
+        true
+    );
+
+    /**
+     * Optional additional encryption context passed to S3 for use in KMS crypto operations. The setting value must be formatted as a key-value pair JSON object.
+     */
+    static final Setting<String> SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING = Setting.simpleString(
+        "server_side_encryption_encryption_context"
+    );
+
+    /**
+     * Optional setting to specify the expected S3 bucket owner. This is used to verify S3 bucket ownership before reading/writing data from/to a bucket.
+     */
+    static final Setting<String> EXPECTED_BUCKET_OWNER_SETTING = Setting.simpleString("expected_bucket_owner", value -> {
+        if (!(value.matches("\\d{12}") || value.isEmpty())) {
+            throw new IllegalArgumentException("expected_bucket_owner must be a 12 digit AWS account id");
+        }
+    });
 
     /**
      * Maximum size of files that can be uploaded using a single upload request.
@@ -283,7 +326,11 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private volatile BlobPath basePath;
 
-    private volatile boolean serverSideEncryption;
+    private volatile String serverSideEncryptionType;
+    private volatile String serverSideEncryptionKmsKey;
+    private volatile boolean serverSideEncryptionBucketKey;
+    private volatile String serverSideEncryptionEncryptionContext;
+    private volatile String expectedBucketOwner;
 
     private volatile String storageClass;
 
@@ -424,7 +471,6 @@ class S3Repository extends MeteredBlobStoreRepository {
             s3AsyncService,
             multipartUploadEnabled,
             bucket,
-            serverSideEncryption,
             bufferSize,
             cannedACL,
             storageClass,
@@ -436,7 +482,12 @@ class S3Repository extends MeteredBlobStoreRepository {
             normalExecutorBuilder,
             normalPrioritySizeBasedBlockingQ,
             lowPrioritySizeBasedBlockingQ,
-            genericStatsMetricPublisher
+            genericStatsMetricPublisher,
+            serverSideEncryptionType,
+            serverSideEncryptionKmsKey,
+            serverSideEncryptionBucketKey,
+            serverSideEncryptionEncryptionContext,
+            expectedBucketOwner
         );
     }
 
@@ -491,7 +542,11 @@ class S3Repository extends MeteredBlobStoreRepository {
             this.basePath = BlobPath.cleanPath();
         }
 
-        this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
+        this.serverSideEncryptionType = SERVER_SIDE_ENCRYPTION_TYPE_SETTING.get(metadata.settings());
+        this.serverSideEncryptionKmsKey = SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING.get(metadata.settings());
+        this.serverSideEncryptionBucketKey = SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.get(metadata.settings());
+        this.serverSideEncryptionEncryptionContext = SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.get(metadata.settings());
+        this.expectedBucketOwner = EXPECTED_BUCKET_OWNER_SETTING.get(metadata.settings());
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
         this.bulkDeletesSize = BULK_DELETE_SIZE.get(metadata.settings());
@@ -505,13 +560,18 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         logger.debug(
-            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
+            "using bucket [{}], chunk_size [{}], buffer_size [{}], cannedACL [{}], storageClass [{}], "
+                + "server_side_encryption_type [{}], server_side_encryption_kms_key_id [{}], server_side_encryption_bucket_key_enabled [{}], server_side_encryption_encryption_context [{}], expected_bucket_owner [{}], ",
             bucket,
             chunkSize,
-            serverSideEncryption,
             bufferSize,
             cannedACL,
-            storageClass
+            storageClass,
+            serverSideEncryptionType,
+            serverSideEncryptionKmsKey,
+            serverSideEncryptionBucketKey,
+            serverSideEncryptionEncryptionContext,
+            expectedBucketOwner
         );
     }
 

@@ -195,6 +195,8 @@ import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
@@ -459,9 +461,18 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        Map<String, FileCacheStats> nodeFileCacheStats = new HashMap<>();
+        Map<String, AggregateFileCacheStats> nodeFileCacheStats = new HashMap<>();
         for (TestClusterNodes.TestClusterNode node : testClusterNodes.nodes.values()) {
-            nodeFileCacheStats.put(node.node.getId(), new FileCacheStats(0, 1, 0, 0, 0, 0, 0));
+            nodeFileCacheStats.put(
+                node.node.getId(),
+                new AggregateFileCacheStats(
+                    0,
+                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                    new FileCacheStats(0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
+                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
+                )
+            );
         }
         ClusterInfo clusterInfo = new ClusterInfo(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), nodeFileCacheStats);
         testClusterNodes.nodes.values().forEach(node -> when(node.getMockClusterInfoService().getClusterInfo()).thenReturn(clusterInfo));

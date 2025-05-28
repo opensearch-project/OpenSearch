@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * An immutable snapshot of CacheStats.
+ * An immutable snapshot of AggregateRefCountedCacheStats.
  *
  * @opensearch.experimental
  */

@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.indices.streamingingestion.state;
 
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -35,6 +36,10 @@ public class UpdateIngestionStateRequest extends BroadcastRequest<UpdateIngestio
     @Nullable
     private Boolean ingestionPaused;
 
+    // Optional reset settings to be applied before resuming ingestion.
+    @Nullable
+    private ResumeIngestionRequest.ResetSettings[] resetSettings;
+
     public UpdateIngestionStateRequest(String[] index, int[] shards) {
         super();
         this.index = index;
@@ -46,6 +51,7 @@ public class UpdateIngestionStateRequest extends BroadcastRequest<UpdateIngestio
         this.index = in.readStringArray();
         this.shards = in.readVIntArray();
         this.ingestionPaused = in.readOptionalBoolean();
+        this.resetSettings = in.readOptionalArray(ResumeIngestionRequest.ResetSettings::new, ResumeIngestionRequest.ResetSettings[]::new);
     }
 
     @Override
@@ -63,6 +69,7 @@ public class UpdateIngestionStateRequest extends BroadcastRequest<UpdateIngestio
         out.writeStringArray(index);
         out.writeVIntArray(shards);
         out.writeOptionalBoolean(ingestionPaused);
+        out.writeOptionalArray(resetSettings);
     }
 
     public String[] getIndex() {
@@ -83,5 +90,14 @@ public class UpdateIngestionStateRequest extends BroadcastRequest<UpdateIngestio
 
     public void setIngestionPaused(boolean ingestionPaused) {
         this.ingestionPaused = ingestionPaused;
+    }
+
+    @Nullable
+    public ResumeIngestionRequest.ResetSettings[] getResetSettings() {
+        return resetSettings;
+    }
+
+    public void setResetSettings(ResumeIngestionRequest.ResetSettings[] resetSettings) {
+        this.resetSettings = resetSettings;
     }
 }
