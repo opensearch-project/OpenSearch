@@ -199,8 +199,6 @@ public interface BlobContainer {
      *          this value is used in writing the blob to the repository.
      * @param   failIfAlreadyExists
      *          whether to throw a FileAlreadyExistsException if the given blob already exists
-     * @param   metadata
-     *          The metadata to be associate with the blob upload.
      * @param   options
      *          The {@link ConditionalWriteOptions} specifying the preconditions that must be met for the upload to proceed.
      * @param   listener

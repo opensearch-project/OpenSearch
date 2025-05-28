@@ -85,6 +85,10 @@ public final class ConditionalWrite {
             return unmodifiedSince;
         }
 
+        /**
+         * Builder for {@link ConditionalWriteOptions}.
+         * Allows fine-grained construction of conditional write criteria.
+         */
         public static final class Builder {
             private boolean ifNotExists = false;
             private boolean ifMatch = false;
