@@ -31,6 +31,11 @@ public class DefaultStatsCounter<K, V> implements StatsCounter<K, V> {
      */
     private long activeUsage;
 
+    /**
+     * this tracks cache usage only by pinned entries.
+     */
+    private long pinnedUsage;
+
     public DefaultStatsCounter() {
         this.hitCount = 0L;
         this.missCount = 0L;
@@ -44,7 +49,7 @@ public class DefaultStatsCounter<K, V> implements StatsCounter<K, V> {
     }
 
     @Override
-    public void recordHits(K key, V value, int count) {
+    public void recordHits(K key, V value, boolean pinned, int count) {
         hitCount += count;
     }
 
@@ -54,16 +59,24 @@ public class DefaultStatsCounter<K, V> implements StatsCounter<K, V> {
     }
 
     @Override
-    public void recordRemoval(V value, long weight) {
+    public void recordRemoval(V value, boolean pinned, long weight) {
         removeCount++;
         removeWeight += weight;
         usage -= weight;
     }
 
     @Override
-    public void recordReplacement(V oldValue, V newValue, long oldWeight, long newWeight, boolean shouldUpdateActiveUsage) {
+    public void recordReplacement(
+        V oldValue,
+        V newValue,
+        long oldWeight,
+        long newWeight,
+        boolean shouldUpdateActiveUsage,
+        boolean isPinned
+    ) {
         replaceCount++;
         if (shouldUpdateActiveUsage) activeUsage = activeUsage - oldWeight + newWeight;
+        if (isPinned) pinnedUsage = pinnedUsage - oldWeight + newWeight;
         usage = usage - oldWeight + newWeight;
 
     }
@@ -76,20 +89,42 @@ public class DefaultStatsCounter<K, V> implements StatsCounter<K, V> {
     }
 
     @Override
-    public void recordUsage(V value, long weight, boolean shouldDecrease) {
+    public void recordUsage(V value, long weight, boolean pinned, boolean shouldDecrease) {
         weight = shouldDecrease ? -1 * weight : weight;
         usage += weight;
     }
 
     @Override
-    public void recordActiveUsage(V value, long weight, boolean shouldDecrease) {
+    public void recordActiveUsage(V value, long weight, boolean pinned, boolean shouldDecrease) {
         weight = shouldDecrease ? -1 * weight : weight;
         activeUsage += weight;
+    }
+
+    /**
+     * Records the cache usage by entries which are pinned.
+     * This should be called when an entry is pinned/unpinned in the cache.
+     *
+     * @param weight         Weight of the entry.
+     * @param shouldDecrease Should the pinned usage of the cache be decreased or not.
+     */
+    @Override
+    public void recordPinnedUsage(V value, long weight, boolean shouldDecrease) {
+        weight = shouldDecrease ? -1 * weight : weight;
+        pinnedUsage += weight;
     }
 
     @Override
     public void resetActiveUsage() {
         this.activeUsage = 0;
+    }
+
+    /**
+     * Resets the cache usage by entries which are pinned.
+     * This should be called when cache is cleared.
+     */
+    @Override
+    public void resetPinnedUsage() {
+        this.pinnedUsage = 0L;
     }
 
     @Override
@@ -107,6 +142,16 @@ public class DefaultStatsCounter<K, V> implements StatsCounter<K, V> {
         return this.usage;
     }
 
+    /**
+     * Returns the pinned usage of the cache.
+     *
+     * @return Pinned usage of the cache.
+     */
+    @Override
+    public long pinnedUsage() {
+        return this.pinnedUsage;
+    }
+
     @Override
     public IRefCountedCacheStats snapshot() {
         return new RefCountedCacheStats(
@@ -118,7 +163,8 @@ public class DefaultStatsCounter<K, V> implements StatsCounter<K, V> {
             evictionCount,
             evictionWeight,
             usage,
-            activeUsage
+            activeUsage,
+            pinnedUsage
         );
     }
 
