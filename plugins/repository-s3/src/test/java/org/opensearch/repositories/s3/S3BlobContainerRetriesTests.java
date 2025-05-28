@@ -33,6 +33,7 @@ package org.opensearch.repositories.s3;
 
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.io.SdkDigestInputStream;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.utils.internal.Base16;
 
 import org.apache.http.HttpStatus;
@@ -43,6 +44,8 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteResponse;
 import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -418,6 +421,68 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 fail("Failure while closing open input streams");
             }
         });
+    }
+
+    public void testWriteBlobByStreamsConditionalFailure() throws Exception {
+        byte[] bytes = randomBlobContent();
+
+        httpServer.createContext("/bucket/write_blob_conditionally_failure", exchange -> {
+            if ("PUT".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery() == null) {
+                Streams.readFully(exchange.getRequestBody());
+                exchange.sendResponseHeaders(HttpStatus.SC_PRECONDITION_FAILED, -1);
+                exchange.close();
+            }
+        });
+
+        AsyncMultiStreamBlobContainer blobContainer = createBlobContainer(0, null, true, null);
+        List<InputStream> streams = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> exRef = new AtomicReference<>();
+
+        ActionListener<ConditionalWriteResponse> listener = ActionListener.wrap(resp -> {
+            fail("Expected failure");
+            latch.countDown();
+        }, ex -> {
+            exRef.set(ex);
+            latch.countDown();
+        });
+
+        int partSize = 5 * 1024 * 1024;
+        StreamContextSupplier supplier = ps -> new StreamContext((part, size, pos) -> {
+            InputStream in = new OffsetRangeIndexInputStream(new ByteArrayIndexInput("desc", bytes), size, pos);
+            streams.add(in);
+            return new InputStreamContainer(in, size, pos);
+        }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
+
+        ConditionalWriteOptions options = ConditionalWriteOptions.ifMatch("non-matching-etag");
+        WriteContext context = new WriteContext.Builder().fileName("write_blob_conditionally_failure")
+            .streamContextSupplier(supplier)
+            .fileSize(bytes.length)
+            .failIfAlreadyExists(false)
+            .writePriority(WritePriority.NORMAL)
+            .uploadFinalizer(Assert::assertTrue)
+            .doRemoteDataIntegrityCheck(false)
+            .build();
+
+        blobContainer.asyncBlobUploadConditionally(context, options, listener);
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        Exception actual = exRef.get();
+        assertNotNull(actual);
+        String msg = actual.getMessage();
+        assertTrue(
+            msg.contains("Precondition Failed")
+                || msg.contains("412")
+                || (actual instanceof S3Exception && ((S3Exception) actual).statusCode() == 412)
+        );
+
+        for (InputStream in : streams) {
+            try {
+                in.close();
+            } catch (IOException e) {
+                fail("Stream close failure");
+            }
+        }
     }
 
     private long calculateLastPartSize(long totalSize, long partSize) {

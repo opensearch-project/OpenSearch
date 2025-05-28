@@ -29,10 +29,13 @@ import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteResponse;
 import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -75,6 +78,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 
@@ -84,6 +88,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -756,4 +761,215 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             }
         });
     }
+
+    private void testLargeFilesRedirectedToSlowSyncClientConditional(
+        boolean expectException,
+        WritePriority writePriority,
+        int conditionalResponseCode
+    ) throws IOException, InterruptedException {
+
+        ByteSizeValue capacity = new ByteSizeValue(1, ByteSizeUnit.GB);
+        int numberOfParts = 20;
+        final ByteSizeValue partSize = new ByteSizeValue(capacity.getBytes() / numberOfParts + 1, ByteSizeUnit.BYTES);
+
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
+        SizeBasedBlockingQ sizeBasedBlockingQ = new SizeBasedBlockingQ(
+            capacity,
+            transferQueueConsumerService,
+            10,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.NORMAL
+        );
+
+        final long lastPartSize = new ByteSizeValue(200, ByteSizeUnit.MB).getBytes();
+        final long blobSize = ((numberOfParts - 1) * partSize.getBytes()) + lastPartSize;
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        AtomicReference<ConditionalWriteResponse> responseRef = new AtomicReference<>();
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+
+        ActionListener<ConditionalWriteResponse> completionListener = ActionListener.wrap(resp -> {
+            responseRef.set(resp);
+            countDownLatch.countDown();
+        }, ex -> {
+            exceptionRef.set(ex);
+            countDownLatch.countDown();
+        });
+
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+        if (randomBoolean()) {
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+        }
+
+        final long bufferSize = ByteSizeUnit.MB.toBytes(randomIntBetween(5, 1024));
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
+
+        when(blobStore.getLowPrioritySizeBasedBlockingQ()).thenReturn(sizeBasedBlockingQ);
+        when(blobStore.getNormalPrioritySizeBasedBlockingQ()).thenReturn(sizeBasedBlockingQ);
+
+        final StorageClass storageClass = randomFrom(StorageClass.values());
+        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        when(blobStore.isRedirectLargeUploads()).thenReturn(true);
+        boolean uploadRetryEnabled = randomBoolean();
+        when(blobStore.isUploadRetryEnabled()).thenReturn(uploadRetryEnabled);
+
+        final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
+        if (cannedAccessControlList != null) {
+            when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
+        }
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = Mockito.spy(new AmazonS3Reference(client));
+        doNothing().when(clientReference).close();
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        final String uploadId = randomAlphaOfLength(10);
+        final CreateMultipartUploadResponse createMultipartUploadResponse = CreateMultipartUploadResponse.builder()
+            .uploadId(uploadId)
+            .build();
+        when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(createMultipartUploadResponse);
+
+        if (expectException) {
+            when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(
+                SdkException.create("Expected upload part request to fail", new RuntimeException())
+            );
+        } else {
+            when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenReturn(
+                UploadPartResponse.builder().eTag("part-etag-" + randomAlphaOfLength(5)).build()
+            );
+        }
+
+        if (conditionalResponseCode == 412) {
+            when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenThrow(
+                software.amazon.awssdk.services.s3.model.S3Exception.builder().statusCode(412).message("Precondition Failed").build()
+            );
+        } else if (conditionalResponseCode == 409) {
+            when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenThrow(
+                software.amazon.awssdk.services.s3.model.S3Exception.builder().statusCode(409).message("Resource Already Exists").build()
+            );
+        } else {
+            String eTag = "\"multipart-etag-" + randomAlphaOfLength(5) + "\"";
+            when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenReturn(
+                CompleteMultipartUploadResponse.builder().eTag(eTag).build()
+            );
+        }
+
+        when(client.abortMultipartUpload(any(AbortMultipartUploadRequest.class))).thenReturn(
+            AbortMultipartUploadResponse.builder().build()
+        );
+
+        List<InputStream> openInputStreams = new ArrayList<>();
+        final S3BlobContainer s3BlobContainer = Mockito.spy(new S3BlobContainer(blobPath, blobStore));
+
+        doCallRealMethod().when(s3BlobContainer)
+            .executeMultipartUploadConditionally(
+                any(S3BlobStore.class),
+                anyString(),
+                any(InputStream.class),
+                anyLong(),
+                any(),
+                any(ConditionalWriteOptions.class),
+                ArgumentMatchers.<ActionListener<ConditionalWriteResponse>>any()
+            );
+
+        StreamContextSupplier streamContextSupplier = partSize1 -> new StreamContext((partNo, size, position) -> {
+            InputStream inputStream = new OffsetRangeIndexInputStream(new ZeroIndexInput("desc", blobSize), size, position);
+            openInputStreams.add(inputStream);
+            return new InputStreamContainer(inputStream, size, position);
+        }, partSize1, calculateLastPartSize(blobSize, partSize1), calculateNumberOfParts(blobSize, partSize1));
+
+        WriteContext writeContext = new WriteContext.Builder().fileName("write_large_blob_conditional")
+            .streamContextSupplier(streamContextSupplier)
+            .fileSize(blobSize)
+            .failIfAlreadyExists(false)
+            .writePriority(writePriority)
+            .uploadFinalizer(success -> {
+                Assert.assertTrue(success);
+            })
+            .doRemoteDataIntegrityCheck(false)
+            .metadata(new HashMap<>())
+            .build();
+
+        ConditionalWriteOptions conditionalOptions;
+        if (conditionalResponseCode == 412) {
+            conditionalOptions = ConditionalWriteOptions.ifMatch("invalid-etag");
+        } else if (conditionalResponseCode == 409) {
+            conditionalOptions = ConditionalWriteOptions.ifNotExists();
+        } else {
+            conditionalOptions = ConditionalWriteOptions.ifMatch("valid-etag");
+        }
+
+        s3BlobContainer.asyncBlobUploadConditionally(writeContext, conditionalOptions, completionListener);
+
+        boolean awaitSuccess = countDownLatch.await(5000, TimeUnit.SECONDS);
+        assertTrue(awaitSuccess);
+
+        if (expectException || conditionalResponseCode != 0) {
+            assertNotNull("Should have received an exception", exceptionRef.get());
+
+            if (conditionalResponseCode == 412 && !expectException) {
+                assertTrue(
+                    "Should have conditional error",
+                    exceptionRef.get() instanceof OpenSearchException
+                        || exceptionRef.get().getMessage().contains("Precondition Failed")
+                        || exceptionRef.get().getMessage().contains("ETag mismatch")
+                );
+            } else if (conditionalResponseCode == 409 && !expectException) {
+                assertTrue(
+                    "Should have conflict error",
+                    exceptionRef.get().getMessage().contains("Resource Already Exists")
+                        || exceptionRef.get().getMessage().contains("already exists")
+                );
+            }
+        } else {
+            assertNull("Should not have received an exception", exceptionRef.get());
+            assertNotNull("Should have received a response", responseRef.get());
+            assertNotNull("Response should have version identifier", responseRef.get().getVersionIdentifier());
+        }
+
+        verify(s3BlobContainer, times(1)).executeMultipartUploadConditionally(
+            any(S3BlobStore.class),
+            anyString(),
+            any(InputStream.class),
+            anyLong(),
+            anyMap(),
+            any(ConditionalWriteOptions.class),
+            ArgumentMatchers.<ActionListener<ConditionalWriteResponse>>any()
+        );
+
+        boolean shouldAbort = expectException || (conditionalResponseCode != 0 && !expectException);
+        verify(client, times(shouldAbort ? 1 : 0)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+
+        openInputStreams.forEach(inputStream -> {
+            try {
+                inputStream.close();
+            } catch (IOException ex) {}
+        });
+    }
+
+    public void testFailureWhenLargeFileRedirectedConditional() throws IOException, InterruptedException {
+        testLargeFilesRedirectedToSlowSyncClientConditional(true, WritePriority.LOW, 0);
+        testLargeFilesRedirectedToSlowSyncClientConditional(true, WritePriority.NORMAL, 0);
+    }
+
+    public void testLargeFileRedirectedConditional() throws IOException, InterruptedException {
+        testLargeFilesRedirectedToSlowSyncClientConditional(false, WritePriority.LOW, 0);
+        testLargeFilesRedirectedToSlowSyncClientConditional(false, WritePriority.NORMAL, 0);
+    }
+
+    public void testLargeFileRedirectedConditionalPreconditionFailed() throws IOException, InterruptedException {
+        testLargeFilesRedirectedToSlowSyncClientConditional(false, WritePriority.LOW, 412);
+        testLargeFilesRedirectedToSlowSyncClientConditional(false, WritePriority.NORMAL, 412);
+    }
+
+    public void testLargeFileRedirectedConditionalConflict() throws IOException, InterruptedException {
+        testLargeFilesRedirectedToSlowSyncClientConditional(false, WritePriority.LOW, 409);
+        testLargeFilesRedirectedToSlowSyncClientConditional(false, WritePriority.NORMAL, 409);
+    }
+
 }

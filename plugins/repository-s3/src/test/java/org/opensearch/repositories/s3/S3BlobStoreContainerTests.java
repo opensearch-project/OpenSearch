@@ -79,6 +79,8 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteResponse;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.collect.Tuple;
@@ -944,7 +946,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertNumberOfMultiparts(factor + 1, remaining, (size * factor) + remaining, size);
     }
 
-    public void testExecuteMultipartUploadIfEtagMatchesSuccess() throws IOException {
+    public void testExecuteMultipartUploadConditionallyWithEtagMatchSuccess() throws IOException {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String inputETag = randomAlphaOfLengthBetween(8, 32);
@@ -1021,10 +1023,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         );
 
         @SuppressWarnings("unchecked")
-        ActionListener<String> etagListener = mock(ActionListener.class);
+        ActionListener<ConditionalWriteResponse> responseListener = mock(ActionListener.class);
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
-        blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, inputETag, etagListener);
+
+        blobContainer.executeMultipartUploadConditionally(
+            blobStore,
+            blobName,
+            inputStream,
+            blobSize,
+            metadata,
+            ConditionalWriteOptions.ifMatch(inputETag),
+            responseListener
+        );
 
         final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
         assertEquals(bucketName, createRequest.bucket());
@@ -1067,13 +1078,15 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         assertEquals(inputETag, completeRequest.ifMatch());
 
-        verify(etagListener).onResponse(finalETag);
-        verify(etagListener, never()).onFailure(any());
+        ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+        verify(responseListener).onResponse(responseCaptor.capture());
+        assertEquals(finalETag, responseCaptor.getValue().getVersionIdentifier());
 
+        verify(responseListener, never()).onFailure(any());
         verify(clientReference).close();
     }
 
-    public void testExecuteMultipartUploadIfEtagMatchesWithMetadataAndSSE() throws IOException {
+    public void testExecuteMultipartUploadConditionallyWithMetadataAndSSE() throws IOException {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String inputETag = randomAlphaOfLengthBetween(8, 32);
@@ -1140,10 +1153,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         );
 
         @SuppressWarnings("unchecked")
-        ActionListener<String> etagListener = mock(ActionListener.class);
+        ActionListener<ConditionalWriteResponse> responseListener = mock(ActionListener.class);
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
-        blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, metadata, inputETag, etagListener);
+
+        blobContainer.executeMultipartUploadConditionally(
+            blobStore,
+            blobName,
+            inputStream,
+            blobSize,
+            metadata,
+            ConditionalWriteOptions.ifMatch(inputETag),
+            responseListener
+        );
 
         final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
         assertEquals(bucketName, createRequest.bucket());
@@ -1181,14 +1203,16 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         assertEquals(inputETag, completeRequest.ifMatch());
 
-        verify(etagListener).onResponse(finalETag);
-        verify(etagListener, never()).onFailure(any());
+        ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+        verify(responseListener).onResponse(responseCaptor.capture());
+        assertEquals(finalETag, responseCaptor.getValue().getVersionIdentifier());
+
+        verify(responseListener, never()).onFailure(any());
 
         verify(clientReference).close();
-
     }
 
-    public void testExecuteMultipartUploadIfEtagMatchesContentIntegrity() throws IOException {
+    public void testExecuteMultipartUploadConditionallyContentIntegrity() throws IOException {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String inputETag = randomAlphaOfLengthBetween(8, 32);
@@ -1251,10 +1275,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         );
 
         @SuppressWarnings("unchecked")
-        ActionListener<String> etagListener = mock(ActionListener.class);
+        ActionListener<ConditionalWriteResponse> responseListener = mock(ActionListener.class);
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(blobContent);
-        blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, inputETag, etagListener);
+
+        blobContainer.executeMultipartUploadConditionally(
+            blobStore,
+            blobName,
+            inputStream,
+            blobSize,
+            null,
+            ConditionalWriteOptions.ifMatch(inputETag),
+            responseListener
+        );
 
         final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
         assertEquals(bucketName, createRequest.bucket());
@@ -1277,13 +1310,16 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         assertArrayEquals("Uploaded content should match original content", blobContent, reassembledContent);
 
-        verify(etagListener).onResponse(finalETag);
-        verify(etagListener, never()).onFailure(any());
+        ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+        verify(responseListener).onResponse(responseCaptor.capture());
+        assertEquals(finalETag, responseCaptor.getValue().getVersionIdentifier());
+
+        verify(responseListener, never()).onFailure(any());
 
         verify(clientReference).close();
     }
 
-    public void testExecuteMultipartUploadIfEtagMatchesSizeValidation() {
+    public void testExecuteMultipartUploadConditionallySizeValidation() {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
@@ -1291,20 +1327,20 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final String finalETag = randomAlphaOfLengthBetween(8, 32);
 
         @SuppressWarnings("unchecked")
-        ActionListener<String> invalidSizeListener = mock(ActionListener.class);
+        ActionListener<ConditionalWriteResponse> invalidSizeListener = mock(ActionListener.class);
 
         {
             final long tooSmallSize = ByteSizeUnit.MB.toBytes(5) - 1024;
 
             final IllegalArgumentException tooSmallException = expectThrows(
                 IllegalArgumentException.class,
-                () -> blobContainer.executeMultipartUploadIfEtagMatches(
+                () -> blobContainer.executeMultipartUploadConditionally(
                     blobStore,
                     blobName,
                     new ByteArrayInputStream(new byte[0]),
                     tooSmallSize,
                     null,
-                    inputETag,
+                    ConditionalWriteOptions.ifMatch(inputETag),
                     invalidSizeListener
                 )
             );
@@ -1319,13 +1355,13 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
             final IllegalArgumentException tooLargeException = expectThrows(
                 IllegalArgumentException.class,
-                () -> blobContainer.executeMultipartUploadIfEtagMatches(
+                () -> blobContainer.executeMultipartUploadConditionally(
                     blobStore,
                     blobName,
                     new ByteArrayInputStream(new byte[0]),
                     tooLargeSize,
                     null,
-                    inputETag,
+                    ConditionalWriteOptions.ifMatch(inputETag),
                     invalidSizeListener
                 )
             );
@@ -1365,7 +1401,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         {
             final long exactMinimumSize = ByteSizeUnit.MB.toBytes(5);
             @SuppressWarnings("unchecked")
-            ActionListener<String> validSizeListener = mock(ActionListener.class);
+            ActionListener<ConditionalWriteResponse> validSizeListener = mock(ActionListener.class);
 
             InputStream zeroStream = new InputStream() {
                 long remaining = exactMinimumSize;
@@ -1393,17 +1429,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             };
 
             try {
-                blobContainer.executeMultipartUploadIfEtagMatches(
+                blobContainer.executeMultipartUploadConditionally(
                     blobStore,
                     blobName,
                     zeroStream,
                     exactMinimumSize,
                     null,
-                    inputETag,
+                    ConditionalWriteOptions.ifMatch(inputETag),
                     validSizeListener
                 );
 
-                verify(validSizeListener).onResponse(finalETag);
+                ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+                verify(validSizeListener).onResponse(responseCaptor.capture());
+                assertEquals(finalETag, responseCaptor.getValue().getVersionIdentifier());
                 verify(validSizeListener, never()).onFailure(any());
 
                 verify(clientReference).close();
@@ -1423,7 +1461,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         {
             final long testSize = ByteSizeUnit.MB.toBytes(10);
             @SuppressWarnings("unchecked")
-            ActionListener<String> validSizeListener = mock(ActionListener.class);
+            ActionListener<ConditionalWriteResponse> validSizeListener = mock(ActionListener.class);
 
             InputStream zeroStream = new InputStream() {
                 long remaining = testSize;
@@ -1451,17 +1489,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             };
 
             try {
-                blobContainer.executeMultipartUploadIfEtagMatches(
+                blobContainer.executeMultipartUploadConditionally(
                     blobStore,
                     blobName,
                     zeroStream,
                     testSize,
                     null,
-                    inputETag,
+                    ConditionalWriteOptions.ifMatch(inputETag),
                     validSizeListener
                 );
 
-                verify(validSizeListener).onResponse(finalETag);
+                ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+                verify(validSizeListener).onResponse(responseCaptor.capture());
+                assertEquals(finalETag, responseCaptor.getValue().getVersionIdentifier());
                 verify(validSizeListener, never()).onFailure(any());
 
                 verify(clientReference).close();
@@ -1475,7 +1515,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testExecuteMultipartUploadIfEtagMatchesPreconditionFailed() {
+    public void testExecuteMultipartUploadConditionallyPreconditionFailed() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
@@ -1524,7 +1564,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         );
 
         final AtomicReference<Exception> capturedException = new AtomicReference<>();
-        ActionListener<String> etagListener = ActionListener.wrap(
+        ActionListener<ConditionalWriteResponse> responseListener = ActionListener.wrap(
             r -> fail("Should have failed with precondition failure"),
             capturedException::set
         );
@@ -1533,7 +1573,15 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         IOException ioException = expectThrows(
             IOException.class,
-            () -> blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, eTag, etagListener)
+            () -> blobContainer.executeMultipartUploadConditionally(
+                blobStore,
+                blobName,
+                inputStream,
+                blobSize,
+                null,
+                ConditionalWriteOptions.ifMatch(eTag),
+                responseListener
+            )
         );
 
         assertEquals("Unable to upload object [" + blobName + "] due to ETag mismatch", ioException.getMessage());
@@ -1542,7 +1590,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         Exception exception = capturedException.get();
         assertNotNull("Expected an exception to be captured", exception);
         assertTrue("Exception should be an OpenSearchException", exception instanceof OpenSearchException);
-        assertEquals("stale_primary_shard", ((OpenSearchException) exception).getMessage());
+        assertEquals("stale_primary_shard", exception.getMessage());
 
         verify(client).createMultipartUpload(any(CreateMultipartUploadRequest.class));
         verify(client).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
@@ -1552,7 +1600,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         verify(abortClientReference).close();
     }
 
-    public void testExecuteMultipartUploadIfEtagMatchesS3ExceptionTypes() {
+    public void testExecuteMultipartUploadConditionallyS3ExceptionTypes() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
@@ -1630,7 +1678,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             );
 
             final AtomicReference<Exception> capturedException = new AtomicReference<>();
-            ActionListener<String> etagListener = ActionListener.wrap(
+            ActionListener<ConditionalWriteResponse> responseListener = ActionListener.wrap(
+                // Changed listener type
                 r -> fail("Should have failed with exception"),
                 capturedException::set
             );
@@ -1638,14 +1687,14 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
             IOException exception = expectThrows(
                 IOException.class,
-                () -> blobContainer.executeMultipartUploadIfEtagMatches(
+                () -> blobContainer.executeMultipartUploadConditionally(
                     blobStore,
                     blobName,
                     inputStream,
                     blobSize,
                     metadata,
-                    eTag,
-                    etagListener
+                    ConditionalWriteOptions.ifMatch(eTag),
+                    responseListener
                 )
             );
 
@@ -1672,7 +1721,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testExecuteMultipartUploadIfEtagMatchesSdkException() {
+    public void testExecuteMultipartUploadConditionallySdkException() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
@@ -1730,7 +1779,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             }
 
             final AtomicReference<Exception> capturedException = new AtomicReference<>();
-            ActionListener<String> etagListener = ActionListener.wrap(
+            ActionListener<ConditionalWriteResponse> responseListener = ActionListener.wrap(
                 r -> fail("Should have failed with SdkException"),
                 capturedException::set
             );
@@ -1738,14 +1787,14 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
             IOException exception = expectThrows(
                 IOException.class,
-                () -> blobContainer.executeMultipartUploadIfEtagMatches(
+                () -> blobContainer.executeMultipartUploadConditionally(
                     blobStore,
                     blobName,
                     inputStream,
                     blobSize,
                     null,
-                    eTag,
-                    etagListener
+                    ConditionalWriteOptions.ifMatch(eTag),
+                    responseListener
                 )
             );
 
@@ -1773,7 +1822,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testExecuteMultipartUploadIfEtagMatchesResourceManagement() throws IOException {
+    public void testExecuteMultipartUploadConditionallyResourceManagement() throws IOException {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
         final String eTag = randomAlphaOfLengthBetween(8, 32);
@@ -1863,36 +1912,46 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             }
 
             @SuppressWarnings("unchecked")
-            ActionListener<String> etagListener = mock(ActionListener.class);
+            ActionListener<ConditionalWriteResponse> responseListener = mock(ActionListener.class);
 
             final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[(int) blobSize]);
 
             if (scenario == ResourceScenario.SUCCESS_PATH) {
-                blobContainer.executeMultipartUploadIfEtagMatches(blobStore, blobName, inputStream, blobSize, null, eTag, etagListener);
+                blobContainer.executeMultipartUploadConditionally(
+                    blobStore,
+                    blobName,
+                    inputStream,
+                    blobSize,
+                    null,
+                    ConditionalWriteOptions.ifMatch(eTag),
+                    responseListener
+                );
 
-                verify(etagListener).onResponse("final-etag");
-                verify(etagListener, never()).onFailure(any());
+                ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+                verify(responseListener).onResponse(responseCaptor.capture());
+                assertEquals("final-etag", responseCaptor.getValue().getVersionIdentifier());
+                verify(responseListener, never()).onFailure(any());
 
                 verify(blobStore, times(1)).clientReference();
                 verify(primaryClientReference).close();
             } else {
                 IOException exception = expectThrows(
                     IOException.class,
-                    () -> blobContainer.executeMultipartUploadIfEtagMatches(
+                    () -> blobContainer.executeMultipartUploadConditionally(
                         blobStore,
                         blobName,
                         inputStream,
                         blobSize,
                         null,
-                        eTag,
-                        etagListener
+                        ConditionalWriteOptions.ifMatch(eTag),
+                        responseListener
                     )
                 );
 
                 assertEquals("Exception cause should be the original exception", stageException, exception.getCause());
 
-                verify(etagListener).onFailure(any(Exception.class));
-                verify(etagListener, never()).onResponse(any());
+                verify(responseListener).onFailure(any(Exception.class));
+                verify(responseListener, never()).onResponse(any());
 
                 verify(primaryClientReference).close();
 
