@@ -55,6 +55,8 @@ import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
+import javax.security.auth.Subject;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -211,6 +213,10 @@ public final class HdfsRepository extends BlobStoreRepository {
                 String keytab = HdfsSecurityContext.locateKeytabFile(environment).toString();
                 logger.debug("Using kerberos principal [{}] and keytab located at [{}]", principal, keytab);
                 return UserGroupInformation.loginUserFromKeytabAndReturnUGI(principal, keytab);
+            }
+            final Subject subject = Subject.current();
+            if (subject == null || subject.getPrincipals() == null) {
+                return UserGroupInformation.getLoginUser();
             }
             return UserGroupInformation.getCurrentUser();
         } catch (IOException e) {
