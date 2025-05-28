@@ -35,10 +35,8 @@ package org.opensearch.common;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
+import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Collections;
@@ -139,17 +137,10 @@ public final class Randomness {
      */
     public static SecureRandom createSecure() {
         try {
-            MethodHandles.Lookup lookup = MethodHandles.publicLookup();
-
             // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
-            Class<?> registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
-            MethodHandle isApprovedOnlyHandle = lookup.findStatic(
-                registrarClass,
-                "isInApprovedOnlyMode",
-                MethodType.methodType(boolean.class)
-            );
-
-            boolean approvedOnly = (boolean) isApprovedOnlyHandle.invokeExact();
+            var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
+            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
+            var approvedOnly = (Boolean) isApprovedOnlyMethod.invoke(null);
 
             if (approvedOnly) {
                 var isPredictionResistant = true;
@@ -159,39 +150,27 @@ public final class Randomness {
                 // EntropySourceProvider entropyProvider = new BasicEntropySourceProvider(entropySource, isPredictionResistant)
                 var basicEntropyProviderClass = Class.forName("org.bouncycastle.crypto.util.BasicEntropySourceProvider");
                 var entropyConstructor = basicEntropyProviderClass.getConstructor(SecureRandom.class, boolean.class);
-                var entropyConstructorHandle = lookup.unreflectConstructor(entropyConstructor);
-                var entropyProvider = entropyConstructorHandle.invokeExact(entropySource, isPredictionResistant);
+                var entropyProvider = entropyConstructor.newInstance(entropySource, isPredictionResistant);
 
                 // Equivalent to: FipsDRBG.Base sha512Hmac = FipsDRBG.SHA512_HMAC
                 var fipsDrbgClass = Class.forName("org.bouncycastle.crypto.fips.FipsDRBG");
                 var sha512HmacField = fipsDrbgClass.getField("SHA512_HMAC");
-                var sha512HmacHandle = lookup.unreflectGetter(sha512HmacField);
-                var sha512Hmac = sha512HmacHandle.invokeExact();
+                var sha512Hmac = sha512HmacField.get(null);
 
                 // Equivalent to: FipsDRBG.Builder builder = sha512Hmac.fromEntropySource(entropyProvider)
-                var entropySourceProviderInterface = Class.forName("org.bouncycastle.crypto.EntropySourceProvider");
-                var builderClass = Class.forName("org.bouncycastle.crypto.fips.FipsDRBG$Builder");
-                var fromEntropySourceHandle = lookup.findVirtual(
-                    sha512Hmac.getClass(),
-                    "fromEntropySource",
-                    MethodType.methodType(builderClass, entropySourceProviderInterface)
-                );
-                var builder = fromEntropySourceHandle.invokeExact(sha512Hmac, entropyProvider);
-                var fipsSecureRandomClass = Class.forName("org.bouncycastle.crypto.fips.FipsSecureRandom");
+                var entropyProviderClass = Class.forName("org.bouncycastle.crypto.EntropySourceProvider");
+                var fromEntropySourceMethod = sha512Hmac.getClass().getMethod("fromEntropySource", entropyProviderClass);
+                var builder = fromEntropySourceMethod.invoke(sha512Hmac, entropyProvider);
 
                 // Equivalent to: SecureRandom drbg = builder.build(null, isPredictionResistant)
-                var buildHandle = lookup.findVirtual(
-                    builder.getClass(),
-                    "build",
-                    MethodType.methodType(fipsSecureRandomClass, byte[].class, boolean.class)
-                );
-                var drbgInstance = fipsSecureRandomClass.cast(buildHandle.invokeExact(builder, (byte[]) null, isPredictionResistant));
+                var buildMethod = builder.getClass().getMethod("build", byte[].class, boolean.class);
+                var drbgInstance = buildMethod.invoke(builder, null, isPredictionResistant);
 
                 return (SecureRandom) drbgInstance;
             }
 
             return SecureRandom.getInstanceStrong();
-        } catch (Throwable e) {
+        } catch (ReflectiveOperationException | GeneralSecurityException e) {
             try {
                 return SecureRandom.getInstanceStrong();
             } catch (NoSuchAlgorithmException ex) {
