@@ -27,6 +27,7 @@ import java.util.function.BiConsumer;
  */
 public class InMemoryRuleProcessingService {
 
+    public static final String WILDCARD = "*";
     private final AttributeValueStoreFactory attributeValueStoreFactory;
 
     /**
@@ -69,7 +70,7 @@ public class InMemoryRuleProcessingService {
     private void addOperation(Map.Entry<Attribute, Set<String>> attributeEntry, Rule rule) {
         AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
         for (String value : attributeEntry.getValue()) {
-            valueStore.put(value, rule.getFeatureValue());
+            valueStore.put(value.replace(WILDCARD, ""), rule.getFeatureValue());
         }
     }
 
