@@ -76,6 +76,7 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
@@ -376,6 +377,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Supplier<TimeValue> refreshInterval;
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
+    private final ClusterApplierService clusterApplierService;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -412,7 +414,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final boolean shardLevelRefreshEnabled,
         final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         final Supplier<TimeValue> refreshInterval,
-        final Object refreshMutex
+        final Object refreshMutex,
+        final ClusterApplierService clusterApplierService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -526,6 +529,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.fixedRefreshIntervalSchedulingEnabled = fixedRefreshIntervalSchedulingEnabled;
         this.refreshInterval = refreshInterval;
         this.refreshMutex = Objects.requireNonNull(refreshMutex);
+        this.clusterApplierService = clusterApplierService;
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
@@ -4135,7 +4139,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for
             // timeseries
             () -> docMapper(),
-            mergedSegmentWarmerFactory.get(this)
+            mergedSegmentWarmerFactory.get(this),
+            clusterApplierService
         );
     }
 
@@ -5293,7 +5298,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
                 assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
-                    : "There should not be any segments file in the dir";
+                    || indexSettings.isWarmIndex() : "There should not be any segments file in the dir";
                 store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
             } else if (segmentsNFile != null) {
                 try (

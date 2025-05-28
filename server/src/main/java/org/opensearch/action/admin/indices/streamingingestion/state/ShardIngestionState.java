@@ -28,22 +28,21 @@ import java.util.Map;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record ShardIngestionState(String index, int shardId, String pollerState, String errorPolicy, boolean isPollerPaused)
-    implements
-        Writeable,
-        ToXContentFragment {
+public record ShardIngestionState(String index, int shardId, String pollerState, String errorPolicy, boolean isPollerPaused,
+    boolean isWriteBlockEnabled) implements Writeable, ToXContentFragment {
 
     private static final String SHARD = "shard";
     private static final String POLLER_STATE = "poller_state";
     private static final String ERROR_POLICY = "error_policy";
     private static final String POLLER_PAUSED = "poller_paused";
+    private static final String WRITE_BLOCK_ENABLED = "write_block_enabled";
 
     public ShardIngestionState() {
-        this("", -1, "", "", false);
+        this("", -1, "", "", false, false);
     }
 
     public ShardIngestionState(StreamInput in) throws IOException {
-        this(in.readString(), in.readVInt(), in.readOptionalString(), in.readOptionalString(), in.readBoolean());
+        this(in.readString(), in.readVInt(), in.readOptionalString(), in.readOptionalString(), in.readBoolean(), in.readBoolean());
     }
 
     public ShardIngestionState(
@@ -51,13 +50,15 @@ public record ShardIngestionState(String index, int shardId, String pollerState,
         int shardId,
         @Nullable String pollerState,
         @Nullable String errorPolicy,
-        boolean isPollerPaused
+        boolean isPollerPaused,
+        boolean isWriteBlockEnabled
     ) {
         this.index = index;
         this.shardId = shardId;
         this.pollerState = pollerState;
         this.errorPolicy = errorPolicy;
         this.isPollerPaused = isPollerPaused;
+        this.isWriteBlockEnabled = isWriteBlockEnabled;
     }
 
     @Override
@@ -67,6 +68,7 @@ public record ShardIngestionState(String index, int shardId, String pollerState,
         out.writeOptionalString(pollerState);
         out.writeOptionalString(errorPolicy);
         out.writeBoolean(isPollerPaused);
+        out.writeBoolean(isWriteBlockEnabled);
     }
 
     @Override
@@ -76,6 +78,7 @@ public record ShardIngestionState(String index, int shardId, String pollerState,
         builder.field(POLLER_STATE, pollerState);
         builder.field(ERROR_POLICY, errorPolicy);
         builder.field(POLLER_PAUSED, isPollerPaused);
+        builder.field(WRITE_BLOCK_ENABLED, isWriteBlockEnabled);
         builder.endObject();
         return builder;
     }

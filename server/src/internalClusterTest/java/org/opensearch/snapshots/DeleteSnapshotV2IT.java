@@ -8,35 +8,80 @@
 
 package org.opensearch.snapshots;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Client;
+import org.junit.After;
 
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.opensearch.common.util.FeatureFlags.WRITABLE_WARM_INDEX_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
+
+    public DeleteSnapshotV2IT(Settings nodeSettings) {
+        super(nodeSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(WRITABLE_WARM_INDEX_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(WRITABLE_WARM_INDEX_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
+            .build();
+    }
+
+    @After
+    public void teardown() {
+        if (WRITABLE_WARM_INDEX_SETTING.get(settings)) {
+            assertAcked(client().admin().indices().prepareDelete("_all").get());
+            var nodes = internalCluster().getDataNodeInstances(Node.class);
+            for (var node : nodes) {
+                var fileCache = node.fileCache();
+                fileCache.clear();
+            }
+        }
+    }
 
     private static final String REMOTE_REPO_NAME = "remote-store-repo-name";
 
@@ -55,8 +100,8 @@ public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         final Path remoteStoreRepoPath = randomRepoPath();
         internalCluster().startClusterManagerOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
 
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
-        internalCluster().startDataOnlyNode(snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataAndWarmNodes(1, snapshotV2Settings(remoteStoreRepoPath));
+        internalCluster().startDataAndWarmNodes(1, snapshotV2Settings(remoteStoreRepoPath));
 
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
@@ -139,7 +184,7 @@ public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
             .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.FIXED.toString())
             .build();
         String clusterManagerName = internalCluster().startClusterManagerOnlyNode(settings);
-        internalCluster().startDataOnlyNode(settings);
+        internalCluster().startDataAndWarmNodes(1, settings);
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
         ensureStableCluster(2);
 
@@ -222,7 +267,7 @@ public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
             .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.FIXED.toString())
             .build();
         String clusterManagerName = internalCluster().startClusterManagerOnlyNode(settings);
-        internalCluster().startDataOnlyNode(settings);
+        internalCluster().startDataAndWarmNodes(1, settings);
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
         ensureStableCluster(2);
 
@@ -323,7 +368,7 @@ public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
             .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.FIXED.toString())
             .build();
         String clusterManagerName = internalCluster().startClusterManagerOnlyNode(settings);
-        internalCluster().startDataOnlyNodes(3, settings);
+        internalCluster().startDataAndWarmNodes(3, settings);
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
         ensureStableCluster(4);
 
@@ -341,6 +386,7 @@ public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
         final String remoteStoreEnabledIndexName = "remote-index-1";
         final Settings remoteStoreEnabledIndexSettings = Settings.builder()
             .put(getRemoteStoreBackedIndexSettings())
+            .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(0))
             .put(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.getKey(), 2)
             .build();
         createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
