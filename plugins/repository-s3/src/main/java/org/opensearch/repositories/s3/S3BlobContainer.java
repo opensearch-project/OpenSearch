@@ -76,6 +76,8 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteResponse;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
@@ -209,6 +211,117 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     }
 
     @Override
+    public void asyncBlobUploadConditionally(
+        WriteContext writeContext,
+        ConditionalWriteOptions options,
+        ActionListener<ConditionalWriteResponse> completionListener
+    ) throws IOException {
+        UploadRequest uploadRequest = new UploadRequest(
+            blobStore.bucket(),
+            buildKey(writeContext.getFileName()),
+            writeContext.getFileSize(),
+            writeContext.getWritePriority(),
+            writeContext.getUploadFinalizer(),
+            writeContext.doRemoteDataIntegrityCheck(),
+            writeContext.getExpectedChecksum(),
+            blobStore.isUploadRetryEnabled(),
+            writeContext.getMetadata(),
+            options
+        );
+
+        try {
+            // If file size is greater than the queue capacity than SizeBasedBlockingQ will always reject the upload.
+            // Therefore, redirecting it to slow client.
+            if ((uploadRequest.getWritePriority() == WritePriority.LOW
+                && blobStore.getLowPrioritySizeBasedBlockingQ().isMaxCapacityBelowContentLength(uploadRequest.getContentLength()) == false)
+                || (uploadRequest.getWritePriority() != WritePriority.HIGH
+                    && uploadRequest.getWritePriority() != WritePriority.URGENT
+                    && blobStore.getNormalPrioritySizeBasedBlockingQ()
+                        .isMaxCapacityBelowContentLength(uploadRequest.getContentLength()) == false)) {
+
+                StreamContext streamContext = SocketAccess.doPrivileged(
+                    () -> writeContext.getStreamProvider(uploadRequest.getContentLength())
+                );
+                InputStreamContainer inputStream = streamContext.provideStream(0);
+
+                try {
+                    executeMultipartUploadConditionally(
+                        blobStore,
+                        buildKey(writeContext.getFileName()),
+                        inputStream.getInputStream(),
+                        uploadRequest.getContentLength(),
+                        uploadRequest.getMetadata(),
+                        options,
+                        completionListener
+                    );
+                } catch (Exception ex) {
+                    logger.error(
+                        "Failed to conditionally upload large file {} of size {}",
+                        uploadRequest.getKey(),
+                        uploadRequest.getContentLength(),
+                        ex
+                    );
+                    completionListener.onFailure(ex);
+                }
+                return;
+            }
+
+            long partSize = blobStore.getAsyncTransferManager()
+                .calculateOptimalPartSize(writeContext.getFileSize(), writeContext.getWritePriority(), blobStore.isUploadRetryEnabled());
+
+            StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamProvider(partSize));
+
+            try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
+                S3AsyncClient s3AsyncClient;
+                if (writeContext.getWritePriority() == WritePriority.URGENT) {
+                    s3AsyncClient = amazonS3Reference.get().urgentClient();
+                } else if (writeContext.getWritePriority() == WritePriority.HIGH) {
+                    s3AsyncClient = amazonS3Reference.get().priorityClient();
+                } else {
+                    s3AsyncClient = amazonS3Reference.get().client();
+                }
+
+                if (writeContext.getWritePriority() == WritePriority.URGENT
+                    || writeContext.getWritePriority() == WritePriority.HIGH
+                    || blobStore.isPermitBackedTransferEnabled() == false) {
+                    createFileCompletableFutureConditionally(s3AsyncClient, uploadRequest, streamContext, completionListener);
+                } else if (writeContext.getWritePriority() == WritePriority.LOW) {
+                    blobStore.getLowPrioritySizeBasedBlockingQ()
+                        .produce(
+                            new SizeBasedBlockingQ.Item(
+                                writeContext.getFileSize(),
+                                () -> createFileCompletableFutureConditionally(
+                                    s3AsyncClient,
+                                    uploadRequest,
+                                    streamContext,
+                                    completionListener
+                                )
+                            )
+                        );
+                } else if (writeContext.getWritePriority() == WritePriority.NORMAL) {
+                    blobStore.getNormalPrioritySizeBasedBlockingQ()
+                        .produce(
+                            new SizeBasedBlockingQ.Item(
+                                writeContext.getFileSize(),
+                                () -> createFileCompletableFutureConditionally(
+                                    s3AsyncClient,
+                                    uploadRequest,
+                                    streamContext,
+                                    completionListener
+                                )
+                            )
+                        );
+                } else {
+                    throw new IllegalStateException("Cannot perform upload for other priority types.");
+                }
+            }
+        } catch (Exception e) {
+            logger.info("Exception during conditional blob upload for file {}", writeContext.getFileName(), e);
+            throw new IOException(e);
+        }
+    }
+
+    @Override
     public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
         UploadRequest uploadRequest = new UploadRequest(
             blobStore.bucket(),
@@ -219,7 +332,8 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             writeContext.doRemoteDataIntegrityCheck(),
             writeContext.getExpectedChecksum(),
             blobStore.isUploadRetryEnabled(),
-            writeContext.getMetadata()
+            writeContext.getMetadata(),
+            null
         );
         try {
             // If file size is greater than the queue capacity than SizeBasedBlockingQ will always reject the upload.
@@ -308,6 +422,25 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     ) {
         CompletableFuture<Void> completableFuture = blobStore.getAsyncTransferManager()
             .uploadObject(s3AsyncClient, uploadRequest, streamContext, blobStore.getStatsMetricPublisher());
+        return completableFuture.whenComplete((response, throwable) -> {
+            if (throwable == null) {
+                completionListener.onResponse(response);
+            } else {
+                Exception ex = throwable instanceof Error ? new Exception(throwable) : (Exception) throwable;
+                completionListener.onFailure(ex);
+            }
+        });
+    }
+
+    private CompletableFuture<ConditionalWriteResponse> createFileCompletableFutureConditionally(
+        S3AsyncClient s3AsyncClient,
+        UploadRequest uploadRequest,
+        StreamContext streamContext,
+        ActionListener<ConditionalWriteResponse> completionListener
+    ) {
+        CompletableFuture<ConditionalWriteResponse> completableFuture = blobStore.getAsyncTransferManager()
+            .uploadObjectConditionally(s3AsyncClient, uploadRequest, streamContext, blobStore.getStatsMetricPublisher());
+
         return completableFuture.whenComplete((response, throwable) -> {
             if (throwable == null) {
                 completionListener.onResponse(response);
@@ -514,14 +647,14 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         return keyPath + blobName;
     }
 
-    public void executeMultipartUploadIfEtagMatches(
+    public void executeMultipartUploadConditionally(
         final S3BlobStore blobStore,
         final String blobName,
         final InputStream input,
         final long blobSize,
         final Map<String, String> metadata,
-        final String eTag,
-        final ActionListener<String> etagListener
+        final ConditionalWriteOptions options,
+        final ActionListener<ConditionalWriteResponse> listener
     ) throws IOException {
 
         ensureMultiPartUploadSize(blobSize);
@@ -534,7 +667,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         final int nbParts = multiparts.v1().intValue();
         final long lastPartSize = multiparts.v2();
         assert blobSize == (((nbParts - 1) * partSize) + lastPartSize) : "blobSize does not match multipart sizes";
-        // test
+
         CreateMultipartUploadRequest.Builder createRequestBuilder = CreateMultipartUploadRequest.builder()
             .bucket(blobStore.bucket())
             .key(blobName)
@@ -564,7 +697,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             );
             if (Strings.isEmpty(uploadId.get())) {
                 IOException exception = new IOException("Failed to initialize multipart upload for " + blobName);
-                etagListener.onFailure(exception);
+                listener.onFailure(exception);
                 throw exception;
             }
 
@@ -594,7 +727,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     IOException exception = new IOException(
                         String.format(Locale.ROOT, "S3 part upload for [%s] part [%d] returned null ETag", blobName, i)
                     );
-                    etagListener.onFailure(exception);
+                    listener.onFailure(exception);
                     throw exception;
                 }
 
@@ -605,18 +738,24 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 IOException exception = new IOException(
                     String.format(Locale.ROOT, "Multipart upload for [%s] sent %d bytes; expected %d bytes", blobName, bytesCount, blobSize)
                 );
-                etagListener.onFailure(exception);
+                listener.onFailure(exception);
                 throw exception;
             }
 
-            CompleteMultipartUploadRequest completeRequest = CompleteMultipartUploadRequest.builder()
+            CompleteMultipartUploadRequest.Builder completeRequestBuilder = CompleteMultipartUploadRequest.builder()
                 .bucket(bucketName)
                 .key(blobName)
                 .uploadId(uploadId.get())
                 .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
-                .ifMatch(eTag)
-                .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
-                .build();
+                .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
+
+            if (options.isIfMatch()) {
+                completeRequestBuilder.ifMatch(options.getVersionIdentifier());
+            } else if (options.isIfNotExists()) {
+                completeRequestBuilder.ifNoneMatch("*");
+            }
+
+            CompleteMultipartUploadRequest completeRequest = completeRequestBuilder.build();
 
             CompleteMultipartUploadResponse completeResponse = SocketAccess.doPrivileged(
                 () -> clientReference.get().completeMultipartUpload(completeRequest)
@@ -624,37 +763,37 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
             if (completeResponse.eTag() != null) {
                 success = true;
-                etagListener.onResponse(completeResponse.eTag());
+                listener.onResponse(ConditionalWriteResponse.success(completeResponse.eTag()));
             } else {
                 IOException exception = new IOException(
                     "S3 multipart upload for [" + blobName + "] returned null ETag, violating data integrity expectations"
                 );
-                etagListener.onFailure(exception);
+                listener.onFailure(exception);
                 throw exception;
             }
 
         } catch (S3Exception e) {
             if (e.statusCode() == HTTP_STATUS_PRECONDITION_FAILED) {
-                etagListener.onFailure(new OpenSearchException("stale_primary_shard", e, "Precondition Failed : Etag Mismatch", blobName));
+                listener.onFailure(new OpenSearchException("stale_primary_shard", e, "Precondition Failed : Etag Mismatch", blobName));
                 throw new IOException("Unable to upload object [" + blobName + "] due to ETag mismatch", e);
             } else {
                 IOException exception = new IOException(
                     String.format(Locale.ROOT, "S3 error during multipart upload [%s]: %s", blobName, e.getMessage()),
                     e
                 );
-                etagListener.onFailure(exception);
+                listener.onFailure(exception);
                 throw exception;
             }
         } catch (SdkException e) {
             IOException exception = new IOException(String.format(Locale.ROOT, "S3 multipart upload failed for [%s]", blobName), e);
-            etagListener.onFailure(exception);
+            listener.onFailure(exception);
             throw exception;
         } catch (Exception e) {
             IOException exception = new IOException(
                 String.format(Locale.ROOT, "Unexpected error during multipart upload [%s]: %s", blobName, e.getMessage()),
                 e
             );
-            etagListener.onFailure(exception);
+            listener.onFailure(exception);
             throw exception;
         } finally {
             if (!success && Strings.hasLength(uploadId.get())) {
