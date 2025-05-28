@@ -160,3 +160,55 @@ setup:
   - match: { profile.shards.0.aggregations.0.debug.unoptimized_segments: 0 }
   - match: { profile.shards.0.aggregations.0.debug.leaf_visited: 0 }
   - match: { profile.shards.0.aggregations.0.debug.inner_visited: 0 }
+
+---
+"date_histogram creating empty buckets":
+  - skip:
+      version: " - 2.99.99"
+      reason:  fix currently only in 3.0
+
+  - do:
+      indices.create:
+        index: test_cb
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+            refresh_interval: -1
+          mappings:
+            properties:
+              date:
+                type: date
+
+  - do:
+      bulk:
+        index: test_cb
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"date": "2016-01-01"}'
+          - '{"index": {}}'
+          - '{"date": "2016-01-02"}'
+          - '{"index": {}}'
+          - '{"date": "2016-02-01"}'
+          - '{"index": {}}'
+          - '{"date": "2016-03-01"}'
+
+  - do:
+      catch: /circuit_breaking_exception/
+      search:
+        index: test_cb
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: date
+                interval: 10s
+                extended_bounds:
+                  min: 0
+                  max: 174155895372
+
+  - match: { error.type: "search_phase_execution_exception" }
+  - match: { error.caused_by.type: "circuit_breaking_exception"}
+  - match: { status: 429 }
