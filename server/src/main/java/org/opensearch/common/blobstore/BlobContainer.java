@@ -34,6 +34,8 @@ package org.opensearch.common.blobstore;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteResponse;
 import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
@@ -127,10 +129,9 @@ public interface BlobContainer {
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
-     * with conditional verification. The upload succeeds only if {@code verificationTag} matches the remote store’s
-     * current identifier. The operation is atomic: on failure, no changes are applied.
-     * The {@code verificationTagListener} is invoked with the new identifier if the operation succeeds,
-     * or with an error if the write fails.
+     applying any conditional checks specified in {@code options}. This operation is atomic: if any precondition fails or the write
+     * encounters an error, no data will be persisted and the failure will be signaled via {@link ActionListener}
+     * The {@code ActionListener<ConditionalWriteResponse>} is invoked with the new identifier if the operation succeeds.
      *
      * @param   blobName
      *          The name of the blob to write the contents of the input stream to.
@@ -141,22 +142,23 @@ public interface BlobContainer {
      *          this value is used in writing the blob to the repository.
      * @param   failIfAlreadyExists
      *          whether to throw a FileAlreadyExistsException if the given blob already exists
-     * @param   verificationTag         Required identifier for conditional upload. The write will only succeed
-     *                                if this matches the remote store’s current identifier.
-     * @param   verificationTagListener Listener to receive the new identifier on success, or to be notified of failure.
+     * @param   options
+     *          The {@link ConditionalWriteOptions} specifying the preconditions that must be met for the upload to proceed.
+     * @param   listener
+     *          The {@link ActionListener} to which upload events and the result will be published.
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws  IOException if the input stream could not be read, the upload fails (including identifier mismatches), or the target blob
      *                     could not be written to
      */
-    default void writeBlobIfVerified(
+    default void writeBlobConditionally(
         String blobName,
         InputStream inputStream,
         long blobSize,
         boolean failIfAlreadyExists,
-        String verificationTag,
-        ActionListener<String> verificationTagListener
+        ConditionalWriteOptions options,
+        ActionListener<ConditionalWriteResponse> listener
     ) throws IOException {
-        throw new UnsupportedOperationException("writeBlobIfVerified is not implemented yet");
+        throw new UnsupportedOperationException("writeBlobConditionally is not implemented yet");
     }
 
     /**
@@ -197,26 +199,28 @@ public interface BlobContainer {
      *          this value is used in writing the blob to the repository.
      * @param   failIfAlreadyExists
      *          whether to throw a FileAlreadyExistsException if the given blob already exists
-     * @param   verificationTag
-     *          Required identifier for conditional upload. The write will only succeed
-     *          if this matches the remote store’s current identifier.
-     * @param   verificationTagListener
-     *          Listener to receive the new identifier on success, or to be notified of failure.
-     * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
+     * @param   metadata
+     *          The metadata to be associate with the blob upload.
+     * @param   options
+     *          The {@link ConditionalWriteOptions} specifying the preconditions that must be met for the upload to proceed.
+     * @param   listener
+     *          The {@link ActionListener} to which upload events and the result will be published.
+     * @throws  FileAlreadyExistsException
+     *          if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws  IOException if the input stream could not be read, the upload fails (including identifier mismatches), or the target blob
      *                     could not be written to
      */
     @ExperimentalApi
-    default void writeBlobWithMetadataIfVerified(
+    default void writeBlobWithMetadataConditionally(
         String blobName,
         InputStream inputStream,
         long blobSize,
         boolean failIfAlreadyExists,
         @Nullable Map<String, String> metadata,
-        String verificationTag,
-        ActionListener<String> verificationTagListener
+        ConditionalWriteOptions options,
+        ActionListener<ConditionalWriteResponse> listener
     ) throws IOException {
-        throw new UnsupportedOperationException("writeBlobWithMetadataIfVerified is not implemented yet");
+        throw new UnsupportedOperationException("writeBlobWithMetadataConditionally is not implemented yet");
     }
 
     /**
