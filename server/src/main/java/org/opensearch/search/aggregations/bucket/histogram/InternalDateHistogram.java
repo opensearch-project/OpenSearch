@@ -59,6 +59,9 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+
 /**
  * Implementation of {@link Histogram}.
  *
@@ -395,19 +398,19 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         return createBucket(buckets.get(0).key, docCount, aggs);
     }
 
-    private int getTotalBucketCount() {
+    private int estimateTotalBucketCount(List<Bucket> list) {
         LongBounds bounds = emptyBucketInfo.bounds;
         int bucketCount = 0;
         if (bounds != null && bounds.getMin() != null && bounds.getMax() != null) {
-            long min = bounds.getMin() + offset;
-            long max = bounds.getMax() + offset;
+            long min = min(bounds.getMin() + offset, list.getFirst().key);
+            long max = max(bounds.getMax() + offset, list.getLast().key);
             long intervalWidth = 0;
             int i = 0;
             long key = min;
             while (key < max && i++ < 10) {
                 bucketCount++;
                 long nextKey = nextKey(key).longValue();
-                intervalWidth = Math.max(intervalWidth, nextKey - key);
+                intervalWidth = max(intervalWidth, nextKey - key);
                 key = nextKey;
             }
             if (bucketCount < 10) {
@@ -419,24 +422,23 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             }
             return (int) estimatedBuckets;
         }
-        return 0;
+        return list.size();
     }
 
     void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
         Bucket lastBucket = null;
         LongBounds bounds = emptyBucketInfo.bounds;
-        int preEmptyBucketCount = list.size();
+        final int originalSize = list.size();
         // we use counts here only to add those values to the CircuitBreaker, list's count has already been added in #reduce, so we only
         // need to add emptyBucketCount
-        int emptyBucketCount = getTotalBucketCount() - list.size();
-        if (emptyBucketCount > 0) {
-            CircuitBreaker breaker = reduceContext.getBreaker();
-            if (breaker != null) {
-                breaker.addEstimateBytesAndMaybeBreak(50L * emptyBucketCount, "empty date histogram buckets");
-            }
-            preEmptyBucketCount += emptyBucketCount;
-            reduceContext.consumeBucketsAndMaybeBreak(emptyBucketCount);
+        final int estimateEmptyBucketCount = estimateTotalBucketCount(list) - originalSize;
+        assert estimateEmptyBucketCount >= 0;
+        CircuitBreaker breaker = reduceContext.getBreaker();
+        if (breaker != null) {
+            // 50 bytes memory usage for each empty bucket
+            breaker.addEstimateBytesAndMaybeBreak(50L * estimateEmptyBucketCount, "empty date histogram buckets");
         }
+        reduceContext.consumeBucketsAndMaybeBreak(estimateEmptyBucketCount);
 
         ListIterator<Bucket> iter = list.listIterator();
 
@@ -493,8 +495,10 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                 key = nextKey(key).longValue();
             }
         }
-        int postEmptyBucketCount = list.size() - preEmptyBucketCount;
-        reduceContext.consumeBucketsAndMaybeBreak(postEmptyBucketCount);
+        int postAddEmptyBucketCount = list.size() - estimateEmptyBucketCount - originalSize;
+        if (postAddEmptyBucketCount > 0) {
+            reduceContext.consumeBucketsAndMaybeBreak(postAddEmptyBucketCount);
+        }
     }
 
     @Override
