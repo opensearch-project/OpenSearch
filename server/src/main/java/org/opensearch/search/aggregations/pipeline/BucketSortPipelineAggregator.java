@@ -31,7 +31,6 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
@@ -93,7 +92,7 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
 
         List<ComparableBucket> ordered = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
-             checkCancelled(reduceContext);
+            checkCancelled(reduceContext);
             ComparableBucket comparableBucket = new ComparableBucket(originalAgg, bucket);
             if (comparableBucket.skip() == false) {
                 ordered.add(comparableBucket);

@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.script.BucketAggregationSelectorScript;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.InternalAggregation;

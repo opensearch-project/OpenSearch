@@ -132,7 +132,8 @@ public class BucketCollectorProcessor {
      * @param collectors collection of aggregation collectors to reduce
      * @return list of unwrapped {@link InternalAggregation}
      */
-    public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors, BooleanSupplier isCancelled) throws IOException {
+    public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors, BooleanSupplier isCancelled)
+        throws IOException {
         List<InternalAggregation> internalAggregations = new ArrayList<>();
 
         final Deque<Collector> allCollectors = new LinkedList<>(collectors);

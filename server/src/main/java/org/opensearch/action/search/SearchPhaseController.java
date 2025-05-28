@@ -93,7 +93,10 @@ public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final BiFunction<SearchSourceBuilder, BooleanSupplier, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final BiFunction<
+        SearchSourceBuilder,
+        BooleanSupplier,
+        InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
 
     public SearchPhaseController(
         NamedWriteableRegistry namedWriteableRegistry,

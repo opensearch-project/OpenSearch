@@ -11,7 +11,6 @@ package org.opensearch.search.aggregations;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.query.ReduceableSearchResult;
 
@@ -57,7 +56,8 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
 
     @Override
     public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
-        final List<InternalAggregation> internals = context.bucketCollectorProcessor().toInternalAggregations(collectors, context::isCancelled);
+        final List<InternalAggregation> internals = context.bucketCollectorProcessor()
+            .toInternalAggregations(collectors, context::isCancelled);
         assert internals.stream().noneMatch(Objects::isNull);
         context.aggregations().resetBucketMultiConsumer();
 

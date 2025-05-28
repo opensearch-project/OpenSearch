@@ -448,9 +448,9 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                     fieldType,
                     pruningThreshold
                 );
-                aggregator.preCollection();
+                aggregator.preCollection(() -> {});
                 indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
+                aggregator.postCollection(() -> {});
 
                 MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
                     Integer.MAX_VALUE,
@@ -460,9 +460,10 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                     aggregator.context().bigArrays(),
                     getMockScriptService(),
                     reduceBucketConsumer,
-                    PipelineAggregator.PipelineTree.EMPTY
+                    PipelineAggregator.PipelineTree.EMPTY,
+                    () -> false
                 );
-                InternalCardinality topLevel = (InternalCardinality) aggregator.buildTopLevel();
+                InternalCardinality topLevel = (InternalCardinality) aggregator.buildTopLevel(() -> {});
                 InternalCardinality card = (InternalCardinality) topLevel.reduce(Collections.singletonList(topLevel), context);
                 doAssertReducedMultiBucketConsumer(card, reduceBucketConsumer);
 
@@ -520,9 +521,9 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                     new AtomicInteger(),
                     createAggregator(aggregationBuilder, indexSearcher, fieldType)
                 );
-                aggregator.preCollection();
+                aggregator.preCollection(() -> {});
                 indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
+                aggregator.postCollection(() -> {});
 
                 MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
                     Integer.MAX_VALUE,
@@ -532,9 +533,10 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                     aggregator.context().bigArrays(),
                     getMockScriptService(),
                     reduceBucketConsumer,
-                    PipelineAggregator.PipelineTree.EMPTY
+                    PipelineAggregator.PipelineTree.EMPTY,
+                    () -> false
                 );
-                InternalCardinality topLevel = (InternalCardinality) aggregator.buildTopLevel();
+                InternalCardinality topLevel = (InternalCardinality) aggregator.buildTopLevel(() -> {});
                 InternalCardinality card = (InternalCardinality) topLevel.reduce(Collections.singletonList(topLevel), context);
                 doAssertReducedMultiBucketConsumer(card, reduceBucketConsumer);
 

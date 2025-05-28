@@ -688,6 +688,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
         C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
+        Runnable isTaskCancelled = () -> {};
 
         if (shardFanOut && searcher.getIndexReader().leaves().size() > 0) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
@@ -706,17 +707,17 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                     new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
                 );
                 C a = createAggregator(query, builder, subSearcher, indexSettings, shardBucketConsumer, fieldTypes);
-                a.preCollection();
+                a.preCollection(isTaskCancelled);
                 Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
                 subSearcher.search(weight, a);
-                a.postCollection();
-                aggs.add(a.buildTopLevel());
+                a.postCollection(isTaskCancelled);
+                aggs.add(a.buildTopLevel(isTaskCancelled));
             }
         } else {
-            root.preCollection();
+            root.preCollection(isTaskCancelled);
             searcher.search(rewritten, root);
-            root.postCollection();
-            aggs.add(root.buildTopLevel());
+            root.postCollection(isTaskCancelled);
+            aggs.add(root.buildTopLevel(isTaskCancelled));
         }
 
         if (randomBoolean() && aggs.size() > 1) {
@@ -778,6 +779,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         boolean assertCollectorEarlyTermination,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        Runnable taskCancellationCheck = () -> {};
         query = query.rewrite(searcher);
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
@@ -804,10 +806,10 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             fieldTypes
         );
 
-        countingAggregator.preCollection();
+        countingAggregator.preCollection(taskCancellationCheck);
         searcher.search(query, countingAggregator);
-        countingAggregator.postCollection();
-        aggs.add(countingAggregator.buildTopLevel());
+        countingAggregator.postCollection(taskCancellationCheck);
+        aggs.add(countingAggregator.buildTopLevel(taskCancellationCheck));
         if (compositeIndexFieldInfo != null && assertCollectorEarlyTermination) {
             assertEquals(0, countingAggregator.collectCounter.get());
         }
@@ -1405,13 +1407,13 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         }
 
         @Override
-        public void preCollection() throws IOException {
-            delegate.preCollection();
+        public void preCollection(Runnable taskCancellationCheck) throws IOException {
+            delegate.preCollection(taskCancellationCheck);
         }
 
         @Override
-        public void postCollection() throws IOException {
-            delegate.postCollection();
+        public void postCollection(Runnable taskCancellationCheck) throws IOException {
+            delegate.postCollection(taskCancellationCheck);
         }
 
         public void setWeight(Weight weight) {

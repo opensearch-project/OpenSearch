@@ -203,12 +203,23 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null, () -> pipelineTree);
+                return InternalAggregation.ReduceContext.forPartialReduction(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    null,
+                    () -> pipelineTree,
+                    () -> false
+                );
             }
 
             @Override
             public ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, pipelineTree);
+                return InternalAggregation.ReduceContext.forFinalReduction(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    null,
+                    b -> {},
+                    pipelineTree,
+                    () -> false
+                );
             }
         };
     }
@@ -383,7 +394,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
                 bigArrays,
                 mockScriptService,
-                () -> PipelineAggregator.PipelineTree.EMPTY
+                () -> PipelineAggregator.PipelineTree.EMPTY,
+                () -> false
             );
             @SuppressWarnings("unchecked")
             T reduced = (T) toPartialReduce.get(0).reduce(toPartialReduce, context);
@@ -413,7 +425,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             bigArrays,
             mockScriptService,
             bucketConsumer,
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            () -> false
         );
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);

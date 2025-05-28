@@ -41,7 +41,6 @@ import org.opensearch.common.Numbers;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongArray;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
@@ -78,7 +77,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -364,7 +362,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
          * Build the sub-aggregations into the buckets. This will usually
          * delegate to {@link #buildSubAggsForAllBuckets}.
          */
-        abstract void buildSubAggs(B[][] topBucketsPerOrd,  Runnable checkCancelled) throws IOException;
+        abstract void buildSubAggs(B[][] topBucketsPerOrd, Runnable checkCancelled) throws IOException;
 
         /**
          * Collect extra entries for "zero" hit documents if they were requested
@@ -757,7 +755,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         }
 
         @Override
-        void buildSubAggs(SignificantLongTerms.Bucket[][] topBucketsPerOrd,  Runnable checkCancelled) throws IOException {
+        void buildSubAggs(SignificantLongTerms.Bucket[][] topBucketsPerOrd, Runnable checkCancelled) throws IOException {
             checkCancelled.run();
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }

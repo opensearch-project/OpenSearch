@@ -160,7 +160,8 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             null,
             null,
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY
+            PipelineAggregator.PipelineTree.EMPTY,
+            () -> false
         );
         expectThrows(CircuitBreakingException.class, () -> histogram1.reduce(List.of(histogram1, histogram2), reduceContext));
         Mockito.verify(breaker, Mockito.times(1)).addEstimateBytesAndMaybeBreak(0, "allocated_buckets");

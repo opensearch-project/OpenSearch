@@ -1805,7 +1805,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Returns a builder for {@link InternalAggregation.ReduceContext}. This
      * builder retains a reference to the provided {@link SearchSourceBuilder}.
      */
-    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchSourceBuilder searchSourceBuilder, BooleanSupplier isRequestCancelled) {
+    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(
+        SearchSourceBuilder searchSourceBuilder,
+        BooleanSupplier isRequestCancelled
+    ) {
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {

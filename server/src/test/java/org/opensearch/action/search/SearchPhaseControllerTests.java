@@ -129,7 +129,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
     @Before
     public void setup() {
         reductions = new CopyOnWriteArrayList<>();
-        searchPhaseController = new SearchPhaseController(writableRegistry(), s -> new InternalAggregation.ReduceContextBuilder() {
+        searchPhaseController = new SearchPhaseController(writableRegistry(), (s, t) -> new InternalAggregation.ReduceContextBuilder() {
             @Override
             public ReduceContext forPartialReduction() {
                 reductions.add(false);
@@ -137,7 +137,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
                     () -> PipelineTree.EMPTY,
-                    () -> false
+                    t
                 );
             }
 
@@ -148,7 +148,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                     null,
                     b -> {},
                     PipelineTree.EMPTY,
-                    () -> false
+                    t
                 );
             };
         });

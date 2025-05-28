@@ -116,7 +116,6 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.search.SearchService.AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD;
@@ -208,7 +207,10 @@ final class DefaultSearchContext extends SearchContext {
     private final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
     private final QueryShardContext queryShardContext;
     private final FetchPhase fetchPhase;
-    private final BiFunction<SearchSourceBuilder, BooleanSupplier, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final BiFunction<
+        SearchSourceBuilder,
+        BooleanSupplier,
+        InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
     private final String concurrentSearchMode;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
     private final int maxAggRewriteFilters;
@@ -1044,7 +1046,8 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public InternalAggregation.ReduceContext partialOnShard() {
-        InternalAggregation.ReduceContext rc = requestToAggReduceContextBuilder.apply(request.source(), this::isCancelled).forPartialReduction();
+        InternalAggregation.ReduceContext rc = requestToAggReduceContextBuilder.apply(request.source(), this::isCancelled)
+            .forPartialReduction();
         rc.setSliceLevel(shouldUseConcurrentSearch());
         return rc;
     }

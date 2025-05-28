@@ -664,7 +664,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
 
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
-            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+            (r, t) -> InternalAggregationTestCase.emptyReduceContextBuilder()
         );
 
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
@@ -675,7 +675,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             task.getProgressListener(),
             writableRegistry(),
             shardsIter.size(),
-            exc -> {}
+            exc -> {},
+            () -> false
         );
 
         CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(

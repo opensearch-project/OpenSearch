@@ -53,7 +53,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.*;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
 
@@ -303,7 +307,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     protected static void checkCancelled(ReduceContext reduceContext) {
-        if (reduceContext.isTaskCancelled()){
+        if (reduceContext.isTaskCancelled()) {
             throw new OpenSearchRejectedExecutionException("search is cancelled");
         }
         reduceContext.consumeBucketsAndMaybeBreak(0);

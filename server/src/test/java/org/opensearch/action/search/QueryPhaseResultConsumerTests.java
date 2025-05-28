@@ -71,25 +71,30 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        searchPhaseController = new SearchPhaseController(writableRegistry(), s -> new InternalAggregation.ReduceContextBuilder() {
-            @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    null,
-                    () -> PipelineAggregator.PipelineTree.EMPTY
-                );
-            }
+        searchPhaseController = new SearchPhaseController(
+            writableRegistry(),
+            (s, isTaskCancelled) -> new InternalAggregation.ReduceContextBuilder() {
+                @Override
+                public InternalAggregation.ReduceContext forPartialReduction() {
+                    return InternalAggregation.ReduceContext.forPartialReduction(
+                        BigArrays.NON_RECYCLING_INSTANCE,
+                        null,
+                        () -> PipelineAggregator.PipelineTree.EMPTY,
+                        isTaskCancelled
+                    );
+                }
 
-            public InternalAggregation.ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    null,
-                    b -> {},
-                    PipelineAggregator.PipelineTree.EMPTY
-                );
-            };
-        });
+                public InternalAggregation.ReduceContext forFinalReduction() {
+                    return InternalAggregation.ReduceContext.forFinalReduction(
+                        BigArrays.NON_RECYCLING_INSTANCE,
+                        null,
+                        b -> {},
+                        PipelineAggregator.PipelineTree.EMPTY,
+                        isTaskCancelled
+                    );
+                };
+            }
+        );
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
         executor = OpenSearchExecutors.newFixed(
             "test",
@@ -130,7 +135,8 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
             e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
                 curr.addSuppressed(prev);
                 return curr;
-            })
+            }),
+            () -> false
         );
 
         CountDownLatch partialReduceLatch = new CountDownLatch(10);

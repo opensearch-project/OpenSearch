@@ -330,6 +330,9 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
     }
 
     private SearchPhaseController searchPhaseController() {
-        return new SearchPhaseController(writableRegistry(), (request, isTaskCancelled) -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        return new SearchPhaseController(
+            writableRegistry(),
+            (request, isTaskCancelled) -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
     }
 }

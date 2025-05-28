@@ -88,9 +88,9 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         );
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(testCollector(deferredCollectedDocIds)));
-        collector.preCollection();
+        collector.preCollection(() -> {});
         indexSearcher.search(termQuery, collector);
-        collector.postCollection();
+        collector.postCollection(() -> {});
         collector.prepareSelectedBuckets(0);
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
@@ -115,12 +115,12 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
             }
 
             @Override
-            public void preCollection() throws IOException {
+            public void preCollection(Runnable taskCancellationCheck) throws IOException {
 
             }
 
             @Override
-            public void postCollection() throws IOException {
+            public void postCollection(Runnable taskCancellationCheck) throws IOException {
 
             }
 

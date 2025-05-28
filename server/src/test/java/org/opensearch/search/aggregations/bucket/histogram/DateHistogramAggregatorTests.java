@@ -1678,9 +1678,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
 
                 CountingAggregator aggregator = createCountingAggregator(query, aggregationBuilder, indexSearcher, fieldType);
-                aggregator.preCollection();
+                aggregator.preCollection(() -> {});
                 indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
+                aggregator.postCollection(() -> {});
 
                 MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
                     Integer.MAX_VALUE,
@@ -1690,9 +1690,10 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     aggregator.context().bigArrays(),
                     getMockScriptService(),
                     reduceBucketConsumer,
-                    PipelineAggregator.PipelineTree.EMPTY
+                    PipelineAggregator.PipelineTree.EMPTY,
+                    () -> false
                 );
-                InternalDateHistogram topLevel = (InternalDateHistogram) aggregator.buildTopLevel();
+                InternalDateHistogram topLevel = (InternalDateHistogram) aggregator.buildTopLevel(() -> {});
                 InternalDateHistogram histogram = (InternalDateHistogram) topLevel.reduce(Collections.singletonList(topLevel), context);
                 doAssertReducedMultiBucketConsumer(histogram, reduceBucketConsumer);
 

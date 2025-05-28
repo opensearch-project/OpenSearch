@@ -367,12 +367,12 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
         CountingAggregator countingAggregator = new CountingAggregator(new AtomicInteger(), aggregator);
 
         // Execute aggregation
-        countingAggregator.preCollection();
+        countingAggregator.preCollection(() -> {});
         indexSearcher.search(matchAllQuery, countingAggregator);
-        countingAggregator.postCollection();
+        countingAggregator.postCollection(() -> {});
 
         // Reduce results
-        IA topLevel = (IA) countingAggregator.buildTopLevel();
+        IA topLevel = (IA) countingAggregator.buildTopLevel(() -> {});
         MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = createReduceBucketConsumer();
         InternalAggregation.ReduceContext context = createReduceContext(countingAggregator, reduceBucketConsumer);
 
@@ -406,7 +406,8 @@ public class FilterRewriteSubAggTests extends AggregatorTestCase {
             aggregator.context().bigArrays(),
             getMockScriptService(),
             reduceBucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY
+            PipelineAggregator.PipelineTree.EMPTY,
+            () -> false
         );
     }
 

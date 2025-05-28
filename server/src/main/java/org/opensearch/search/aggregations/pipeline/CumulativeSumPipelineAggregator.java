@@ -32,7 +32,6 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;

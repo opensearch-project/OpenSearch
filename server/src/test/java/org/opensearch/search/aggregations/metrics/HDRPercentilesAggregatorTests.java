@@ -224,9 +224,9 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
                 }
 
                 HDRPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
-                aggregator.preCollection();
+                aggregator.preCollection(() -> {});
                 indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
+                aggregator.postCollection(() -> {});
                 verify.accept((InternalHDRPercentiles) aggregator.buildAggregation(0L));
 
             }

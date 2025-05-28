@@ -799,7 +799,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     ) {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
-            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+            (r, s) -> InternalAggregationTestCase.emptyReduceContextBuilder()
         );
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
@@ -855,7 +855,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
     ) {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
-            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+            (r, s) -> InternalAggregationTestCase.emptyReduceContextBuilder()
         );
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
