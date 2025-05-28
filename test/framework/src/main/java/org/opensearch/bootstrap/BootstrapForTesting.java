@@ -46,6 +46,7 @@ import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.fips.FipsMode;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.plugins.PluginInfo;
 import org.junit.Assert;
@@ -72,6 +73,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
@@ -135,6 +137,9 @@ public class BootstrapForTesting {
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
+        if (FipsMode.CHECK.isFipsEnabled()) {
+            SecurityProviderManager.excludeSunJCE();
+        }
 
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
@@ -217,6 +222,8 @@ public class BootstrapForTesting {
             }
         }
     }
+
+    static Supplier<Integer> sunJceInsertFunction;
 
     /** Add the codebase url of the given classname to the codebases map, if the class exists. */
     private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
