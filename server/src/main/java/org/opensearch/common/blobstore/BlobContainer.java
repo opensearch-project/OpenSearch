@@ -182,11 +182,9 @@ public interface BlobContainer {
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
-     * attaching the provided metadata and with conditional verification. The upload succeeds only if {@code verificationTag}
-     * matches the remote store’s current identifier. The operation is atomic: on failure, no changes are applied.
-     * <p>
-     * The {@code verificationTagListener} is invoked with the new identifier if the operation succeeds,
-     * or with an error if the write fails.
+     * attaching the provided metadata and applying any conditional checks specified in {@code options}. this operation is atomic:
+     * if any precondition fails or the write encounters an error, no data will be persisted and the failure will be signaled via {@link ActionListener}
+     * The {@code ActionListener<ConditionalWriteResponse>} is invoked with the new identifier if the operation succeeds.
      *
      * @param   blobName
      *          The name of the blob to write the contents of the input stream to.
