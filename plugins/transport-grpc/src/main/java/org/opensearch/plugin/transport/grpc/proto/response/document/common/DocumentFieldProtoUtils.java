@@ -48,4 +48,25 @@ public class DocumentFieldProtoUtils {
         return ObjectMapProtoUtils.toProto(fieldValue);
     }
 
+    /**
+     * Converts a DocumentField values (list of objects) to its Protocol Buffer representation.
+     * This method is equivalent to the  {@link DocumentField#toXContent(XContentBuilder, ToXContent.Params)}
+     *
+     * @param fieldValues The list of DocumentField values to convert
+     * @param valueBuilder The builder to populate with field values
+     */
+    public static void toProto(List<Object> fieldValues, ObjectMap.Value.Builder valueBuilder) {
+        ObjectMapProtoUtils.toProto(fieldValues, valueBuilder);
+    }
+
+    /**
+     * Converts a DocumentField value (object) to its Protocol Buffer representation.
+     * This method is equivalent to the  {@link DocumentField#toXContent(XContentBuilder, ToXContent.Params)}
+     *
+     * @param fieldValue The DocumentField value to convert
+     * @param valueBuilder The builder to populate with field value
+     */
+    public static void toProto(Object fieldValue, ObjectMap.Value.Builder valueBuilder) {
+        ObjectMapProtoUtils.toProto(fieldValue, valueBuilder);
+    }
 }
