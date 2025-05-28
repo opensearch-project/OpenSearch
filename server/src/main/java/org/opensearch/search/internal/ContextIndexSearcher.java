@@ -306,7 +306,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             }
             // TODO : Make this a responsibility for the callers rather than implicitly getting it done here ?
-            searchContext.bucketCollectorProcessor().processPostCollection(collector);
+            searchContext.bucketCollectorProcessor().processPostCollection(collector, searchContext::isCancelled);
         } catch (Throwable t) {
             searchContext.indexShard().getSearchOperationListener().onFailedSliceExecution(searchContext);
             throw t;

@@ -305,7 +305,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     }
 
     private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-
+        checkCancelled(reduceContext);
         final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<IteratorAndCurrent<Bucket>>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
@@ -434,6 +434,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
         if (reduceContext.isFinalReduce()) {
             if (minDocCount == 0) {

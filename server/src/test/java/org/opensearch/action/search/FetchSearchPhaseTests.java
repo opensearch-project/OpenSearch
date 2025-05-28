@@ -63,7 +63,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
     public void testShortcutQueryAndFetchOptimization() {
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
-            s -> InternalAggregationTestCase.emptyReduceContextBuilder()
+            (s, t) -> InternalAggregationTestCase.emptyReduceContextBuilder()
         );
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
@@ -72,7 +72,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(),
             1,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         boolean hasHits = randomBoolean();
         final int numHits;
@@ -125,7 +126,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
-            s -> InternalAggregationTestCase.emptyReduceContextBuilder()
+            (s, t) -> InternalAggregationTestCase.emptyReduceContextBuilder()
         );
         QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
             OpenSearchExecutors.newDirectExecutorService(),
@@ -133,7 +134,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(),
             2,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         int resultSetSize = randomIntBetween(2, 10);
         ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
@@ -221,7 +223,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
-            s -> InternalAggregationTestCase.emptyReduceContextBuilder()
+            (s, t) -> InternalAggregationTestCase.emptyReduceContextBuilder()
         );
         QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
             OpenSearchExecutors.newDirectExecutorService(),
@@ -229,7 +231,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(),
             2,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         int resultSetSize = randomIntBetween(2, 10);
         final ShardSearchContextId ctx = new ShardSearchContextId(UUIDs.base64UUID(), 123);
@@ -318,7 +321,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
-            s -> InternalAggregationTestCase.emptyReduceContextBuilder()
+            (s, t) -> InternalAggregationTestCase.emptyReduceContextBuilder()
         );
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
         QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
@@ -327,7 +330,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(),
             numHits,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         for (int i = 0; i < numHits; i++) {
             QuerySearchResult queryResult = new QuerySearchResult(
@@ -409,7 +413,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
-            s -> InternalAggregationTestCase.emptyReduceContextBuilder()
+            (s, t) -> InternalAggregationTestCase.emptyReduceContextBuilder()
         );
         QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
             OpenSearchExecutors.newDirectExecutorService(),
@@ -417,7 +421,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(),
             2,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(
@@ -501,7 +506,7 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
-            s -> InternalAggregationTestCase.emptyReduceContextBuilder()
+            (s, x) -> InternalAggregationTestCase.emptyReduceContextBuilder()
         );
         QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
             OpenSearchExecutors.newDirectExecutorService(),
@@ -509,7 +514,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(),
             2,
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         int resultSetSize = 1;
         final ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);

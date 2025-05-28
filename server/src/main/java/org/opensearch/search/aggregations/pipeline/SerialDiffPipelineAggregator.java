@@ -77,6 +77,7 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         InternalMultiBucketAggregation<
             ? extends InternalMultiBucketAggregation,
             ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
@@ -90,6 +91,7 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         int counter = 0;
 
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
+            checkCancelled(reduceContext);
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
             Bucket newBucket = bucket;
 

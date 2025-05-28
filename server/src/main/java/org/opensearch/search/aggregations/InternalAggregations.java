@@ -36,6 +36,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.SiblingPipelineAggregator;
@@ -132,6 +133,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */
     public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
+        checkCancelled(context);
         InternalAggregations reduced = reduce(aggregationsList, context);
         if (reduced == null) {
             return null;
@@ -164,6 +166,8 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             return null;
         }
 
+        checkCancelled(context);
+
         // first we collect all aggregations of the same type and list them together
         Map<String, List<InternalAggregation>> aggByName = new HashMap<>();
         for (InternalAggregations aggregations : aggregationsList) {
@@ -179,6 +183,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         // now we can use the first aggregation of each list to handle the reduce of its list
         List<InternalAggregation> reducedAggregations = new ArrayList<>();
         for (Map.Entry<String, List<InternalAggregation>> entry : aggByName.entrySet()) {
+            checkCancelled(context);
             List<InternalAggregation> aggregations = entry.getValue();
             // Sort aggregations so that unmapped aggs come last in the list
             // If all aggs are unmapped, the agg that leads the reduction will just return itself
@@ -193,6 +198,13 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         }
 
         return new InternalAggregations(reducedAggregations);
+    }
+
+    private static void checkCancelled(ReduceContext context) {
+        if (context.isTaskCancelled()) {
+            throw new TaskCancelledException("task is cancelled, stopping aggregations");
+        }
+        context.consumeBucketsAndMaybeBreak(0);
     }
 
     /**

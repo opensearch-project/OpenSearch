@@ -94,6 +94,7 @@ public abstract class BaseGeoGrid<B extends BaseGeoGridBucket> extends InternalM
 
     @Override
     public BaseGeoGrid reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         LongObjectPagedHashMap<List<BaseGeoGridBucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             BaseGeoGrid grid = (BaseGeoGrid) aggregation;
@@ -101,6 +102,7 @@ public abstract class BaseGeoGrid<B extends BaseGeoGridBucket> extends InternalM
                 buckets = new LongObjectPagedHashMap<>(grid.buckets.size(), reduceContext.bigArrays());
             }
             for (Object obj : grid.buckets) {
+                checkCancelled(reduceContext);
                 BaseGeoGridBucket bucket = (BaseGeoGridBucket) obj;
                 List<BaseGeoGridBucket> existingBuckets = buckets.get(bucket.hashAsLong());
                 if (existingBuckets == null) {
@@ -114,6 +116,7 @@ public abstract class BaseGeoGrid<B extends BaseGeoGridBucket> extends InternalM
         final int size = Math.toIntExact(reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size()));
         BucketPriorityQueue<BaseGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
         for (LongObjectPagedHashMap.Cursor<List<BaseGeoGridBucket>> cursor : buckets) {
+            checkCancelled(reduceContext);
             List<BaseGeoGridBucket> sameCellBuckets = cursor.value;
             ordered.insertWithOverflow(reduceBucket(sameCellBuckets, reduceContext));
         }

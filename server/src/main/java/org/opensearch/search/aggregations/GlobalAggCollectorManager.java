@@ -51,7 +51,7 @@ public class GlobalAggCollectorManager extends AggregationCollectorManager {
         // we need to manually processPostCollection here to build empty InternalAggregation objects for this collector tree.
         if (context.searcher().getLeafContexts().isEmpty()) {
             for (Collector c : collectors) {
-                context.bucketCollectorProcessor().processPostCollection(c);
+                context.bucketCollectorProcessor().processPostCollection(c, context::isCancelled);
             }
         }
         return super.reduce(collectors);

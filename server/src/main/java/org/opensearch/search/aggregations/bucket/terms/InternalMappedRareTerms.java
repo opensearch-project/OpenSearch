@@ -111,11 +111,13 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         Map<Object, List<B>> buckets = new HashMap<>();
         InternalRareTerms<A, B> referenceTerms = null;
         SetBackedScalingCuckooFilter filter = null;
 
         for (InternalAggregation aggregation : aggregations) {
+            checkCancelled(reduceContext);
             // Unmapped rare terms don't have a cuckoo filter so we'll skip all this work
             // and save some type casting headaches later.
             if (aggregation.isMapped() == false) {

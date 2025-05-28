@@ -278,9 +278,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public InternalExtendedStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         double sumOfSqrs = 0;
         double compensationOfSqrs = 0;
         for (InternalAggregation aggregation : aggregations) {
+            checkCancelled(reduceContext);
             InternalExtendedStats stats = (InternalExtendedStats) aggregation;
             if (stats.sigma != sigma) {
                 throw new IllegalStateException("Cannot reduce other stats aggregations that have a different sigma");

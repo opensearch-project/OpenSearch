@@ -44,6 +44,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongHash;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketCollector;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -156,12 +157,12 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     }
 
     @Override
-    public void preCollection() throws IOException {
-        collector.preCollection();
+    public void preCollection(Runnable checkCancelled) throws IOException {
+        collector.preCollection(checkCancelled);
     }
 
     @Override
-    public void postCollection() throws IOException {
+    public void postCollection(Runnable checkCancelled) throws IOException {
         assert searchContext.searcher().getLeafContexts().isEmpty() || finished != true;
         finishLeaf();
         finished = true;
@@ -194,6 +195,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         for (Entry entry : entries) {
             assert entry.docDeltas.size() > 0 : "segment should have at least one document to replay, got 0";
             try {
+                checkCancelled();
                 final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
                 DocIdSetIterator scoreIt = null;
                 if (needsScores) {
@@ -226,7 +228,13 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 // continue with the following leaf
             }
         }
-        collector.postCollection();
+        collector.postCollection(this::checkCancelled);
+    }
+
+    protected void checkCancelled() {
+        if (searchContext.isCancelled()) {
+            throw new OpenSearchRejectedExecutionException("query is cancelled");
+        }
     }
 
     /**
@@ -253,5 +261,4 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             }
         };
     }
-
 }

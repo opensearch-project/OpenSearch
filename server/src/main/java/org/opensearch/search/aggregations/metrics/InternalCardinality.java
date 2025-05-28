@@ -102,8 +102,10 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         HyperLogLogPlusPlus reduced = null;
         for (InternalAggregation aggregation : aggregations) {
+            checkCancelled(reduceContext);
             final InternalCardinality cardinality = (InternalCardinality) aggregation;
             if (cardinality.counts != null) {
                 if (reduced == null) {

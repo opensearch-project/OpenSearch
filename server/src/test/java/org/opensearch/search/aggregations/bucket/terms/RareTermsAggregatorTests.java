@@ -294,10 +294,10 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     for (int i = 0; i < fieldNames.length; i++) {
                         RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name").field(fieldNames[i]);
                         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2);
-                        aggregator.preCollection();
+                        aggregator.preCollection(() -> {});
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                        aggregator.postCollection();
-                        RareTerms result = (RareTerms) aggregator.buildTopLevel();
+                        aggregator.postCollection(() -> {});
+                        RareTerms result = (RareTerms) aggregator.buildTopLevel(() -> {});
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
                     }

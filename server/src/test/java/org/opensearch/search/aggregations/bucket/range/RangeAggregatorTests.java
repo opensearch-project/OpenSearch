@@ -698,9 +698,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 }
 
                 CountingAggregator aggregator = createCountingAggregator(query, aggregationBuilder, indexSearcher, fieldType);
-                aggregator.preCollection();
+                aggregator.preCollection(() -> {});
                 indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
+                aggregator.postCollection(() -> {});
 
                 MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
                     Integer.MAX_VALUE,
@@ -710,9 +710,10 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                     aggregator.context().bigArrays(),
                     getMockScriptService(),
                     reduceBucketConsumer,
-                    PipelineAggregator.PipelineTree.EMPTY
+                    PipelineAggregator.PipelineTree.EMPTY,
+                    () -> false
                 );
-                InternalRange topLevel = (InternalRange) aggregator.buildTopLevel();
+                InternalRange topLevel = (InternalRange) aggregator.buildTopLevel(() -> {});
                 InternalRange agg = (InternalRange) topLevel.reduce(Collections.singletonList(topLevel), context);
                 doAssertReducedMultiBucketConsumer(agg, reduceBucketConsumer);
 

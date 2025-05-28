@@ -228,7 +228,8 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return resultStrategy.buildAggregations(owningBucketOrds);
+
+        return resultStrategy.buildAggregations(owningBucketOrds, this::checkCancelled);
     }
 
     @Override
@@ -254,12 +255,14 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
     abstract class ResultStrategy<R extends InternalAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
         implements
             Releasable {
-        private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        private InternalAggregation[] buildAggregations(long[] owningBucketOrds, Runnable checkCancelled) throws IOException {
+            checkCancelled.run();
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCounts = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
+                collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx], checkCancelled);
+                checkCancelled.run();
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
 
                 int size = (int) Math.min(bucketsInOrd, localBucketCountThresholds.getRequiredSize());
@@ -299,7 +302,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 }
             }
 
-            buildSubAggs(topBucketsPerOrd);
+            buildSubAggs(topBucketsPerOrd, checkCancelled);
 
             InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
@@ -359,13 +362,13 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
          * Build the sub-aggregations into the buckets. This will usually
          * delegate to {@link #buildSubAggsForAllBuckets}.
          */
-        abstract void buildSubAggs(B[][] topBucketsPerOrd) throws IOException;
+        abstract void buildSubAggs(B[][] topBucketsPerOrd, Runnable checkCancelled) throws IOException;
 
         /**
          * Collect extra entries for "zero" hit documents if they were requested
          * and required.
          */
-        abstract void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException;
+        abstract void collectZeroDocEntriesIfNeeded(long owningBucketOrd, Runnable checkCancelled) throws IOException;
 
         /**
          * Turn the buckets into an aggregation result.
@@ -398,7 +401,8 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         }
 
         @Override
-        final void buildSubAggs(B[][] topBucketsPerOrd) throws IOException {
+        final void buildSubAggs(B[][] topBucketsPerOrd, Runnable checkCancelled) throws IOException {
+            checkCancelled.run();
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }
 
@@ -410,7 +414,8 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         abstract B buildEmptyBucket();
 
         @Override
-        final void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {
+        final void collectZeroDocEntriesIfNeeded(long owningBucketOrd, Runnable checkCancelled) throws IOException {
+            checkCancelled.run();
             if (bucketCountThresholds.getMinDocCount() != 0) {
                 return;
             }
@@ -419,8 +424,10 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
             }
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
+                checkCancelled.run();
                 SortedNumericDocValues values = getValues(ctx);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
+                    checkCancelled.run();
                     if (values.advanceExact(docId)) {
                         int valueCount = values.docValueCount();
                         for (int v = 0; v < valueCount; ++v) {
@@ -748,12 +755,13 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         }
 
         @Override
-        void buildSubAggs(SignificantLongTerms.Bucket[][] topBucketsPerOrd) throws IOException {
+        void buildSubAggs(SignificantLongTerms.Bucket[][] topBucketsPerOrd, Runnable checkCancelled) throws IOException {
+            checkCancelled.run();
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }
 
         @Override
-        void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {}
+        void collectZeroDocEntriesIfNeeded(long owningBucketOrd, Runnable checkCancelled) throws IOException {}
 
         @Override
         SignificantLongTerms buildResult(long owningBucketOrd, long otherDocCoun, SignificantLongTerms.Bucket[] topBuckets) {

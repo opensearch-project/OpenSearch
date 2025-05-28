@@ -248,6 +248,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected void doPreCollection() throws IOException {
+        checkCancelled();
         List<BucketCollector> collectors = Arrays.asList(subAggregators);
         deferredCollectors = MultiBucketCollector.wrap(collectors);
         collectableSubAggregators = BucketCollector.NO_OP_COLLECTOR;
@@ -665,7 +666,7 @@ public final class CompositeAggregator extends BucketsAggregator {
             Query query = context.query();
             weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
         }
-        deferredCollectors.preCollection();
+        deferredCollectors.preCollection(this::checkCancelled);
         for (Entry entry : entries) {
             DocIdSetIterator docIdSetIterator = entry.docIdSet.iterator();
             if (docIdSetIterator == null) {
@@ -692,7 +693,7 @@ public final class CompositeAggregator extends BucketsAggregator {
                 collector.collect(docID);
             }
         }
-        deferredCollectors.postCollection();
+        deferredCollectors.postCollection(this::checkCancelled);
     }
 
     /**

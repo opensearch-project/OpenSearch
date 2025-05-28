@@ -35,6 +35,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorBase;
@@ -112,6 +113,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Utility method to collect the given doc in the given bucket (identified by the bucket ordinal)
      */
     public final void collectBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
+        checkCancelled();
         grow(bucketOrd + 1);
         collectExistingBucket(subCollector, doc, bucketOrd);
     }
@@ -136,6 +138,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      */
     public final void collectStarTreeBucket(StarTreeBucketCollector collector, long docCount, long bucketOrd, int entryBit)
         throws IOException {
+        checkCancelled();
         if (bucketOrd < 0) {
             bucketOrd = -1 - bucketOrd;
         } else {
@@ -160,6 +163,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      */
     @Deprecated
     public final void mergeBuckets(long[] mergeMap, long newNumBuckets) {
+        checkCancelled();
         mergeBuckets(newNumBuckets, bucket -> mergeMap[Math.toIntExact(bucket)]);
     }
 
@@ -172,6 +176,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * merge the actual ordinals and doc ID deltas.
      */
     public final void mergeBuckets(long newNumBuckets, LongUnaryOperator mergeMap) {
+        checkCancelled();
         try (LongArray oldDocCounts = docCounts) {
             docCounts = bigArrays.newLongArray(newNumBuckets, true);
             docCounts.fill(0, newNumBuckets, 0);
@@ -235,6 +240,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *         array of ordinals
      */
     protected final InternalAggregations[] buildSubAggsForBuckets(long[] bucketOrdsToCollect) throws IOException {
+        checkCancelled();
         beforeBuildingBuckets(bucketOrdsToCollect);
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
@@ -256,6 +262,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
             });
         }
         return result;
+    }
+
+    protected void checkCancelled() {
+        if (context().isCancelled()) {
+            throw new OpenSearchRejectedExecutionException("query is cancelled");
+        }
     }
 
     /**
@@ -289,6 +301,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         ToLongFunction<B> bucketToOrd,
         BiConsumer<B, InternalAggregations> setAggs
     ) throws IOException {
+        checkCancelled();
         int totalBucketOrdsToCollect = 0;
         for (B[] bucketsForOneResult : buckets) {
             totalBucketOrdsToCollect += bucketsForOneResult.length;
@@ -403,6 +416,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         BucketBuilderForVariable<B> bucketBuilder,
         ResultBuilderForVariable<B> resultBuilder
     ) throws IOException {
+        checkCancelled();
         long totalOrdsToCollect = 0;
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             totalOrdsToCollect += bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);

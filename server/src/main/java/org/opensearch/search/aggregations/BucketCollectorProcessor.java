@@ -12,6 +12,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.MultiCollector;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.MinimumScoreCollector;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.InternalProfileCollector;
 
@@ -23,6 +24,7 @@ import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.function.BooleanSupplier;
 
 /**
  * Processor to perform collector level processing specific to {@link BucketCollector} in different stages like: a) PostCollection
@@ -34,7 +36,7 @@ import java.util.Queue;
 public class BucketCollectorProcessor {
 
     /**
-     * Performs {@link BucketCollector#postCollection()} on all the {@link BucketCollector} in the given {@link Collector} collector tree
+     * Performs {@link BucketCollector#postCollection(Runnable r)} on all the {@link BucketCollector} in the given {@link Collector} collector tree
      * after the collection of documents on a leaf is completed. This method will be called by different slice threads on its own collector
      * tree instance in case of concurrent segment search such that postCollection happens on the same slice thread which initialize and
      * perform collection of the documents for a leaf segment. For sequential search case, there is always a single search thread which
@@ -52,13 +54,19 @@ public class BucketCollectorProcessor {
      * <p>
      * NOTE: We can evaluate and deprecate this postCollection processing once lucene release the changes described in the
      * <a href="https://github.com/apache/lucene/issues/12375">issue-12375</a>. With this new change we should be able to implement
-     * {@link BucketCollector#postCollection()} functionality using the lucene interface directly such that postCollection gets called
+     * {@link BucketCollector#postCollection(Runnable r)} functionality using the lucene interface directly such that postCollection gets called
      * from the slice thread by lucene itself
      * </p>
      * @param collectorTree collector tree used by calling thread
      */
-    public void processPostCollection(Collector collectorTree) throws IOException {
+    public void processPostCollection(Collector collectorTree, BooleanSupplier isCancelled) throws IOException {
         final Queue<Collector> collectors = new LinkedList<>();
+        Runnable checkCancelled = () -> {
+            if (isCancelled.getAsBoolean()) {
+                throw new OpenSearchRejectedExecutionException("Search was cancelled while post collection phase");
+            }
+        };
+
         collectors.offer(collectorTree);
         while (!collectors.isEmpty()) {
             Collector currentCollector = collectors.poll();
@@ -74,8 +82,8 @@ public class BucketCollectorProcessor {
                 // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator) {
                     // Do not perform postCollection for MultiBucketCollector as we are unwrapping that below
-                    ((BucketCollector) currentCollector).postCollection();
-                    ((Aggregator) currentCollector).buildTopLevel();
+                    ((BucketCollector) currentCollector).postCollection(checkCancelled);
+                    ((Aggregator) currentCollector).buildTopLevel(checkCancelled);
                 } else if (currentCollector instanceof MultiBucketCollector) {
                     for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
                         collectors.offer(innerCollector);
@@ -124,11 +132,15 @@ public class BucketCollectorProcessor {
      * @param collectors collection of aggregation collectors to reduce
      * @return list of unwrapped {@link InternalAggregation}
      */
-    public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors) throws IOException {
+    public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors, BooleanSupplier isCancelled)
+        throws IOException {
         List<InternalAggregation> internalAggregations = new ArrayList<>();
 
         final Deque<Collector> allCollectors = new LinkedList<>(collectors);
         while (!allCollectors.isEmpty()) {
+            if (isCancelled.getAsBoolean()) {
+                throw new OpenSearchRejectedExecutionException("Search was cancelled while post collection phase");
+            }
             Collector currentCollector = allCollectors.pop();
             if (currentCollector instanceof InternalProfileCollector) {
                 currentCollector = ((InternalProfileCollector) currentCollector).getCollector();

@@ -210,6 +210,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size());
         boolean earlyTerminated = false;
         for (InternalAggregation agg : aggregations) {
@@ -224,6 +225,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         List<InternalBucket> buckets = new ArrayList<>();
         List<InternalBucket> result = new ArrayList<>();
         while (pq.size() > 0) {
+            checkCancelled(reduceContext);
             BucketIterator bucketIt = pq.poll();
             if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
                 InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);

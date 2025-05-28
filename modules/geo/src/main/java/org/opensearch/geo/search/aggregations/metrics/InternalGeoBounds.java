@@ -111,6 +111,7 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         double top = Double.NEGATIVE_INFINITY;
         double bottom = Double.POSITIVE_INFINITY;
         double posLeft = Double.POSITIVE_INFINITY;
@@ -119,6 +120,7 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         double negRight = Double.NEGATIVE_INFINITY;
 
         for (InternalAggregation aggregation : aggregations) {
+            checkCancelled(reduceContext);
             InternalGeoBounds bounds = (InternalGeoBounds) aggregation;
 
             if (bounds.top > top) {

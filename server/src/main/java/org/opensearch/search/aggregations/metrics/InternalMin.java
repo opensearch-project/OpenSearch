@@ -88,6 +88,7 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public InternalMin reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         double min = Double.POSITIVE_INFINITY;
         for (InternalAggregation aggregation : aggregations) {
             min = Math.min(min, ((InternalMin) aggregation).min);

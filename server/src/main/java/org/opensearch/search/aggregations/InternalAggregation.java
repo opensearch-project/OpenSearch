@@ -37,6 +37,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.action.search.RestSearchAction;
@@ -52,6 +53,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -95,6 +97,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         private final ScriptService scriptService;
         private final IntConsumer multiBucketConsumer;
         private final PipelineTree pipelineTreeRoot;
+        private final BooleanSupplier isTaskCancelled;
 
         private boolean isSliceLevel;
         /**
@@ -110,9 +113,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         public static ReduceContext forPartialReduction(
             BigArrays bigArrays,
             ScriptService scriptService,
-            Supplier<PipelineTree> pipelineTreeForBwcSerialization
+            Supplier<PipelineTree> pipelineTreeForBwcSerialization,
+            BooleanSupplier isTaskCancelled
         ) {
-            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization);
+            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization, isTaskCancelled);
         }
 
         /**
@@ -123,14 +127,16 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             BigArrays bigArrays,
             ScriptService scriptService,
             IntConsumer multiBucketConsumer,
-            PipelineTree pipelineTreeRoot
+            PipelineTree pipelineTreeRoot,
+            BooleanSupplier isTaskCancelled
         ) {
             return new ReduceContext(
                 bigArrays,
                 scriptService,
                 multiBucketConsumer,
                 requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"),
-                () -> pipelineTreeRoot
+                () -> pipelineTreeRoot,
+                isTaskCancelled
             );
         }
 
@@ -139,7 +145,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             ScriptService scriptService,
             IntConsumer multiBucketConsumer,
             PipelineTree pipelineTreeRoot,
-            Supplier<PipelineTree> pipelineTreeForBwcSerialization
+            Supplier<PipelineTree> pipelineTreeForBwcSerialization,
+            BooleanSupplier isTaskCancelled
         ) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
@@ -147,6 +154,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             this.pipelineTreeRoot = pipelineTreeRoot;
             this.pipelineTreeForBwcSerialization = pipelineTreeForBwcSerialization;
             this.isSliceLevel = false;
+            this.isTaskCancelled = isTaskCancelled;
         }
 
         /**
@@ -208,6 +216,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          */
         public void consumeBucketsAndMaybeBreak(int size) {
             multiBucketConsumer.accept(size);
+        }
+
+        public boolean isTaskCancelled() {
+            return isTaskCancelled.getAsBoolean();
         }
 
     }
@@ -288,9 +300,17 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     ) {
         assert reduceContext.isFinalReduce();
         for (PipelineAggregator pipelineAggregator : pipelinesForThisAgg.aggregators()) {
+            checkCancelled(reduceContext);
             reducedAggs = pipelineAggregator.reduce(reducedAggs, reduceContext);
         }
         return reducedAggs;
+    }
+
+    protected static void checkCancelled(ReduceContext reduceContext) {
+        if (reduceContext.isTaskCancelled()) {
+            throw new OpenSearchRejectedExecutionException("search is cancelled");
+        }
+        reduceContext.consumeBucketsAndMaybeBreak(0);
     }
 
     /**

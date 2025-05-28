@@ -114,12 +114,12 @@ public abstract class AggregatorBase extends Aggregator {
             }
 
             @Override
-            public void preCollection() throws IOException {
+            public void preCollection(Runnable checkCancelled) throws IOException {
                 badState();
             }
 
             @Override
-            public void postCollection() throws IOException {
+            public void postCollection(Runnable checkCancelled) throws IOException {
                 badState();
             }
 
@@ -236,11 +236,12 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     @Override
-    public final void preCollection() throws IOException {
+    public final void preCollection(Runnable checkCancelled) throws IOException {
+        checkCancelled.run();
         List<BucketCollector> collectors = Arrays.asList(subAggregators);
         collectableSubAggregators = MultiBucketCollector.wrap(collectors);
         doPreCollection();
-        collectableSubAggregators.preCollection();
+        collectableSubAggregators.preCollection(checkCancelled);
     }
 
     /**
@@ -292,10 +293,11 @@ public abstract class AggregatorBase extends Aggregator {
      * to delay this until building buckets.
      */
     @Override
-    public void postCollection() throws IOException {
+    public void postCollection(Runnable checkCancelled) throws IOException {
         // post-collect this agg before subs to make it possible to buffer and then replay in postCollection()
+        checkCancelled.run();
         doPostCollection();
-        collectableSubAggregators.postCollection();
+        collectableSubAggregators.postCollection(checkCancelled);
     }
 
     /** Called upon release of the aggregator. */

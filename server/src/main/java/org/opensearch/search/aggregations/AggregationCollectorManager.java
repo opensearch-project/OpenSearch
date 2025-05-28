@@ -56,7 +56,8 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
 
     @Override
     public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
-        final List<InternalAggregation> internals = context.bucketCollectorProcessor().toInternalAggregations(collectors);
+        final List<InternalAggregation> internals = context.bucketCollectorProcessor()
+            .toInternalAggregations(collectors, context::isCancelled);
         assert internals.stream().noneMatch(Objects::isNull);
         context.aggregations().resetBucketMultiConsumer();
 
@@ -70,7 +71,7 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
 
     static Collector createCollector(List<Aggregator> collectors) throws IOException {
         Collector collector = MultiBucketCollector.wrap(collectors);
-        ((BucketCollector) collector).preCollection();
+        ((BucketCollector) collector).preCollection(() -> {});
         return collector;
     }
 }

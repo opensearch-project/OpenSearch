@@ -332,10 +332,10 @@ public abstract class GeoGridAggregatorTestCase<T extends BaseGeoGridBucket> ext
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType(FIELD_NAME);
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
+        aggregator.preCollection(() -> {});
         indexSearcher.search(query, aggregator);
-        aggregator.postCollection();
-        verify.accept((BaseGeoGrid<T>) aggregator.buildTopLevel());
+        aggregator.postCollection(() -> {});
+        verify.accept((BaseGeoGrid<T>) aggregator.buildTopLevel(() -> {}));
 
         indexReader.close();
         directory.close();

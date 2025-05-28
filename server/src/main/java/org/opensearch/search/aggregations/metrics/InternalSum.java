@@ -88,6 +88,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public InternalSum reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         CompensatedSum kahanSummation = new CompensatedSum(0, 0);

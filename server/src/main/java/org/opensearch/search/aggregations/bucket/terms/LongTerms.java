@@ -231,6 +231,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         boolean unsignedLongFormat = false;
         boolean rawFormat = false;
         for (InternalAggregation agg : aggregations) {

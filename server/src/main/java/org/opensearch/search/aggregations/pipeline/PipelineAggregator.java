@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -148,6 +149,13 @@ public abstract class PipelineAggregator {
 
     public Map<String, Object> metadata() {
         return metadata;
+    }
+
+    protected void checkCancelled(ReduceContext reduceContext) {
+        if (reduceContext.isTaskCancelled()) {
+            throw new OpenSearchRejectedExecutionException("query cancelled");
+        }
+        reduceContext.consumeBucketsAndMaybeBreak(0);
     }
 
     public abstract InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext);

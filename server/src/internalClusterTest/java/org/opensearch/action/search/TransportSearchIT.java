@@ -682,9 +682,9 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         }
 
         @Override
-        public void preCollection() throws IOException {}
+        public void preCollection(Runnable r) throws IOException {}
 
         @Override
-        public void postCollection() throws IOException {}
+        public void postCollection(Runnable r) throws IOException {}
     }
 }

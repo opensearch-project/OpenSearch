@@ -57,6 +57,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -78,6 +79,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final SearchProgressListener progressListener;
     private final ReduceContextBuilder aggReduceContextBuilder;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final BooleanSupplier isTaskCancelled;
 
     private final int topNSize;
     private final boolean hasTopDocs;
@@ -99,14 +101,15 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         SearchProgressListener progressListener,
         NamedWriteableRegistry namedWriteableRegistry,
         int expectedResultSize,
-        Consumer<Exception> onPartialMergeFailure
+        Consumer<Exception> onPartialMergeFailure,
+        BooleanSupplier isTaskCancelled
     ) {
         super(expectedResultSize);
         this.executor = executor;
         this.circuitBreaker = circuitBreaker;
         this.controller = controller;
         this.progressListener = progressListener;
-        this.aggReduceContextBuilder = controller.getReduceContext(request);
+        this.aggReduceContextBuilder = controller.getReduceContext(request, isTaskCancelled);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.topNSize = SearchPhaseController.getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();
@@ -117,6 +120,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
+        this.isTaskCancelled = isTaskCancelled;
     }
 
     @Override

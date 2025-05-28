@@ -294,9 +294,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
 
         AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
+        aggregator.preCollection(() -> {});
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
+        aggregator.postCollection(() -> {});
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -555,11 +555,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
+        aggregator.preCollection(() -> {});
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
+        aggregator.postCollection(() -> {});
 
-        Terms terms = (Terms) aggregator.buildTopLevel();
+        Terms terms = (Terms) aggregator.buildTopLevel(() -> {});
         assertNotNull(terms);
         List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertNotNull(buckets);
@@ -626,9 +626,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg").field("value");
 
         AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
+        aggregator.preCollection(() -> {});
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
+        aggregator.postCollection(() -> {});
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -671,9 +671,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
         AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
+        aggregator.preCollection(() -> {});
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
+        aggregator.postCollection(() -> {});
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -688,9 +688,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
 
         aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
+        aggregator.preCollection(() -> {});
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
+        aggregator.postCollection(() -> {});
 
         avg = (InternalAvg) aggregator.buildAggregation(0L);
 

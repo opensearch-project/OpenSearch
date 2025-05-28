@@ -98,10 +98,15 @@ public class TermsReduceBenchmark {
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
     private final SearchPhaseController controller = new SearchPhaseController(
         namedWriteableRegistry,
-        req -> new InternalAggregation.ReduceContextBuilder() {
+        (req, isTaskCancelled) -> new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY);
+                return InternalAggregation.ReduceContext.forPartialReduction(
+                    null,
+                    null,
+                    () -> PipelineAggregator.PipelineTree.EMPTY,
+                    isTaskCancelled
+                );
             }
 
             @Override
@@ -114,7 +119,8 @@ public class TermsReduceBenchmark {
                     null,
                     null,
                     bucketConsumer,
-                    PipelineAggregator.PipelineTree.EMPTY
+                    PipelineAggregator.PipelineTree.EMPTY,
+                    isTaskCancelled
                 );
             }
         }
@@ -229,7 +235,8 @@ public class TermsReduceBenchmark {
             SearchProgressListener.NOOP,
             namedWriteableRegistry,
             shards.size(),
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         CountDownLatch latch = new CountDownLatch(shards.size());
         for (int i = 0; i < shards.size(); i++) {

@@ -133,7 +133,7 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
 
                 CollectingBucketCollector finalCollector = new CollectingBucketCollector();
                 deferringCollector.setDeferredCollector(Collections.singleton(finalCollector));
-                deferringCollector.preCollection();
+                deferringCollector.preCollection(() -> {});
                 indexSearcher.search(query, new BucketCollector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -141,10 +141,10 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
                     }
 
                     @Override
-                    public void preCollection() throws IOException {}
+                    public void preCollection(Runnable taskCancellationCheck) throws IOException {}
 
                     @Override
-                    public void postCollection() throws IOException {}
+                    public void postCollection(Runnable taskCancellationCheck) throws IOException {}
 
                     @Override
                     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
@@ -152,7 +152,7 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
                         return leafCollector.apply(deferringCollector, delegate);
                     }
                 });
-                deferringCollector.postCollection();
+                deferringCollector.postCollection(() -> {});
                 verify.accept(deferringCollector, finalCollector);
             }
         }
@@ -177,9 +177,9 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
         }
 
         @Override
-        public void preCollection() throws IOException {}
+        public void preCollection(Runnable taskCancellationCheck) throws IOException {}
 
         @Override
-        public void postCollection() throws IOException {}
+        public void postCollection(Runnable taskCancellationCheck) throws IOException {}
     }
 }

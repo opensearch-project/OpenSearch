@@ -208,7 +208,7 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
         Executor executor = OpenSearchExecutors.newDirectExecutorService();
         SearchPhaseController controller = new SearchPhaseController(
             writableRegistry(),
-            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+            (r, isTaskCancelled) -> InternalAggregationTestCase.emptyReduceContextBuilder()
         );
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
@@ -219,7 +219,8 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
             task.getProgressListener(),
             writableRegistry(),
             shardsIter.size(),
-            exc -> {}
+            exc -> {},
+            () -> false
         );
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
             logger,

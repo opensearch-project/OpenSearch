@@ -74,6 +74,7 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
             (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
@@ -91,6 +92,7 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
 
         List<ComparableBucket> ordered = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
+            checkCancelled(reduceContext);
             ComparableBucket comparableBucket = new ComparableBucket(originalAgg, bucket);
             if (comparableBucket.skip() == false) {
                 ordered.add(comparableBucket);

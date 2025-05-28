@@ -98,10 +98,10 @@ public class MultiBucketCollectorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void preCollection() {}
+        public void preCollection(Runnable taskCancellationCheck) {}
 
         @Override
-        public void postCollection() {}
+        public void postCollection(Runnable taskCancellationCheck) {}
     }
 
     private static class TotalHitCountBucketCollector extends BucketCollector {
@@ -126,10 +126,10 @@ public class MultiBucketCollectorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void preCollection() {}
+        public void preCollection(Runnable taskCancellationCheck) {}
 
         @Override
-        public void postCollection() {}
+        public void postCollection(Runnable taskCancellationCheck) {}
 
         int getTotalHits() {
             return count;
@@ -163,10 +163,10 @@ public class MultiBucketCollectorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void preCollection() {}
+        public void preCollection(Runnable taskCancellationCheck) {}
 
         @Override
-        public void postCollection() {}
+        public void postCollection(Runnable taskCancellationCheck) {}
     }
 
     public void testCollectionTerminatedExceptionHandling() throws IOException {

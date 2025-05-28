@@ -75,6 +75,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        checkCancelled(reduceContext);
         InternalMultiBucketAggregation<
             ? extends InternalMultiBucketAggregation,
             ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
@@ -87,6 +88,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         Number lastBucketKey = null;
         Double lastBucketValue = null;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
+            checkCancelled(reduceContext);
             Number thisBucketKey = factory.getKey(bucket);
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
             if (lastBucketValue != null && thisBucketValue != null) {
