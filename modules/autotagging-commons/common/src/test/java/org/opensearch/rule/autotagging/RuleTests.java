@@ -123,6 +123,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         String description
     ) {
         return Rule.builder()
+            .id(_ID)
             .featureValue(featureValue)
             .featureType(featureType)
             .description(description)
