@@ -256,9 +256,11 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     );
                 } catch (Exception ex) {
                     logger.error(
-                        "Failed to conditionally upload large file {} of size {}",
-                        uploadRequest.getKey(),
-                        uploadRequest.getContentLength(),
+                        () -> new ParameterizedMessage(
+                            "Failed to conditionally upload large file {} of size {} ",
+                            uploadRequest.getKey(),
+                            uploadRequest.getContentLength()
+                        ),
                         ex
                     );
                     completionListener.onFailure(ex);
@@ -316,7 +318,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 }
             }
         } catch (Exception e) {
-            logger.info("Exception during conditional blob upload for file {}", writeContext.getFileName(), e);
+            logger.info("Exception during conditional blob upload for file {}", writeContext.getFileName());
             throw new IOException(e);
         }
     }
