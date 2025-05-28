@@ -530,7 +530,7 @@ public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTes
                 }
             }""";
 
-        // Should fail because for geo_shape, derived source feature is not supported
+        // Should fail because for geo_shape, derived source feature is not implemented for it
         expectThrows(
             MapperParsingException.class,
             () -> prepareCreate("test_derive_10").setSettings(Settings.builder().put("index.derived_source.enabled", true))
