@@ -44,7 +44,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.fs.FsRepository;
@@ -711,7 +711,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     private void assertAllNodesFileCacheEmpty() {
         NodesStatsResponse response = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
         for (NodeStats stats : response.getNodes()) {
-            FileCacheStats fcstats = stats.getFileCacheStats();
+            AggregateFileCacheStats fcstats = stats.getFileCacheStats();
             if (fcstats != null) {
                 assertTrue(isFileCacheEmpty(fcstats));
             }
@@ -722,7 +722,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         NodesStatsResponse response = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
         int nonEmptyFileCacheNodes = 0;
         for (NodeStats stats : response.getNodes()) {
-            FileCacheStats fcStats = stats.getFileCacheStats();
+            AggregateFileCacheStats fcStats = stats.getFileCacheStats();
             if (stats.getNode().isWarmNode()) {
                 if (!isFileCacheEmpty(fcStats)) {
                     nonEmptyFileCacheNodes++;
@@ -735,7 +735,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(numNodes, nonEmptyFileCacheNodes);
     }
 
-    private boolean isFileCacheEmpty(FileCacheStats stats) {
+    private boolean isFileCacheEmpty(AggregateFileCacheStats stats) {
         return stats.getUsed().getBytes() == 0L && stats.getActive().getBytes() == 0L;
     }
 

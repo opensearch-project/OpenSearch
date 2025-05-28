@@ -137,7 +137,6 @@ public class MetricAggregatorTests extends AggregatorTestCase {
         return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18110")
     public void testStarTreeDocValues() throws IOException {
         final List<Supplier<Integer>> MAX_LEAF_DOC_VARIATIONS = List.of(
             () -> 1,
@@ -563,18 +562,25 @@ public class MetricAggregatorTests extends AggregatorTestCase {
 
         public QueryBuilder getBoolQueryBuilder() {
             // MUST only
-            BoolQueryBuilder mustOnly = new BoolQueryBuilder().must(getTermQueryBuilder()).must(getRangeQueryBuilder());
+            BoolQueryBuilder mustOnly = new BoolQueryBuilder().must(getTermQueryBuilder());
+            if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
+                mustOnly.must(getTermQueryBuilder());
+            } else {
+                mustOnly.must(getRangeQueryBuilder());
+            }
 
             // MUST with nested SHOULD on same dimension
             BoolQueryBuilder mustWithShould = new BoolQueryBuilder().must(getTermQueryBuilder())
-                .must(
-                    new BoolQueryBuilder().should(new TermQueryBuilder(fieldName, valueSupplier.get()))
-                        .should(new TermQueryBuilder(fieldName, valueSupplier.get()))
-                );
+                .must(new BoolQueryBuilder().should(getTermQueryBuilder()).should(getTermQueryBuilder()));
 
             // SHOULD only on same dimension
-            BoolQueryBuilder shouldOnly = new BoolQueryBuilder().should(new TermQueryBuilder(fieldName, valueSupplier.get()))
-                .should(new RangeQueryBuilder(fieldName).from(valueSupplier.get()).to(valueSupplier.get()));
+            BoolQueryBuilder shouldOnly = new BoolQueryBuilder().should(getTermQueryBuilder());
+
+            if (fieldType.equals(DimensionTypes.KEYWORD.name().toLowerCase(Locale.ROOT))) {
+                shouldOnly.should(getTermQueryBuilder());
+            } else {
+                shouldOnly.should(getRangeQueryBuilder());
+            }
 
             return randomFrom(mustOnly, mustWithShould, shouldOnly);
         }
