@@ -29,8 +29,8 @@ def generate_random_data(number):
     data = []
     for _ in range(number):
         event_data = {
-            "@timestamp": generate_random_date(),
             "agent": generate_random_agent(),
+            "interface": generate_random_interface(),
             "network": generate_random_network(),
             "wazuh": generate_random_wazuh()
         }
@@ -72,14 +72,13 @@ def generate_random_network():
         "dhcp": random.choice([True,False]),
         "ip": f"{random.randint(1, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}",
         "metric": random.randint(1, 100),
-        "name":  generate_random_interface(),
         "netmask": f"{random.randint(1, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}",
-        "protocol": random.choice(["TCP", "UDP", "ICMP"]),
+        "type": random.choice(["ipv4", "ipv6"]),
     }
 
 
 def generate_random_interface():
-    return f"name{random.randint(0, 9999)}"
+    return { "name": f"name{random.randint(0, 9999)}" }
 
 
 def generate_random_wazuh():

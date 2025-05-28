@@ -45,3 +45,8 @@
         CPU clock speed
       type: long
       level: custom
+    - name: serial_number
+      description: >
+        Serial number of the motherboard
+      type: keyword
+      level: custom

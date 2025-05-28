@@ -20,12 +20,8 @@ fields:
       gateway: {}
       metric: {}
       type: {}
-  observer:
+  interface:
     fields:
-      ingress:
-        fields:
-          interface:
-            fields:
-              name: {}
+      name: {}
   wazuh:
     fields: "*"

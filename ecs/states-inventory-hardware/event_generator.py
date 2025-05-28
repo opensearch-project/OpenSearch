@@ -29,10 +29,8 @@ def generate_random_data(number):
     data = []
     for _ in range(number):
         event_data = {
-            "@timestamp": generate_random_date(),
             "agent": generate_random_agent(),
             "host": generate_random_host(True),
-            "observer": generate_random_observer(),
             "wazuh": generate_random_wazuh(),
         }
         data.append(event_data)
@@ -68,16 +66,13 @@ def generate_random_host(is_root_level=False):
                 "total": random.randint(1000, 100000),
                 "used": random.randint(0, 100),
             },
+            "serial_number": f"{random.randint(0, 9999)}",
         }
     else:
         return {
             "architecture": random.choice(["x86_64", "arm64"]),
             "ip": f"{random.randint(1, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}",
         }
-
-
-def generate_random_observer():
-    return {"serial_number": f"serial{random.randint(0, 9999)}"}
 
 
 def generate_random_wazuh():

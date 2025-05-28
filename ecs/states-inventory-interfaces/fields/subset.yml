@@ -31,16 +31,12 @@ fields:
               drops: {}
               errors: {}
               packets: {}
-  observer:
+  interface:
     fields:
-      ingress:
-        fields:
-          interface:
-            fields:
-              alias: {}
-              mtu: {}
-              name: {}
-              state: {}
-              type: {}
+      alias: {}
+      mtu: {}
+      name: {}
+      state: {}
+      type: {}
   wazuh:
     fields: "*"

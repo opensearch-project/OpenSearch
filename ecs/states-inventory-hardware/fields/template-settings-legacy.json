@@ -7,7 +7,7 @@
       "number_of_replicas": "0",
       "refresh_interval": "5s",
       "query.default_field": [
-        "observer.board_serial"
+        "host.serial_number"
       ]
     }
   }

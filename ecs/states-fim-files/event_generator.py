@@ -29,7 +29,6 @@ def generate_random_data(number):
     data = []
     for _ in range(number):
         event_data = {
-            "@timestamp": generate_random_date(),
             "agent": generate_random_agent(),
             "file": generate_random_file(),
             "wazuh": generate_random_wazuh(),

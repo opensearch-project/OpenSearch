@@ -5,14 +5,16 @@
 - 
 
 ### Dependencies
+- 
 
 ### Changed
 - 
 
 ### Deprecated
+- 
 
 ### Removed
-- 
+- Remove custom temporary folder for Java [(#782)](https://github.com/wazuh/wazuh-indexer/pull/782)
 
 ### Fixed
 - 

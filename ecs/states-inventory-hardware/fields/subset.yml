@@ -26,8 +26,6 @@ fields:
           name: {}
           cores: {}
           speed: {}
-  observer:
-    fields:
       serial_number: {}
   wazuh:
     fields: "*"

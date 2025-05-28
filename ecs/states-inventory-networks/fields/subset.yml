@@ -14,14 +14,16 @@ fields:
         fields:
           architecture: {}
           ip: {}
+  interface:
+    fields:
+      name: {}
   network:
     fields:
       broadcast: {}
       dhcp: {}
       ip: {}
       metric: {}
-      name: {}
       netmask: {}
-      protocol: {}
+      type: {}
   wazuh:
     fields: "*"
