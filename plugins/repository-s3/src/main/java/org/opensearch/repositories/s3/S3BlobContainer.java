@@ -233,10 +233,10 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             writeContext.getExpectedChecksum(),
             blobStore.isUploadRetryEnabled(),
             writeContext.getMetadata(),
-            options,  
+            options,
             blobStore.serverSideEncryptionType(),
             blobStore.serverSideEncryptionKmsKey(),
-            blobStore.serverSideEncryptionBucketKey(), 
+            blobStore.serverSideEncryptionBucketKey(),
             blobStore.serverSideEncryptionEncryptionContext(),
             blobStore.expectedBucketOwner()
         );
@@ -338,21 +338,21 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     @Override
     public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
         UploadRequest uploadRequest = new UploadRequest(
-        blobStore.bucket(),
-        buildKey(writeContext.getFileName()),
-        writeContext.getFileSize(),
-        writeContext.getWritePriority(),
-        writeContext.getUploadFinalizer(),
-        writeContext.doRemoteDataIntegrityCheck(),
-        writeContext.getExpectedChecksum(),
-        blobStore.isUploadRetryEnabled(),
-        writeContext.getMetadata(),
-        null,  
-        blobStore.serverSideEncryptionType(),
-        blobStore.serverSideEncryptionKmsKey(),
-        blobStore.serverSideEncryptionBucketKey(),
-        blobStore.serverSideEncryptionEncryptionContext(),
-        blobStore.expectedBucketOwner()
+            blobStore.bucket(),
+            buildKey(writeContext.getFileName()),
+            writeContext.getFileSize(),
+            writeContext.getWritePriority(),
+            writeContext.getUploadFinalizer(),
+            writeContext.doRemoteDataIntegrityCheck(),
+            writeContext.getExpectedChecksum(),
+            blobStore.isUploadRetryEnabled(),
+            writeContext.getMetadata(),
+            null,
+            blobStore.serverSideEncryptionType(),
+            blobStore.serverSideEncryptionKmsKey(),
+            blobStore.serverSideEncryptionBucketKey(),
+            blobStore.serverSideEncryptionEncryptionContext(),
+            blobStore.expectedBucketOwner()
         );
         try {
             // If file size is greater than the queue capacity than SizeBasedBlockingQ will always reject the upload.

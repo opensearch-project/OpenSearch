@@ -99,10 +99,9 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(1), WritePriority.HIGH, uploadSuccess -> {
-             
-            }, false, null, true, metadata, null , ServerSideEncryption.AWS_KMS.toString(), randomAlphaOfLength(10), true, null, null),
 
-            
+            }, false, null, true, metadata, null, ServerSideEncryption.AWS_KMS.toString(), randomAlphaOfLength(10), true, null, null),
+
             new StreamContext((partIdx, partSize, position) -> {
                 streamRef.set(new ZeroInputStream(partSize));
                 return new InputStreamContainer(streamRef.get(), partSize, position);
@@ -146,11 +145,26 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         Map<String, String> metadata = new HashMap<>();
         metadata.put("key1", "value1");
         metadata.put("key2", "value2");
-    
+
         CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
-            new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(1), WritePriority.HIGH, uploadSuccess -> {
-            }, false, null, true, metadata, null, ServerSideEncryption.AWS_KMS.toString(), randomAlphaOfLength(10), true, null, null),
+            new UploadRequest(
+                "bucket",
+                "key",
+                ByteSizeUnit.MB.toBytes(1),
+                WritePriority.HIGH,
+                uploadSuccess -> {},
+                false,
+                null,
+                true,
+                metadata,
+                null,
+                ServerSideEncryption.AWS_KMS.toString(),
+                randomAlphaOfLength(10),
+                true,
+                null,
+                null
+            ),
             new StreamContext(
                 (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
@@ -206,7 +220,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
-          
+
             }, true, 3376132981L, true, metadata, null, ServerSideEncryption.AWS_KMS.toString(), randomAlphaOfLength(10), true, null, null),
 
             new StreamContext((partIdx, partSize, position) -> {
@@ -323,12 +337,12 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 null,
                 true,
                 metadata,
-                options,  
-                null,     
-                null,     
-                false,    
-                null,     
-                null    
+                options,
+                null,
+                null,
+                false,
+                null,
+                null
             ),
             new StreamContext((partIdx, partSize, position) -> {
                 streamRef.set(new ZeroInputStream(partSize));
@@ -381,12 +395,12 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 null,
                 true,
                 null,
-                options,  
-                null,     
-                null,     
-                false,    
-                null,     
-                null    
+                options,
+                null,
+                null,
+                false,
+                null,
+                null
             ),
             new StreamContext((partIdx, partSize, position) -> {
                 streamRef.set(new ZeroInputStream(partSize));
@@ -451,12 +465,12 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 null,
                 true,
                 null,
-                options,  
-                null,     
-                null,     
-                false,    
-                null,     
-                null    
+                options,
+                null,
+                null,
+                false,
+                null,
+                null
             ),
             new StreamContext((partIdx, partSize, position) -> {
                 streamRef.set(new ZeroInputStream(partSize));
@@ -528,12 +542,12 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 3376132981L,
                 true,
                 null,
-                options,  
-                null,     
-                null,     
-                false,    
-                null,     
-                null    
+                options,
+                null,
+                null,
+                false,
+                null,
+                null
             ),
             new StreamContext((partIdx, partSize, position) -> {
                 InputStream stream = new ZeroInputStream(partSize);
@@ -604,13 +618,13 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 0L,
                 true,
                 null,
-                options,  
-                null,     
-                null,     
-                false,    
-                null,     
-                null      
-                ),
+                options,
+                null,
+                null,
+                false,
+                null,
+                null
+            ),
             new StreamContext((partIdx, partSize, position) -> {
                 InputStream stream = new ZeroInputStream(partSize);
                 streams.add(stream);
