@@ -68,6 +68,8 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
+import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.rescore.Rescorer;
 import org.opensearch.search.rescore.RescorerBuilder;
@@ -96,6 +98,11 @@ import static java.util.Collections.emptyMap;
  * @opensearch.api
  */
 public interface SearchPlugin {
+
+    default ProfilerProvider getProfilerProvider() {
+        return null;
+    }
+
     /**
      * The new {@link ScoreFunction}s defined by this plugin.
      */
@@ -225,6 +232,18 @@ public interface SearchPlugin {
      */
     default Optional<ExecutorServiceProvider> getIndexSearcherExecutorProvider() {
         return Optional.empty();
+    }
+
+    /**
+     * Plugin Profiler provider
+     */
+    interface ProfilerProvider {
+        /**
+         * Provides a profiler instance
+         * @param isConcurrentSearchEnabled concurrent enabled
+         * @return profiler instance
+         */
+        AbstractProfiler<?,?,?,?,?> getProfiler(boolean isConcurrentSearchEnabled);
     }
 
     /**

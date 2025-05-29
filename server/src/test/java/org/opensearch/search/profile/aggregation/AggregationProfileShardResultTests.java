@@ -38,10 +38,9 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParserUtils;
-import org.opensearch.search.profile.ProfileResultTests;
 import org.opensearch.search.profile.TimingProfileResult;
+import org.opensearch.search.profile.TimingProfileResultTests;
 import org.opensearch.test.OpenSearchTestCase;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,7 +57,7 @@ public class AggregationProfileShardResultTests extends OpenSearchTestCase {
         int size = randomIntBetween(0, 5);
         List<TimingProfileResult> aggProfileResults = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            aggProfileResults.add(ProfileResultTests.createTestItem(depth, false));
+            aggProfileResults.add(TimingProfileResultTests.createTestItem(depth, false));
         }
         return new AggregationProfileShardResult(aggProfileResults);
     }

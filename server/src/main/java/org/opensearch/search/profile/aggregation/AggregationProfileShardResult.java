@@ -39,6 +39,8 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.profile.AbstractProfileResult;
+import org.opensearch.search.profile.AbstractProfileShardResult;
 import org.opensearch.search.profile.TimingProfileResult;
 
 import java.io.IOException;
@@ -55,42 +57,35 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class AggregationProfileShardResult implements Writeable, ToXContentFragment {
+public final class AggregationProfileShardResult extends AbstractProfileShardResult<TimingProfileResult> {
 
     public static final String AGGREGATIONS = "aggregations";
-    private final List<TimingProfileResult> aggProfileResults;
 
-    public AggregationProfileShardResult(List<TimingProfileResult> aggProfileResults) {
-        this.aggProfileResults = aggProfileResults;
+    public AggregationProfileShardResult(List<TimingProfileResult> abstractProfileResults) {
+        super(abstractProfileResults);
     }
 
-    /**
-     * Read from a stream.
-     */
     public AggregationProfileShardResult(StreamInput in) throws IOException {
-        int profileSize = in.readVInt();
-        aggProfileResults = new ArrayList<>(profileSize);
-        for (int j = 0; j < profileSize; j++) {
-            aggProfileResults.add(new TimingProfileResult(in));
-        }
+        super(in);
+    }
+
+    @Override
+    public TimingProfileResult createProfileResult(StreamInput in) throws IOException {
+        return new TimingProfileResult(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(aggProfileResults.size());
-        for (TimingProfileResult p : aggProfileResults) {
+        out.writeVInt(profileResults.size());
+        for (TimingProfileResult p : profileResults) {
             p.writeTo(out);
         }
-    }
-
-    public List<TimingProfileResult> getProfileResults() {
-        return Collections.unmodifiableList(aggProfileResults);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(AGGREGATIONS);
-        for (TimingProfileResult p : aggProfileResults) {
+        for (TimingProfileResult p : profileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();

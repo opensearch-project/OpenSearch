@@ -36,6 +36,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 
@@ -56,15 +57,19 @@ public class ProfileShardResult implements Writeable {
 
     private final AggregationProfileShardResult aggProfileShardResult;
 
+    private final List<AbstractProfileShardResult<?>> pluginProfileResults;
+
     private NetworkTime networkTime;
 
     public ProfileShardResult(
         List<QueryProfileShardResult> queryProfileResults,
         AggregationProfileShardResult aggProfileShardResult,
+        List<AbstractProfileShardResult<?>> pluginProfileResults,
         NetworkTime networkTime
     ) {
         this.aggProfileShardResult = aggProfileShardResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
+        this.pluginProfileResults = Collections.unmodifiableList(pluginProfileResults);
         this.networkTime = networkTime;
     }
 
@@ -76,6 +81,12 @@ public class ProfileShardResult implements Writeable {
             queryProfileResults.add(result);
         }
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
+        List<AbstractProfileShardResult<?>> pluginProfileResults = new ArrayList<>(profileSize);
+        for (int i = 0; i < profileSize; i++) {
+            AbstractProfileShardResult<?> result = null;
+            pluginProfileResults.add(result);
+        }
+        this.pluginProfileResults = Collections.unmodifiableList(pluginProfileResults);
         this.aggProfileShardResult = new AggregationProfileShardResult(in);
         this.networkTime = new NetworkTime(in);
     }
@@ -85,6 +96,9 @@ public class ProfileShardResult implements Writeable {
         out.writeVInt(queryProfileResults.size());
         for (QueryProfileShardResult queryShardResult : queryProfileResults) {
             queryShardResult.writeTo(out);
+        }
+        for (AbstractProfileShardResult<?> pluginShardResult : pluginProfileResults) {
+            pluginShardResult.writeTo(out);
         }
         aggProfileShardResult.writeTo(out);
         networkTime.writeTo(out);
@@ -96,6 +110,10 @@ public class ProfileShardResult implements Writeable {
 
     public AggregationProfileShardResult getAggregationProfileResults() {
         return aggProfileShardResult;
+    }
+
+    public List<AbstractProfileShardResult<?>> getPluginProfileResults() {
+        return pluginProfileResults;
     }
 
     public NetworkTime getNetworkTime() {

@@ -39,6 +39,8 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.profile.AbstractProfileResult;
+import org.opensearch.search.profile.AbstractProfileShardResult;
 import org.opensearch.search.profile.TimingProfileResult;
 
 import java.io.IOException;
@@ -55,21 +57,19 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class QueryProfileShardResult implements Writeable, ToXContentObject {
+public final class QueryProfileShardResult extends AbstractProfileShardResult<TimingProfileResult> {
 
     public static final String COLLECTOR = "collector";
     public static final String REWRITE_TIME = "rewrite_time";
     public static final String QUERY_ARRAY = "query";
-
-    private final List<TimingProfileResult> queryProfileResults;
 
     private final CollectorResult profileCollector;
 
     private final long rewriteTime;
 
     public QueryProfileShardResult(List<TimingProfileResult> queryProfileResults, long rewriteTime, CollectorResult profileCollector) {
+        super(queryProfileResults);
         assert (profileCollector != null);
-        this.queryProfileResults = queryProfileResults;
         this.profileCollector = profileCollector;
         this.rewriteTime = rewriteTime;
     }
@@ -78,20 +78,20 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
      * Read from a stream.
      */
     public QueryProfileShardResult(StreamInput in) throws IOException {
-        int profileSize = in.readVInt();
-        queryProfileResults = new ArrayList<>(profileSize);
-        for (int j = 0; j < profileSize; j++) {
-            queryProfileResults.add(new TimingProfileResult(in));
-        }
-
+        super(in);
         profileCollector = new CollectorResult(in);
         rewriteTime = in.readLong();
     }
 
     @Override
+    public TimingProfileResult createProfileResult(StreamInput in) throws IOException {
+        return new TimingProfileResult(in);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(queryProfileResults.size());
-        for (TimingProfileResult p : queryProfileResults) {
+        out.writeVInt(profileResults.size());
+        for (TimingProfileResult p : profileResults) {
             p.writeTo(out);
         }
         profileCollector.writeTo(out);
@@ -99,7 +99,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     }
 
     public List<TimingProfileResult> getQueryResults() {
-        return Collections.unmodifiableList(queryProfileResults);
+        return Collections.unmodifiableList(profileResults);
     }
 
     public long getRewriteTime() {
@@ -114,7 +114,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray(QUERY_ARRAY);
-        for (TimingProfileResult p : queryProfileResults) {
+        for (TimingProfileResult p : profileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();

@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -69,11 +70,11 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
  */
 @PublicApi(since = "1.0.0")
 public abstract class AbstractProfileResult<T extends AbstractProfileResult<T>> implements Writeable, ToXContentObject {
-    static final ParseField TYPE = new ParseField("type");
-    static final ParseField DESCRIPTION = new ParseField("description");
-    static final ParseField BREAKDOWN = new ParseField("breakdown");
-    static final ParseField DEBUG = new ParseField("debug");
-    static final ParseField CHILDREN = new ParseField("children");
+    protected static final ParseField TYPE = new ParseField("type");
+    protected static final ParseField DESCRIPTION = new ParseField("description");
+    protected static final ParseField BREAKDOWN = new ParseField("breakdown");
+    protected static final ParseField DEBUG = new ParseField("debug");
+    protected static final ParseField CHILDREN = new ParseField("children");
 
     protected final String type;
     protected final String description;
@@ -101,7 +102,6 @@ public abstract class AbstractProfileResult<T extends AbstractProfileResult<T>> 
     public AbstractProfileResult(StreamInput in) throws IOException {
         this.type = in.readString();
         this.description = in.readString();
-//        this.nodeTime = in.readLong();
         breakdown = in.readMap(StreamInput::readString, StreamInput::readLong);
         debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
     }

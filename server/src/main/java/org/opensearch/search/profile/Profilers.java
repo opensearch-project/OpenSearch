@@ -57,6 +57,7 @@ public final class Profilers {
     private final List<QueryProfiler> queryProfilers;
     private final AggregationProfiler aggProfiler;
     private final boolean isConcurrentSegmentSearchEnabled;
+    private final List<AbstractProfiler<?,?,?,?,?>> pluginProfilers;
 
     /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
     public Profilers(ContextIndexSearcher searcher, boolean isConcurrentSegmentSearchEnabled) {
@@ -65,6 +66,8 @@ public final class Profilers {
         this.queryProfilers = new ArrayList<>();
         this.aggProfiler = isConcurrentSegmentSearchEnabled ? new ConcurrentAggregationProfiler() : new AggregationProfiler();
         addQueryProfiler();
+        this.pluginProfilers = new ArrayList<>();
+        this.searcher.setPluginProfilers(pluginProfilers);
     }
 
     /** Switch to a new profile. */
@@ -72,14 +75,22 @@ public final class Profilers {
         QueryProfiler profiler = isConcurrentSegmentSearchEnabled
             ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
             : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setProfiler(profiler);
+        searcher.setQueryProfiler(profiler);
         queryProfilers.add(profiler);
         return profiler;
     }
 
+    public void addPluginProfiler(AbstractProfiler<?,?,?,?,?> pluginProfiler) {
+        pluginProfilers.add(pluginProfiler);
+    }
+
+    public List<AbstractProfiler<?, ?, ?, ?,?>> getPluginProfilers() {
+        return Collections.unmodifiableList(pluginProfilers);
+    }
+
     /** Get the current profiler. */
     public QueryProfiler getCurrentQueryProfiler() {
-        return queryProfilers.get(queryProfilers.size() - 1);
+        return queryProfilers.getLast();
     }
 
     /** Return the list of all created {@link QueryProfiler}s so far. */

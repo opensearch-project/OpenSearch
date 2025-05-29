@@ -12,6 +12,9 @@ import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 
+/**
+ * A {@link AbstractTimingProfileBreakdown} for query timings.
+ */
 public class QueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown<QueryTimingType> implements TimingProfileContext {
 
     public QueryTimingProfileBreakdown() {

@@ -53,7 +53,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
-public class ProfileResultTests extends OpenSearchTestCase {
+public class TimingProfileResultTests extends OpenSearchTestCase {
 
     public static TimingProfileResult createTestItem(int depth, boolean concurrentSegmentSearchEnabled) {
         String type = randomAlphaOfLengthBetween(5, 10);

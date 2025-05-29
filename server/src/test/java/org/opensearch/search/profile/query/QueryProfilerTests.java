@@ -65,7 +65,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.TimingProfileResult;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -168,12 +168,12 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         QueryProfiler profiler = executor != null
             ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
             : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setProfiler(profiler);
+        searcher.setQueryProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
-        List<ProfileResult> results = profiler.getTree();
+        List<TimingProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        ProfileResult profileResult = results.get(0);
+        TimingProfileResult profileResult = results.get(0);
         Map<String, Long> breakdown = profileResult.getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
@@ -237,12 +237,12 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         QueryProfiler profiler = executor != null
             ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
             : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setProfiler(profiler);
+        searcher.setQueryProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
-        List<ProfileResult> results = profiler.getTree();
+        List<TimingProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        ProfileResult profileResult = results.get(0);
+        TimingProfileResult profileResult = results.get(0);
         Map<String, Long> breakdown = profileResult.getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
@@ -306,12 +306,12 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         QueryProfiler profiler = executor != null
             ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
             : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setProfiler(profiler);
+        searcher.setQueryProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats
-        List<ProfileResult> results = profiler.getTree();
+        List<TimingProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        ProfileResult result = results.get(0);
+        TimingProfileResult result = results.get(0);
         assertEquals(0, (long) result.getTimeBreakdown().get("build_scorer_count"));
 
         long rewriteTime = profiler.getRewriteTime();
@@ -322,12 +322,12 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         QueryProfiler profiler = executor != null
             ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
             : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setProfiler(profiler);
+        searcher.setQueryProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);
-        List<ProfileResult> results = profiler.getTree();
+        List<TimingProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        ProfileResult profileResult = results.get(0);
+        TimingProfileResult profileResult = results.get(0);
         Map<String, Long> breakdown = profileResult.getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));

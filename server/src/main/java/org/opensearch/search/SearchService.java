@@ -96,6 +96,7 @@ import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.FieldScript;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.AggregationInitializationException;
@@ -128,6 +129,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchRequest;
@@ -415,6 +417,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final Executor indexSearcherExecutor;
     private final TaskResourceTrackingService taskResourceTrackingService;
 
+    private final List<SearchPlugin.ProfilerProvider> pluginProfilers;
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -427,7 +431,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
+        List<SearchPlugin.ProfilerProvider> pluginProfilers
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -484,6 +489,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
 
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
+
+        this.pluginProfilers = pluginProfilers;
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1554,7 +1561,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         context.evaluateRequestShouldUseConcurrentSearch();
         if (source.profile()) {
-            context.setProfilers(new Profilers(context.searcher(), context.shouldUseConcurrentSearch()));
+            Profilers profilers = new Profilers(context.searcher(), context.shouldUseConcurrentSearch());
+            for(SearchPlugin.ProfilerProvider p : pluginProfilers) {
+                AbstractProfiler<?, ?, ?, ?, ?> profiler = p.getProfiler(context.shouldUseConcurrentSearch());
+                profilers.addPluginProfiler(profiler);
+            }
+            context.setProfilers(profilers);
         }
 
         if (this.indicesService.getCompositeIndexSettings() != null

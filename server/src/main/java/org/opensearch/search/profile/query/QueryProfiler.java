@@ -54,7 +54,7 @@ import java.util.Objects;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class QueryProfiler extends AbstractProfiler<AbstractTimingProfileBreakdown<QueryTimingType>, QueryTimingType, Query, TimingProfileResult> {
+public class QueryProfiler extends AbstractProfiler<AbstractTimingProfileBreakdown<QueryTimingType>, QueryTimingType, Query, TimingProfileResult, QueryProfileShardResult> {
 
     /**
      * The root Collector used in the search
@@ -105,4 +105,8 @@ public class QueryProfiler extends AbstractProfiler<AbstractTimingProfileBreakdo
         return collector.getCollectorTree();
     }
 
+    @Override
+    public QueryProfileShardResult createProfileShardResult() {
+        return new QueryProfileShardResult(getTree(), getRewriteTime() ,getCollector());
+    }
 }

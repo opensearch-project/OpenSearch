@@ -13,7 +13,7 @@
 
 package org.opensearch.search.profile.aggregation;
 
-import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.TimingProfileResult;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -24,18 +24,18 @@ import java.util.Map;
 
 public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
 
-    public static List<ProfileResult> createConcurrentSearchProfileTree() {
-        List<ProfileResult> tree = new ArrayList<>();
+    public static List<TimingProfileResult> createConcurrentSearchProfileTree() {
+        List<TimingProfileResult> tree = new ArrayList<>();
         // Aggregation
         tree.add(
-            new ProfileResult(
+            new TimingProfileResult(
                 "NumericTermsAggregator",
                 "test_scoped_agg",
                 new LinkedHashMap<>(),
                 new HashMap<>(),
                 10847417L,
                 List.of(
-                    new ProfileResult(
+                    new TimingProfileResult(
                         "GlobalOrdinalsStringTermsAggregator",
                         "test_terms",
                         new LinkedHashMap<>(),
@@ -53,14 +53,14 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
             )
         );
         tree.add(
-            new ProfileResult(
+            new TimingProfileResult(
                 "NumericTermsAggregator",
                 "test_scoped_agg",
                 new LinkedHashMap<>(),
                 new HashMap<>(),
                 10776655L,
                 List.of(
-                    new ProfileResult(
+                    new TimingProfileResult(
                         "GlobalOrdinalsStringTermsAggregator",
                         "test_terms",
                         new LinkedHashMap<>(),
@@ -79,7 +79,7 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
         );
         // Global Aggregation
         tree.add(
-            new ProfileResult(
+            new TimingProfileResult(
                 "GlobalAggregator",
                 "test_global_agg",
                 new LinkedHashMap<>(),
@@ -92,7 +92,7 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
             )
         );
         tree.add(
-            new ProfileResult(
+            new TimingProfileResult(
                 "GlobalAggregator",
                 "test_global_agg",
                 new LinkedHashMap<>(),
@@ -108,7 +108,7 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
     }
 
     public void testBuildTimeStatsBreakdownMap() {
-        List<ProfileResult> tree = createConcurrentSearchProfileTree();
+        List<TimingProfileResult> tree = createConcurrentSearchProfileTree();
         Map<String, Long> breakdown = new HashMap<>();
         Map<String, Long> timeStatsMap = new HashMap<>();
         timeStatsMap.put("max_initialize", 30L);
@@ -124,7 +124,7 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
     }
 
     public void testBuildCountStatsBreakdownMap() {
-        List<ProfileResult> tree = createConcurrentSearchProfileTree();
+        List<TimingProfileResult> tree = createConcurrentSearchProfileTree();
         Map<String, Long> breakdown = new HashMap<>();
         Map<String, Long> countStatsMap = new HashMap<>();
         countStatsMap.put("max_collect_count", 3L);
@@ -143,7 +143,7 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
         Map<String, Long> statsMap = new HashMap<>();
         ConcurrentAggregationProfiler.buildBreakdownStatsMap(
             statsMap,
-            new ProfileResult("NumericTermsAggregator", "desc", Map.of("initialize", 100L), Map.of(), 130L, List.of()),
+            new TimingProfileResult("NumericTermsAggregator", "desc", Map.of("initialize", 100L), Map.of(), 130L, List.of()),
             "initialize"
         );
         assertTrue(statsMap.containsKey("max_initialize"));
@@ -154,7 +154,7 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
         assertEquals(100L, (long) statsMap.get("avg_initialize"));
         ConcurrentAggregationProfiler.buildBreakdownStatsMap(
             statsMap,
-            new ProfileResult("NumericTermsAggregator", "desc", Map.of("initialize", 50L), Map.of(), 120L, List.of()),
+            new TimingProfileResult("NumericTermsAggregator", "desc", Map.of("initialize", 50L), Map.of(), 120L, List.of()),
             "initialize"
         );
         assertEquals(100L, (long) statsMap.get("max_initialize"));
@@ -163,8 +163,8 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
     }
 
     public void testGetSliceLevelAggregationMap() {
-        List<ProfileResult> tree = createConcurrentSearchProfileTree();
-        Map<String, List<ProfileResult>> aggregationMap = ConcurrentAggregationProfiler.getSliceLevelAggregationMap(tree);
+        List<TimingProfileResult> tree = createConcurrentSearchProfileTree();
+        Map<String, List<TimingProfileResult>> aggregationMap = ConcurrentAggregationProfiler.getSliceLevelAggregationMap(tree);
         assertEquals(2, aggregationMap.size());
         assertTrue(aggregationMap.containsKey("test_scoped_agg"));
         assertTrue(aggregationMap.containsKey("test_global_agg"));

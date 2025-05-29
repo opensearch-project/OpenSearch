@@ -27,6 +27,9 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * A profile result for a timing profile
+ */
 @PublicApi(since = "3.0.0")
 public class TimingProfileResult extends AbstractProfileResult<TimingProfileResult> {
     static final ParseField NODE_TIME = new ParseField("time");
@@ -37,7 +40,6 @@ public class TimingProfileResult extends AbstractProfileResult<TimingProfileResu
     static final ParseField MAX_SLICE_NODE_TIME_RAW = new ParseField("max_slice_time_in_nanos");
     static final ParseField MIN_SLICE_NODE_TIME_RAW = new ParseField("min_slice_time_in_nanos");
     static final ParseField AVG_SLICE_NODE_TIME_RAW = new ParseField("avg_slice_time_in_nanos");
-    static final ParseField CHILDREN = new ParseField("children");
 
     private final long nodeTime;
     private Long maxSliceNodeTime;

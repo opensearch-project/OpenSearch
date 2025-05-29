@@ -69,10 +69,11 @@ public class SearchProfileShardResultsTests extends OpenSearchTestCase {
                 queryProfileResults.add(QueryProfileShardResultTests.createTestItem());
             }
             AggregationProfileShardResult aggProfileShardResult = AggregationProfileShardResultTests.createTestItem(1);
+            List<AbstractProfileShardResult<?>> pluginProfileResults = new ArrayList<>();
             NetworkTime networkTime = new NetworkTime(inboundTime, outboundTime);
             searchProfileResults.put(
                 randomAlphaOfLengthBetween(5, 10),
-                new ProfileShardResult(queryProfileResults, aggProfileShardResult, networkTime)
+                new ProfileShardResult(queryProfileResults, aggProfileShardResult, pluginProfileResults, networkTime)
             );
         }
         return new SearchProfileShardResults(searchProfileResults);
@@ -100,8 +101,8 @@ public class SearchProfileShardResultsTests extends OpenSearchTestCase {
             // The ProfileResults "breakdown" section just consists of key/value pairs, we shouldn't add anything random there
             // also we don't want to insert into the root object here, its just the PROFILE_FIELD itself
             Predicate<String> excludeFilter = (s) -> s.isEmpty()
-                || s.endsWith(ProfileResult.BREAKDOWN.getPreferredName())
-                || s.endsWith(ProfileResult.DEBUG.getPreferredName());
+                || s.endsWith(TimingProfileResult.BREAKDOWN.getPreferredName())
+                || s.endsWith(TimingProfileResult.DEBUG.getPreferredName());
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {
             mutated = originalBytes;

@@ -46,7 +46,7 @@ import java.util.Map;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class AggregationProfiler extends AbstractProfiler<AggregationTimingProfileBreakdown, AggregationTimingType, Aggregator, TimingProfileResult> {
+public class AggregationProfiler extends AbstractProfiler<AggregationTimingProfileBreakdown, AggregationTimingType, Aggregator, TimingProfileResult, AggregationProfileShardResult> {
 
     private final Map<Aggregator, AggregationTimingProfileBreakdown> profileBreakdownLookup = new HashMap<>();
 
@@ -68,5 +68,10 @@ public class AggregationProfiler extends AbstractProfiler<AggregationTimingProfi
             profileBreakdownLookup.put(agg, aggregationProfileBreakdown);
         }
         return aggregationProfileBreakdown;
+    }
+
+    @Override
+    public AggregationProfileShardResult createProfileShardResult() {
+        return new AggregationProfileShardResult(getTree());
     }
 }

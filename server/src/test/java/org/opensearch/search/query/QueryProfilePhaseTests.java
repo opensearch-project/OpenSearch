@@ -73,9 +73,9 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
-import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.search.profile.TimingProfileResult;
 import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.search.sort.SortAndFormats;
@@ -706,7 +706,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score"), equalTo(0L));
                 assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score_count"), equalTo(0L));
 
-                List<ProfileResult> children = query.getProfiledChildren().get(0).getProfiledChildren();
+                List<TimingProfileResult> children = query.getProfiledChildren().get(0).getProfiledChildren();
                 assertThat(children, hasSize(2));
                 assertThat(children.get(0).getQueryName(), equalTo("TermQuery"));
                 assertThat(children.get(0).getTime(), greaterThan(0L));
@@ -1611,7 +1611,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    private void assertProfileData(SearchContext context, String type, Consumer<ProfileResult> query, Consumer<CollectorResult> collector)
+    private void assertProfileData(SearchContext context, String type, Consumer<TimingProfileResult> query, Consumer<CollectorResult> collector)
         throws IOException {
         assertProfileData(context, collector, (profileResult) -> {
             assertThat(profileResult.getQueryName(), equalTo(type));
@@ -1620,7 +1620,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         });
     }
 
-    private void assertProfileData(SearchContext context, Consumer<CollectorResult> collector, Consumer<ProfileResult> query1)
+    private void assertProfileData(SearchContext context, Consumer<CollectorResult> collector, Consumer<TimingProfileResult> query1)
         throws IOException {
         assertProfileData(context, Arrays.asList(query1), collector, false);
     }
@@ -1628,15 +1628,15 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
     private void assertProfileData(
         SearchContext context,
         Consumer<CollectorResult> collector,
-        Consumer<ProfileResult> query1,
-        Consumer<ProfileResult> query2
+        Consumer<TimingProfileResult> query1,
+        Consumer<TimingProfileResult> query2
     ) throws IOException {
         assertProfileData(context, Arrays.asList(query1, query2), collector, false);
     }
 
     private final void assertProfileData(
         SearchContext context,
-        List<Consumer<ProfileResult>> queries,
+        List<Consumer<TimingProfileResult>> queries,
         Consumer<CollectorResult> collector,
         boolean debug
     ) throws IOException {

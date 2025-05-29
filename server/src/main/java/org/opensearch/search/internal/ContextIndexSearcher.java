@@ -73,6 +73,7 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.profile.query.*;
@@ -111,6 +112,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private MutableQueryTimeout cancellable;
     private SearchContext searchContext;
 
+    private List<AbstractProfiler<?,?,?,?,?>> pluginProfilers;
+
     public ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -148,10 +151,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
         this.searchContext = searchContext;
+        this.pluginProfilers = new ArrayList<>();
     }
 
-    public void setProfiler(QueryProfiler profiler) {
+    public void setQueryProfiler(QueryProfiler profiler) {
         this.profiler = profiler;
+    }
+
+    public void setPluginProfilers(List<AbstractProfiler<?,?,?,?,?>> pluginProfilers) {
+        this.pluginProfilers = pluginProfilers;
+    }
+
+    public AbstractProfiler<?,?,?,?,?> getPluginProfiler(Class<? extends AbstractProfiler<?,?,?,?,?>> clazz) {
+        for (AbstractProfiler<?,?,?,?,?> profiler : pluginProfilers) {
+            if (profiler.getClass().equals(clazz)) {
+                return profiler;
+            }
+        }
+        return null;
     }
 
     /**

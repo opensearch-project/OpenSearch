@@ -45,8 +45,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHit;
-import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
+import org.opensearch.search.profile.TimingProfileResult;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 
@@ -125,7 +125,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 assertThat(shard.getValue().getNetworkTime().getInboundNetworkTime(), greaterThanOrEqualTo(0L));
                 assertThat(shard.getValue().getNetworkTime().getOutboundNetworkTime(), greaterThanOrEqualTo(0L));
                 for (QueryProfileShardResult searchProfiles : shard.getValue().getQueryProfileResults()) {
-                    for (ProfileResult result : searchProfiles.getQueryResults()) {
+                    for (TimingProfileResult result : searchProfiles.getQueryResults()) {
                         assertNotNull(result.getQueryName());
                         assertNotNull(result.getLuceneDescription());
                         assertThat(result.getTime(), greaterThan(0L));
@@ -247,7 +247,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
 
         for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                for (TimingProfileResult result : searchProfiles.getQueryResults()) {
                     assertEquals(result.getQueryName(), "TermQuery");
                     assertEquals(result.getLuceneDescription(), "field1:one");
                     assertThat(result.getTime(), greaterThan(0L));
@@ -289,7 +289,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
 
         for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                for (TimingProfileResult result : searchProfiles.getQueryResults()) {
                     assertEquals(result.getQueryName(), "BooleanQuery");
                     assertEquals(result.getLuceneDescription(), "+field1:one +field1:two");
                     assertThat(result.getTime(), greaterThan(0L));
@@ -298,10 +298,10 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                     assertQueryProfileResult(result);
 
                     // Check the children
-                    List<ProfileResult> children = result.getProfiledChildren();
+                    List<TimingProfileResult> children = result.getProfiledChildren();
                     assertEquals(children.size(), 2);
 
-                    ProfileResult childProfile = children.get(0);
+                    TimingProfileResult childProfile = children.get(0);
                     assertEquals(childProfile.getQueryName(), "TermQuery");
                     assertEquals(childProfile.getLuceneDescription(), "field1:one");
                     assertThat(childProfile.getTime(), greaterThan(0L));
@@ -352,7 +352,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
 
         for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                for (TimingProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
@@ -398,7 +398,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
 
         for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                for (TimingProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
@@ -439,7 +439,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
 
         for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                for (TimingProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
@@ -490,8 +490,8 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
             assertThat(shardResult.getValue().getNetworkTime().getInboundNetworkTime(), greaterThanOrEqualTo(0L));
             assertThat(shardResult.getValue().getNetworkTime().getOutboundNetworkTime(), greaterThanOrEqualTo(0L));
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                List<ProfileResult> results = searchProfiles.getQueryResults();
-                for (ProfileResult result : results) {
+                List<TimingProfileResult> results = searchProfiles.getQueryResults();
+                for (TimingProfileResult result : results) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
@@ -563,7 +563,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
 
         for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                for (TimingProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
@@ -603,7 +603,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
 
         for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                for (TimingProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
@@ -657,7 +657,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
 
         for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
             for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                for (TimingProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
@@ -695,7 +695,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
         assertThat("Profile response element should be an empty map", resp.getProfileResults().size(), equalTo(0));
     }
 
-    private void assertQueryProfileResult(ProfileResult result) {
+    private void assertQueryProfileResult(TimingProfileResult result) {
         Map<String, Long> breakdown = result.getTimeBreakdown();
         Long maxSliceTime = result.getMaxSliceTime();
         Long minSliceTime = result.getMinSliceTime();

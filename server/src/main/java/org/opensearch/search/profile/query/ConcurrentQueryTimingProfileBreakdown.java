@@ -18,6 +18,9 @@ import org.opensearch.search.profile.Timer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * A {@link AbstractTimingProfileBreakdown} for concurrent query timings.
+ */
 public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown<QueryTimingType> implements TimingProfileContext {
     static final String SLICE_END_TIME_SUFFIX = "_slice_end_time";
     static final String SLICE_START_TIME_SUFFIX = "_slice_start_time";

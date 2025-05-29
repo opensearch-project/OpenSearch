@@ -12,15 +12,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Base class for all timing profile breakdowns.
+ */
 public abstract class AbstractTimingProfileBreakdown<T extends Enum<T>> extends AbstractProfileBreakdown<T> {
 
     protected final Map<T, Timer> timers = new HashMap<>();
     public static final String TIMING_TYPE_COUNT_SUFFIX = "_count";
     public static final String TIMING_TYPE_START_TIME_SUFFIX = "_start_time";
 
-    public AbstractTimingProfileBreakdown() {
-        super("times");
-    }
+    public AbstractTimingProfileBreakdown() {}
 
     public Timer getTimer(T type) {
         return timers.get(type);
