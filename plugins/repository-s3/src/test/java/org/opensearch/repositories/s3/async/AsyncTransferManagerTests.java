@@ -641,7 +641,6 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             assertNotNull("Exception should be a CorruptFileException", throwable);
             assertTrue("Exception should be a CorruptFileException", throwable instanceof CorruptFileException);
         }
-
         verify(s3AsyncClient, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
         verify(s3AsyncClient, times(5)).uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class));
         verify(s3AsyncClient, times(0)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));

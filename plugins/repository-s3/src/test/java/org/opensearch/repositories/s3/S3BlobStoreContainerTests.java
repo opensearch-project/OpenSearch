@@ -1022,6 +1022,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);
 
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+        final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
         final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
@@ -1087,6 +1100,16 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(cannedAccessControlList, createRequest.acl());
         assertEquals(metadata, createRequest.metadata());
 
+        // ENCRYPTION VERIFICATION: Updated encryption verification
+        if (useSseKms) {
+            assertEquals(ServerSideEncryption.AWS_KMS, createRequest.serverSideEncryption());
+            assertEquals(kmsKeyId, createRequest.ssekmsKeyId());
+            assertEquals(kmsContext, createRequest.ssekmsEncryptionContext());
+            assertEquals(useBucketKey, createRequest.bucketKeyEnabled());
+        } else {
+            assertEquals(ServerSideEncryption.AES256, createRequest.serverSideEncryption());
+        }
+
         List<UploadPartRequest> partRequests = uploadPartRequestCaptor.getAllValues();
         assertEquals(partCount, partRequests.size());
 
@@ -1146,6 +1169,20 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
+
+        // ENCRYPTION CHANGES: Replace hard-coded encryption with enhanced configuration
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+        final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);
@@ -1210,7 +1247,15 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(cannedAccessControlList, createRequest.acl());
         assertEquals(metadata, createRequest.metadata());
 
-        assertEquals(ServerSideEncryption.AES256, createRequest.serverSideEncryption());
+        // ENCRYPTION VERIFICATION: Updated encryption verification
+        if (useSseKms) {
+            assertEquals(ServerSideEncryption.AWS_KMS, createRequest.serverSideEncryption());
+            assertEquals(kmsKeyId, createRequest.ssekmsKeyId());
+            assertEquals(kmsContext, createRequest.ssekmsEncryptionContext());
+            assertEquals(useBucketKey, createRequest.bucketKeyEnabled());
+        } else {
+            assertEquals(ServerSideEncryption.AES256, createRequest.serverSideEncryption());
+        }
 
         List<UploadPartRequest> partRequests = uploadPartRequestCaptor.getAllValues();
         assertEquals(2, partRequests.size());
@@ -1273,6 +1318,21 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
         when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+
+        // ENCRYPTION CHANGES: Replace serverSideEncryption with enhanced configuration
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+        final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
         when(blobStore.isUploadRetryEnabled()).thenReturn(false);
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
@@ -1327,6 +1387,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final CreateMultipartUploadRequest createRequest = createRequestCaptor.getValue();
         assertEquals(bucketName, createRequest.bucket());
         assertEquals(blobPath.buildAsString() + blobName, createRequest.key());
+
+        // No explicit encryption verification needed for this test as it focuses on content integrity
 
         final CompleteMultipartUploadRequest completeRequest = completeRequestCaptor.getValue();
         assertEquals(inputETag, completeRequest.ifMatch());
@@ -1416,6 +1478,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.bucket()).thenReturn("test-bucket");
 
         when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(5));
+
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+        final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
 
         ArgumentCaptor<CompleteMultipartUploadRequest> completeRequestCaptor = ArgumentCaptor.forClass(
             CompleteMultipartUploadRequest.class
@@ -1565,6 +1640,20 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
         when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+
+        final boolean useSseKms = randomBoolean();
+        final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+        final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+        final boolean useBucketKey = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
         when(blobStore.isUploadRetryEnabled()).thenReturn(false);
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
@@ -1665,6 +1754,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
             when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
 
+            final boolean useSseKms = randomBoolean();
+            final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+            final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+            final boolean useBucketKey = randomBoolean();
+            if (useSseKms) {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+                when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+                when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+                when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+            } else {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+            }
+
             final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
             final S3Client client = mock(S3Client.class);
@@ -1712,7 +1814,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
             final AtomicReference<Exception> capturedException = new AtomicReference<>();
             ActionListener<ConditionalWriteResponse> responseListener = ActionListener.wrap(
-                // Changed listener type
                 r -> fail("Should have failed with exception"),
                 capturedException::set
             );
@@ -1779,6 +1880,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
             when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
             when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+
+            final boolean useSseKms = randomBoolean();
+            final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+            final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+            final boolean useBucketKey = randomBoolean();
+            if (useSseKms) {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+                when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+                when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+                when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+            } else {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+            }
 
             final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
@@ -1880,6 +1994,19 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
             when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
             when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+
+            final boolean useSseKms = randomBoolean();
+            final String kmsKeyId = randomAlphaOfLengthBetween(10, 20);
+            final String kmsContext = randomAlphaOfLengthBetween(10, 20);
+            final boolean useBucketKey = randomBoolean();
+            if (useSseKms) {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+                when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
+                when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+                when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+            } else {
+                when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+            }
 
             final S3Client client = mock(S3Client.class);
 

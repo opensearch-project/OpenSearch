@@ -841,6 +841,15 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
+        if (randomBoolean()) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(randomAlphaOfLength(10));
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(randomBoolean());
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(randomAlphaOfLength(10));
+        }
+
         final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = Mockito.spy(new AmazonS3Reference(client));
         doNothing().when(clientReference).close();
