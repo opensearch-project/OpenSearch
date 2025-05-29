@@ -21,22 +21,24 @@ import java.util.function.Supplier;
  *
  * Example usages:
  * <pre>
- * <code>
+ * {@code
  * AccessController.doPrivileged(() -> {
  *     // code that requires privileges
  * });
- * </code>
+ * }
  * </pre>
- * <p>
+ *
+ * Example usage with a return value and checked exception:
+ *
  * <pre>
- * <code>
+ * {@code
  * T something = AccessController.doPrivilegedChecked((Callable<T>) () -> {
  *     // code that requires privileges and may throw a checked exception
  *     return something;
  *     // or
  *     throw new Exception();
  * });
- * </code>
+ * }
  * </pre>
  */
 public final class AccessController {
