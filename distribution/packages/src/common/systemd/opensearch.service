@@ -101,7 +101,8 @@ LockPersonality=yes
 # @ means allowed
 # ~ means not allowed
 # These syscalls are related to mmap which is needed for OpenSearch Services
-SystemCallFilter=madvise mincore mlock mlock2 munlock get_mempolicy sched_getaffinity sched_setaffinity fcntl
+SystemCallFilter=seccomp mincore
+SystemCallFilter=madvise mlock mlock2 munlock get_mempolicy sched_getaffinity sched_setaffinity fcntl
 SystemCallFilter=@system-service
 SystemCallFilter=~@reboot
 SystemCallFilter=~@swap

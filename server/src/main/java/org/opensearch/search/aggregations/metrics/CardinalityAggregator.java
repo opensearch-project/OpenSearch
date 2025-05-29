@@ -358,7 +358,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 postingMap.put(term, scorer);
             }
 
-            this.queue = new DisiPriorityQueue(postingMap.size());
+            this.queue = DisiPriorityQueue.ofMaxSize(postingMap.size());
             for (Scorer scorer : postingMap.values()) {
                 queue.add(new DisiWrapper(scorer, false));
             }
@@ -452,15 +452,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public int nextDoc() {
-            // don't expect this to be called based on its usage in DefaultBulkScorer
-            throw new UnsupportedOperationException();
+        public int nextDoc() throws IOException {
+            return advance(slowDocId + 1);
         }
 
         @Override
         public long cost() {
-            // don't expect this to be called based on its usage in DefaultBulkScorer
-            throw new UnsupportedOperationException();
+            return queue.top() == null ? 0 : queue.top().approximation.cost();
         }
     }
 
