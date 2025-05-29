@@ -39,17 +39,20 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
     private final FileCacheStats overallFileCacheStats;
     private final FileCacheStats fullFileCacheStats;
     private final FileCacheStats blockFileCacheStats;
+    private final FileCacheStats pinnedFileCacheStats;
 
     public AggregateFileCacheStats(
         final long timestamp,
         final FileCacheStats overallFileCacheStats,
         final FileCacheStats fullFileCacheStats,
-        final FileCacheStats blockFileCacheStats
+        final FileCacheStats blockFileCacheStats,
+        FileCacheStats pinnedFileCacheStats
     ) {
         this.timestamp = timestamp;
         this.overallFileCacheStats = overallFileCacheStats;
         this.fullFileCacheStats = fullFileCacheStats;
         this.blockFileCacheStats = blockFileCacheStats;
+        this.pinnedFileCacheStats = pinnedFileCacheStats;
     }
 
     public AggregateFileCacheStats(final StreamInput in) throws IOException {
@@ -57,6 +60,7 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         this.overallFileCacheStats = new FileCacheStats(in);
         this.fullFileCacheStats = new FileCacheStats(in);
         this.blockFileCacheStats = new FileCacheStats(in);
+        this.pinnedFileCacheStats = new FileCacheStats(in);
     }
 
     public static short calculatePercentage(long used, long max) {
@@ -69,6 +73,7 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         overallFileCacheStats.writeTo(out);
         fullFileCacheStats.writeTo(out);
         blockFileCacheStats.writeTo(out);
+        pinnedFileCacheStats.writeTo(out);
     }
 
     public long getTimestamp() {
@@ -89,6 +94,10 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
 
     public ByteSizeValue getUsed() {
         return new ByteSizeValue(overallFileCacheStats.getUsed());
+    }
+
+    public ByteSizeValue getPinnedUsage() {
+        return new ByteSizeValue(overallFileCacheStats.getPinnedUsage());
     }
 
     public short getUsedPercent() {
@@ -114,6 +123,7 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.ACTIVE_IN_BYTES, Fields.ACTIVE, getActive());
         builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, getTotal());
         builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
+        builder.humanReadableField(Fields.PINNED_IN_BYTES, Fields.PINNED, getPinnedUsage());
         builder.humanReadableField(Fields.EVICTIONS_IN_BYTES, Fields.EVICTIONS, getEvicted());
         builder.field(Fields.ACTIVE_PERCENT, getActivePercent());
         builder.field(Fields.USED_PERCENT, getUsedPercent());
@@ -122,7 +132,7 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         overallFileCacheStats.toXContent(builder, params);
         fullFileCacheStats.toXContent(builder, params);
         blockFileCacheStats.toXContent(builder, params);
-
+        pinnedFileCacheStats.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -134,6 +144,8 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         static final String ACTIVE_IN_BYTES = "active_in_bytes";
         static final String USED = "used";
         static final String USED_IN_BYTES = "used_in_bytes";
+        static final String PINNED = "pinned";
+        static final String PINNED_IN_BYTES = "pinned_in_bytes";
         static final String EVICTIONS = "evictions";
         static final String EVICTIONS_IN_BYTES = "evictions_in_bytes";
         static final String TOTAL = "total";
@@ -153,7 +165,8 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
     public enum FileCacheStatsType {
         FULL_FILE_STATS("full_file_stats"),
         BLOCK_FILE_STATS("block_file_stats"),
-        OVER_ALL_STATS("over_all_stats");
+        OVER_ALL_STATS("over_all_stats"),
+        PINNED_FILE_STATS("pinned_file_stats");
 
         private final String fileCacheStatsType;
 

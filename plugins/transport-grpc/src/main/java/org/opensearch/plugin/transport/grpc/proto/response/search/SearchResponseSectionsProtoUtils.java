@@ -31,15 +31,25 @@ public class SearchResponseSectionsProtoUtils {
      *
      * @param builder The Protocol Buffer SearchResponse builder to populate
      * @param response The SearchResponse to convert
-     * @return The populated Protocol Buffer SearchResponse builder
      * @throws IOException if there's an error during conversion
      */
-    protected static org.opensearch.protobufs.ResponseBody.Builder toProto(
-        org.opensearch.protobufs.ResponseBody.Builder builder,
-        SearchResponse response
-    ) throws IOException {
-        builder.setHits(SearchHitsProtoUtils.toProto(response.getHits()));
+    protected static void toProto(org.opensearch.protobufs.ResponseBody.Builder builder, SearchResponse response) throws IOException {
+        // Convert hits using pass by reference
+        org.opensearch.protobufs.HitsMetadata.Builder hitsBuilder = org.opensearch.protobufs.HitsMetadata.newBuilder();
+        SearchHitsProtoUtils.toProto(response.getHits(), hitsBuilder);
+        builder.setHits(hitsBuilder.build());
 
+        // Check for unsupported features
+        checkUnsupportedFeatures(response);
+    }
+
+    /**
+     * Helper method to check for unsupported features.
+     *
+     * @param response The SearchResponse to check
+     * @throws UnsupportedOperationException if unsupported features are present
+     */
+    private static void checkUnsupportedFeatures(SearchResponse response) {
         // TODO: Implement aggregations conversion
         if (response.getAggregations() != null) {
             throw new UnsupportedOperationException("aggregation responses are not supported yet");
@@ -60,7 +70,5 @@ public class SearchResponseSectionsProtoUtils {
             && !response.getInternalResponse().getSearchExtBuilders().isEmpty()) {
             throw new UnsupportedOperationException("ext builder responses are not supported yet");
         }
-
-        return builder;
     }
 }
