@@ -431,7 +431,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                             assertEquals("Mismatch at doc index " + i, topDocs.scoreDocs[i].doc, topDocs1.scoreDocs[i].doc);
                         }
 
-
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
