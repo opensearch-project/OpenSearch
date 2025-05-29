@@ -32,11 +32,13 @@
 
 package org.opensearch.tools.cli.plugin;
 
+import org.opensearch.secure_sm.policy.PolicyInitializationException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 import java.util.Set;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
@@ -82,7 +84,7 @@ public class PluginSecurityTests extends OpenSearchTestCase {
                 System.getSecurityManager() == null);
         Path scratch = createTempDir();
         Path testFile = this.getDataPath("unresolved-plugin-security.policy");
-        Set<String> permissions = PluginSecurity.parsePermissions(testFile, scratch);
-        assertThat(permissions, contains("org.fake.FakePermission fakeName"));
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> PluginSecurity.parsePermissions(testFile, scratch));
+        assertThat(ex.getCause(), instanceOf(PolicyInitializationException.class));
     }
 }

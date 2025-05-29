@@ -103,6 +103,11 @@ import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTIN
 import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.REGION;
 import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
+import static org.opensearch.repositories.s3.S3Repository.EXPECTED_BUCKET_OWNER_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_TYPE_SETTING;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -130,15 +135,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @Before
     public void setUp() throws Exception {
         previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
-        service = new S3Service(configPath());
-        asyncService = new S3AsyncService(configPath());
+        scheduler = new ScheduledThreadPoolExecutor(1);
+        service = new S3Service(configPath(), scheduler);
+        asyncService = new S3AsyncService(configPath(), scheduler);
 
         futureCompletionService = Executors.newSingleThreadExecutor();
         streamReaderService = Executors.newSingleThreadExecutor();
         transferNIOGroup = new AsyncTransferEventLoopGroup(1);
         remoteTransferRetry = Executors.newFixedThreadPool(20);
         transferQueueConsumerService = Executors.newFixedThreadPool(2);
-        scheduler = new ScheduledThreadPoolExecutor(1);
         GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
             new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 5L, ByteSizeUnit.GB),
@@ -244,7 +249,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 asyncService,
                 true,
                 "bucket",
-                S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
                 bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
                 S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
                 S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
@@ -268,7 +272,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 asyncExecutorContainer,
                 normalPrioritySizeBasedBlockingQ,
                 lowPrioritySizeBasedBlockingQ,
-                genericStatsMetricPublisher
+                genericStatsMetricPublisher,
+                SERVER_SIDE_ENCRYPTION_TYPE_SETTING.getDefault(Settings.EMPTY),
+                SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING.getDefault(Settings.EMPTY),
+                SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.getDefault(Settings.EMPTY),
+                SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.getDefault(Settings.EMPTY),
+                EXPECTED_BUCKET_OWNER_SETTING.getDefault(Settings.EMPTY)
             )
         ) {
             @Override

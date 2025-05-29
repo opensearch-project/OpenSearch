@@ -137,6 +137,13 @@ public interface Processor {
     String getDescription();
 
     /**
+     * @return if the processor is systematically generated
+     */
+    default boolean isSystemGenerated() {
+        return false;
+    }
+
+    /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
     interface Factory {
@@ -152,6 +159,13 @@ public interface Processor {
          */
         Processor create(Map<String, Factory> processorFactories, String tag, String description, Map<String, Object> config)
             throws Exception;
+
+        /**
+         * @return if the factory is for system generated processor
+         */
+        default boolean isSystemGenerated() {
+            return false;
+        }
     }
 
     /**
