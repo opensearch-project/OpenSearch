@@ -221,7 +221,7 @@ public class AggregationProcessorTests extends AggregationSetupTests {
         }
         // after shard level reduce it should have only 1 InternalAggregation instance for each agg in request and internal aggregation
         // will be equal to sum of expected global and nonglobal aggs
-        assertEquals(expectedNonGlobalAggsPerSlice + expectedGlobalAggs, context.queryResult().aggregations().expand().aggregations.size());
+        assertEquals(expectedNonGlobalAggsPerSlice + expectedGlobalAggs, context.queryResult().aggregations().aggregations.size());
         assertNull(context.aggregations());
         assertTrue(context.queryCollectorManagers().isEmpty());
     }
