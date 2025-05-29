@@ -14,7 +14,9 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -37,7 +39,6 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -95,10 +96,10 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param listener ActionListener for CreateRuleResponse
      */
     public void createRule(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener) {
-        try (ThreadContext.StoredContext ctx = getContext()) {
+        try (ThreadContext.StoredContext ctx = stashContext()) {
             if (!clusterService.state().metadata().hasIndex(indexName)) {
                 logger.error("Index {} does not exist", indexName);
-                throw new IllegalStateException("Index" + indexName + " does not exist");
+                listener.onFailure(new IllegalStateException("Index" + indexName + " does not exist"));
             } else {
                 Rule rule = request.getRule();
                 validateNoDuplicateRule(rule, ActionListener.wrap(unused -> persistRule(rule, listener), listener::onFailure));
@@ -107,30 +108,28 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     }
 
     /**
-     * Validates that no duplicate rule exists with the same attribute map.
-     * If a conflict is found, fails the listener
+     * Validates that no existing rule has the same attribute map as the given rule.
+     * This validation must be performed one at a time to prevent writing duplicate rules.
      * @param rule - the rule we check duplicate against
      * @param listener - listener for validateNoDuplicateRule response
      */
     private void validateNoDuplicateRule(Rule rule, ActionListener<Void> listener) {
-        try (ThreadContext.StoredContext ctx = getContext()) {
-            QueryBuilder query = queryBuilder.from(new GetRuleRequest(null, rule.getAttributeMap(), null, rule.getFeatureType()));
-            getRuleFromIndex(null, query, null, new ActionListener<>() {
-                @Override
-                public void onResponse(GetRuleResponse getRuleResponse) {
-                    Optional<String> duplicateRuleId = RuleUtils.getDuplicateRuleId(rule, getRuleResponse.getRules());
-                    duplicateRuleId.ifPresentOrElse(
-                        id -> listener.onFailure(new IllegalArgumentException("Duplicate rule exists under id " + id)),
-                        () -> listener.onResponse(null)
-                    );
-                }
+        QueryBuilder query = queryBuilder.from(new GetRuleRequest(null, rule.getAttributeMap(), null, rule.getFeatureType()));
+        getRuleFromIndex(null, query, null, new ActionListener<>() {
+            @Override
+            public void onResponse(GetRuleResponse getRuleResponse) {
+                Optional<String> duplicateRuleId = RuleUtils.getDuplicateRuleId(rule, getRuleResponse.getRules());
+                duplicateRuleId.ifPresentOrElse(
+                    id -> listener.onFailure(new IllegalArgumentException("Duplicate rule exists under id " + id)),
+                    () -> listener.onResponse(null)
+                );
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-        }
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**
@@ -139,17 +138,13 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param listener - ActionListener for CreateRuleResponse
      */
     private void persistRule(Rule rule, ActionListener<CreateRuleResponse> listener) {
-        try (ThreadContext.StoredContext ctx = getContext()) {
+        try {
             IndexRequest indexRequest = new IndexRequest(indexName).source(
                 rule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
             );
-            client.index(indexRequest, ActionListener.wrap(indexResponse -> {
-                listener.onResponse(new CreateRuleResponse(indexResponse.getId(), rule));
-            }, e -> {
-                logger.warn("Failed to save Rule object due to error: {}", e.getMessage());
-                listener.onFailure(e);
-            }));
-        } catch (IOException e) {
+            IndexResponse indexResponse = client.index(indexRequest).get();
+            listener.onResponse(new CreateRuleResponse(indexResponse.getId(), rule));
+        } catch (Exception e) {
             logger.error("Error saving rule to index: {}", indexName);
             listener.onFailure(new RuntimeException("Failed to save rule to index."));
         }
@@ -161,8 +156,10 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param listener the listener for GetRuleResponse.
      */
     public void getRule(GetRuleRequest getRuleRequest, ActionListener<GetRuleResponse> listener) {
-        final QueryBuilder getQueryBuilder = queryBuilder.from(getRuleRequest);
-        getRuleFromIndex(getRuleRequest.getId(), getQueryBuilder, getRuleRequest.getSearchAfter(), listener);
+        try (ThreadContext.StoredContext context = stashContext()) {
+            final QueryBuilder getQueryBuilder = queryBuilder.from(getRuleRequest);
+            getRuleFromIndex(getRuleRequest.getId(), getQueryBuilder, getRuleRequest.getSearchAfter(), listener);
+        }
     }
 
     /**
@@ -173,22 +170,19 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param listener - ActionListener for GetRuleResponse
      */
     private void getRuleFromIndex(String id, QueryBuilder queryBuilder, String searchAfter, ActionListener<GetRuleResponse> listener) {
-        // Stash the current thread context when interacting with system index to perform
-        // operations as the system itself, bypassing authorization checks. This ensures that
-        // actions within this block are trusted and executed with system-level privileges.
-        try (ThreadContext.StoredContext context = getContext()) {
+        try {
             SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(queryBuilder).setSize(maxRulesPerPage);
             if (searchAfter != null) {
                 searchRequest.addSort(_ID_STRING, SortOrder.ASC).searchAfter(new Object[] { searchAfter });
             }
-            searchRequest.execute(ActionListener.wrap(searchResponse -> {
-                List<SearchHit> hits = Arrays.asList(searchResponse.getHits().getHits());
-                if (hasNoResults(id, listener, hits)) return;
-                handleGetRuleResponse(hits, listener);
-            }, e -> {
-                logger.error("Failed to fetch all rules: {}", e.getMessage());
-                listener.onFailure(e);
-            }));
+
+            SearchResponse searchResponse = searchRequest.get();
+            List<SearchHit> hits = Arrays.asList(searchResponse.getHits().getHits());
+            if (hasNoResults(id, listener, hits)) return;
+            handleGetRuleResponse(hits, listener);
+        } catch (Exception e) {
+            logger.error("Failed to fetch all rules: {}", e.getMessage());
+            listener.onFailure(e);
         }
     }
 
@@ -214,7 +208,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
 
     @Override
     public void deleteRule(DeleteRuleRequest request, ActionListener<AcknowledgedResponse> listener) {
-        try (ThreadContext.StoredContext context = getContext()) {
+        try (ThreadContext.StoredContext context = stashContext()) {
             DeleteRequest deleteRequest = new DeleteRequest(indexName).id(request.getRuleId());
             client.delete(deleteRequest, ActionListener.wrap(deleteResponse -> {
                 boolean acknowledged = deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
@@ -241,7 +235,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         return indexName;
     }
 
-    private ThreadContext.StoredContext getContext() {
+    private ThreadContext.StoredContext stashContext() {
         return client.threadPool().getThreadContext().stashContext();
     }
 }

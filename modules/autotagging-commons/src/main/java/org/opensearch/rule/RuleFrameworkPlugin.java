@@ -68,6 +68,7 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
     public RuleFrameworkPlugin() {}
 
     private final RulePersistenceServiceRegistry rulePersistenceServiceRegistry = new RulePersistenceServiceRegistry();
+    private final RuleRoutingServiceRegistry ruleRoutingServiceRegistry = new RuleRoutingServiceRegistry();
     private final List<RuleFrameworkExtension> ruleFrameworkExtensions = new ArrayList<>();
 
     @Override
@@ -101,7 +102,10 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
 
     @Override
     public Collection<Module> createGuiceModules() {
-        return List.of(b -> { b.bind(RulePersistenceServiceRegistry.class).toInstance(rulePersistenceServiceRegistry); });
+        return List.of(b -> {
+            b.bind(RulePersistenceServiceRegistry.class).toInstance(rulePersistenceServiceRegistry);
+            b.bind(RuleRoutingServiceRegistry.class).toInstance(ruleRoutingServiceRegistry);
+        });
     }
 
     @Override
@@ -113,5 +117,7 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
         FeatureType featureType = ruleFrameworkExtension.getFeatureTypeSupplier().get();
         AutoTaggingRegistry.registerFeatureType(featureType);
         rulePersistenceServiceRegistry.register(featureType, ruleFrameworkExtension.getRulePersistenceServiceSupplier().get());
+        ruleRoutingServiceRegistry.register(featureType, ruleFrameworkExtension.getRuleRoutingServiceSupplier().get());
+
     }
 }

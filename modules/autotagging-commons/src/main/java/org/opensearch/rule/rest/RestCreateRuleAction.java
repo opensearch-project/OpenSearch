@@ -58,6 +58,7 @@ public class RestCreateRuleAction extends BaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             Builder builder = Builder.fromXContent(parser, featureType);
             CreateRuleRequest createRuleRequest = new CreateRuleRequest(builder.updatedAt(Instant.now().toString()).build());
+
             return channel -> client.execute(CreateRuleAction.INSTANCE, createRuleRequest, createRuleResponse(channel));
         }
     }

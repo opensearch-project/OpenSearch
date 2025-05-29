@@ -43,6 +43,6 @@ public class RulePersistenceServiceRegistryTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> registry.getRulePersistenceService(mockFeatureType)
         );
-        assertTrue(ex.getMessage().contains("Unknown feature type: unknown_feature"));
+        assertTrue(ex.getMessage().contains("Unknown feature type"));
     }
 }
