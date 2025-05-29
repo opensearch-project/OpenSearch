@@ -77,7 +77,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
         final List<Integer> children = tree.get(parentToken);
         if (children != null) {
             for (Integer currentChild : children) {
-                final QueryTimingProfileBreakdown currentChildBreakdown = (QueryTimingProfileBreakdown) breakdowns.get(currentChild);
+                final TimingProfileContext currentChildBreakdown = (TimingProfileContext) breakdowns.get(currentChild);
                 currentChildBreakdown.associateCollectorsToLeaves(collectorToLeaves);
                 updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves);
             }

@@ -99,6 +99,9 @@ import static java.util.Collections.emptyMap;
  */
 public interface SearchPlugin {
 
+    /**
+     * The plugin provider to be used to get the profilers from plugins.
+     */
     default ProfilerProvider getProfilerProvider() {
         return null;
     }

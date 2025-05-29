@@ -70,6 +70,11 @@ public final class AggregationProfileShardResult extends AbstractProfileShardRes
     }
 
     @Override
+    public boolean isFragment() {
+        return true;
+    }
+
+    @Override
     public TimingProfileResult createProfileResult(StreamInput in) throws IOException {
         return new TimingProfileResult(in);
     }
