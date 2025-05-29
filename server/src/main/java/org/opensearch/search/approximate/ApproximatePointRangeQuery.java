@@ -301,12 +301,18 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                             PointValues.PointTree leftChild = pointTree.clone();
                             // BKD is binary today, so one moveToSibling() is enough to land on the right child.
                             // If PointTree ever becomes n-ary, update the traversal below to visit all siblings or re-enable a full loop.
-                            pointTree.moveToSibling();
-                            assert pointTree.moveToSibling() == false;
-                            intersectRight(visitor, pointTree, docCount);
-                            pointTree.moveToParent();
-                            if (docCount[0] < size) {
+                            if (pointTree.moveToSibling()) {
+                                // We have two children - visit right first
+                                intersectRight(visitor, pointTree, docCount);
+                                pointTree.moveToParent();
+                                // Then visit left if we still need more docs
+                                if (docCount[0] < size) {
+                                    intersectRight(visitor, leftChild, docCount);
+                                }
+                            } else {
+                                // Only one child - visit it
                                 intersectRight(visitor, leftChild, docCount);
+                                pointTree.moveToParent();
                             }
                         } else {
                             if (docCount[0] < size) {

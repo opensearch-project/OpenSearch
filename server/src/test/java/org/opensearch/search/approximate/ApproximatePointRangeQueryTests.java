@@ -395,7 +395,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 long[] scratch = new long[dims];
                 int numPoints = 1000;
                 for (int i = 0; i < numPoints; i++) {
-                    Document doc = new Document();
                     for (int v = 0; v < dims; v++) {
                         scratch[v] = i;
                     }
@@ -487,7 +486,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 long[] scratch = new long[dims];
                 // Create a smaller dataset that will result in leaf nodes that are completely inside the query range
                 for (int i = 900; i <= 999; i++) {
-                    Document doc = new Document();
                     scratch[0] = i;
                     iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
                 }
@@ -530,13 +528,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 // Create documents in two separate ranges to ensure some cells are outside query
                 // Range 1: 0-99
                 for (int i = 0; i < 100; i++) {
-                    Document doc = new Document();
                     scratch[0] = i;
                     iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
                 }
                 // Range 2: 500-599 (gap ensures some tree nodes will be completely outside query)
                 for (int i = 500; i < 600; i++) {
-                    Document doc = new Document();
                     scratch[0] = i;
                     iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
                 }
@@ -577,7 +573,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 long[] scratch = new long[dims];
                 // Create documents that will result in cells that cross the query boundary
                 for (int i = 0; i < 1000; i++) {
-                    Document doc = new Document();
                     scratch[0] = i;
                     iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
                 }
@@ -607,6 +602,47 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     assertEquals("Should return exactly 100 documents", 100, topDocs.scoreDocs.length);
                     // For Desc sort the ApproximatePointRangeQuery will slightly over collect to retain the highest matched docs
                     assertTrue("Should collect at least requested number of documents", topDocs.totalHits.value() >= 100);
+                }
+            }
+        }
+    }
+
+    // Test to specifically cover the single child case in intersectRight
+    public void testIntersectRightSingleChildNode() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                long[] scratch = new long[dims];
+
+                for (int i = 0; i < 100; i++) {
+                    scratch[0] = 1000L;
+                    iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
+                }
+                scratch[0] = 987654321L;
+                iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
+
+                iw.flush();
+                iw.forceMerge(1);
+
+                try (IndexReader reader = iw.getReader()) {
+                    long lower = 500L;
+                    long upper = 999999999L;
+
+                    ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+                        "point",
+                        pack(lower).bytes,
+                        pack(upper).bytes,
+                        dims,
+                        50,
+                        SortOrder.DESC,
+                        ApproximatePointRangeQuery.LONG_FORMAT
+                    );
+
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    Sort sort = new Sort(new SortField("point", SortField.Type.LONG, true));
+                    TopDocs topDocs = searcher.search(query, 50, sort);
+
+                    assertEquals("Should return exactly 50 documents", 50, topDocs.scoreDocs.length);
                 }
             }
         }
