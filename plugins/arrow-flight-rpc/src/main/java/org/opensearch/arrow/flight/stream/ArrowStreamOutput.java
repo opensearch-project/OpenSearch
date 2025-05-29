@@ -27,6 +27,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.text.Text;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -152,6 +153,10 @@ class ArrowStreamOutput extends StreamOutput {
         roots.put(rootPath, new VectorSchemaRoot(newFields, fieldVectors));
     }
 
+    public PathManager getPathManager() {
+        return pathManager;
+    }
+
     @SuppressWarnings("unchecked")
     private <T extends FieldVector> void writeLeafValue(ArrowType type, BiConsumer<T, Integer> valueSetter) throws IOException {
         int colOrd = pathManager.addChild();
@@ -205,6 +210,11 @@ class ArrowStreamOutput extends StreamOutput {
     }
 
     @Override
+    public void writeZLong(long v) throws IOException {
+        writeLeafValue(new ArrowType.Int(64, true), (BigIntVector vector, Integer index) -> vector.setSafe(index, v));
+    }
+
+    @Override
     public void writeBoolean(boolean b) throws IOException {
         writeLeafValue(new ArrowType.Bool(), (BitVector vector, Integer index) -> vector.setSafe(index, b ? 1 : 0));
     }
@@ -214,6 +224,14 @@ class ArrowStreamOutput extends StreamOutput {
         writeLeafValue(
             new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE),
             (Float4Vector vector, Integer index) -> vector.setSafe(index, v)
+        );
+    }
+
+    @Override
+    public void writeText(Text text) throws IOException {
+        writeLeafValue(
+            new ArrowType.Utf8(),
+            (VarCharVector vector, Integer index) -> vector.setSafe(index, text.toString().getBytes(StandardCharsets.UTF_8))
         );
     }
 
@@ -294,12 +312,22 @@ class ArrowStreamOutput extends StreamOutput {
         structVector.setValueCount(row + 1);
     }
 
+    // @Override
+    // public <K, V> void writeMap(final Map<K, V> map, final Writeable.Writer<K> keyWriter, final Writeable.Writer<V> valueWriter) throws
+    // IOException{
+    //// writeVInt();
+    // }
+
     public VectorSchemaRoot getUnifiedRoot() {
         List<FieldVector> allFields = new ArrayList<>();
         for (VectorSchemaRoot root : roots.values()) {
             allFields.addAll(root.getFieldVectors());
         }
         return new VectorSchemaRoot(allFields);
+    }
+
+    public Map<String, VectorSchemaRoot> getRoots() {
+        return roots;
     }
 
     @Override
@@ -338,6 +366,14 @@ class ArrowStreamOutput extends StreamOutput {
 
         int getCurrentRow() {
             return row.get(currentPath);
+        }
+
+        public Map<String, Integer> getRow() {
+            return row;
+        }
+
+        public Map<String, Integer> getColumn() {
+            return column;
         }
 
         /**

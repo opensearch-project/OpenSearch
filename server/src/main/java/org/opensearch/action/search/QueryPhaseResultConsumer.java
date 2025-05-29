@@ -217,7 +217,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 aggsList.add(lastMerge.reducedAggs);
             }
             for (QuerySearchResult result : toConsume) {
-                aggsList.add(result.consumeAggs().expand());
+                aggsList.add(result.consumeAggs());
             }
             newAggs = InternalAggregations.topLevelReduce(aggsList, aggReduceContextBuilder.forPartialReduction());
         } else {
@@ -323,7 +323,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (hasAggs == false) {
                 return 0;
             }
-            return result.aggregations().asSerialized(InternalAggregations::readFrom, namedWriteableRegistry).ramBytesUsed();
+            return 0;
+            // return result.aggregations().asSerialized(InternalAggregations::readFrom, namedWriteableRegistry).ramBytesUsed();
         }
 
         /**
@@ -497,7 +498,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 aggsList.add(mergeResult.reducedAggs);
             }
             for (QuerySearchResult result : buffer) {
-                aggsList.add(result.consumeAggs().expand());
+                aggsList.add(result.consumeAggs());
             }
             return aggsList;
         }

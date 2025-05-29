@@ -22,6 +22,7 @@ import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.text.Text;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -141,14 +142,23 @@ class ArrowStreamInput extends StreamInput {
     }
 
     @Override
+    public long readZLong() throws IOException {
+        return readLong();
+    }
+
+    @Override
+    public Text readText() throws IOException {
+        return new Text(readString());
+    }
+
+    @Override
     public <C extends NamedWriteable> C readNamedWriteable(Class<C> categoryClass) throws IOException {
         int colOrd = pathManager.addChild();
         String path = pathManager.getCurrentPath();
         FieldVector vector = getVector(path, colOrd);
-        if (!(vector instanceof StructVector)) {
+        if (!(vector instanceof StructVector structVector)) {
             throw new IOException("Expected StructVector for NamedWriteable at path: " + path + ", column: " + colOrd);
         }
-        StructVector structVector = (StructVector) vector;
         String name = structVector.getField().getMetadata().getOrDefault("name", "");
         if (name.isEmpty()) {
             throw new IOException("No 'name' metadata found for NamedWriteable at path: " + path + ", column: " + colOrd);
@@ -201,10 +211,9 @@ class ArrowStreamInput extends StreamInput {
         int colOrd = pathManager.addChild();
         String path = pathManager.getCurrentPath();
         FieldVector vector = getVector(path, colOrd);
-        if (!(vector instanceof StructVector)) {
+        if (!(vector instanceof StructVector structVector)) {
             throw new IOException("Expected StructVector for map at path: " + path + ", column: " + colOrd);
         }
-        StructVector structVector = (StructVector) vector;
         int rowIndex = pathManager.getCurrentRow();
         if (structVector.isNull(rowIndex)) {
             return Collections.emptyMap();
