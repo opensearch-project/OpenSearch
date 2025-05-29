@@ -12,7 +12,32 @@ import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
 /**
- * Utility class to run code in a privileged block.
+ * A utility class that provides methods to perform actions in a privileged context.
+ *
+ * This class is a replacement for Java's {@code java.security.AccessController} functionality.
+ *
+ * Running code in a privileged context will ensure that the code has the necessary permissions
+ * without traversing through the entire call stack. See {@code org.opensearch.javaagent.StackCallerProtectionDomainChainExtractor}
+ *
+ * Example usages:
+ * <pre>
+ * <code>
+ * AccessController.doPrivileged(() -> {
+ *     // code that requires privileges
+ * });
+ * </code>
+ * </pre>
+ * <p>
+ * <pre>
+ * <code>
+ * T something = AccessController.doPrivilegedChecked((Callable<T>) () -> {
+ *     // code that requires privileges and may throw a checked exception
+ *     return something;
+ *     // or
+ *     throw new Exception();
+ * });
+ * </code>
+ * </pre>
  */
 public final class AccessController {
     /**
