@@ -67,7 +67,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
                 new Route(GET, "_list/wlm_stats/{nodeId}/stats"),
                 new Route(GET, "_list/wlm_stats/stats/{workloadGroupId}"),
                 new Route(GET, "_list/wlm_stats/{nodeId}/stats/{workloadGroupId}")
-                )
+            )
         );
     }
 
