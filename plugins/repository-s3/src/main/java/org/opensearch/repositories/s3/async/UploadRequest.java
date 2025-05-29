@@ -30,6 +30,11 @@ public class UploadRequest {
     private final Map<String, String> metadata;
     private final boolean uploadRetryEnabled;
     private final ConditionalWriteOptions conditionalOptions;
+    private volatile String serverSideEncryptionType;
+    private volatile String serverSideEncryptionKmsKey;
+    private volatile boolean serverSideEncryptionBucketKey;
+    private volatile String serverSideEncryptionEncryptionContext;
+    private final String expectedBucketOwner;
 
     /**
      * Construct a new UploadRequest object
@@ -43,6 +48,11 @@ public class UploadRequest {
      * @param expectedChecksum           Checksum of the file being uploaded for remote data integrity check
      * @param metadata                   Metadata of the file being uploaded
      * @param conditionalOptions         Conditions that must be satisfied for the write to succeed
+     * @param serverSideEncryptionType   Type of server-side encryption
+     * @param serverSideEncryptionKmsKey KMS key for server-side encryption
+     * @param serverSideEncryptionBucketKey Whether to use bucket keys for server-side encryption
+     * @param serverSideEncryptionEncryptionContext Encryption context for server-side encryption
+     * @param expectedBucketOwner        Expected owner of the bucket
      */
     public UploadRequest(
         String bucket,
@@ -54,7 +64,12 @@ public class UploadRequest {
         Long expectedChecksum,
         boolean uploadRetryEnabled,
         @Nullable Map<String, String> metadata,
-        @Nullable ConditionalWriteOptions conditionalOptions
+        @Nullable ConditionalWriteOptions conditionalOptions,
+        String serverSideEncryptionType,
+        String serverSideEncryptionKmsKey,
+        boolean serverSideEncryptionBucketKey,
+        @Nullable String serverSideEncryptionEncryptionContext,
+        @Nullable String expectedBucketOwner
     ) {
         this.bucket = bucket;
         this.key = key;
@@ -66,6 +81,11 @@ public class UploadRequest {
         this.uploadRetryEnabled = uploadRetryEnabled;
         this.metadata = metadata;
         this.conditionalOptions = conditionalOptions;
+        this.serverSideEncryptionType = serverSideEncryptionType;
+        this.serverSideEncryptionKmsKey = serverSideEncryptionKmsKey;
+        this.serverSideEncryptionBucketKey = serverSideEncryptionBucketKey;
+        this.serverSideEncryptionEncryptionContext = serverSideEncryptionEncryptionContext;
+        this.expectedBucketOwner = expectedBucketOwner;
     }
 
     public String getBucket() {
@@ -113,5 +133,25 @@ public class UploadRequest {
     @Nullable
     public ConditionalWriteOptions getConditionalOptions() {
         return conditionalOptions;
+    }
+
+    public String getServerSideEncryptionType() {
+        return serverSideEncryptionType;
+    }
+
+    public String getServerSideEncryptionKmsKey() {
+        return serverSideEncryptionKmsKey;
+    }
+
+    public boolean getServerSideEncryptionBucketKey() {
+        return serverSideEncryptionBucketKey;
+    }
+
+    public String getServerSideEncryptionEncryptionContext() {
+        return serverSideEncryptionEncryptionContext;
+    }
+
+    public String getExpectedBucketOwner() {
+        return expectedBucketOwner;
     }
 }

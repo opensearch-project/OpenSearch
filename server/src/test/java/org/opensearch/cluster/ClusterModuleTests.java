@@ -62,6 +62,7 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.WarmDiskThresholdDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.ClusterSettings;
@@ -253,6 +254,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             SearchReplicaAllocationDecider.class,
             SameShardAllocationDecider.class,
             DiskThresholdDecider.class,
+            WarmDiskThresholdDecider.class,
             ThrottlingAllocationDecider.class,
             ShardsLimitAllocationDecider.class,
             AwarenessAllocationDecider.class,

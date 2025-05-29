@@ -662,6 +662,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             wrapper,
             getInstanceFromNode(CircuitBreakerService.class),
             env.nodeId(),
+            getInstanceFromNode(ClusterService.class),
             listener
         );
         shardRef.set(newShard);
@@ -688,6 +689,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper,
         final CircuitBreakerService cbs,
         final String nodeId,
+        final ClusterService clusterService,
         final IndexingOperationListener... listeners
     ) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
@@ -726,7 +728,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             false,
             OpenSearchTestCase::randomBoolean,
             () -> indexService.getIndexSettings().getRefreshInterval(),
-            indexService.getRefreshMutex()
+            indexService.getRefreshMutex(),
+            clusterService.getClusterApplierService()
         );
     }
 

@@ -500,6 +500,29 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         return doubleValue;
     }
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        checkStoredAndDocValuesForDerivedSource();
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Considerations:
+     *    1. When using doc values, for multi value field, result would be in sorted order
+     *    2. There might be precision loss as values are stored as long after multiplying it with "scaling_factor" for
+     *       both doc values and stored field
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(
+            mappedFieldType,
+            new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()),
+            new StoredFieldFetcher(mappedFieldType, simpleName())
+        );
+    }
+
     private static class ScaledFloatIndexFieldData extends IndexNumericFieldData {
 
         private final IndexNumericFieldData scaledFieldData;

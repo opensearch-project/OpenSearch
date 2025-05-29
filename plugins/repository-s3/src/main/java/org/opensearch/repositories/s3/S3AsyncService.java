@@ -52,6 +52,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static java.util.Collections.emptyMap;
 
@@ -75,10 +76,20 @@ class S3AsyncService implements Closeable {
      */
     private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
 
-    S3AsyncService(final Path configPath) {
+    /**
+     * Optional scheduled executor service to use for the client
+     */
+    private final @Nullable ScheduledExecutorService clientExecutorService;
+
+    S3AsyncService(final Path configPath, @Nullable ScheduledExecutorService clientExecutorService) {
         staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
             .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath))
             .immutableMap();
+        this.clientExecutorService = clientExecutorService;
+    }
+
+    S3AsyncService(final Path configPath) {
+        this(configPath, null);
     }
 
     /**
@@ -173,7 +184,7 @@ class S3AsyncService implements Closeable {
     ) {
         setDefaultAwsProfilePath();
         final S3AsyncClientBuilder builder = S3AsyncClient.builder();
-        builder.overrideConfiguration(buildOverrideConfiguration(clientSettings));
+        builder.overrideConfiguration(buildOverrideConfiguration(clientSettings, clientExecutorService));
         final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         builder.credentialsProvider(credentials);
 
@@ -234,7 +245,10 @@ class S3AsyncService implements Closeable {
         return AmazonAsyncS3WithCredentials.create(client, priorityClient, urgentClient, credentials);
     }
 
-    static ClientOverrideConfiguration buildOverrideConfiguration(final S3ClientSettings clientSettings) {
+    static ClientOverrideConfiguration buildOverrideConfiguration(
+        final S3ClientSettings clientSettings,
+        ScheduledExecutorService clientExecutorService
+    ) {
         RetryPolicy retryPolicy = SocketAccess.doPrivileged(
             () -> RetryPolicy.builder()
                 .numRetries(clientSettings.maxRetries)
@@ -243,11 +257,12 @@ class S3AsyncService implements Closeable {
                 )
                 .build()
         );
+        ClientOverrideConfiguration.Builder builder = ClientOverrideConfiguration.builder();
+        if (clientExecutorService != null) {
+            builder = builder.scheduledExecutorService(clientExecutorService);
+        }
 
-        return ClientOverrideConfiguration.builder()
-            .retryPolicy(retryPolicy)
-            .apiCallAttemptTimeout(Duration.ofMillis(clientSettings.requestTimeoutMillis))
-            .build();
+        return builder.retryPolicy(retryPolicy).apiCallAttemptTimeout(Duration.ofMillis(clientSettings.requestTimeoutMillis)).build();
     }
 
     // pkg private for tests
@@ -439,5 +454,10 @@ class S3AsyncService implements Closeable {
     public void close() {
         releaseCachedClients();
 
+    }
+
+    @Nullable
+    ScheduledExecutorService getClientExecutorService() {
+        return clientExecutorService;
     }
 }

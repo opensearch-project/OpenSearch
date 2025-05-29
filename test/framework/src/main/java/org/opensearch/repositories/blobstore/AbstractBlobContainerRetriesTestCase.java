@@ -344,7 +344,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends OpenSearchTes
             exception.getMessage().toLowerCase(Locale.ROOT),
             either(containsString("premature end of chunk coded message body: closing chunk expected")).or(
                 containsString("premature end of content-length delimited message body")
-            ).or(containsString("connection closed prematurely"))
+            ).or(containsString("connection closed prematurely")).or(containsString("premature eof"))
         );
         assertThat(exception.getSuppressed().length, equalTo(Math.min(10, maxRetries)));
     }

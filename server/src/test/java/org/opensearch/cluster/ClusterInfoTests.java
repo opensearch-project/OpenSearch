@@ -36,6 +36,8 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -82,19 +84,53 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         return builder;
     }
 
-    private static Map<String, FileCacheStats> randomFileCacheStats() {
+    private static Map<String, AggregateFileCacheStats> randomFileCacheStats() {
         int numEntries = randomIntBetween(0, 16);
-        final Map<String, FileCacheStats> builder = new HashMap<>(numEntries);
+        final Map<String, AggregateFileCacheStats> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(16);
-            FileCacheStats fileCacheStats = new FileCacheStats(
+            AggregateFileCacheStats fileCacheStats = new AggregateFileCacheStats(
                 randomLong(),
-                randomLong(),
-                randomLong(),
-                randomLong(),
-                randomLong(),
-                randomLong(),
-                randomLong()
+                new FileCacheStats(
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    FileCacheStatsType.OVER_ALL_STATS
+                ),
+                new FileCacheStats(
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    FileCacheStatsType.FULL_FILE_STATS
+                ),
+                new FileCacheStats(
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    FileCacheStatsType.BLOCK_FILE_STATS
+                ),
+                new FileCacheStats(
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    randomLong(),
+                    FileCacheStatsType.PINNED_FILE_STATS
+                )
             );
             builder.put(key, fileCacheStats);
         }
