@@ -39,6 +39,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -50,6 +51,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         ClusterInfo clusterInfo = new ClusterInfo(
             randomDiskUsage(),
             randomDiskUsage(),
+            randomNodeResourceUsageStats(),
             randomShardSizes(),
             randomRoutingToDataPath(),
             randomReservedSpace(),
@@ -61,6 +63,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         ClusterInfo result = new ClusterInfo(output.bytes().streamInput());
         assertEquals(clusterInfo.getNodeLeastAvailableDiskUsages(), result.getNodeLeastAvailableDiskUsages());
         assertEquals(clusterInfo.getNodeMostAvailableDiskUsages(), result.getNodeMostAvailableDiskUsages());
+        assertEquals(clusterInfo.getNodeResourceUsageStats().toString(), result.getNodeResourceUsageStats().toString());
         assertEquals(clusterInfo.shardSizes, result.shardSizes);
         assertEquals(clusterInfo.routingToDataPath, result.routingToDataPath);
         assertEquals(clusterInfo.reservedSpace, result.reservedSpace);
@@ -80,6 +83,23 @@ public class ClusterInfoTests extends OpenSearchTestCase {
                 randomIntBetween(0, Integer.MAX_VALUE)
             );
             builder.put(key, diskUsage);
+        }
+        return builder;
+    }
+
+    private static Map<String, NodeResourceUsageStats> randomNodeResourceUsageStats() {
+        int numEntries = randomIntBetween(0, 128);
+        final Map<String, NodeResourceUsageStats> builder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String key = randomAlphaOfLength(32);
+            NodeResourceUsageStats nodeResourceUsageStats = new NodeResourceUsageStats(
+                randomAlphaOfLength(4),
+                randomLong(),
+                randomDoubleBetween(0, 100,false),
+                randomDoubleBetween(0, 100,false),
+                null
+            );
+            builder.put(key, nodeResourceUsageStats);
         }
         return builder;
     }

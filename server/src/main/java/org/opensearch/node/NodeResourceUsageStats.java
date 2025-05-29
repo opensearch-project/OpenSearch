@@ -9,6 +9,7 @@
 package org.opensearch.node;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -20,6 +21,7 @@ import java.util.Locale;
  * This represents the resource usage stats of a node along with the timestamp at which the stats object was created
  * in the respective node
  */
+@ExperimentalApi
 public class NodeResourceUsageStats implements Writeable {
     final String nodeId;
     long timestamp;
