@@ -55,7 +55,6 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectAttributes;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
-import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
@@ -693,14 +692,13 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .key(blobName)
             .storageClass(blobStore.getStorageClass())
             .acl(blobStore.getCannedACL())
-            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
+            .expectedBucketOwner(blobStore.expectedBucketOwner());
 
-        if (metadata != null && !metadata.isEmpty()) {
+        if (CollectionUtils.isNotEmpty(metadata)) {
             createRequestBuilder.metadata(metadata);
         }
-        if (blobStore.serverSideEncryption()) {
-            createRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
-        }
+        configureEncryptionSettings(createRequestBuilder, blobStore);
 
         final CreateMultipartUploadRequest createMultipartUploadRequest = createRequestBuilder.build();
         final SetOnce<String> uploadId = new SetOnce<>();
@@ -733,6 +731,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     .partNumber(i)
                     .contentLength(currentPartSize)
                     .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
+                    .expectedBucketOwner(blobStore.expectedBucketOwner())
                     .build();
 
                 bytesCount += currentPartSize;
@@ -767,7 +766,8 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 .key(blobName)
                 .uploadId(uploadId.get())
                 .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
-                .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
+                .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
+                .expectedBucketOwner(blobStore.expectedBucketOwner());
 
             if (options.isIfMatch()) {
                 completeRequestBuilder.ifMatch(options.getVersionIdentifier());
@@ -821,6 +821,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     .bucket(bucketName)
                     .key(blobName)
                     .uploadId(uploadId.get())
+                    .expectedBucketOwner(blobStore.expectedBucketOwner())
                     .build();
                 try (AmazonS3Reference abortClient = blobStore.clientReference()) {
                     SocketAccess.doPrivilegedVoid(() -> abortClient.get().abortMultipartUpload(abortRequest));
