@@ -63,8 +63,11 @@ public class RestWlmStatsAction extends BaseRestHandler {
                 new Route(GET, "_wlm/{nodeId}/stats"),
                 new Route(GET, "_wlm/stats/{workloadGroupId}"),
                 new Route(GET, "_wlm/{nodeId}/stats/{workloadGroupId}"),
-                new Route(GET, "_list/wlm_stats")
-            )
+                new Route(GET, "_list/wlm_stats"),
+                new Route(GET, "_list/wlm_stats/{nodeId}/stats"),
+                new Route(GET, "_list/wlm_stats/stats/{workloadGroupId}"),
+                new Route(GET, "_list/wlm_stats/{nodeId}/stats/{workloadGroupId}")
+                )
         );
     }
 
@@ -85,7 +88,8 @@ public class RestWlmStatsAction extends BaseRestHandler {
         SortBy sortBy = parseSortBy(request.param("sort", "node_id"));
         SortOrder sortOrder = parseSortOrder(request.param("order", "asc"));
 
-        if (request.rawPath().contains("_list/wlm_stats")) {
+        String path = request.rawPath();
+        if (path.startsWith("/_list/wlm_stats")) {
             return handleTabularRequest(request, client, wlmStatsRequest, pageSize, nextToken, sortBy, sortOrder);
         }
 
