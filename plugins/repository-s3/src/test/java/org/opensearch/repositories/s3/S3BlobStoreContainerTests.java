@@ -1022,9 +1022,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);
 
-        final boolean serverSideEncryption = randomBoolean();
-        when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
-
         final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
@@ -1090,10 +1087,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(cannedAccessControlList, createRequest.acl());
         assertEquals(metadata, createRequest.metadata());
 
-        if (serverSideEncryption) {
-            assertEquals(ServerSideEncryption.AES256, createRequest.serverSideEncryption());
-        }
-
         List<UploadPartRequest> partRequests = uploadPartRequestCaptor.getAllValues();
         assertEquals(partCount, partRequests.size());
 
@@ -1153,9 +1146,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
-
-        final boolean serverSideEncryption = true;
-        when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);
@@ -1283,7 +1273,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
         when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
-        when(blobStore.serverSideEncryption()).thenReturn(false);
         when(blobStore.isUploadRetryEnabled()).thenReturn(false);
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
@@ -1576,7 +1565,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
         when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
         when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
-        when(blobStore.serverSideEncryption()).thenReturn(false);
         when(blobStore.isUploadRetryEnabled()).thenReturn(false);
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
@@ -1676,7 +1664,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             when(blobStore.bufferSizeInBytes()).thenReturn(partSize);
             when(blobStore.getStatsMetricPublisher()).thenReturn(metricPublisher);
             when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
-            when(blobStore.serverSideEncryption()).thenReturn(false);
 
             final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
