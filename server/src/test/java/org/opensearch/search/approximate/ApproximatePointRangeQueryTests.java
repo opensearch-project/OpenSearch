@@ -392,7 +392,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
-
                 long[] scratch = new long[dims];
                 int numPoints = 1000;
                 for (int i = 0; i < numPoints; i++) {
@@ -432,6 +431,182 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
+                }
+            }
+        }
+    }
+
+    // Test to cover the left child traversal in intersectRight with CELL_INSIDE_QUERY
+    public void testIntersectRightLeftChildTraversal() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                long[] scratch = new long[dims];
+                // Create a dataset that will create a multi-level BKD tree
+                // We need enough documents to create internal nodes (not just leaves)
+                int numPoints = 2000;
+                for (int i = 0; i < numPoints; i++) {
+                    Document doc = new Document();
+                    scratch[0] = i;
+                    doc.add(new LongPoint("point", scratch[0]));
+                    iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
+                    if (i % 100 == 0) {
+                        iw.flush();
+                    }
+                }
+                iw.flush();
+                iw.forceMerge(1);
+
+                try (IndexReader reader = iw.getReader()) {
+                    // Query that will match many documents and require tree traversal
+                    long lower = 1000;
+                    long upper = 1999;
+                    ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+                        "point",
+                        pack(lower).bytes,
+                        pack(upper).bytes,
+                        dims,
+                        50, // Small size to ensure we hit the left child traversal condition
+                        SortOrder.DESC,
+                        ApproximatePointRangeQuery.LONG_FORMAT
+                    );
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    Sort sort = new Sort(new SortField("point", SortField.Type.LONG, true)); // DESC
+                    TopDocs topDocs = searcher.search(query, 50, sort);
+                    assertEquals("Should return exactly 50 documents", 50, topDocs.scoreDocs.length);
+                }
+            }
+        }
+    }
+
+    // Test to cover pointTree.visitDocIDs(visitor) in CELL_INSIDE_QUERY leaf case for intersectRight
+    public void testIntersectRightCellInsideQueryLeaf() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                long[] scratch = new long[dims];
+                // Create a smaller dataset that will result in leaf nodes that are completely inside the query range
+                for (int i = 900; i <= 999; i++) {
+                    Document doc = new Document();
+                    scratch[0] = i;
+                    iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
+                }
+                iw.flush();
+                iw.forceMerge(1);
+
+                try (IndexReader reader = iw.getReader()) {
+                    // Query that completely contains all documents (CELL_INSIDE_QUERY)
+                    long lower = 800;
+                    long upper = 1100;
+
+                    ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+                        "point",
+                        pack(lower).bytes,
+                        pack(upper).bytes,
+                        dims,
+                        200,
+                        SortOrder.DESC,
+                        ApproximatePointRangeQuery.LONG_FORMAT
+                    );
+
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    Sort sort = new Sort(new SortField("point", SortField.Type.LONG, true)); // DESC
+                    TopDocs topDocs = searcher.search(query, 200, sort);
+
+                    assertEquals("Should find all documents", 100, topDocs.totalHits.value());
+                    // Should return all the indexed point values from 900 to 999 which tests CELL_INSIDE_QUERY
+                    assertEquals("Should return exactly 100 documents", 100, topDocs.scoreDocs.length);
+                }
+            }
+        }
+    }
+
+    // Test to cover CELL_OUTSIDE_QUERY break case for intersectRight
+    public void testIntersectRightCellOutsideQuery() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                long[] scratch = new long[dims];
+                // Create documents in two separate ranges to ensure some cells are outside query
+                // Range 1: 0-99
+                for (int i = 0; i < 100; i++) {
+                    Document doc = new Document();
+                    scratch[0] = i;
+                    iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
+                }
+                // Range 2: 500-599 (gap ensures some tree nodes will be completely outside query)
+                for (int i = 500; i < 600; i++) {
+                    Document doc = new Document();
+                    scratch[0] = i;
+                    iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
+                }
+                iw.flush();
+                iw.forceMerge(1);
+
+                try (IndexReader reader = iw.getReader()) {
+                    // Query only the middle range - this should create CELL_OUTSIDE_QUERY for some nodes
+                    long lower = 200;
+                    long upper = 400;
+
+                    ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+                        "point",
+                        pack(lower).bytes,
+                        pack(upper).bytes,
+                        dims,
+                        50,
+                        SortOrder.DESC,
+                        ApproximatePointRangeQuery.LONG_FORMAT
+                    );
+
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    Sort sort = new Sort(new SortField("point", SortField.Type.LONG, true)); // DESC
+                    TopDocs topDocs = searcher.search(query, 50, sort);
+
+                    // Should find no documents since our query range (200-400) has no documents
+                    assertEquals("Should find no documents in the gap range", 0, topDocs.totalHits.value());
+                }
+            }
+        }
+    }
+
+    // Test to cover intersectRight with CELL_CROSSES_QUERY case and ensure comprehensive coverage for intersectRight
+    public void testIntersectRightCellCrossesQuery() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                long[] scratch = new long[dims];
+                // Create documents that will result in cells that cross the query boundary
+                for (int i = 0; i < 1000; i++) {
+                    Document doc = new Document();
+                    scratch[0] = i;
+                    iw.addDocument(asList(new LongPoint("point", scratch[0]), new NumericDocValuesField("point", scratch[0])));
+                }
+                iw.flush();
+                iw.forceMerge(1);
+
+                try (IndexReader reader = iw.getReader()) {
+                    // Query that will partially overlap with tree nodes (CELL_CROSSES_QUERY)
+                    // This range will intersect with some tree nodes but not completely contain them
+                    long lower = 250;
+                    long upper = 750;
+
+                    ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+                        "point",
+                        pack(lower).bytes,
+                        pack(upper).bytes,
+                        dims,
+                        100,
+                        SortOrder.DESC,
+                        ApproximatePointRangeQuery.LONG_FORMAT
+                    );
+
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    Sort sort = new Sort(new SortField("point", SortField.Type.LONG, true)); // DESC
+                    TopDocs topDocs = searcher.search(query, 100, sort);
+
+                    assertEquals("Should return exactly 100 documents", 100, topDocs.scoreDocs.length);
+                    // For Desc sort the ApproximatePointRangeQuery will slightly over collect to retain the highest matched docs
+                    assertTrue("Should collect at least requested number of documents", topDocs.totalHits.value() >= 100);
                 }
             }
         }
