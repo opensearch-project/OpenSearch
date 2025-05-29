@@ -44,9 +44,14 @@ public class RestResumeIngestionAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ResumeIngestionRequest resumeIngestionRequest = new ResumeIngestionRequest(
-            Strings.splitStringByCommaToArray(request.param("index"))
-        );
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        ResumeIngestionRequest resumeIngestionRequest;
+
+        if (request.hasContent()) {
+            resumeIngestionRequest = ResumeIngestionRequest.fromXContent(indices, request.contentParser());
+        } else {
+            resumeIngestionRequest = new ResumeIngestionRequest(indices, new ResumeIngestionRequest.ResetSettings[0]);
+        }
         resumeIngestionRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", resumeIngestionRequest.clusterManagerNodeTimeout())
         );
