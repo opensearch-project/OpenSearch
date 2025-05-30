@@ -52,6 +52,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
+import org.opensearch.node.remotestore.RemoteStoreNodeService.Direction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -130,6 +133,7 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
                     + ": true] to enable it. NOTE: closed indices still consume a significant amount of diskspace"
             );
         }
+        validateRemoteMigration();
         super.doExecute(task, request, listener);
     }
 
@@ -171,5 +175,18 @@ public class TransportCloseIndexAction extends TransportClusterManagerNodeAction
             logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
             delegatedListener.onFailure(t);
         }));
+    }
+
+    /**
+     * Reject close index request if cluster mode is [MIXED] and migration direction is [RemoteStore]
+     * @throws IllegalStateException if cluster mode is [MIXED] and migration direction is [RemoteStore]
+     */
+    private void validateRemoteMigration() {
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        CompatibilityMode compatibilityMode = clusterSettings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING);
+        Direction migrationDirection = clusterSettings.get(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING);
+        if (compatibilityMode == CompatibilityMode.MIXED && migrationDirection == Direction.REMOTE_STORE) {
+            throw new IllegalStateException("Cannot close index while remote migration is ongoing");
+        }
     }
 }

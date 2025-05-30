@@ -222,8 +222,10 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
 
         SearchResponse.PhaseTook phaseTook = new SearchResponse.PhaseTook(phaseTookMap);
 
-        // Call the method under test
-        PhaseTook protoPhaseTook = SearchResponseProtoUtils.PhaseTookProtoUtils.toProto(phaseTook);
+        // Create a builder and call the method under test
+        PhaseTook.Builder phaseTookBuilder = PhaseTook.newBuilder();
+        SearchResponseProtoUtils.PhaseTookProtoUtils.toProto(phaseTook, phaseTookBuilder);
+        PhaseTook protoPhaseTook = phaseTookBuilder.build();
 
         // Verify the result
         assertNotNull("Proto phase took should not be null", protoPhaseTook);
@@ -236,8 +238,10 @@ public class SearchResponseProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testPhaseTookProtoUtilsToProtoWithNullPhaseTook() {
-        // Call the method under test with null
-        PhaseTook protoPhaseTook = SearchResponseProtoUtils.PhaseTookProtoUtils.toProto(null);
+        // Create a builder and call the method under test with null
+        PhaseTook.Builder phaseTookBuilder = PhaseTook.newBuilder();
+        SearchResponseProtoUtils.PhaseTookProtoUtils.toProto(null, phaseTookBuilder);
+        PhaseTook protoPhaseTook = phaseTookBuilder.build();
 
         // Verify the result
         assertNotNull("Proto phase took should not be null", protoPhaseTook);

@@ -35,26 +35,31 @@ public class GetResultProtoUtils {
      * This method is equivalent to the  {@link GetResult#toXContent(XContentBuilder, ToXContent.Params)}
      *
      * @param getResult           The GetResult to convert
-     * @param responseItemBuilder
-     * @return A Protocol Buffer InlineGetDictUserDefined representation
+     * @param responseItemBuilder The builder to populate with GetResult data
+     * @return The populated builder
      */
     public static ResponseItem.Builder toProto(GetResult getResult, ResponseItem.Builder responseItemBuilder) {
-        InlineGetDictUserDefined.Builder inlineGetDictUserDefinedBuilder = InlineGetDictUserDefined.newBuilder();
-
+        // Reuse the builder passed in by reference
         responseItemBuilder.setIndex(getResult.getIndex());
-        responseItemBuilder.setId(ResponseItem.Id.newBuilder().setString(getResult.getId()).build());
+
+        // Avoid creating a new Id builder for each call
+        ResponseItem.Id id = ResponseItem.Id.newBuilder().setString(getResult.getId()).build();
+        responseItemBuilder.setId(id);
+
+        // Create the inline get dict builder only once
+        InlineGetDictUserDefined.Builder inlineGetDictUserDefinedBuilder = InlineGetDictUserDefined.newBuilder();
 
         if (getResult.isExists()) {
             // Set document version if available
             if (getResult.getVersion() != -1) {
                 responseItemBuilder.setVersion(getResult.getVersion());
             }
-            inlineGetDictUserDefinedBuilder = toProtoEmbedded(getResult, inlineGetDictUserDefinedBuilder);
+            toProtoEmbedded(getResult, inlineGetDictUserDefinedBuilder);
         } else {
             inlineGetDictUserDefinedBuilder.setFound(false);
         }
 
-        responseItemBuilder.setGet(inlineGetDictUserDefinedBuilder);
+        responseItemBuilder.setGet(inlineGetDictUserDefinedBuilder.build());
         return responseItemBuilder;
     }
 
@@ -64,43 +69,42 @@ public class GetResultProtoUtils {
      *
      * @param getResult The GetResult to convert
      * @param builder The builder to add the GetResult data to
-     * @return The updated builder with the GetResult data
      */
-    public static InlineGetDictUserDefined.Builder toProtoEmbedded(GetResult getResult, InlineGetDictUserDefined.Builder builder) {
+    public static void toProtoEmbedded(GetResult getResult, InlineGetDictUserDefined.Builder builder) {
         // Set sequence number and primary term if available
         if (getResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             builder.setSeqNo(getResult.getSeqNo());
             builder.setPrimaryTerm(getResult.getPrimaryTerm());
         }
 
-        // TODO test output once GetDocument GRPC endpoint is implemented
-        ObjectMap.Builder metadataFieldsBuilder = ObjectMap.newBuilder();
-        for (DocumentField field : getResult.getMetadataFields().values()) {
-            if (field.getName().equals(IgnoredFieldMapper.NAME)) {
-                metadataFieldsBuilder.putFields(field.getName(), DocumentFieldProtoUtils.toProto(field.getValues()));
-            } else {
-                metadataFieldsBuilder.putFields(field.getName(), DocumentFieldProtoUtils.toProto(field.<Object>getValue()));
-            }
-        }
-        builder.setMetadataFields(metadataFieldsBuilder.build());
-
         // Set existence status
         builder.setFound(getResult.isExists());
 
-        // Set source if available
+        // Set source if available - avoid unnecessary copying if possible
         if (getResult.source() != null) {
             builder.setSource(ByteString.copyFrom(getResult.source()));
         }
 
-        // TODO test output once GetDocument GRPC endpoint is implemented
-        ObjectMap.Builder documentFieldsBuilder = ObjectMap.newBuilder();
+        // Process metadata fields
+        if (!getResult.getMetadataFields().isEmpty()) {
+            ObjectMap.Builder metadataFieldsBuilder = ObjectMap.newBuilder();
+            for (DocumentField field : getResult.getMetadataFields().values()) {
+                if (field.getName().equals(IgnoredFieldMapper.NAME)) {
+                    metadataFieldsBuilder.putFields(field.getName(), DocumentFieldProtoUtils.toProto(field.getValues()));
+                } else {
+                    metadataFieldsBuilder.putFields(field.getName(), DocumentFieldProtoUtils.toProto(field.<Object>getValue()));
+                }
+            }
+            builder.setMetadataFields(metadataFieldsBuilder.build());
+        }
+
+        // Process document fields - only create builder if needed
         if (!getResult.getDocumentFields().isEmpty()) {
+            ObjectMap.Builder documentFieldsBuilder = ObjectMap.newBuilder();
             for (DocumentField field : getResult.getDocumentFields().values()) {
                 documentFieldsBuilder.putFields(field.getName(), DocumentFieldProtoUtils.toProto(field.getValues()));
             }
+            builder.setFields(documentFieldsBuilder.build());
         }
-        builder.setFields(documentFieldsBuilder.build());
-
-        return builder;
     }
 }

@@ -24,6 +24,7 @@ public final class AggregateRefCountedCacheStats implements IRefCountedCacheStat
     private final RefCountedCacheStats overallCacheStats;
     private final RefCountedCacheStats fullFileCacheStats;
     private final RefCountedCacheStats blockFileCacheStats;
+    private final RefCountedCacheStats pinnedFileCacheStats;
 
     /**
      * Constructs a new {@code AggregateRefCountedCacheStats} instance.
@@ -35,11 +36,13 @@ public final class AggregateRefCountedCacheStats implements IRefCountedCacheStat
     public AggregateRefCountedCacheStats(
         RefCountedCacheStats overallCacheStats,
         RefCountedCacheStats fullFileCacheStats,
-        RefCountedCacheStats blockFileCacheStats
+        RefCountedCacheStats blockFileCacheStats,
+        RefCountedCacheStats pinnedFileCacheStats
     ) {
         this.overallCacheStats = overallCacheStats;
         this.fullFileCacheStats = fullFileCacheStats;
         this.blockFileCacheStats = blockFileCacheStats;
+        this.pinnedFileCacheStats = pinnedFileCacheStats;
     }
 
     /**
@@ -56,6 +59,14 @@ public final class AggregateRefCountedCacheStats implements IRefCountedCacheStat
      */
     public RefCountedCacheStats getBlockFileCacheStats() {
         return blockFileCacheStats;
+    }
+
+    /**
+     * Getter for pinnedFileCacheStats.
+     * @return {@link RefCountedCacheStats} pinnedFileCacheStats.
+     */
+    public RefCountedCacheStats getPinnedFileCacheStats() {
+        return pinnedFileCacheStats;
     }
 
     /**
@@ -192,6 +203,16 @@ public final class AggregateRefCountedCacheStats implements IRefCountedCacheStat
     }
 
     /**
+     * Returns the total pinned weight of the cache.
+     *
+     * @return the total pinned weight of the cache
+     */
+    @Override
+    public long pinnedUsage() {
+        return this.pinnedFileCacheStats.pinnedUsage();
+    }
+
+    /**
      * Accumulates the values of another {@link IRefCountedCacheStats} into this one.
      *
      * @param other another {@link IRefCountedCacheStats}
@@ -209,6 +230,7 @@ public final class AggregateRefCountedCacheStats implements IRefCountedCacheStat
         this.overallCacheStats.accumulate(otherStats.overallCacheStats);
         this.fullFileCacheStats.accumulate(otherStats.fullFileCacheStats);
         this.blockFileCacheStats.accumulate(otherStats.blockFileCacheStats);
+        this.pinnedFileCacheStats.accumulate(otherStats.pinnedFileCacheStats);
 
         return this;
     }
@@ -228,7 +250,8 @@ public final class AggregateRefCountedCacheStats implements IRefCountedCacheStat
         AggregateRefCountedCacheStats other = (AggregateRefCountedCacheStats) o;
         return overallCacheStats.equals(other.overallCacheStats)
             && fullFileCacheStats.equals(other.fullFileCacheStats)
-            && blockFileCacheStats.equals(other.blockFileCacheStats);
+            && blockFileCacheStats.equals(other.blockFileCacheStats)
+            && pinnedFileCacheStats.equals(other.pinnedFileCacheStats);
     }
 
     @Override
@@ -243,6 +266,9 @@ public final class AggregateRefCountedCacheStats implements IRefCountedCacheStat
             + ", "
             + "blockRefCountedCacheStats="
             + blockFileCacheStats.toString()
+            + ", "
+            + "pinnedRefCountedCacheStats="
+            + pinnedFileCacheStats.toString()
             + '}';
     }
 }

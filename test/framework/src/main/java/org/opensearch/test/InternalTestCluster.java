@@ -105,6 +105,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -1769,7 +1770,12 @@ public final class InternalTestCluster extends TestCluster {
                 throw new AssertionError("Tried to stop the only cluster-manager eligible shared node");
             }
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
+            FileCache fileCache = nodeAndClient.node().fileCache();
             stopNodesAndClient(nodeAndClient);
+            // Clear file cache to avoid file leaks during node stop
+            if (fileCache != null && WARM_NODE_PREDICATE.test(nodeAndClient)) {
+                fileCache.clear();
+            }
         }
     }
 

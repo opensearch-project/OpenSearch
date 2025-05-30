@@ -146,6 +146,10 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             .getResponseProcessorFactories();
         assertEquals(1, responseProcessorFactories.size());
         assertTrue(responseProcessorFactories.containsKey("bar"));
+        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseInjectorProcessorFactories = searchPipelineService
+            .getSearchPhaseResultsProcessorFactories();
+        assertEquals(1, phaseInjectorProcessorFactories.size());
+        assertTrue(phaseInjectorProcessorFactories.containsKey("zoe"));
     }
 
     public void testSearchPipelinePluginDuplicate() {
@@ -879,6 +883,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         ProcessorInfo reqProcessor = new ProcessorInfo("scale_request_size");
         ProcessorInfo rspProcessor = new ProcessorInfo("fixed_score");
+        ProcessorInfo searchPhaseProcessor = new ProcessorInfo("max_score");
         DiscoveryNode n1 = new DiscoveryNode("n1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode n2 = new DiscoveryNode("n2", buildNewFakeTransportAddress(), Version.CURRENT);
         PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(
@@ -901,7 +906,14 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         );
 
         SearchPipelineInfo completePipelineInfo = new SearchPipelineInfo(
-            Map.of(Pipeline.REQUEST_PROCESSORS_KEY, List.of(reqProcessor), Pipeline.RESPONSE_PROCESSORS_KEY, List.of(rspProcessor))
+            Map.of(
+                Pipeline.REQUEST_PROCESSORS_KEY,
+                List.of(reqProcessor),
+                Pipeline.RESPONSE_PROCESSORS_KEY,
+                List.of(rspProcessor),
+                Pipeline.PHASE_PROCESSORS_KEY,
+                List.of(searchPhaseProcessor)
+            )
         );
         SearchPipelineInfo incompletePipelineInfo = new SearchPipelineInfo(Map.of(Pipeline.REQUEST_PROCESSORS_KEY, List.of(reqProcessor)));
         // One node is missing a processor

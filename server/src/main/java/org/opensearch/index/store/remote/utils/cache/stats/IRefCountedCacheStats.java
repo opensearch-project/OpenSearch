@@ -115,6 +115,13 @@ public interface IRefCountedCacheStats {
     public long activeUsage();
 
     /**
+     * Returns the total pinned weight of the cache.
+     *
+     * @return the total pinned weight of the cache
+     */
+    public long pinnedUsage();
+
+    /**
      * Accumulates the values of another {@link IRefCountedCacheStats} into this one.
      * @param other another {@link IRefCountedCacheStats}
      * @return result of accumulation of the other {@link IRefCountedCacheStats} into this one.
