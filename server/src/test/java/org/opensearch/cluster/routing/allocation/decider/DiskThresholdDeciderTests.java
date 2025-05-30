@@ -72,6 +72,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.snapshots.InternalSnapshotsInfoService.SnapshotShard;
@@ -972,6 +973,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
                 new DevNullClusterInfo(
                     usages,
                     usages,
+                    null,
                     shardSizes,
                     Map.of(
                         new ClusterInfo.NodeAndPath("node1", "/dev/null"),
@@ -1569,7 +1571,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
             final Map<String, Long> shardSizes
         ) {
-            this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of());
+            this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, null, shardSizes, Map.of(), Map.of());
         }
 
         DevNullClusterInfo(
@@ -1578,17 +1580,18 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             final Map<String, Long> shardSizes,
             final Map<String, AggregateFileCacheStats> nodeFileCacheStats
         ) {
-            this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), nodeFileCacheStats);
+            this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, null, shardSizes, Map.of(), nodeFileCacheStats);
         }
 
         DevNullClusterInfo(
             final Map<String, DiskUsage> leastAvailableSpaceUsage,
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
+            final Map<String, NodeResourceUsageStats> nodeResourceUsages,
             final Map<String, Long> shardSizes,
             Map<NodeAndPath, ReservedSpace> reservedSpace,
             final Map<String, AggregateFileCacheStats> nodeFileCacheStats
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace, nodeFileCacheStats);
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, nodeResourceUsages, shardSizes, null, reservedSpace, nodeFileCacheStats);
         }
 
         @Override
