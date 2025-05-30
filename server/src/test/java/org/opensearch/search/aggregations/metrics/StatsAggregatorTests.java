@@ -111,7 +111,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 for (int j = 0; j < numValues; j++) {
                     double value = randomDoubleBetween(-100d, 100d, true);
                     long valueAsLong = NumericUtils.doubleToSortableLong(value);
-                    doc.add(new SortedNumericDocValuesField(ft.name(), valueAsLong));
+                    doc.add(SortedNumericDocValuesField.indexedField(ft.name(), valueAsLong));
                     expected.add(value);
                 }
                 iw.addDocument(doc);
@@ -237,7 +237,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             final int numDocs = randomIntBetween(10, 50);
             for (int i = 0; i < numDocs; i++) {
                 final long value = randomLongBetween(-100, 100);
-                mappedWriter.addDocument(singleton(new SortedNumericDocValuesField(ft.name(), value)));
+                mappedWriter.addDocument(singleton(SortedNumericDocValuesField.indexedField(ft.name(), value)));
                 expected.add(value);
             }
             final StatsAggregationBuilder builder = stats("_name").field(ft.name());
@@ -362,7 +362,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             if (randomBoolean()) {
                 final long value = randomLongBetween(-100, 100);
-                docs.add(singleton(new SortedNumericDocValuesField(ft.name(), value)));
+                docs.add(singleton(SortedNumericDocValuesField.indexedField(ft.name(), value)));
                 expected.add(value);
             } else {
                 docs.add(emptySet());
@@ -407,7 +407,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         final SimpleStatsAggregator expected = new SimpleStatsAggregator();
         for (int iDoc = 0; iDoc < numDocs; iDoc++) {
             List<Long> values = randomList(valuesPerField, valuesPerField, () -> randomLongBetween(-100, 100));
-            docs.add(values.stream().map(value -> new SortedNumericDocValuesField(ft.name(), value)).collect(toSet()));
+            docs.add(values.stream().map(value -> SortedNumericDocValuesField.indexedField(ft.name(), value)).collect(toSet()));
             values.forEach(expected::add);
         }
 

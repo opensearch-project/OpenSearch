@@ -146,7 +146,7 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
                 int counter = 0;
                 for (String date : datasetTimes) {
                     long instant = asLong(date);
-                    document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+                    document.add(SortedNumericDocValuesField.indexedField(DATE_FIELD, instant));
                     document.add(new LongPoint(INSTANT_FIELD, instant));
                     document.add(new NumericDocValuesField(VALUE_FIELD, datasetValues.get(counter)));
                     indexWriter.addDocument(document);

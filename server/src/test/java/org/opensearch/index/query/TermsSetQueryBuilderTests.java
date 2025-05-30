@@ -218,32 +218,32 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
             try (IndexWriter iw = new IndexWriter(directory, config)) {
                 Document document = new Document();
                 document.add(new TextField("message", "a b", Field.Store.NO));
-                document.add(new SortedNumericDocValuesField("m_s_m", 1));
+                document.add(SortedNumericDocValuesField.indexedField("m_s_m", 1));
                 iw.addDocument(document);
 
                 document = new Document();
                 document.add(new TextField("message", "a b c", Field.Store.NO));
-                document.add(new SortedNumericDocValuesField("m_s_m", 1));
+                document.add(SortedNumericDocValuesField.indexedField("m_s_m", 1));
                 iw.addDocument(document);
 
                 document = new Document();
                 document.add(new TextField("message", "a b c", Field.Store.NO));
-                document.add(new SortedNumericDocValuesField("m_s_m", 2));
+                document.add(SortedNumericDocValuesField.indexedField("m_s_m", 2));
                 iw.addDocument(document);
 
                 document = new Document();
                 document.add(new TextField("message", "a b c d", Field.Store.NO));
-                document.add(new SortedNumericDocValuesField("m_s_m", 1));
+                document.add(SortedNumericDocValuesField.indexedField("m_s_m", 1));
                 iw.addDocument(document);
 
                 document = new Document();
                 document.add(new TextField("message", "a b c d", Field.Store.NO));
-                document.add(new SortedNumericDocValuesField("m_s_m", 2));
+                document.add(SortedNumericDocValuesField.indexedField("m_s_m", 2));
                 iw.addDocument(document);
 
                 document = new Document();
                 document.add(new TextField("message", "a b c d", Field.Store.NO));
-                document.add(new SortedNumericDocValuesField("m_s_m", 3));
+                document.add(SortedNumericDocValuesField.indexedField("m_s_m", 3));
                 iw.addDocument(document);
             }
 
@@ -268,27 +268,27 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
             try (IndexWriter iw = new IndexWriter(directory, config)) {
                 Document document = new Document();
                 document.add(new TextField("message", "a b x y", Field.Store.NO));
-                document.add(new SortedNumericDocValuesField("m_s_m", 50));
+                document.add(SortedNumericDocValuesField.indexedField("m_s_m", 50));
                 iw.addDocument(document);
 
                 document = new Document();
                 document.add(new TextField("message", "a b x y", Field.Store.NO));
-                document.add(new SortedNumericDocValuesField("m_s_m", 75));
+                document.add(SortedNumericDocValuesField.indexedField("m_s_m", 75));
                 iw.addDocument(document);
 
                 document = new Document();
                 document.add(new TextField("message", "a b c x", Field.Store.NO));
-                document.add(new SortedNumericDocValuesField("m_s_m", 75));
+                document.add(SortedNumericDocValuesField.indexedField("m_s_m", 75));
                 iw.addDocument(document);
 
                 document = new Document();
                 document.add(new TextField("message", "a b c x", Field.Store.NO));
-                document.add(new SortedNumericDocValuesField("m_s_m", 100));
+                document.add(SortedNumericDocValuesField.indexedField("m_s_m", 100));
                 iw.addDocument(document);
 
                 document = new Document();
                 document.add(new TextField("message", "a b c d", Field.Store.NO));
-                document.add(new SortedNumericDocValuesField("m_s_m", 100));
+                document.add(SortedNumericDocValuesField.indexedField("m_s_m", 100));
                 iw.addDocument(document);
             }
 

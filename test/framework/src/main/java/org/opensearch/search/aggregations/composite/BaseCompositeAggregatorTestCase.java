@@ -214,13 +214,13 @@ public class BaseCompositeAggregatorTestCase extends AggregatorTestCase {
             }
             for (Object value : entry.getValue()) {
                 if (value instanceof Integer) {
-                    doc.add(new SortedNumericDocValuesField(name, (int) value));
+                    doc.add(SortedNumericDocValuesField.indexedField(name, (int) value));
                     doc.add(new IntPoint(name, (int) value));
                 } else if (value instanceof Long) {
-                    doc.add(new SortedNumericDocValuesField(name, (long) value));
+                    doc.add(SortedNumericDocValuesField.indexedField(name, (long) value));
                     doc.add(new LongPoint(name, (long) value));
                 } else if (value instanceof Double) {
-                    doc.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong((double) value)));
+                    doc.add(SortedNumericDocValuesField.indexedField(name, NumericUtils.doubleToSortableLong((double) value)));
                     doc.add(new DoublePoint(name, (double) value));
                 } else if (value instanceof String) {
                     doc.add(new SortedSetDocValuesField(name, new BytesRef((String) value)));

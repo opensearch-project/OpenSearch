@@ -93,9 +93,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", 2)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField("bogus_field_name", 3)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("bogus_field_name", 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("bogus_field_name", 2)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField("bogus_field_name", 3)));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());
@@ -107,9 +107,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     public void testMatchesSortedNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 2)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 3)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(NUMBER_FIELD_NAME, 2)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(NUMBER_FIELD_NAME, 3)));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());
@@ -143,8 +143,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(milli1 - 1, milli1 + 1);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli2)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(DATE_FIELD_NAME, milli1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(DATE_FIELD_NAME, milli2)));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());
@@ -174,8 +174,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(milli1 - 1, milli1 + 1);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli2)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(DATE_FIELD_NAME, milli1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(DATE_FIELD_NAME, milli2)));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());
@@ -206,10 +206,10 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             .addRange(milli1 - 1, milli1 + 1);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli2)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(DATE_FIELD_NAME, milli1)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(DATE_FIELD_NAME, milli2)));
             // Missing will apply to this document
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(NUMBER_FIELD_NAME, 7)));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());
@@ -616,9 +616,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldType(NUMBER_FIELD_NAME, NumberType.INTEGER);
 
         testCase(aggregationBuilder, query, iw -> {
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 2)));
-            iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 3)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(NUMBER_FIELD_NAME, 7)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(NUMBER_FIELD_NAME, 2)));
+            iw.addDocument(singleton(SortedNumericDocValuesField.indexedField(NUMBER_FIELD_NAME, 3)));
         }, verify, fieldType);
     }
 

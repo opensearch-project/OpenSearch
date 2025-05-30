@@ -85,8 +85,8 @@ public class DocValuesSliceQueryTests extends OpenSearchTestCase {
             int intValue = randomInt();
             long doubleValue = NumericUtils.doubleToSortableLong(randomDouble());
             doc.add(new StringField("uuid", uuid, Field.Store.YES));
-            doc.add(new SortedNumericDocValuesField("intField", intValue));
-            doc.add(new SortedNumericDocValuesField("doubleField", doubleValue));
+            doc.add(SortedNumericDocValuesField.indexedField("intField", intValue));
+            doc.add(SortedNumericDocValuesField.indexedField("doubleField", doubleValue));
             w.addDocument(doc);
             sliceCounters1[Math.floorMod(BitMixer.mix((long) intValue), max)]++;
             sliceCounters2[Math.floorMod(BitMixer.mix(doubleValue), max)]++;
