@@ -28,7 +28,7 @@ public class RuleFrameworkPluginTests extends OpenSearchTestCase {
 
     public void testGetActions() {
         List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> handlers = plugin.getActions();
-        assertEquals(2, handlers.size());
+        assertEquals(3, handlers.size());
         assertEquals(GetRuleAction.INSTANCE.name(), handlers.get(0).getAction().name());
     }
 

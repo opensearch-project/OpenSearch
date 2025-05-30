@@ -17,13 +17,11 @@ import java.util.Map;
 
 /**
  * Represents a feature type within the auto-tagging feature. Feature types define different categories of
- * characteristics that can be used for tagging and classification. Implementations of this interface are
- * responsible for registering feature types in {@link AutoTaggingRegistry}. Implementations must ensure that
+ * characteristics that can be used for tagging and classification. Implementations must ensure that
  * feature types are uniquely identifiable by their class and name.
  *
  * Implementers should follow these guidelines:
  * Feature types should be singletons and managed centrally to avoid duplicates.
- * {@link #registerFeatureType()} must be called during initialization to ensure the feature type is available.
  *
  * @opensearch.experimental
  */
@@ -50,6 +48,16 @@ public interface FeatureType extends Writeable {
     Map<String, Attribute> getAllowedAttributesRegistry();
 
     /**
+     * returns the validator for feature value
+     */
+    default FeatureValueValidator getFeatureValueValidator() {
+        return new FeatureValueValidator() {
+            @Override
+            public void validate(String featureValue) {}
+        };
+    }
+
+    /**
      * returns max attribute values
      * @return
      */
@@ -64,11 +72,6 @@ public interface FeatureType extends Writeable {
     default int getMaxCharLengthPerAttributeValue() {
         return DEFAULT_MAX_ATTRIBUTE_VALUE_LENGTH;
     }
-
-    /**
-     * makes the feature type usable and available to framework plugin
-     */
-    void registerFeatureType();
 
     /**
      * checks the validity of the input attribute
