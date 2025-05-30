@@ -783,6 +783,13 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_DERIVED_SOURCE_SETTING = Setting.boolSetting(
+        "index.derived_source.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -832,6 +839,7 @@ public final class IndexSettings {
     private final RemoteStorePathStrategy remoteStorePathStrategy;
     private final boolean isTranslogMetadataEnabled;
     private volatile boolean allowDerivedField;
+    private final boolean derivedSourceEnabled;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -1064,6 +1072,7 @@ public final class IndexSettings {
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
+        derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
          * to higher bytes size like integer to long. This behavior was changed from OpenSearch 2.7 version not to
@@ -2065,5 +2074,9 @@ public final class IndexSettings {
 
     public void setRemoteStoreTranslogRepository(String remoteStoreTranslogRepository) {
         this.remoteStoreTranslogRepository = remoteStoreTranslogRepository;
+    }
+
+    public boolean isDerivedSourceEnabled() {
+        return derivedSourceEnabled;
     }
 }
