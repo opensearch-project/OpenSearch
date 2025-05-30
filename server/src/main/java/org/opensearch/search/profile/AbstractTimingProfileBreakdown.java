@@ -46,6 +46,6 @@ public abstract class AbstractTimingProfileBreakdown<T extends Enum<T>> extends 
             map.put(entry.getKey() + TIMING_TYPE_COUNT_SUFFIX, entry.getValue().getCount());
             map.put(entry.getKey() + TIMING_TYPE_START_TIME_SUFFIX, entry.getValue().getEarliestTimerStartTime());
         }
-        return Collections.unmodifiableMap(map);
+        return map;
     }
 }
