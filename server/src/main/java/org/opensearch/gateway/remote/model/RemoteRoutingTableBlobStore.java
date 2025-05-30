@@ -87,7 +87,8 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractCl
             clusterName,
             threadPool,
             executor,
-            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
+            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN,
+            clusterSettings
         );
         this.pathType = clusterSettings.get(REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING);
         this.pathHashAlgo = clusterSettings.get(REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING);
