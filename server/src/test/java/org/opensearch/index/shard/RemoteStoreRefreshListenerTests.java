@@ -70,6 +70,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private ClusterService clusterService;
     private RemoteStoreRefreshListener remoteStoreRefreshListener;
     private RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
+    private RemoteUploaderService remoteUploaderService;
 
     public void setup(boolean primary, int numberOfDocs) throws IOException {
         indexShard = newStartedShard(
@@ -100,7 +101,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             indexShard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             tracker,
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            remoteUploaderService
         );
     }
 
@@ -168,7 +170,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             shard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             mock(RemoteSegmentTransferTracker.class),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            remoteUploaderService
         );
         assertTrue(remoteStoreRefreshListener.isLocalOrSnapshotRecoveryOrSeeding());
         assertTrue(remoteStoreRefreshListener.isLowPriorityUpload());
@@ -236,7 +239,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             shard,
             SegmentReplicationCheckpointPublisher.EMPTY,
             mock(RemoteSegmentTransferTracker.class),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            remoteUploaderService
         );
 
         // Validate that the stream of metadata file of remoteMetadataDirectory has been opened only once and the
@@ -836,7 +840,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             shard,
             emptyCheckpointPublisher,
             tracker,
-            remoteStoreSettings
+            remoteStoreSettings,
+            remoteUploaderService
         );
         refreshListener.afterRefresh(true);
         return Tuple.tuple(refreshListener, remoteStoreStatsTrackerFactory);
