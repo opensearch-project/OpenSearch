@@ -19,6 +19,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -46,7 +47,11 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("AutoTaggingActionFilterTests");
-        ruleProcessingService = spy(new InMemoryRuleProcessingService(WLMFeatureType.WLM, DefaultAttributeValueStore::new));
+        AttributeValueStoreFactory attributeValueStoreFactory = new AttributeValueStoreFactory(
+            WLMFeatureType.WLM,
+            DefaultAttributeValueStore::new
+        );
+        ruleProcessingService = spy(new InMemoryRuleProcessingService(attributeValueStoreFactory));
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
     }
 

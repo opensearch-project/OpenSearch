@@ -48,7 +48,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         String description = randomAlphaOfLength(10);
         String featureValue = randomAlphaOfLength(5);
         String updatedAt = Instant.now().toString();
-        return new Rule(description, ATTRIBUTE_MAP, FEATURE_TYPE, featureValue, updatedAt);
+        return new Rule("test_id", description, ATTRIBUTE_MAP, FEATURE_TYPE, featureValue, updatedAt);
     }
 
     @Override
@@ -129,6 +129,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         String description
     ) {
         return Rule.builder()
+            .id(_ID)
             .featureValue(featureValue)
             .featureType(featureType)
             .description(description)
