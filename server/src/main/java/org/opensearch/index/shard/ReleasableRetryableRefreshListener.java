@@ -59,7 +59,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
     }
 
     @Override
-    public final void afterRefresh(boolean didRefresh) throws IOException {
+    public void afterRefresh(boolean didRefresh) throws IOException {
         if (closed.get()) {
             return;
         }
@@ -157,7 +157,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
      * The synchronised block ensures that if there is a retry or afterRefresh waiting, then it waits until the previous
      * execution finishes.
      */
-    private synchronized void runAfterRefreshWithPermit(boolean didRefresh, Runnable runFinally) {
+    protected synchronized void runAfterRefreshWithPermit(boolean didRefresh, Runnable runFinally) {
         if (closed.get()) {
             return;
         }

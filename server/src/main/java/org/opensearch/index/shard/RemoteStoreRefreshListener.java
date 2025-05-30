@@ -145,6 +145,20 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         }
     }
 
+    @Override
+    public final void afterRefresh(boolean didRefresh) throws IOException {
+        if (isClosed()) {
+            return;
+        }
+        runAfterRefreshExactlyOnce(didRefresh);
+        this.indexShard.getThreadPool()
+            .schedule(
+                () -> runAfterRefreshWithPermit(didRefresh, () -> {}),
+                new TimeValue(0, TimeUnit.MILLISECONDS),
+                getRemoteRefreshThreadPoolName()
+            );
+    }
+
     /**
      * Upload new segment files created as part of the last refresh to the remote segment store.
      * This method also uploads remote_segments_metadata file which contains metadata of each segment file uploaded.
@@ -378,6 +392,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     @Override
     protected String getRetryThreadPoolName() {
         return ThreadPool.Names.REMOTE_REFRESH_RETRY;
+    }
+
+    private String getRemoteRefreshThreadPoolName() {
+        return ThreadPool.Names.REMOTE_REFRESH_SEGMENT_SYNC;
     }
 
     private boolean isRefreshAfterCommit() throws IOException {
