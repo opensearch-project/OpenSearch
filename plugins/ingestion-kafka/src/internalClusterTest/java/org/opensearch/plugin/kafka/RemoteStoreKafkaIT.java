@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.pagination.PageParams;
@@ -496,6 +497,132 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 && Arrays.stream(ingestionState.getShardStates()).allMatch(state -> state.isWriteBlockEnabled() == false);
         });
         waitForSearchableDocs(4, Arrays.asList(nodeB, nodeC));
+    }
+
+    public void testOffsetUpdateOnBlockErrorPolicy() throws Exception {
+        // setup nodes and index using block strategy
+        // produce one invalid message to block the processor
+        produceData("1", "name1", "21");
+        produceData("{\"_op_type\":\"invalid\",\"_source\":{\"name\":\"name4\", \"age\": 25}}");
+        produceData("2", "name2", "22");
+        produceData("3", "name3", "24");
+        produceData("4", "name4", "24");
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.error_strategy", "block")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.internal_queue_size", "1000")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+        // expect only 1 document to be successfully indexed
+        waitForSearchableDocs(1, Arrays.asList(nodeA, nodeB));
+
+        // pause ingestion
+        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
+        assertTrue(pauseResponse.isAcknowledged());
+        assertTrue(pauseResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+        });
+        // revalidate that only 1 document is visible
+        waitForSearchableDocs(1, Arrays.asList(nodeA, nodeB));
+
+        // update offset to skip past the invalid message
+        ResumeIngestionResponse resumeResponse = resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "2");
+        assertTrue(resumeResponse.isAcknowledged());
+        assertTrue(resumeResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return Arrays.stream(ingestionState.getShardStates())
+                .allMatch(
+                    state -> state.isPollerPaused() == false
+                        && (state.pollerState().equalsIgnoreCase("polling") || state.pollerState().equalsIgnoreCase("processing"))
+                );
+        });
+
+        // validate remaining messages are successfully indexed
+        waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
+        PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertThat(stats.getConsumerStats().totalDuplicateMessageSkippedCount(), is(0L));
+    }
+
+    public void testConsumerResetByTimestamp() throws Exception {
+        produceData("1", "name1", "21", 100, "index");
+        produceData("2", "name2", "22", 105, "index");
+        produceData("3", "name3", "24", 110, "index");
+        produceData("4", "name4", "24", 120, "index");
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.error_strategy", "drop")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.internal_queue_size", "1000")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+        waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
+
+        // expect error response since ingestion not yet paused
+        ResumeIngestionResponse resumeResponse = resumeIngestion(
+            indexName,
+            0,
+            ResumeIngestionRequest.ResetSettings.ResetMode.TIMESTAMP,
+            "100"
+        );
+        assertTrue(resumeResponse.isAcknowledged());
+        assertFalse(resumeResponse.isShardsAcknowledged());
+        assertEquals(1, resumeResponse.getShardFailures().length);
+
+        // pause ingestion
+        PauseIngestionResponse pauseResponse = pauseIngestion(indexName);
+        assertTrue(pauseResponse.isAcknowledged());
+        assertTrue(pauseResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getFailedShards() == 0
+                && Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"));
+        });
+
+        // reset consumer by a timestamp after first message was produced
+        resumeResponse = resumeIngestion(indexName, 0, ResumeIngestionRequest.ResetSettings.ResetMode.TIMESTAMP, "102");
+        assertTrue(resumeResponse.isAcknowledged());
+        assertTrue(resumeResponse.isShardsAcknowledged());
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats.getConsumerStats().totalDuplicateMessageSkippedCount() == 3;
+        });
     }
 
     private void verifyRemoteStoreEnabled(String node) {
