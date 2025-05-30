@@ -158,9 +158,6 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     }
 
     public void setSkipCacheFactor(float skipCacheFactor) {
-        if (skipCacheFactor < 1) {
-            throw new IllegalArgumentException("skipCacheFactor must be no less than 1, get " + skipCacheFactor);
-        }
         logger.debug(
             "set cluster settings {} {} -> {}",
             INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR.getKey(),
@@ -455,8 +452,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
      * Custom caching policy for Opensearch.
      */
     public static class OpenseachUsageTrackingQueryCachingPolicy extends UsageTrackingQueryCachingPolicy {
-        private int minFrequency;
-        private int minFrequencyForCostly;
+        private volatile int minFrequency;
+        private volatile int minFrequencyForCostly;
 
         public OpenseachUsageTrackingQueryCachingPolicy(ClusterSettings clusterSettings) {
             minFrequency = clusterSettings.get(INDICES_QUERY_CACHE_MIN_FREQUENCY);
