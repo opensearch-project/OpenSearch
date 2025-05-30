@@ -32,9 +32,13 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.lucene.search.Queries;
@@ -48,10 +52,13 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -393,9 +400,13 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return any.get();
         }
 
+        changed |= rewriteMustNotRangeClausesToShould(newBuilder, queryRewriteContext);
+
         if (changed) {
             newBuilder.adjustPureNegative = adjustPureNegative;
-            newBuilder.minimumShouldMatch = minimumShouldMatch;
+            if (minimumShouldMatch != null) {
+                newBuilder.minimumShouldMatch = minimumShouldMatch;
+            }
             newBuilder.boost(boost());
             newBuilder.queryName(queryName());
             return newBuilder;
@@ -460,4 +471,83 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     }
 
+    private boolean rewriteMustNotRangeClausesToShould(BoolQueryBuilder newBuilder, QueryRewriteContext queryRewriteContext) {
+        // If there is a range query on a given field in a must_not clause, it's more performant to execute it as
+        // multiple should clauses representing everything outside the target range.
+
+        // First check if we can get the individual LeafContexts. If we can't, we can't proceed with the rewrite, since we can't confirm
+        // every doc has exactly 1 value for this field.
+        List<LeafReaderContext> leafReaderContexts = getLeafReaderContexts(queryRewriteContext);
+        if (leafReaderContexts == null || leafReaderContexts.isEmpty()) {
+            return false;
+        }
+
+        boolean changed = false;
+        // For now, only handle the case where there's exactly 1 range query for this field.
+        Map<String, Integer> fieldCounts = new HashMap<>();
+        Set<RangeQueryBuilder> rangeQueries = new HashSet<>();
+        for (QueryBuilder clause : mustNotClauses) {
+            if (clause instanceof RangeQueryBuilder rq) {
+                fieldCounts.merge(rq.fieldName(), 1, Integer::sum);
+                rangeQueries.add(rq);
+            }
+        }
+
+        for (RangeQueryBuilder rq : rangeQueries) {
+            String fieldName = rq.fieldName();
+            if (fieldCounts.getOrDefault(fieldName, 0) == 1) {
+                // Check that all docs on this field have exactly 1 value, otherwise we can't perform this rewrite
+                if (checkAllDocsHaveOneValue(leafReaderContexts, fieldName)) {
+                    List<RangeQueryBuilder> complement = rq.getComplement();
+                    if (complement != null) {
+                        BoolQueryBuilder nestedBoolQuery = new BoolQueryBuilder();
+                        nestedBoolQuery.minimumShouldMatch(1);
+                        for (RangeQueryBuilder complementComponent : complement) {
+                            nestedBoolQuery.should(complementComponent);
+                        }
+                        newBuilder.must(nestedBoolQuery);
+                        newBuilder.mustNotClauses.remove(rq);
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        if (minimumShouldMatch == null && changed) {
+            if ((!shouldClauses.isEmpty()) && mustClauses.isEmpty() && filterClauses.isEmpty()) {
+                // If there were originally should clauses and no must/filter clauses, null minimumShouldMatch is set to a default of 1
+                // within Lucene.
+                // But if there was originally a must or filter clause, the default is 0.
+                // If we added a must clause due to this rewrite, we should respect what the original default would have been.
+                newBuilder.minimumShouldMatch(1);
+            }
+        }
+        return changed;
+    }
+
+    private List<LeafReaderContext> getLeafReaderContexts(QueryRewriteContext queryRewriteContext) {
+        if (queryRewriteContext == null) return null;
+        QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
+        if (shardContext == null) return null;
+        IndexSearcher indexSearcher = shardContext.searcher();
+        if (indexSearcher == null) return null;
+        return indexSearcher.getIndexReader().leaves();
+    }
+
+    private boolean checkAllDocsHaveOneValue(List<LeafReaderContext> contexts, String fieldName) {
+        for (LeafReaderContext lrc : contexts) {
+            PointValues values;
+            try {
+                LeafReader reader = lrc.reader();
+                values = reader.getPointValues(fieldName);
+                if (values == null || !(values.getDocCount() == reader.maxDoc() && values.getDocCount() == values.size())) {
+                    return false;
+                }
+            } catch (IOException e) {
+                // If we can't get PointValues to check on the number of values per doc, assume the query is ineligible
+                return false;
+            }
+        }
+        return true;
+    }
 }
