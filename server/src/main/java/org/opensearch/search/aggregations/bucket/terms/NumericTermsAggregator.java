@@ -72,7 +72,9 @@ import org.opensearch.search.startree.filter.DimensionFilter;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -136,7 +138,6 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
                     int valuesCount = values.docValueCount();
-
                     long previous = Long.MAX_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
                         long val = values.nextValue();
@@ -169,28 +170,44 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         return false;
     }
 
+    @Override
+    public List<String> getDimensionFilters() {
+        List<String> dimensionsToMerge = new ArrayList<>();
+        dimensionsToMerge.add(fieldName);
+
+        for (Aggregator subAgg : subAggregators) {
+            if (subAgg instanceof StarTreePreComputeCollector collector) {
+                List<String> childFilters = collector.getDimensionFilters();
+                dimensionsToMerge.addAll(childFilters != null ? childFilters : Collections.emptyList());
+            }
+        }
+
+        return dimensionsToMerge;
+    }
+
     public StarTreeBucketCollector getStarTreeBucketCollector(
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parent
     ) throws IOException {
-        assert parent == null;
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
             .getDimensionValuesIterator(fieldName);
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
-
+        List<String> dimensionsToMerge = getDimensionFilters();
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeTraversalUtil.getStarTreeResult(
-                starTreeValues,
-                StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
-                    context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
-                    fieldName,
-                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
-                ),
-                context
-            )
+            parent == null
+                ? StarTreeTraversalUtil.getStarTreeResult(
+                    starTreeValues,
+                    StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+                        context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
+                        dimensionsToMerge,
+                        List.of(DimensionFilter.MATCH_ALL_DEFAULT)
+                    ),
+                    context
+                )
+                : null
         ) {
             @Override
             public void setSubCollectors() throws IOException {
@@ -215,7 +232,6 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 }
 
                 for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
-
                     if (docCountsIterator.advanceExact(starTreeEntry)) {
                         long metricValue = docCountsIterator.nextValue();
                         long bucketOrd = bucketOrds.add(owningBucketOrd, dimensionValue);
@@ -300,7 +316,6 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
             }
 
             buildSubAggs(topBucketsPerOrd);
-
             InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
