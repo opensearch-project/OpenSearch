@@ -155,6 +155,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             retentionLeaseStats = null;
             pollingIngestStats = null;
         }
+        long lastIndexRequestTimestamp = indexShard.getLastIndexRequestTimestamp();
         return new ShardStats(
             indexShard.routingEntry(),
             indexShard.shardPath(),
@@ -162,7 +163,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             commitStats,
             seqNoStats,
             retentionLeaseStats,
-            pollingIngestStats
+            pollingIngestStats,
+            lastIndexRequestTimestamp
         );
     }
 }

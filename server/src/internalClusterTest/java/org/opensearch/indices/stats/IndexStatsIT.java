@@ -288,6 +288,33 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
 
     }
 
+    public void testLastIndexRequestTimestamp() throws Exception {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
+                .setMapping("field", "type=text,fielddata=true")
+                .get()
+        );
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settingsBuilder()).get());
+        ensureGreen();
+
+        // Index a document
+        client().prepareIndex("test").setId("1").setSource("field", "value1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        IndicesStatsResponse statsResponse = client().admin().indices().prepareStats("test").get();
+        IndexStats stats = statsResponse.getIndex("test");
+        long ts1 = stats.getLastIndexRequestTimestamp();
+        assertTrue("Timestamp should be set after first write", ts1 > 0);
+
+        // Wait and index another document
+        Thread.sleep(1000);
+        client().prepareIndex("test").setId("2").setSource("field", "value2").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        statsResponse = client().admin().indices().prepareStats("test").get();
+        long ts2 = statsResponse.getIndex("test").getLastIndexRequestTimestamp();
+        assertTrue("Timestamp should increase after another write", ts2 > ts1);
+    }
+
     public void testClearAllCaches() throws Exception {
         assertAcked(
             client().admin()
