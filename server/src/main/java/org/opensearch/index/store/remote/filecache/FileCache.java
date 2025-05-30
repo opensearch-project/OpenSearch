@@ -124,6 +124,26 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         theCache.decRef(key);
     }
 
+    /**
+     * Pins the key in the cache, preventing it from being evicted.
+     *
+     * @param key
+     */
+    @Override
+    public void pin(Path key) {
+        theCache.pin(key);
+    }
+
+    /**
+     * Unpins the key in the cache, allowing it to be evicted.
+     *
+     * @param key
+     */
+    @Override
+    public void unpin(Path key) {
+        theCache.unpin(key);
+    }
+
     @Override
     public Integer getRef(Path key) {
         return theCache.getRef(key);
@@ -141,14 +161,22 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
     @Override
     public long usage() {
-        long l = theCache.usage();
-        return l;
+        return theCache.usage();
     }
 
     @Override
     public long activeUsage() {
-        long l = theCache.activeUsage();
-        return l;
+        return theCache.activeUsage();
+    }
+
+    /**
+     * Returns the pinned usage of this cache.
+     *
+     * @return the combined pinned weight of the values in this cache.
+     */
+    @Override
+    public long pinnedUsage() {
+        return theCache.pinnedUsage();
     }
 
     @Override
@@ -225,12 +253,14 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         final RefCountedCacheStats overallCacheStats = stats.getOverallCacheStats();
         final RefCountedCacheStats fullFileCacheStats = stats.getFullFileCacheStats();
         final RefCountedCacheStats blockFileCacheStats = stats.getBlockFileCacheStats();
+        final RefCountedCacheStats pinnedFileCacheStats = stats.getPinnedFileCacheStats();
         return new AggregateFileCacheStats(
             System.currentTimeMillis(),
             new FileCacheStats(
                 overallCacheStats.activeUsage(),
                 capacity(),
                 overallCacheStats.usage(),
+                overallCacheStats.pinnedUsage(),
                 overallCacheStats.evictionWeight(),
                 overallCacheStats.hitCount(),
                 overallCacheStats.missCount(),
@@ -240,6 +270,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                 fullFileCacheStats.activeUsage(),
                 capacity(),
                 fullFileCacheStats.usage(),
+                fullFileCacheStats.pinnedUsage(),
                 fullFileCacheStats.evictionWeight(),
                 fullFileCacheStats.hitCount(),
                 fullFileCacheStats.missCount(),
@@ -249,10 +280,21 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                 blockFileCacheStats.activeUsage(),
                 capacity(),
                 blockFileCacheStats.usage(),
+                blockFileCacheStats.pinnedUsage(),
                 blockFileCacheStats.evictionWeight(),
                 blockFileCacheStats.hitCount(),
                 blockFileCacheStats.missCount(),
                 FileCacheStatsType.BLOCK_FILE_STATS
+            ),
+            new FileCacheStats(
+                pinnedFileCacheStats.activeUsage(),
+                capacity(),
+                pinnedFileCacheStats.usage(),
+                pinnedFileCacheStats.pinnedUsage(),
+                pinnedFileCacheStats.evictionWeight(),
+                pinnedFileCacheStats.hitCount(),
+                pinnedFileCacheStats.missCount(),
+                FileCacheStatsType.PINNED_FILE_STATS
             )
         );
     }
