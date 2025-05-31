@@ -211,7 +211,6 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         private final String sortBy;
 
         public WlmStrategyToken(String requestedTokenString) {
-            validateToken(requestedTokenString);
             final String[] parts = validateToken(requestedTokenString);
 
             this.nodeId = parts[NODE_ID_POS];
