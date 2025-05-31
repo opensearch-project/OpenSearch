@@ -63,7 +63,10 @@ public class SearchServiceIT extends OpenSearchIntegTestCase {
             .setSource("{\"field1\":\"value1\",\"field2\":42}", XContentType.JSON)
             .get();
 
-        assertEquals("Document should be indexed", 1, indexResponse.getShardInfo().getSuccessful());
+        assertTrue(
+            "Document should be indexed without shard failures",
+            indexResponse.getShardInfo().getSuccessful() > 0 && indexResponse.getShardInfo().getFailed() == 0
+        );
 
         // Refresh the index to make the document searchable
         client().admin().indices().prepareRefresh(indexName).get();
