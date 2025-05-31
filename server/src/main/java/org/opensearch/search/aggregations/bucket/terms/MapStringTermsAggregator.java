@@ -31,8 +31,13 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
@@ -40,6 +45,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -54,6 +60,7 @@ import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -65,6 +72,8 @@ import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
+import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_DOCS;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * An aggregator of string values that hashes the strings on the fly rather
@@ -75,8 +84,11 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     private final CollectorSource collectorSource;
     private final ResultStrategy<?, ?> resultStrategy;
+    private Weight weight;
     private final BytesKeyedBucketOrds bucketOrds;
     private final IncludeExclude.StringFilter includeExclude;
+    protected final String fieldName;
+    private final ValuesSourceConfig config;
 
     public MapStringTermsAggregator(
         String name,
@@ -92,13 +104,52 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        String fieldName,
+        ValuesSourceConfig config
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.collectorSource = collectorSource;
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.includeExclude = includeExclude;
         bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        this.fieldName = fieldName;
+        this.config = config;
+    }
+
+    public MapStringTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        CollectorSource collectorSource,
+        Function<MapStringTermsAggregator, ResultStrategy<?, ?>> resultStrategy,
+        BucketOrder order,
+        DocValueFormat format,
+        BucketCountThresholds bucketCountThresholds,
+        IncludeExclude.StringFilter includeExclude,
+        SearchContext context,
+        Aggregator parent,
+        SubAggCollectionMode collectionMode,
+        boolean showTermDocCountError,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata,
+        ValuesSourceConfig config
+    ) throws IOException {
+        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
+        this.collectorSource = collectorSource;
+        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
+        this.includeExclude = includeExclude;
+        bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        if (collectorSource instanceof ValuesSourceCollectorSource) {
+            ValuesSource valuesCollectorSource = ((ValuesSourceCollectorSource) collectorSource).getValuesSource();
+            this.fieldName = valuesCollectorSource.getIndexFieldName();
+        } else {
+            this.fieldName = null;
+        }
+        this.config = config;
+    }
+
+    public void setWeight(Weight weight) {
+        this.weight = weight;
     }
 
     @Override
@@ -128,6 +179,68 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 }
             )
         );
+    }
+
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        // TODO: A note is that in scripted aggregations, the way of collecting from buckets is determined from
+        // the script aggregator. For now, we will not be able to support the script aggregation.
+
+        if (subAggregators.length > 0 || includeExclude != null || fieldName == null) {
+            // The optimization does not work when there are subaggregations or if there is a filter.
+            // The query has to be a match all, otherwise
+            return false;
+        }
+
+        // If the missing property is specified in the builder, and there are documents with the
+        // field missing, we might not be able to use the index unless there is some way we can
+        // calculate which ordinal value that missing field is (something I am not sure how to
+        // do yet).
+        if (config != null && config.missing() != null && ((weight.count(ctx) == ctx.reader().getDocCount(fieldName)) == false)) {
+            return false;
+        }
+
+        // The optimization could only be used if there are no deleted documents and the top-level
+        // query matches all documents in the segment.
+        if (weight == null) {
+            return false;
+        } else {
+            if (weight.count(ctx) == 0) {
+                return true;
+            } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
+                return false;
+            }
+        }
+
+        Terms stringTerms = ctx.reader().terms(fieldName);
+        if (stringTerms == null) {
+            // Field is not indexed.
+            return false;
+        }
+
+        NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
+        if (docCountValues.nextDoc() != NO_MORE_DOCS) {
+            // This segment has at least one document with the _doc_count field.
+            return false;
+        }
+
+        TermsEnum stringTermsEnum = stringTerms.iterator();
+        BytesRef stringTerm = stringTermsEnum.next();
+
+        // Here, we will iterate over all the terms in the segment and add the counts into the bucket.
+        while (stringTerm != null) {
+            long bucketOrdinal = bucketOrds.add(0L, stringTerm);
+            if (bucketOrdinal < 0) { // already seen
+                bucketOrdinal = -1 - bucketOrdinal;
+            }
+            int amount = stringTermsEnum.docFreq();
+            if (resultStrategy instanceof SignificantTermsResults) {
+                ((SignificantTermsResults) resultStrategy).updateSubsetSizes(0L, amount);
+            }
+            incrementBucketDocCount(bucketOrdinal, amount);
+            stringTerm = stringTermsEnum.next();
+        }
+        return true;
     }
 
     @Override
@@ -194,6 +307,10 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         @Override
         public boolean needsScores() {
             return valuesSource.needsScores();
+        }
+
+        public ValuesSource getValuesSource() {
+            return valuesSource;
         }
 
         @Override
@@ -499,6 +616,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         @Override
         String describe() {
             return "significant_terms";
+        }
+
+        public void updateSubsetSizes(long owningBucketOrd, int amount) {
+            subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
+            subsetSizes.increment(owningBucketOrd, amount);
         }
 
         @Override
