@@ -110,10 +110,10 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
             for (int docId = 0; docId < numDocs; docId++) {
                 Document document = new Document();
                 fieldAValues[docId] = randomDouble();
-                document.add(new SortedNumericDocValuesField(fieldA, NumericUtils.doubleToSortableLong(fieldAValues[docId])));
+                document.add(SortedNumericDocValuesField.indexedField(fieldA, NumericUtils.doubleToSortableLong(fieldAValues[docId])));
 
                 fieldBValues[docId] = randomDouble();
-                document.add(new SortedNumericDocValuesField(fieldB, NumericUtils.doubleToSortableLong(fieldBValues[docId])));
+                document.add(SortedNumericDocValuesField.indexedField(fieldB, NumericUtils.doubleToSortableLong(fieldBValues[docId])));
                 indexWriter.addDocument(document);
             }
 

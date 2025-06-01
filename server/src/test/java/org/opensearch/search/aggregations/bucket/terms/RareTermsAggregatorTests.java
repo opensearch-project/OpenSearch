@@ -540,13 +540,13 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             Document document = new Document();
             document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
             document.add(new Field(NestedPathFieldMapper.NAME, "nested_object", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-            document.add(new SortedNumericDocValuesField("nested_value", nestedValue));
+            document.add(SortedNumericDocValuesField.indexedField("nested_value", nestedValue));
             documents.add(document);
         }
 
         Document document = new Document();
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
-        document.add(new SortedNumericDocValuesField("value", value));
+        document.add(SortedNumericDocValuesField.indexedField("value", value));
         document.add(sequenceIDFields.primaryTerm);
         documents.add(document);
 
@@ -589,7 +589,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 List<Long> shuffledDataset = new ArrayList<>(dataset);
                 Collections.shuffle(shuffledDataset, random());
                 for (Long value : shuffledDataset) {
-                    document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
+                    document.add(SortedNumericDocValuesField.indexedField(LONG_FIELD, value));
                     document.add(new LongPoint(LONG_FIELD, value));
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(Long.toString(value))));
                     document.add(new SortedSetDocValuesField("even_odd", new BytesRef(value % 2 == 0 ? "even" : "odd")));

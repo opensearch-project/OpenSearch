@@ -507,7 +507,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             if (dateStr != null) {
                 long timestamp = Resolution.MILLISECONDS.convert(DateFormatters.from(ft.dateTimeFormatter().parse(dateStr)).toInstant());
                 doc.add(new LongPoint(ft.name(), timestamp));
-                doc.add(new SortedNumericDocValuesField(ft.name(), timestamp));
+                doc.add(SortedNumericDocValuesField.indexedField(ft.name(), timestamp));
                 doc.add(new StoredField(ft.name(), timestamp));
                 doc.add(new StoredField("id", i));
                 minDateValue = Math.min(minDateValue, timestamp);
@@ -621,7 +621,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             long timestamp = Resolution.MILLISECONDS.convert(DateFormatters.from(ft.dateTimeFormatter().parse(dateStr)).toInstant());
             doc.add(new StringField("domainAttributes.firmId", "12345678910111213", Field.Store.YES));
             doc.add(new LongPoint(ft.name(), timestamp));
-            doc.add(new SortedNumericDocValuesField(ft.name(), timestamp));
+            doc.add(SortedNumericDocValuesField.indexedField(ft.name(), timestamp));
             doc.add(new StoredField(ft.name(), timestamp));
             w.addDocument(doc);
         }
