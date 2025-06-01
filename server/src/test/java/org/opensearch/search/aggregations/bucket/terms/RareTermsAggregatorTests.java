@@ -39,6 +39,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -156,6 +157,12 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             assertThat(bucket.getKeyAsString(), equalTo("1"));
             assertThat(bucket.getDocCount(), equalTo(1L));
         });
+        testSearchCaseIndexString(query, dataset, aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1), agg -> {
+            assertEquals(1, agg.getBuckets().size());
+            StringRareTerms.Bucket bucket = (StringRareTerms.Bucket) agg.getBuckets().get(0);
+            assertThat(bucket.getKeyAsString(), equalTo("1"));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+        }, true);
     }
 
     public void testManyDocsOneRare() throws IOException {
@@ -581,6 +588,21 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
     }
 
+    private void testSearchCaseIndexString(
+        Query query,
+        List<Long> dataset,
+        Consumer<RareTermsAggregationBuilder> configure,
+        Consumer<InternalMappedRareTerms<?, ?>> verify,
+        boolean shouldIndex
+    ) throws IOException {
+        RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name");
+        if (configure != null) {
+            configure.accept(aggregationBuilder);
+        }
+        verify.accept(executeTestCaseIndexString(query, dataset, aggregationBuilder, shouldIndex));
+
+    }
+
     private <A extends InternalAggregation> A executeTestCase(Query query, List<Long> dataset, AggregationBuilder aggregationBuilder)
         throws IOException {
         try (Directory directory = newDirectory()) {
@@ -592,6 +614,42 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
                     document.add(new LongPoint(LONG_FIELD, value));
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(Long.toString(value))));
+                    document.add(new SortedSetDocValuesField("even_odd", new BytesRef(value % 2 == 0 ? "even" : "odd")));
+                    indexWriter.addDocument(document);
+                    document.clear();
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                MappedFieldType[] types = new MappedFieldType[] {
+                    keywordField(KEYWORD_FIELD),
+                    longField(LONG_FIELD),
+                    keywordField("even_odd") };
+                return searchAndReduce(indexSearcher, query, aggregationBuilder, types);
+            }
+        }
+    }
+
+    private <A extends InternalAggregation> A executeTestCaseIndexString(
+        Query query,
+        List<Long> dataset,
+        AggregationBuilder aggregationBuilder,
+        boolean shouldIndex
+    ) throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                List<Long> shuffledDataset = new ArrayList<>(dataset);
+                Collections.shuffle(shuffledDataset, random());
+                for (Long value : shuffledDataset) {
+                    document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
+                    document.add(new LongPoint(LONG_FIELD, value));
+                    document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(Long.toString(value))));
+                    if (shouldIndex) {
+                        document.add(new StringField(KEYWORD_FIELD, Long.toString(value), Field.Store.NO));
+                    }
                     document.add(new SortedSetDocValuesField("even_odd", new BytesRef(value % 2 == 0 ? "even" : "odd")));
                     indexWriter.addDocument(document);
                     document.clear();

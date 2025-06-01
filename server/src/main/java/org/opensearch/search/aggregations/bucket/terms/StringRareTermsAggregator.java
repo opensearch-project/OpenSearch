@@ -32,6 +32,9 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.common.lease.Releasables;
@@ -64,7 +67,9 @@ import static java.util.Collections.emptyList;
 public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
     private final ValuesSource.Bytes valuesSource;
     private final IncludeExclude.StringFilter filter;
+    private Weight weight;
     private final BytesKeyedBucketOrds bucketOrds;
+    protected final String fieldName;
 
     StringRareTermsAggregator(
         String name,
@@ -83,6 +88,11 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         this.valuesSource = valuesSource;
         this.filter = filter;
         this.bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        this.fieldName = valuesSource.getIndexFieldName();
+    }
+
+    public void setWeight(Weight weight) {
+        this.weight = weight;
     }
 
     @Override
@@ -120,6 +130,47 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
                 }
             }
         };
+    }
+
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (subAggregators.length > 0 || filter != null) {
+            // The optimization does not work when there are subaggregations or if there is a filter.
+            // The query has to be a match all, otherwise
+            return false;
+        }
+
+        // The optimization could only be used if there are no deleted documents and the top-level
+        // query matches all documents in the segment.
+        if (weight == null) {
+            return false;
+        } else {
+            if (weight.count(ctx) == 0) {
+                return true;
+            } else if (weight.count(ctx) != ctx.reader().maxDoc()) {
+                return false;
+            }
+        }
+
+        Terms stringTerms = ctx.reader().terms(fieldName);
+        if (stringTerms == null) {
+            // Field is not indexed.
+            return false;
+        }
+
+        TermsEnum stringTermsEnum = stringTerms.iterator();
+        BytesRef stringTerm = stringTermsEnum.next();
+
+        // Here, we will iterate over all the terms in the segment and add the counts into the bucket.
+        while (stringTerm != null) {
+            long bucketOrdinal = bucketOrds.add(0L, stringTerm);
+            if (bucketOrdinal < 0) { // already seen
+                bucketOrdinal = -1 - bucketOrdinal;
+            }
+            incrementBucketDocCount(bucketOrdinal, stringTermsEnum.docFreq());
+            stringTerm = stringTermsEnum.next();
+        }
+        return true;
     }
 
     @Override

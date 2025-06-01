@@ -107,7 +107,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                ValuesSourceConfig config
             ) throws IOException {
                 ExecutionMode execution = null;
                 if (executionHint != null) {
@@ -150,7 +151,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    config
                 );
 
             }
@@ -178,7 +180,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                ValuesSourceConfig config
             ) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -321,7 +324,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             collectMode,
             showTermDocCountError,
             cardinality,
-            metadata
+            metadata,
+            config
         );
     }
 
@@ -387,7 +391,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                ValuesSourceConfig config
             ) throws IOException {
                 int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.StringFilter filter = includeExclude == null
@@ -407,7 +412,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    config
                 );
             }
         },
@@ -427,7 +433,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 SubAggCollectionMode subAggCollectMode,
                 boolean showTermDocCountError,
                 CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
+                Map<String, Object> metadata,
+                ValuesSourceConfig config
             ) throws IOException {
 
                 final long maxOrd = getMaxOrd(valuesSource, context.searcher());
@@ -466,7 +473,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         false,
                         subAggCollectMode,
                         showTermDocCountError,
-                        metadata
+                        metadata,
+                        config
                     );
 
                 }
@@ -514,7 +522,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode,
                     showTermDocCountError,
                     cardinality,
-                    metadata
+                    metadata,
+                    config
                 );
             }
         };
@@ -549,7 +558,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             SubAggCollectionMode subAggCollectMode,
             boolean showTermDocCountError,
             CardinalityUpperBound cardinality,
-            Map<String, Object> metadata
+            Map<String, Object> metadata,
+            ValuesSourceConfig config
         ) throws IOException;
 
         @Override
