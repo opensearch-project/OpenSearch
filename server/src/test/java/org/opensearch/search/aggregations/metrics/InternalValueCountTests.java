@@ -91,6 +91,49 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
         assertEquals(110L, reduced.getValue());
     }
 
+    public void testReduceWithInternalValueCountOnly() {
+        String name = "test_value_count";
+        List<InternalAggregation> aggregations = new ArrayList<>();
+
+        // Add multiple InternalValueCount aggregations
+        aggregations.add(new InternalValueCount(name, 50L, null));
+        aggregations.add(new InternalValueCount(name, 30L, null));
+        aggregations.add(new InternalValueCount(name, 20L, null));
+
+        InternalValueCount valueCount = new InternalValueCount(name, 0L, null);
+        InternalValueCount reduced = (InternalValueCount) valueCount.reduce(aggregations, null);
+
+        // Expected: 50 + 30 + 20 = 100
+        assertEquals(100L, reduced.getValue());
+    }
+
+    public void testReduceWithScriptedMetricInvalidValue() {
+        String name = "test_scripted_metric";
+        List<InternalAggregation> aggregations = new ArrayList<>();
+
+        // Add regular InternalValueCount
+        aggregations.add(new InternalValueCount(name, 50L, null));
+
+        // Add ScriptedMetric with invalid value type (String instead of Number)
+        InternalScriptedMetric scriptedMetric = mock(InternalScriptedMetric.class);
+        when(scriptedMetric.aggregation()).thenReturn("invalid_value");
+        aggregations.add(scriptedMetric);
+
+        InternalValueCount valueCount = new InternalValueCount(name, 0L, null);
+
+        // Expect an IllegalArgumentException when reducing with invalid value type
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> valueCount.reduce(aggregations, null)
+        );
+
+        assertEquals(
+            "Invalid ScriptedMetric result for [" + name + "] valueCount aggregation. " +
+                "Expected numeric value from ScriptedMetric aggregation but got [java.lang.String]",
+            e.getMessage()
+        );
+    }
+
     @Override
     protected InternalValueCount mutateInstance(InternalValueCount instance) {
         String name = instance.getName();
