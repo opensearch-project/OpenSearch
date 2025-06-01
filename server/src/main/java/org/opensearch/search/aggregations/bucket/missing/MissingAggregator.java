@@ -118,9 +118,6 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
 
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
-        /*if (ctx != null) {
-            return false;
-        }*/
         if (subAggregators.length > 0) {
             // The optimization does not work when there are subaggregations or if there is a filter.
             // The query has to be a match all, otherwise
