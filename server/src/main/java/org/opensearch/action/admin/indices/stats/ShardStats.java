@@ -104,7 +104,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             pollingIngestStats = in.readOptionalWriteable(PollingIngestStats::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
             lastIndexRequestTimestamp = in.readLong();
         }
     }
@@ -128,7 +128,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         this.seqNoStats = seqNoStats;
         this.retentionLeaseStats = retentionLeaseStats;
         this.pollingIngestStats = pollingIngestStats;
-        this.lastIndexRequestTimestamp = lastIndexRequestTimestamp;
+        this.lastIndexRequestTimestamp = lastIndexRequestTimestamp != null ? lastIndexRequestTimestamp : -1L;
     }
 
     public ShardStats(
@@ -140,7 +140,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         final RetentionLeaseStats retentionLeaseStats,
         final PollingIngestStats pollingIngestStats
     ) {
-        this(routing, shardPath, commonStats, commitStats, seqNoStats, retentionLeaseStats, pollingIngestStats, null);
+        this(routing, shardPath, commonStats, commitStats, seqNoStats, retentionLeaseStats, pollingIngestStats, -1L);
     }
 
     /**
@@ -193,7 +193,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(retentionLeaseStats);
         if (out.getVersion().onOrAfter((Version.V_3_0_0))) {
             out.writeOptionalWriteable(pollingIngestStats);
-            out.writeLong(lastIndexRequestTimestamp);
+            if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+                out.writeLong(lastIndexRequestTimestamp);
+            }
         }
     }
 

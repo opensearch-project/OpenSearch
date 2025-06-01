@@ -308,11 +308,12 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         assertTrue("Timestamp should be set after first write", ts1 > 0);
 
         // Wait and index another document
-        Thread.sleep(1000);
         client().prepareIndex("test").setId("2").setSource("field", "value2").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        statsResponse = client().admin().indices().prepareStats("test").get();
-        long ts2 = statsResponse.getIndex("test").getLastIndexRequestTimestamp();
-        assertTrue("Timestamp should increase after another write", ts2 > ts1);
+        assertBusy(() -> {
+            IndicesStatsResponse statsResponse2 = client().admin().indices().prepareStats("test").get();
+            long ts2 = statsResponse2.getIndex("test").getLastIndexRequestTimestamp();
+            assertThat(ts2, greaterThan(ts1));
+        });
     }
 
     public void testClearAllCaches() throws Exception {
