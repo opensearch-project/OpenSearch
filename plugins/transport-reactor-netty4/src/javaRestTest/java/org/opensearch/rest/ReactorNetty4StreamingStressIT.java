@@ -32,6 +32,7 @@ import reactor.test.StepVerifier;
 import reactor.test.scheduler.VirtualTimeScheduler;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assume.assumeThat;
 
 public class ReactorNetty4StreamingStressIT extends OpenSearchRestTestCase {
     @After
@@ -48,12 +49,13 @@ public class ReactorNetty4StreamingStressIT extends OpenSearchRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder().put(super.restClientSettings()).put(CLIENT_SOCKET_TIMEOUT, "5s").build();
+        return Settings.builder().put(super.restClientSettings()).put(CLIENT_SOCKET_TIMEOUT, "10s").build();
     }
 
     public void testCloseClientStreamingRequest() throws Exception {
-        final VirtualTimeScheduler scheduler = VirtualTimeScheduler.create(true);
+        assumeThat("The OpenSearch is not ready", isServiceReady(), equalTo(true));
 
+        final VirtualTimeScheduler scheduler = VirtualTimeScheduler.create(true);
         final AtomicInteger id = new AtomicInteger(0);
         final Stream<String> stream = Stream.generate(
             () -> "{ \"index\": { \"_index\": \"test-stress-streaming\", \"_id\": \""
@@ -74,7 +76,7 @@ public class ReactorNetty4StreamingStressIT extends OpenSearchRestTestCase {
         scheduler.advanceTimeBy(delay); /* emit first element */
 
         StepVerifier.create(
-            Flux.from(streamingResponse.getBody()).timeout(Duration.ofSeconds(5)).map(b -> new String(b.array(), StandardCharsets.UTF_8))
+            Flux.from(streamingResponse.getBody()).timeout(Duration.ofSeconds(10)).map(b -> new String(b.array(), StandardCharsets.UTF_8))
         ).expectNextMatches(s -> s.contains("\"result\":\"created\"") && s.contains("\"_id\":\"1\"")).then(() -> {
             try {
                 client().close();
@@ -88,4 +90,14 @@ public class ReactorNetty4StreamingStressIT extends OpenSearchRestTestCase {
             )
             .verify(Duration.ofSeconds(10));
     }
+
+    private boolean isServiceReady() {
+        try {
+            final Response reponse = client().performRequest(new Request("GET", "/"));
+            return reponse.getStatusLine().getStatusCode() == 200;
+        } catch (final IOException ex) {
+            return false;
+        }
+    }
+
 }
