@@ -142,6 +142,73 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         assertEquals(5.0, reduced.getValue(), 0.0000001);  // 150/30
     }
 
+    public void testReduceWithInternalAvgAggregation() {
+        String name = "test_avg";
+        DocValueFormat formatter = randomNumericDocValueFormat();
+        List<InternalAggregation> aggregations = new ArrayList<>();
+
+        // Add multiple InternalAvg aggregations
+        aggregations.add(new InternalAvg(name, 50.0, 10L, formatter, null));
+        aggregations.add(new InternalAvg(name, 100.0, 20L, formatter, null));
+        aggregations.add(new InternalAvg(name, 150.0, 30L, formatter, null));
+
+        InternalAvg avg = new InternalAvg(name, 0.0, 0L, formatter, null);
+        InternalAvg reduced = avg.reduce(aggregations, null);
+
+        // Expected values:
+        // sum = 50.0 + 100.0 + 150.0 = 300.0
+        // count = 10 + 20 + 30 = 60
+        assertEquals(60L, reduced.getCount());
+        assertEquals(300.0, reduced.getSum(), 0.0000001);
+        assertEquals(5.0, reduced.getValue(), 0.0000001);  // 300/60
+    }
+
+    public void testReduceWithScriptedMetricInvalidType() {
+        String name = "test_scripted_metric";
+        DocValueFormat formatter = randomNumericDocValueFormat();
+        List<InternalAggregation> aggregations = new ArrayList<>();
+
+        // Add regular InternalAvg
+        aggregations.add(new InternalAvg(name, 50.0, 10L, formatter, null));
+
+        // Add ScriptedMetric with invalid return type (String instead of double[])
+        InternalScriptedMetric scriptedMetric1 = mock(InternalScriptedMetric.class);
+        when(scriptedMetric1.getName()).thenReturn(name);
+        when(scriptedMetric1.aggregation()).thenReturn("invalid_type");
+        aggregations.add(scriptedMetric1);
+
+        InternalAvg avg = new InternalAvg(name, 0.0, 0L, formatter, null);
+
+        // Expect an IllegalArgumentException when reducing with invalid type
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> avg.reduce(aggregations, null));
+        assertEquals("Invalid ScriptedMetric result for [test_scripted_metric] avg aggregation. Expected a double array but received [java.lang.String]", e.getMessage());
+    }
+
+    public void testReduceWithScriptedMetricInvalidArrayLength() {
+        String name = "test_scripted_metric";
+        DocValueFormat formatter = randomNumericDocValueFormat();
+        List<InternalAggregation> aggregations = new ArrayList<>();
+
+        // Add regular InternalAvg
+        aggregations.add(new InternalAvg(name, 50.0, 10L, formatter, null));
+
+        // Add ScriptedMetric with double array of wrong length (should be 2)
+        InternalScriptedMetric scriptedMetric = mock(InternalScriptedMetric.class);
+        when(scriptedMetric.getName()).thenReturn(name);
+        when(scriptedMetric.aggregation()).thenReturn(new double[] { 100.0, 20.0, 30.0 });  // length 3 instead of 2
+        aggregations.add(scriptedMetric);
+
+        InternalAvg avg = new InternalAvg(name, 0.0, 0L, formatter, null);
+
+        // Expect an IllegalArgumentException when reducing with invalid array length
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> avg.reduce(aggregations, null));
+        assertEquals(
+            "Invalid ScriptedMetric result for [test_scripted_metric] avg aggregation. Expected a double array of length 2 " +
+                "but received an array of length [3]",
+            e.getMessage()
+        );
+    }
+
     @Override
     protected InternalAvg mutateInstance(InternalAvg instance) {
         String name = instance.getName();
