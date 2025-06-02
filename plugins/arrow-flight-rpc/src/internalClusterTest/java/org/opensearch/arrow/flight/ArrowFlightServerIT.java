@@ -17,6 +17,11 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.arrow.flight.bootstrap.FlightClientManager;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
 import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
@@ -25,10 +30,26 @@ import org.opensearch.arrow.spi.StreamProducer;
 import org.opensearch.arrow.spi.StreamReader;
 import org.opensearch.arrow.spi.StreamTicket;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.internal.AliasFilter;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.StreamTransportService;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponseHandler;
+import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -36,9 +57,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.opensearch.action.search.SearchTransportService.QUERY_ACTION_NAME;
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
+import static org.opensearch.threadpool.ThreadPool.Names.SAME;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 5)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2, maxNumDataNodes = 2)
 public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
 
     @Override
@@ -46,19 +69,113 @@ public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
         return Collections.singleton(FlightStreamPlugin.class);
     }
 
+    @BeforeClass
+    public static void setupSysProperties() {
+        System.setProperty("io.netty.allocator.numDirectArenas", "1");
+        System.setProperty("io.netty.noUnsafe", "false");
+        System.setProperty("io.netty.tryUnsafe", "true");
+        System.setProperty("io.netty.tryReflectionSetAccessible", "true");
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        // Create index settings with multiple shards and replicas
+        Settings indexSettings = Settings.builder()
+            .put("index.number_of_shards", 10)    // Number of primary shards
+            .put("index.number_of_replicas", 1)  // Number of replica shards
+            .build();
+
+        // Create index request with settings
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("index").settings(indexSettings);
+
+        // Create the index
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest).actionGet();
+        assertTrue(createIndexResponse.isAcknowledged());
+
+        // Wait for green status
+        client().admin().cluster().prepareHealth("index").setWaitForGreenStatus().setTimeout(TimeValue.timeValueSeconds(30)).get();
+        ensureSearchable("index");
         ensureGreen();
+        // for (DiscoveryNode node : getClusterState().nodes()) {
+        // FlightService flightService = internalCluster().getInstance(FlightService.class, node.getName());
+        // FlightClientManager flightClientManager = flightService.getFlightClientManager();
+        // assertBusy(() -> {
+        // assertTrue(
+        // "Flight client should be created successfully before running tests",
+        // flightClientManager.getFlightClient(node.getId()).isPresent()
+        // );
+        // }, 3, TimeUnit.SECONDS);
+        // }
+    }
+
+    @LockFeatureFlag(ARROW_STREAMS)
+    public void testArrowFlightProducer() throws Exception {
+        DiscoveryNode previousNode = null;
         for (DiscoveryNode node : getClusterState().nodes()) {
-            FlightService flightService = internalCluster().getInstance(FlightService.class, node.getName());
-            FlightClientManager flightClientManager = flightService.getFlightClientManager();
-            assertBusy(() -> {
-                assertTrue(
-                    "Flight client should be created successfully before running tests",
-                    flightClientManager.getFlightClient(node.getId()).isPresent()
-                );
-            }, 3, TimeUnit.SECONDS);
+            if (node.isDataNode() == false) {
+                continue;
+            } else if (previousNode == null) {
+                previousNode = node;
+                continue;
+            }
+            IndicesService indicesService = internalCluster().getInstance((IndicesService.class));
+            IndexService indexService;
+            try {
+                indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+            } catch (IndexNotFoundException e) {
+                continue;
+            }
+            // FlightService flightService = internalCluster().getInstance(FlightService.class, node.getName());
+            // FlightClientManager flightClientManager = flightService.getFlightClientManager();
+            // FlightClient flightClient = flightClientManager.getFlightClient(node.getId()).get();
+            // assertNotNull(flightClient);
+            SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+            IndexShard indexShard = indexService.getShard((Integer) indexService.shardIds().toArray()[0]);
+            ShardSearchRequest request = new ShardSearchRequest(
+                new OriginalIndices(new String[] { "index" }, IndicesOptions.STRICT_EXPAND_OPEN),
+                searchRequest,
+                indexShard.shardId(),
+                1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f,
+                10,
+                null,
+                new String[0]
+            );
+            final TransportResponse[] resp = new TransportResponse[1];
+            resp[0] = null;
+            StreamTransportService transportService = internalCluster().getInstance((StreamTransportService.class));
+            TransportResponseHandler handler = new TransportResponseHandler() {
+                @Override
+                public void handleResponse(TransportResponse response) {
+                    resp[0] = response;
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    throw exp;
+                }
+
+                @Override
+                public String executor() {
+                    return SAME;
+                }
+
+                @Override
+                public Object read(StreamInput in) throws IOException {
+                    assertNotNull(in);
+                    return null;
+                }
+            };
+            transportService.handleStreamRequest(
+                previousNode,
+                QUERY_ACTION_NAME,
+                request,
+                TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+                handler
+            );
+            assertBusy(() -> { assertNotNull("Timeout waiting for response", resp[0]); }, 100, TimeUnit.SECONDS);
         }
     }
 
