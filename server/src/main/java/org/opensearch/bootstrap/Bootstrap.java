@@ -199,7 +199,7 @@ final class Bootstrap {
         var cryptoStandard = System.getenv("OPENSEARCH_CRYPTO_STANDARD");
         if ("FIPS-140-3".equals(cryptoStandard) || "true".equalsIgnoreCase(System.getProperty("org.bouncycastle.fips.approved_only"))) {
             LogManager.getLogger(Bootstrap.class).info("running in FIPS-140-3 mode");
-            SecurityProviderManager.excludeSunJCE();
+            SecurityProviderManager.removeNonCompliantFipsProviders();
         }
 
         // initialize probes before the security manager is installed

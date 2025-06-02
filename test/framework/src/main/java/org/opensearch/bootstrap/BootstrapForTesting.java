@@ -73,7 +73,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
@@ -138,7 +137,7 @@ public class BootstrapForTesting {
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
         if (FipsMode.CHECK.isFipsEnabled()) {
-            SecurityProviderManager.excludeSunJCE();
+            SecurityProviderManager.removeNonCompliantFipsProviders();
         }
 
         // install security manager if requested
@@ -222,8 +221,6 @@ public class BootstrapForTesting {
             }
         }
     }
-
-    static Supplier<Integer> sunJceInsertFunction;
 
     /** Add the codebase url of the given classname to the codebases map, if the class exists. */
     private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {

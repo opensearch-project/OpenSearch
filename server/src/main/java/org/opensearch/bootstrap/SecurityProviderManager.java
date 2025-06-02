@@ -23,7 +23,7 @@ final class SecurityProviderManager {
      * Removes the SunJCE provider from the list of installed security providers. This method is intended to be used when running
      * in a FIPS JVM and when the security file specifies additional configuration, instead of a complete replacement.
      */
-    public static void excludeSunJCE() {
+    public static void removeNonCompliantFipsProviders() {
         Security.removeProvider(SUN_JCE);
     }
 

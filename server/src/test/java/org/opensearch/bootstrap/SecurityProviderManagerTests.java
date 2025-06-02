@@ -46,7 +46,7 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
     // restore the same state as before running the tests.
     public static void removeSunJCE() {
         if (inFipsJvm()) {
-            SecurityProviderManager.excludeSunJCE();
+            SecurityProviderManager.removeNonCompliantFipsProviders();
         }
     }
 
@@ -57,7 +57,7 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
         assertEquals(SUN_JCE, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
         expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(RC_4));
@@ -70,7 +70,7 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
         assertEquals(TOP_PRIO_CIPHER_PROVIDER, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
         if (inFipsJvm()) {
@@ -89,7 +89,7 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
         assertEquals(TOP_PRIO_CIPHER_PROVIDER, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
         if (inFipsJvm()) {
@@ -108,7 +108,7 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
         assertEquals(SUN_JCE, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
         expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(DES));
@@ -121,7 +121,7 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
         assertEquals(SUN_JCE, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
         expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(PBE));
@@ -134,7 +134,7 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
         assertEquals(SUN_JCE, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
         expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(BLOWFISH));
@@ -142,7 +142,7 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
 
     public void testGetPosition() {
         assertTrue(SUN_JCE + " is installed", SecurityProviderManager.getPosition(SUN_JCE) > 0);
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
         assertTrue(SUN_JCE + " is uninstalled", SecurityProviderManager.getPosition(SUN_JCE) < 0);
     }
 
