@@ -46,6 +46,7 @@ import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.fips.FipsMode;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.plugins.PluginInfo;
 import org.junit.Assert;
@@ -135,6 +136,9 @@ public class BootstrapForTesting {
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
+        if (FipsMode.CHECK.isFipsEnabled()) {
+            SecurityProviderManager.removeNonCompliantFipsProviders();
+        }
 
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
