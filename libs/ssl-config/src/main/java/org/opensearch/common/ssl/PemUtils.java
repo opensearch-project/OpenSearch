@@ -34,6 +34,8 @@ package org.opensearch.common.ssl;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
+import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
 import org.bouncycastle.openssl.PEMEncryptedKeyPair;
 import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
@@ -49,6 +51,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
+import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -60,7 +63,15 @@ import java.util.function.Supplier;
 
 final class PemUtils {
 
-    public static final String BCFIPS = "BCFIPS";
+    static {
+        var highestPriority = 1;
+        if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
+            Security.insertProviderAt(new BouncyCastleFipsProvider(), highestPriority++);
+        }
+        if (Security.getProvider(BouncyCastleJsseProvider.PROVIDER_NAME) == null) {
+            Security.insertProviderAt(new BouncyCastleJsseProvider(), highestPriority);
+        }
+    }
 
     PemUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -114,12 +125,14 @@ final class PemUtils {
 
             if (object instanceof PKCS8EncryptedPrivateKeyInfo) { // encrypted private key in pkcs8-format
                 var privateKeyInfo = (PKCS8EncryptedPrivateKeyInfo) object;
-                var inputDecryptorProvider = new JcePKCSPBEInputDecryptorProviderBuilder().setProvider(BCFIPS)
-                    .build(passwordSupplier.get());
+                var inputDecryptorProvider = new JcePKCSPBEInputDecryptorProviderBuilder().setProvider(
+                    BouncyCastleFipsProvider.PROVIDER_NAME
+                ).build(passwordSupplier.get());
                 return privateKeyInfo.decryptPrivateKeyInfo(inputDecryptorProvider);
             } else if (object instanceof PEMEncryptedKeyPair) { // encrypted private key
                 var encryptedKeyPair = (PEMEncryptedKeyPair) object;
-                var decryptorProvider = new JcePEMDecryptorProviderBuilder().setProvider(BCFIPS).build(passwordSupplier.get());
+                var decryptorProvider = new JcePEMDecryptorProviderBuilder().setProvider(BouncyCastleFipsProvider.PROVIDER_NAME)
+                    .build(passwordSupplier.get());
                 var keyPair = encryptedKeyPair.decryptKeyPair(decryptorProvider);
                 return keyPair.getPrivateKeyInfo();
             } else if (object instanceof PEMKeyPair) { // unencrypted private key
