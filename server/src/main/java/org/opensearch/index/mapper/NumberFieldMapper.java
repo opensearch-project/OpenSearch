@@ -950,7 +950,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return new BitmapDocValuesQuery(field, bitmap);
             }
 
-            @Override
+            // Original Integer range query
+
+            /*@Override
             public Query rangeQuery(
                 String field,
                 Object lowerTerm,
@@ -1005,6 +1007,74 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     return query;
                 }
                 return IntPoint.newRangeQuery(field, l, u);
+            }*/
+
+            @Override
+            public Query rangeQuery(
+                String field,
+                Object lowerTerm,
+                Object upperTerm,
+                boolean includeLower,
+                boolean includeUpper,
+                boolean hasDocValues,
+                boolean isSearchable,
+                QueryShardContext context
+            ) {
+                int l = Integer.MIN_VALUE;
+                int u = Integer.MAX_VALUE;
+                if (lowerTerm != null) {
+                    l = parse(lowerTerm, true);
+                    // if the lower bound is decimal:
+                    // - if the bound is positive then we increment it:
+                    // if lowerTerm=1.5 then the (inclusive) bound becomes 2
+                    // - if the bound is negative then we leave it as is:
+                    // if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
+                    boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
+                    if ((lowerTermHasDecimalPart == false && includeLower == false) || (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
+                        if (l == Integer.MAX_VALUE) {
+                            return new MatchNoDocsQuery();
+                        }
+                        ++l;
+                    }
+                }
+                if (upperTerm != null) {
+                    u = parse(upperTerm, true);
+                    boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
+                    if ((upperTermHasDecimalPart == false && includeUpper == false) || (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
+                        if (u == Integer.MIN_VALUE) {
+                            return new MatchNoDocsQuery();
+                        }
+                        --u;
+                    }
+                }
+                Query dvQuery = hasDocValues ? SortedNumericDocValuesField.newSlowRangeQuery(field, l, u) : null;
+                if (isSearchable) {
+                    Query pointRangeQuery = IntPoint.newRangeQuery(field, l, u);
+                    Query query;
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
+                        if (context.indexSortedOnField(field)) {
+                            query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
+                        }
+                    } else {
+                        query = pointRangeQuery;
+                    }
+                    return new ApproximateScoreQuery(
+                        query,
+                        new ApproximatePointRangeQuery(
+                            field,
+                            IntPoint.pack(new int[] { l }).bytes,
+                            IntPoint.pack(new int[] { u }).bytes,
+                            new int[] { l }.length,
+                            ApproximatePointRangeQuery.INT_FORMAT
+                        )
+                    );
+
+                }
+                if (context.indexSortedOnField(field)) {
+                    dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, dvQuery);
+                }
+                return dvQuery;
             }
 
             @Override

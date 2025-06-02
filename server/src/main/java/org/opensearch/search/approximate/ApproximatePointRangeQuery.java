@@ -8,6 +8,7 @@
 
 package org.opensearch.search.approximate;
 
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -40,6 +41,7 @@ import java.util.function.Function;
  */
 public class ApproximatePointRangeQuery extends ApproximateQuery {
     public static final Function<byte[], String> LONG_FORMAT = bytes -> Long.toString(LongPoint.decodeDimension(bytes, 0));
+    public static final Function<byte[], String> INT_FORMAT = bytes -> Integer.toString(IntPoint.decodeDimension(bytes, 0));
     private int size;
 
     private SortOrder sortOrder;
@@ -240,96 +242,319 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 assert pointTree.moveToParent() == false;
             }
 
-            // custom intersect visitor to walk the left of the tree
             public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
                 if (docCount[0] >= size) {
                     return;
                 }
+
+                // ALWAYS check relation first
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
-                switch (r) {
-                    case CELL_OUTSIDE_QUERY:
-                        // This cell is fully outside the query shape: stop recursing
-                        break;
-                    case CELL_INSIDE_QUERY:
-                        // If the cell is fully inside, we keep moving to child until we reach a point where we can no longer move or when
-                        // we have sufficient doc count. We first move down and then move to the left child
-                        if (pointTree.moveToChild() && docCount[0] < size) {
-                            do {
-                                intersectLeft(visitor, pointTree, docCount);
-                            } while (pointTree.moveToSibling() && docCount[0] < size);
-                            pointTree.moveToParent();
-                        } else {
-                            // we're at the leaf node, if we're under the size, visit all the docIds in this node.
-                            if (docCount[0] < size) {
-                                pointTree.visitDocIDs(visitor);
-                            }
-                        }
-                        break;
-                    case CELL_CROSSES_QUERY:
-                        // The cell crosses the shape boundary, or the cell fully contains the query, so we fall
-                        // through and do full filtering:
-                        if (pointTree.moveToChild() && docCount[0] < size) {
-                            do {
-                                intersectLeft(visitor, pointTree, docCount);
-                            } while (pointTree.moveToSibling() && docCount[0] < size);
-                            pointTree.moveToParent();
-                        } else {
-                            // TODO: we can assert that the first value here in fact matches what the pointTree
-                            // claimed?
-                            // Leaf node; scan and filter all points in this block:
-                            if (docCount[0] < size) {
-                                pointTree.visitDocValues(visitor);
-                            }
-                        }
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unreachable code");
+
+                if (r == PointValues.Relation.CELL_OUTSIDE_QUERY) {
+                    return;
                 }
+
+                // Optimization for skewed data - similar to intersectRight
+                long nodeSize = pointTree.size();
+                long remaining = size - docCount[0];
+
+                // Only apply optimizations for CELL_INSIDE_QUERY
+                if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
+                    // Fast path 1: Small nodes - collect all
+                    if (nodeSize <= remaining && r == PointValues.Relation.CELL_INSIDE_QUERY) {
+                        bulkCollectLeftToRight(visitor, pointTree);
+                        return;
+                    }
+
+                    // Fast path 2: Very large nodes
+                    if (nodeSize > remaining * 10) {
+                        collectBottomDocsFromSkewedNode(visitor, pointTree, docCount);
+                        return;
+                    }
+                }
+
+                // Standard traversal
+                if (pointTree.moveToChild() == false) {
+                    // Leaf node
+                    if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
+                        pointTree.visitDocIDs(visitor);
+                    } else {
+                        // CELL_CROSSES_QUERY - must check each doc
+                        pointTree.visitDocValues(visitor);
+                    }
+                    return;
+                }
+
+                // Internal node - traverse children left to right for ASC
+                PointValues.PointTree rightChild = null;
+
+                // First, check if we have a right sibling
+                if (pointTree.moveToSibling()) {
+                    // Clone the right child
+                    rightChild = pointTree.clone();
+                    // Move back to left child
+                    pointTree.moveToParent();
+                    pointTree.moveToChild();
+                }
+
+                // Visit left child first (for ASC sort)
+                intersectLeft(visitor, pointTree, docCount);
+
+                // Then visit right if needed
+                if (docCount[0] < size && rightChild != null) {
+                    intersectLeft(visitor, rightChild, docCount);
+                }
+
+                pointTree.moveToParent();
             }
 
-            // custom intersect visitor to walk the right of tree (from rightmost leaf going left)
+            // Bulk collect entire subtree left to right (for ASC sort)
+            private void bulkCollectLeftToRight(PointValues.IntersectVisitor visitor,
+                                                PointValues.PointTree pointTree) throws IOException {
+                if (pointTree.moveToChild() == false) {
+                    pointTree.visitDocIDs(visitor);
+                    return;
+                }
+
+                // Clone right child if it exists
+                PointValues.PointTree rightChild = null;
+                if (pointTree.moveToSibling()) {
+                    rightChild = pointTree.clone();
+                    // Move back to left child
+                    pointTree.moveToParent();
+                    pointTree.moveToChild();
+                }
+
+                // Visit left first
+                bulkCollectLeftToRight(visitor, pointTree);
+
+                // Then right
+                if (rightChild != null) {
+                    bulkCollectLeftToRight(visitor, rightChild);
+                }
+
+                pointTree.moveToParent();
+            }
+
+            // Optimized collection for very skewed nodes (ASC sort)
+            private void collectBottomDocsFromSkewedNode(PointValues.IntersectVisitor visitor,
+                                                         PointValues.PointTree pointTree,
+                                                         long[] docCount) throws IOException {
+                if (pointTree.moveToChild() == false) {
+                    // Leaf node
+                    pointTree.visitDocIDs(visitor);
+                    return;
+                }
+
+                // Clone right child if it exists
+                PointValues.PointTree rightChild = null;
+                if (pointTree.moveToSibling()) {
+                    rightChild = pointTree.clone();
+                    // Move back to left child
+                    pointTree.moveToParent();
+                    pointTree.moveToChild();
+                }
+
+                // For ASC, check if left child has all we need
+                long leftSize = pointTree.size();
+                long needed = size - docCount[0];
+
+                if (leftSize >= needed) {
+                    // Left child has all we need
+                    intersectLeft(visitor, pointTree, docCount);
+                } else {
+                    // Need both children - process left first
+                    intersectLeft(visitor, pointTree, docCount);
+                    // Then right if needed
+                    if (docCount[0] < size && rightChild != null) {
+                        intersectLeft(visitor, rightChild, docCount);
+                    }
+                }
+
+                pointTree.moveToParent();
+            }
+
             public void intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
                 if (docCount[0] >= size) {
                     return;
                 }
+
+                // Check relation first to handle CELL_OUTSIDE_QUERY
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
+
+                if (r == PointValues.Relation.CELL_OUTSIDE_QUERY) {
+                    return;
+                }
+
+                // Aggressive optimization for skewed data
+                long nodeSize = pointTree.size();
+                long remaining = size - docCount[0];
+
+                // Fast path: If this node has fewer docs than we need AND is fully inside query
+                if (nodeSize <= remaining && r == PointValues.Relation.CELL_INSIDE_QUERY) {
+                    collectAllInsideCell(visitor, pointTree, docCount);
+                    return;
+                }
+
+                // Fast path 2: For very skewed data (node much larger than what we need)
+                if (nodeSize > remaining * 10 && r == PointValues.Relation.CELL_INSIDE_QUERY) {
+                    collectTopDocsFromSkewedNode(visitor, pointTree, docCount);
+                    return;
+                }
+
+                // Standard traversal
                 switch (r) {
                     case CELL_INSIDE_QUERY:
+                        collectFromInsideCell(visitor, pointTree, docCount);
+                        break;
+
                     case CELL_CROSSES_QUERY:
-                        if (pointTree.moveToChild() && docCount[0] < size) {
-                            PointValues.PointTree leftChild = pointTree.clone();
-                            // BKD is binary today, so one moveToSibling() is enough to land on the right child.
-                            // If PointTree ever becomes n-ary, update the traversal below to visit all siblings or re-enable a full loop.
-                            if (pointTree.moveToSibling()) {
-                                // We have two children - visit right first
-                                intersectRight(visitor, pointTree, docCount);
-                                // Then visit left if we still need more docs
-                                if (docCount[0] < size) {
-                                    intersectRight(visitor, leftChild, docCount);
-                                }
-                            } else {
-                                // Only one child - visit it
-                                intersectRight(visitor, leftChild, docCount);
-                            }
-                            pointTree.moveToParent();
-                        } else {
-                            if (docCount[0] < size) {
-                                if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
-                                    pointTree.visitDocIDs(visitor);
-                                } else {
-                                    pointTree.visitDocValues(visitor);
-                                }
-                            }
-                        }
+                        collectFromCrossingCell(visitor, pointTree, docCount);
                         break;
-                    case CELL_OUTSIDE_QUERY:
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unreachable code");
                 }
             }
+
+            // Collect all docs from a cell we know is inside the query
+            private void collectAllInsideCell(PointValues.IntersectVisitor visitor,
+                                              PointValues.PointTree pointTree,
+                                              long[] docCount) throws IOException {
+                if (docCount[0] >= size) {
+                    return;
+                }
+
+                if (pointTree.moveToChild() == false) {
+                    // Leaf node - collect all
+                    pointTree.visitDocIDs(visitor);
+                    return;
+                }
+
+                // Clone left child first
+                PointValues.PointTree leftChild = pointTree.clone();
+
+                // Visit children right to left
+                if (pointTree.moveToSibling()) {
+                    // At right child now
+                    collectAllInsideCell(visitor, pointTree, docCount);
+                    if (docCount[0] < size) {
+                        collectAllInsideCell(visitor, leftChild, docCount);
+                    }
+                } else {
+                    // Only one child
+                    collectAllInsideCell(visitor, leftChild, docCount);
+                }
+
+                pointTree.moveToParent();
+            }
+
+            // Optimized collection for very skewed nodes
+            private void collectTopDocsFromSkewedNode(PointValues.IntersectVisitor visitor,
+                                                      PointValues.PointTree pointTree,
+                                                      long[] docCount) throws IOException {
+                if (!pointTree.moveToChild()) {
+                    // Leaf node
+                    pointTree.visitDocIDs(visitor);
+                    return;
+                }
+
+                // Clone left child first
+                PointValues.PointTree leftChild = pointTree.clone();
+
+                // Check if we have right child
+                if (pointTree.moveToSibling()) {
+                    // We're now at right child
+                    long rightSize = pointTree.size();
+                    long needed = size - docCount[0];
+
+                    if (rightSize >= needed) {
+                        // Right child has all we need
+                        intersectRight(visitor, pointTree, docCount);
+                    } else {
+                        // Need both children - process right first
+                        intersectRight(visitor, pointTree, docCount);
+                        // Then left if needed
+                        if (docCount[0] < size) {
+                            intersectRight(visitor, leftChild, docCount);
+                        }
+                    }
+                } else {
+                    // Single child
+                    intersectRight(visitor, leftChild, docCount);
+                }
+
+                pointTree.moveToParent();
+            }
+
+            // Optimized for CELL_INSIDE_QUERY
+            private void collectFromInsideCell(PointValues.IntersectVisitor visitor,
+                                               PointValues.PointTree pointTree,
+                                               long[] docCount) throws IOException {
+                if (!pointTree.moveToChild()) {
+                    // Leaf - direct collection
+                    pointTree.visitDocIDs(visitor);
+                    return;
+                }
+
+                // Clone left child first
+                PointValues.PointTree leftChild = pointTree.clone();
+
+                // Check for right child
+                if (pointTree.moveToSibling()) {
+                    // At right child now
+                    if (docCount[0] < size) {
+                        long rightSize = pointTree.size();
+                        if (docCount[0] + rightSize <= size) {
+                            // Can collect entire right subtree
+                            collectAllInsideCell(visitor, pointTree, docCount);
+                        } else {
+                            // Need partial collection
+                            intersectRight(visitor, pointTree, docCount);
+                        }
+                    }
+
+                    // Left if needed
+                    if (docCount[0] < size) {
+                        intersectRight(visitor, leftChild, docCount);
+                    }
+                } else {
+                    // Single child
+                    intersectRight(visitor, leftChild, docCount);
+                }
+
+                pointTree.moveToParent();
+            }
+
+            // Standard collection for CELL_CROSSES_QUERY
+            private void collectFromCrossingCell(PointValues.IntersectVisitor visitor,
+                                                 PointValues.PointTree pointTree,
+                                                 long[] docCount) throws IOException {
+                if (pointTree.moveToChild() == false) {
+                    // Leaf - must check each doc
+                    pointTree.visitDocValues(visitor);
+                    return;
+                }
+
+                // Clone left child first
+                PointValues.PointTree leftChild = pointTree.clone();
+
+                // Process children right to left
+                if (pointTree.moveToSibling()) {
+                    // At right child now
+                    if (docCount[0] < size) {
+                        intersectRight(visitor, pointTree, docCount);
+                    }
+                    if (docCount[0] < size) {
+                        intersectRight(visitor, leftChild, docCount);
+                    }
+                } else {
+                    // Single child
+                    intersectRight(visitor, leftChild, docCount);
+                }
+
+                pointTree.moveToParent();
+            }
+
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
