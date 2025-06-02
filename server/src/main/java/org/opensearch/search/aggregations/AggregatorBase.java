@@ -37,6 +37,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -327,5 +328,11 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public String toString() {
         return name;
+    }
+
+    protected void checkCancelled() {
+        if (context.isCancelled()) {
+            throw new OpenSearchRejectedExecutionException();
+        }
     }
 }
