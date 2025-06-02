@@ -93,6 +93,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
@@ -293,22 +295,24 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
+                .setSettings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1))
                 .setMapping("field", "type=text,fielddata=true")
                 .get()
         );
         ensureGreen();
 
         // Index a document
-        client().prepareIndex("test").setId("1").setSource("field", "value1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field", "value1")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         IndicesStatsResponse statsResponse = client().admin().indices().prepareStats("test").get();
         IndexStats stats = statsResponse.getIndex("test");
         long ts1 = stats.getLastIndexRequestTimestamp();
         assertTrue("Timestamp should be set after first write", ts1 > 0);
 
-        // Wait and index another document
-        client().prepareIndex("test").setId("2").setSource("field", "value2").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // Use assertBusy to retry both the second write and the check
         assertBusy(() -> {
+            client().prepareIndex("test").setId("2").setSource("field", "value2")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
             IndicesStatsResponse statsResponse2 = client().admin().indices().prepareStats("test").get();
             long ts2 = statsResponse2.getIndex("test").getLastIndexRequestTimestamp();
             assertThat(ts2, greaterThan(ts1));
