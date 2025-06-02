@@ -332,6 +332,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     protected void checkCancelled() {
         if (context.isCancelled()) {
+            Thread.dumpStack();
             throw new OpenSearchRejectedExecutionException("The query has been cancelled");
         }
     }
