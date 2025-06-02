@@ -56,12 +56,6 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
 
         WlmStrategyToken requestedToken = (nextToken == null || nextToken.isEmpty()) ? null : new WlmStrategyToken(nextToken);
 
-        if (requestedToken != null) {
-            if (requestedToken.getWorkloadGroupCount() != snapshotWorkloadGroupCount || !requestedToken.getHash().equals(currentHash)) {
-                throw new OpenSearchParseException("Workload group state has changed since the last request. Pagination is invalidated.");
-            }
-        }
-
         this.paginatedStats = applyPagination(response.getNodes(), requestedToken, currentHash);
     }
 
