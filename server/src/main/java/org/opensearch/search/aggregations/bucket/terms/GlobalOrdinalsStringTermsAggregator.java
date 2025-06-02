@@ -793,6 +793,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
 
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            checkCancelled();
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             if (valueCount == 0) { // no context in this reader
                 InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];

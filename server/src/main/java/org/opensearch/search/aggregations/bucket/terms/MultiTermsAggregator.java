@@ -121,6 +121,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        checkCancelled();
         LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
         InternalMultiTerms.Bucket[][] topBucketsPerOrd = new InternalMultiTerms.Bucket[owningBucketOrds.length][];
         long[] otherDocCounts = new long[owningBucketOrds.length];

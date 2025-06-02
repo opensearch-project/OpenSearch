@@ -260,6 +260,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        checkCancelled();
         // Composite aggregator must be at the top of the aggregation tree
         assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0L;
         if (deferredCollectors != NO_OP_COLLECTOR) {

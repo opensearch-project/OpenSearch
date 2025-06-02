@@ -255,6 +255,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         implements
             Releasable {
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            checkCancelled();
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCounts = new long[owningBucketOrds.length];

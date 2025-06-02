@@ -245,6 +245,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             Releasable {
 
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            checkCancelled();
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCounts = new long[owningBucketOrds.length];

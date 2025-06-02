@@ -121,6 +121,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        checkCancelled();
         /*
          * Collect the list of buckets, populate the filter with terms
          * that are too frequent, and figure out how to merge sub-buckets.
