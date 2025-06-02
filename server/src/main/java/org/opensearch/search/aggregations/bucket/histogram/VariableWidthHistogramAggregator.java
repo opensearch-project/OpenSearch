@@ -574,7 +574,6 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        checkCancelled();
         int numClusters = collector.finalNumBuckets();
 
         long[] bucketOrdsToCollect = new long[numClusters];
@@ -586,6 +585,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>(numClusters);
         for (int bucketOrd = 0; bucketOrd < numClusters; bucketOrd++) {
+            checkCancelled();
             buckets.add(collector.buildBucket(bucketOrd, subAggregationResults[bucketOrd]));
         }
 

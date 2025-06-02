@@ -793,7 +793,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
 
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            checkCancelled();
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             if (valueCount == 0) { // no context in this reader
                 InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
@@ -806,6 +805,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             B[][] topBucketsPreOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCount = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                checkCancelled();
                 final int size;
                 if (localBucketCountThresholds.getMinDocCount() == 0) {
                     // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns

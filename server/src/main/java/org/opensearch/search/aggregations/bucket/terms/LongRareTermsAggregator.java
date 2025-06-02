@@ -121,7 +121,6 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        checkCancelled();
         /*
          * Collect the list of buckets, populate the filter with terms
          * that are too frequent, and figure out how to merge sub-buckets.
@@ -134,6 +133,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         long offset = 0;
         for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
             try (LongHash bucketsInThisOwningBucketToCollect = new LongHash(1, context.bigArrays())) {
+                checkCancelled();
                 filters[owningOrdIdx] = newFilter();
                 List<LongRareTerms.Bucket> builtBuckets = new ArrayList<>();
                 LongKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds[owningOrdIdx]);
