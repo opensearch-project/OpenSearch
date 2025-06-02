@@ -1,0 +1,83 @@
+---
+"Test auto-injected field on index creation":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              mapping_transform_trigger_field:
+                type: keyword
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match:
+      test-index.mappings.properties.field_auto_added_by_example_mapping_transformer.type: text
+
+---
+"Test auto-injected field on mapping update":
+  - do:
+      indices.create:
+        index: test-index-update
+        body:
+          mappings:
+            properties:
+              dummy_field:
+                type: keyword
+  - do:
+      indices.put_mapping:
+        index: test-index-update
+        body:
+          properties:
+            mapping_transform_trigger_field:
+              type: keyword
+  - do:
+      indices.get_mapping:
+        index: test-index-update
+  - match:
+      test-index-update.mappings.properties.field_auto_added_by_example_mapping_transformer.type: text
+
+---
+"Test auto-injected field via index template":
+  - do:
+      indices.put_index_template:
+        name: example_template
+        body:
+          index_patterns: ["auto-template-*"]
+          template:
+            mappings:
+              properties:
+                mapping_transform_trigger_field:
+                  type: keyword
+  - do:
+      indices.create:
+        index: auto-template-1
+  - do:
+      indices.get_mapping:
+        index: auto-template-1
+  - match:
+      auto-template-1.mappings.properties.mapping_transform_trigger_field.type: keyword
+  - match:
+      auto-template-1.mappings.properties.field_auto_added_by_example_mapping_transformer.type: text
+
+---
+"Test auto-injected field via legacy create template API":
+  - do:
+      indices.put_template:
+        name: legacy_template
+        body:
+          index_patterns: ["legacy-*"]
+          mappings:
+            properties:
+              mapping_transform_trigger_field:
+                type: keyword
+  - do:
+      indices.create:
+        index: legacy-1
+  - do:
+      indices.get_mapping:
+        index: legacy-1
+  - match:
+      legacy-1.mappings.properties.mapping_transform_trigger_field.type: keyword
+  - match:
+      legacy-1.mappings.properties.field_auto_added_by_example_mapping_transformer.type: text
