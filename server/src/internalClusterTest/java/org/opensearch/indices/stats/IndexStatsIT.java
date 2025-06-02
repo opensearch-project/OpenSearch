@@ -297,7 +297,6 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 .setMapping("field", "type=text,fielddata=true")
                 .get()
         );
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settingsBuilder()).get());
         ensureGreen();
 
         // Index a document
