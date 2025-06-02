@@ -38,6 +38,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
     private final long active;
     private final long total;
     private final long used;
+    private final long pinned;
     private final long evicted;
     private final long hits;
     private final long misses;
@@ -47,6 +48,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         final long active,
         long total,
         final long used,
+        final long pinned,
         final long evicted,
         final long hits,
         long misses,
@@ -55,6 +57,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         this.active = active;
         this.total = total;
         this.used = used;
+        this.pinned = pinned;
         this.evicted = evicted;
         this.hits = hits;
         this.misses = misses;
@@ -66,6 +69,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         this.active = in.readLong();
         this.total = in.readLong();
         this.used = in.readLong();
+        this.pinned = in.readLong();
         this.evicted = in.readLong();
         this.hits = in.readLong();
         this.misses = in.readLong();
@@ -77,6 +81,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         out.writeLong(active);
         out.writeLong(total);
         out.writeLong(used);
+        out.writeLong(pinned);
         out.writeLong(evicted);
         out.writeLong(hits);
         out.writeLong(misses);
@@ -106,6 +111,10 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         return total;
     }
 
+    public long getPinnedUsage() {
+        return pinned;
+    }
+
     public short getUsedPercent() {
         return calculatePercentage(getUsed(), total);
     }
@@ -122,6 +131,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         static final String ACTIVE = "active";
         static final String ACTIVE_IN_BYTES = "active_in_bytes";
         static final String USED = "used";
+        static final String PINNED = "pinned";
         static final String USED_IN_BYTES = "used_in_bytes";
         static final String EVICTIONS = "evictions";
         static final String EVICTIONS_IN_BYTES = "evictions_in_bytes";
@@ -134,6 +144,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         builder.startObject(statsType.toString());
         builder.humanReadableField(FileCacheStats.Fields.ACTIVE_IN_BYTES, FileCacheStats.Fields.ACTIVE, new ByteSizeValue(getActive()));
         builder.humanReadableField(FileCacheStats.Fields.USED_IN_BYTES, FileCacheStats.Fields.USED, new ByteSizeValue(getUsed()));
+        builder.humanReadableField(FileCacheStats.Fields.USED_IN_BYTES, Fields.PINNED, new ByteSizeValue(getPinnedUsage()));
         builder.humanReadableField(
             FileCacheStats.Fields.EVICTIONS_IN_BYTES,
             FileCacheStats.Fields.EVICTIONS,

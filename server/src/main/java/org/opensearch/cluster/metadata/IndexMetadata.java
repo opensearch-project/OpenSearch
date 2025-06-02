@@ -749,14 +749,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public void validate(final String value, final Map<Setting<?>, Object> settings) {
-                if (isRewindState(value)) {
-                    // Ensure the reset value setting is provided when rewinding.
+                if (isResetState(value)) {
+                    // Ensure the reset value setting is provided when resetting consumer position.
                     final String resetValue = (String) settings.get(INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING);
                     if (resetValue == null || resetValue.isEmpty()) {
                         throw new IllegalArgumentException(
                             "Setting "
                                 + INGESTION_SOURCE_POINTER_INIT_RESET_VALUE_SETTING.getKey()
-                                + " should be set when REWIND_BY_OFFSET or REWIND_BY_TIMESTAMP"
+                                + " should be set when resetting consumer position"
                         );
                     }
                 }
@@ -765,12 +765,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             private boolean isValidResetState(String value) {
                 return StreamPoller.ResetState.LATEST.name().equalsIgnoreCase(value)
                     || StreamPoller.ResetState.EARLIEST.name().equalsIgnoreCase(value)
-                    || isRewindState(value);
+                    || isResetState(value);
             }
 
-            private boolean isRewindState(String value) {
-                return StreamPoller.ResetState.REWIND_BY_OFFSET.name().equalsIgnoreCase(value)
-                    || StreamPoller.ResetState.REWIND_BY_TIMESTAMP.name().equalsIgnoreCase(value);
+            private boolean isResetState(String value) {
+                return StreamPoller.ResetState.RESET_BY_OFFSET.name().equalsIgnoreCase(value)
+                    || StreamPoller.ResetState.RESET_BY_TIMESTAMP.name().equalsIgnoreCase(value);
             }
 
             @Override

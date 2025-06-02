@@ -112,7 +112,7 @@ public class TransportUpdateIngestionStateActionTests extends OpenSearchTestCase
         ShardRouting shardRouting = mock(ShardRouting.class);
         IndexService indexService = mock(IndexService.class);
         IndexShard indexShard = mock(IndexShard.class);
-        ShardIngestionState expectedState = new ShardIngestionState("test-index", 0, "PAUSED", "DROP", true, false);
+        ShardIngestionState expectedState = new ShardIngestionState("test-index", 0, "PAUSED", "DROP", true, false, "");
 
         when(shardRouting.shardId()).thenReturn(mock(ShardId.class));
         when(shardRouting.shardId().getIndex()).thenReturn(mock(Index.class));
@@ -162,7 +162,7 @@ public class TransportUpdateIngestionStateActionTests extends OpenSearchTestCase
     public void testNewResponse() {
         UpdateIngestionStateRequest request = new UpdateIngestionStateRequest(new String[] { "test-index" }, new int[] { 0 });
         List<ShardIngestionState> responses = Collections.singletonList(
-            new ShardIngestionState("test-index", 0, "PAUSED", "DROP", true, false)
+            new ShardIngestionState("test-index", 0, "PAUSED", "DROP", true, false, "")
         );
         List<DefaultShardOperationFailedException> shardFailures = Collections.emptyList();
         ClusterState clusterState = mock(ClusterState.class);
