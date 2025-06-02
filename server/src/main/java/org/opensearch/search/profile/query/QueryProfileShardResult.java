@@ -36,12 +36,11 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.search.profile.AbstractProfileResult;
 import org.opensearch.search.profile.AbstractProfileShardResult;
-import org.opensearch.search.profile.TimingProfileResult;
+import org.opensearch.search.profile.ProfileResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,7 +56,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class QueryProfileShardResult extends AbstractProfileShardResult<TimingProfileResult> {
+public final class QueryProfileShardResult extends AbstractProfileShardResult {
 
     public static final String COLLECTOR = "collector";
     public static final String REWRITE_TIME = "rewrite_time";
@@ -67,7 +66,7 @@ public final class QueryProfileShardResult extends AbstractProfileShardResult<Ti
 
     private final long rewriteTime;
 
-    public QueryProfileShardResult(List<TimingProfileResult> queryProfileResults, long rewriteTime, CollectorResult profileCollector) {
+    public QueryProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime, CollectorResult profileCollector) {
         super(queryProfileResults);
         assert (profileCollector != null);
         this.profileCollector = profileCollector;
@@ -84,21 +83,16 @@ public final class QueryProfileShardResult extends AbstractProfileShardResult<Ti
     }
 
     @Override
-    public TimingProfileResult createProfileResult(StreamInput in) throws IOException {
-        return new TimingProfileResult(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(profileResults.size());
-        for (TimingProfileResult p : profileResults) {
+        for (ProfileResult p : profileResults) {
             p.writeTo(out);
         }
         profileCollector.writeTo(out);
         out.writeLong(rewriteTime);
     }
 
-    public List<TimingProfileResult> getQueryResults() {
+    public List<ProfileResult> getQueryResults() {
         return Collections.unmodifiableList(profileResults);
     }
 
@@ -114,7 +108,7 @@ public final class QueryProfileShardResult extends AbstractProfileShardResult<Ti
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray(QUERY_ARRAY);
-        for (TimingProfileResult p : profileResults) {
+        for (ProfileResult p : profileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();
@@ -130,7 +124,7 @@ public final class QueryProfileShardResult extends AbstractProfileShardResult<Ti
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         String currentFieldName = null;
-        List<TimingProfileResult> queryProfileResults = new ArrayList<>();
+        List<ProfileResult> queryProfileResults = new ArrayList<>();
         long rewriteTime = 0;
         CollectorResult collector = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -145,7 +139,7 @@ public final class QueryProfileShardResult extends AbstractProfileShardResult<Ti
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (QUERY_ARRAY.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        queryProfileResults.add(TimingProfileResult.fromXContent(parser));
+                        queryProfileResults.add(ProfileResult.fromXContent(parser));
                     }
                 } else if (COLLECTOR.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

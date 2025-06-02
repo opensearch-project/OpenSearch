@@ -246,7 +246,7 @@ public interface SearchPlugin {
          * @param isConcurrentSearchEnabled concurrent enabled
          * @return profiler instance
          */
-        AbstractProfiler<?,?,?,?,?> getProfiler(boolean isConcurrentSearchEnabled);
+        AbstractProfiler<?,?,?> getProfiler(boolean isConcurrentSearchEnabled);
     }
 
     /**

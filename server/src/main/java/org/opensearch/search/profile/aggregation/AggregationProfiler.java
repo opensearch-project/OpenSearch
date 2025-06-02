@@ -34,8 +34,8 @@ package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.profile.AbstractProfileShardResult;
 import org.opensearch.search.profile.AbstractProfiler;
-import org.opensearch.search.profile.TimingProfileResult;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -46,7 +46,7 @@ import java.util.Map;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class AggregationProfiler extends AbstractProfiler<AggregationTimingProfileBreakdown, AggregationTimingType, Aggregator, TimingProfileResult, AggregationProfileShardResult> {
+public class AggregationProfiler extends AbstractProfiler<AggregationTimingProfileBreakdown, Aggregator, AggregationProfileShardResult> {
 
     private final Map<Aggregator, AggregationTimingProfileBreakdown> profileBreakdownLookup = new HashMap<>();
 

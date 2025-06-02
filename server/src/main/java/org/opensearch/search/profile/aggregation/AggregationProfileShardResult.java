@@ -34,18 +34,13 @@ package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.search.profile.AbstractProfileResult;
 import org.opensearch.search.profile.AbstractProfileShardResult;
-import org.opensearch.search.profile.TimingProfileResult;
+import org.opensearch.search.profile.ProfileResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -57,11 +52,11 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class AggregationProfileShardResult extends AbstractProfileShardResult<TimingProfileResult> {
+public final class AggregationProfileShardResult extends AbstractProfileShardResult {
 
     public static final String AGGREGATIONS = "aggregations";
 
-    public AggregationProfileShardResult(List<TimingProfileResult> abstractProfileResults) {
+    public AggregationProfileShardResult(List<ProfileResult> abstractProfileResults) {
         super(abstractProfileResults);
     }
 
@@ -75,22 +70,9 @@ public final class AggregationProfileShardResult extends AbstractProfileShardRes
     }
 
     @Override
-    public TimingProfileResult createProfileResult(StreamInput in) throws IOException {
-        return new TimingProfileResult(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(profileResults.size());
-        for (TimingProfileResult p : profileResults) {
-            p.writeTo(out);
-        }
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(AGGREGATIONS);
-        for (TimingProfileResult p : profileResults) {
+        for (ProfileResult p : profileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();
@@ -100,9 +82,9 @@ public final class AggregationProfileShardResult extends AbstractProfileShardRes
     public static AggregationProfileShardResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
-        List<TimingProfileResult> aggProfileResults = new ArrayList<>();
+        List<ProfileResult> aggProfileResults = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            aggProfileResults.add(TimingProfileResult.fromXContent(parser));
+            aggProfileResults.add(ProfileResult.fromXContent(parser));
         }
         return new AggregationProfileShardResult(aggProfileResults);
     }

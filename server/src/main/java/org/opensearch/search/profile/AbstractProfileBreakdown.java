@@ -48,7 +48,7 @@ import static java.util.Collections.emptyMap;
  * @opensearch.internal
  */
 @PublicApi(since="3.0.0")
-public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
+public abstract class AbstractProfileBreakdown {
 
     /** Sole constructor. */
     public AbstractProfileBreakdown() {}

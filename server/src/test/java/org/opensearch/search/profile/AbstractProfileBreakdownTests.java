@@ -26,7 +26,7 @@ public class AbstractProfileBreakdownTests extends OpenSearchTestCase {
         }
     }
 
-    private static class TestProfileBreakdown extends AbstractProfileBreakdown<TestType> {
+    private static class TestProfileBreakdown extends AbstractProfileBreakdown {
         Map<String, Long> stats;
 
         TestProfileBreakdown() {
@@ -49,7 +49,7 @@ public class AbstractProfileBreakdownTests extends OpenSearchTestCase {
     }
 
     public void testToBreakdownMap() {
-        AbstractProfileBreakdown<TestType> breakdown = new TestProfileBreakdown();
+        AbstractProfileBreakdown breakdown = new TestProfileBreakdown();
         Map<String, Long> stats = new HashMap<>();
         stats.put("stat_1", 123L);
         stats.put("stat_2", 124L);

@@ -112,7 +112,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private MutableQueryTimeout cancellable;
     private SearchContext searchContext;
 
-    private List<AbstractProfiler<?,?,?,?,?>> pluginProfilers;
+    private List<AbstractProfiler<?,?,?>> pluginProfilers;
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -158,12 +158,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.profiler = profiler;
     }
 
-    public void setPluginProfilers(List<AbstractProfiler<?,?,?,?,?>> pluginProfilers) {
+    public void setPluginProfilers(List<AbstractProfiler<?,?,?>> pluginProfilers) {
         this.pluginProfilers = pluginProfilers;
     }
 
-    public AbstractProfiler<?,?,?,?,?> getPluginProfiler(Class<? extends AbstractProfiler<?,?,?,?,?>> clazz) {
-        for (AbstractProfiler<?,?,?,?,?> profiler : pluginProfilers) {
+    public AbstractProfiler<?,?,?> getPluginProfiler(Class<? extends AbstractProfiler<?,?,?>> clazz) {
+        for (AbstractProfiler<?,?,?> profiler : pluginProfilers) {
             if (profiler.getClass().equals(clazz)) {
                 return profiler;
             }

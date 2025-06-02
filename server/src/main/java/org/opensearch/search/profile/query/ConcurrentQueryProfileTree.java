@@ -11,13 +11,13 @@ package org.opensearch.search.profile.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
-import org.opensearch.search.profile.TimingProfileResult;
+import org.opensearch.search.profile.ProfileResult;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * This class returns a list of {@link TimingProfileResult} that can be serialized back to the client in the concurrent execution.
+ * This class returns a list of {@link ProfileResult} that can be serialized back to the client in the concurrent execution.
  *
  * @opensearch.internal
  */
@@ -26,23 +26,6 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
     @Override
     protected AbstractTimingProfileBreakdown<QueryTimingType> createProfileBreakdown() {
         return new ConcurrentQueryTimingProfileBreakdown();
-    }
-
-    @Override
-    protected TimingProfileResult createProfileResult(String type, String description, AbstractTimingProfileBreakdown<QueryTimingType> breakdown, List<TimingProfileResult> childrenProfileResults) {
-        assert breakdown instanceof ConcurrentQueryTimingProfileBreakdown;
-        final ConcurrentQueryTimingProfileBreakdown concurrentBreakdown = (ConcurrentQueryTimingProfileBreakdown) breakdown;
-        return new TimingProfileResult(
-            type,
-            description,
-            concurrentBreakdown.toBreakdownMap(),
-            concurrentBreakdown.toDebugMap(),
-            concurrentBreakdown.toNodeTime(),
-            childrenProfileResults,
-            concurrentBreakdown.getMaxSliceNodeTime(),
-            concurrentBreakdown.getMinSliceNodeTime(),
-            concurrentBreakdown.getAvgSliceNodeTime()
-        );
     }
 
     /**
@@ -55,7 +38,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
      * @return a hierarchical representation of the profiled query tree
      */
     @Override
-    public List<TimingProfileResult> getTree() {
+    public List<ProfileResult> getTree() {
         for (Integer root : roots) {
             final AbstractTimingProfileBreakdown<QueryTimingType> parentBreakdown = breakdowns.get(root);
             assert parentBreakdown instanceof ConcurrentQueryTimingProfileBreakdown;

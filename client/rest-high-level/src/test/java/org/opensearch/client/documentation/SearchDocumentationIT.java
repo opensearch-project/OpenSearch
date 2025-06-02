@@ -108,8 +108,8 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
+import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
-import org.opensearch.search.profile.TimingProfileResult;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
@@ -564,10 +564,10 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
 
             for (QueryProfileShardResult queryProfileResult : queryProfileShardResults) {
                 // tag::search-request-profiling-queries-results
-                for (TimingProfileResult profileResult : queryProfileResult.getQueryResults()) { // <1>
+                for (ProfileResult profileResult : queryProfileResult.getQueryResults()) { // <1>
                     String queryName = profileResult.getQueryName(); // <2>
-                    long queryTimeInMillis = profileResult.getTime(); // <3>
-                    List<TimingProfileResult> profiledChildren = profileResult.getProfiledChildren(); // <4>
+                    long queryTimeInMillis = profileResult.getBreakdown().get("time_in_nanos"); // <3>
+                    List<ProfileResult> profiledChildren = profileResult.getProfiledChildren(); // <4>
                 }
                 // end::search-request-profiling-queries-results
 
@@ -582,10 +582,10 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
             // tag::search-request-profiling-aggs
             AggregationProfileShardResult aggsProfileResults =
                     profileShardResult.getAggregationProfileResults(); // <1>
-            for (TimingProfileResult profileResult : aggsProfileResults.getProfileResults()) { // <2>
+            for (ProfileResult profileResult : aggsProfileResults.getProfileResults()) { // <2>
                 String aggName = profileResult.getQueryName(); // <3>
-                long aggTimeInMillis = profileResult.getTime(); // <4>
-                List<TimingProfileResult> profiledChildren = profileResult.getProfiledChildren(); // <5>
+                long aggTimeInMillis = profileResult.getBreakdown().get("time_in_nanos"); // <4>
+                List<ProfileResult> profiledChildren = profileResult.getProfiledChildren(); // <5>
             }
             // end::search-request-profiling-aggs
             assertThat(aggsProfileResults.getProfileResults().size(), equalTo(1));

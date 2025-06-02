@@ -65,7 +65,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.profile.TimingProfileResult;
+import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -171,10 +171,10 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         searcher.setQueryProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
-        List<TimingProfileResult> results = profiler.getTree();
+        List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        TimingProfileResult profileResult = results.get(0);
-        Map<String, Long> breakdown = profileResult.getTimeBreakdown();
+        ProfileResult profileResult = results.get(0);
+        Map<String, Long> breakdown = profileResult.getBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
@@ -190,9 +190,6 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         assertThat(breakdown.get(QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
 
         if (executor != null) {
-            assertThat(profileResult.getMaxSliceTime(), is(not(nullValue())));
-            assertThat(profileResult.getMinSliceTime(), is(not(nullValue())));
-            assertThat(profileResult.getAvgSliceTime(), is(not(nullValue())));
             assertThat(breakdown.get(MAX_PREFIX + QueryTimingType.BUILD_SCORER), greaterThan(0L));
             assertThat(breakdown.get(MIN_PREFIX + QueryTimingType.BUILD_SCORER), greaterThan(0L));
             assertThat(breakdown.get(AVG_PREFIX + QueryTimingType.BUILD_SCORER), greaterThan(0L));
@@ -223,10 +220,6 @@ public class QueryProfilerTests extends OpenSearchTestCase {
             assertThat(breakdown.get(MAX_PREFIX + QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
             assertThat(breakdown.get(MIN_PREFIX + QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
             assertThat(breakdown.get(AVG_PREFIX + QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
-        } else {
-            assertThat(profileResult.getMaxSliceTime(), is(nullValue()));
-            assertThat(profileResult.getMinSliceTime(), is(nullValue()));
-            assertThat(profileResult.getAvgSliceTime(), is(nullValue()));
         }
 
         long rewriteTime = profiler.getRewriteTime();
@@ -240,10 +233,10 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         searcher.setQueryProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
-        List<TimingProfileResult> results = profiler.getTree();
+        List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        TimingProfileResult profileResult = results.get(0);
-        Map<String, Long> breakdown = profileResult.getTimeBreakdown();
+        ProfileResult profileResult = results.get(0);
+        Map<String, Long> breakdown = profileResult.getBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
@@ -259,9 +252,6 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         assertThat(breakdown.get(QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
 
         if (executor != null) {
-            assertThat(profileResult.getMaxSliceTime(), is(not(nullValue())));
-            assertThat(profileResult.getMinSliceTime(), is(not(nullValue())));
-            assertThat(profileResult.getAvgSliceTime(), is(not(nullValue())));
             assertThat(breakdown.get(MAX_PREFIX + QueryTimingType.BUILD_SCORER), greaterThan(0L));
             assertThat(breakdown.get(MIN_PREFIX + QueryTimingType.BUILD_SCORER), greaterThan(0L));
             assertThat(breakdown.get(AVG_PREFIX + QueryTimingType.BUILD_SCORER), greaterThan(0L));
@@ -292,10 +282,6 @@ public class QueryProfilerTests extends OpenSearchTestCase {
             assertThat(breakdown.get(MAX_PREFIX + QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
             assertThat(breakdown.get(MIN_PREFIX + QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
             assertThat(breakdown.get(AVG_PREFIX + QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), equalTo(0L));
-        } else {
-            assertThat(profileResult.getMaxSliceTime(), is(nullValue()));
-            assertThat(profileResult.getMinSliceTime(), is(nullValue()));
-            assertThat(profileResult.getAvgSliceTime(), is(nullValue()));
         }
 
         long rewriteTime = profiler.getRewriteTime();
@@ -309,10 +295,10 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         searcher.setQueryProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats
-        List<TimingProfileResult> results = profiler.getTree();
+        List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        TimingProfileResult result = results.get(0);
-        assertEquals(0, (long) result.getTimeBreakdown().get("build_scorer_count"));
+        ProfileResult result = results.get(0);
+        assertEquals(0, (long) result.getBreakdown().get("build_scorer_count"));
 
         long rewriteTime = profiler.getRewriteTime();
         assertThat(rewriteTime, greaterThan(0L));
@@ -325,10 +311,10 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         searcher.setQueryProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);
-        List<TimingProfileResult> results = profiler.getTree();
+        List<ProfileResult> results = profiler.getTree();
         assertEquals(1, results.size());
-        TimingProfileResult profileResult = results.get(0);
-        Map<String, Long> breakdown = profileResult.getTimeBreakdown();
+        ProfileResult profileResult = results.get(0);
+        Map<String, Long> breakdown = profileResult.getBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
@@ -344,9 +330,6 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         assertThat(breakdown.get(QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), greaterThan(0L));
 
         if (executor != null) {
-            assertThat(profileResult.getMaxSliceTime(), is(not(nullValue())));
-            assertThat(profileResult.getMinSliceTime(), is(not(nullValue())));
-            assertThat(profileResult.getAvgSliceTime(), is(not(nullValue())));
             assertThat(breakdown.get(MAX_PREFIX + QueryTimingType.BUILD_SCORER), greaterThan(0L));
             assertThat(breakdown.get(MIN_PREFIX + QueryTimingType.BUILD_SCORER), greaterThan(0L));
             assertThat(breakdown.get(AVG_PREFIX + QueryTimingType.BUILD_SCORER), greaterThan(0L));
@@ -377,10 +360,6 @@ public class QueryProfilerTests extends OpenSearchTestCase {
             assertThat(breakdown.get(MAX_PREFIX + QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), greaterThan(0L));
             assertThat(breakdown.get(MIN_PREFIX + QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), greaterThan(0L));
             assertThat(breakdown.get(AVG_PREFIX + QueryTimingType.MATCH + TIMING_TYPE_COUNT_SUFFIX), greaterThan(0L));
-        } else {
-            assertThat(profileResult.getMaxSliceTime(), is(nullValue()));
-            assertThat(profileResult.getMinSliceTime(), is(nullValue()));
-            assertThat(profileResult.getAvgSliceTime(), is(nullValue()));
         }
 
         long rewriteTime = profiler.getRewriteTime();

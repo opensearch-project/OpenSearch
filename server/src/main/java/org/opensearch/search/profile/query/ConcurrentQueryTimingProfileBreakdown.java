@@ -11,6 +11,7 @@ package org.opensearch.search.profile.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.opensearch.OpenSearchException;
+import org.opensearch.core.ParseField;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.Timer;
@@ -31,6 +32,10 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
     private long maxSliceNodeTime = Long.MIN_VALUE;
     private long minSliceNodeTime = Long.MAX_VALUE;
     private long avgSliceNodeTime = 0L;
+
+    static final ParseField MAX_SLICE_NODE_TIME_RAW = new ParseField("max_slice_time_in_nanos");
+    static final ParseField MIN_SLICE_NODE_TIME_RAW = new ParseField("min_slice_time_in_nanos");
+    static final ParseField AVG_SLICE_NODE_TIME_RAW = new ParseField("avg_slice_time_in_nanos");
 
     // keep track of all breakdown timings per segment. package-private for testing
     private final Map<Object, AbstractTimingProfileBreakdown<QueryTimingType>> contexts = new ConcurrentHashMap<>();
@@ -64,14 +69,13 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
         );
         final long createWeightTime = topLevelBreakdownMapWithWeightTime.get(QueryTimingType.CREATE_WEIGHT.toString());
 
-        maxSliceNodeTime = 0L;
-        minSliceNodeTime = 0L;
-        avgSliceNodeTime = 0L;
-
         if (contexts.isEmpty()) {
             // If there are no leaf contexts, then return the default concurrent query level breakdown, which will include the
             // create_weight time/count
             queryNodeTime = createWeightTime;
+            maxSliceNodeTime = 0L;
+            minSliceNodeTime = 0L;
+            avgSliceNodeTime = 0L;
             return buildDefaultQueryBreakdownMap(createWeightTime);
         } else if (sliceCollectorsToLeaves.isEmpty()) {
             // This will happen when each slice executes search leaf for its leaves and query is rewritten for the leaf being searched. It
@@ -84,6 +88,9 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
                     + " of leaves breakdown in ConcurrentQueryTimingProfileBreakdown of rewritten query for a leaf.";
             AbstractTimingProfileBreakdown<QueryTimingType> breakdown = contexts.values().iterator().next();
             queryNodeTime = breakdown.toNodeTime() + createWeightTime;
+            maxSliceNodeTime = 0L;
+            minSliceNodeTime = 0L;
+            avgSliceNodeTime = 0L;
             Map<String, Long> queryBreakdownMap = new HashMap<>(breakdown.toBreakdownMap());
             queryBreakdownMap.put(QueryTimingType.CREATE_WEIGHT.toString(), createWeightTime);
             queryBreakdownMap.put(QueryTimingType.CREATE_WEIGHT + TIMING_TYPE_COUNT_SUFFIX, 1L);
@@ -129,6 +136,7 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
             concurrentQueryBreakdownMap.put(minBreakdownTypeCount, 0L);
             concurrentQueryBreakdownMap.put(avgBreakdownTypeCount, 0L);
         }
+        concurrentQueryBreakdownMap.put(NODE_TIME_RAW, queryNodeTime);
         return concurrentQueryBreakdownMap;
     }
 
@@ -368,6 +376,10 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
             throw new OpenSearchException("Unexpected error while computing the query end time across slices in profile result");
         }
         queryNodeTime = queryEndTime - createWeightStartTime;
+        queryBreakdownMap.put(NODE_TIME_RAW, queryNodeTime);
+        queryBreakdownMap.put(MAX_SLICE_NODE_TIME_RAW.getPreferredName(), maxSliceNodeTime);
+        queryBreakdownMap.put(MIN_SLICE_NODE_TIME_RAW.getPreferredName(), minSliceNodeTime);
+        queryBreakdownMap.put(AVG_SLICE_NODE_TIME_RAW.getPreferredName(), avgSliceNodeTime);
         return queryBreakdownMap;
     }
 

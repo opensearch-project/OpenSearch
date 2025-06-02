@@ -8,52 +8,47 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParserUtils;
+import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
 public class AbstractProfileShardResultTests extends OpenSearchTestCase {
 
-    public static AbstractProfileShardResult<?> createTestItem() {
+    public static AbstractProfileShardResult createTestItem() {
         int size = randomIntBetween(0, 5);
-        List<TimingProfileResult> profileResults = new ArrayList<>(size);
+        List<ProfileResult> profileResults = new ArrayList<>(size);
         for(int i = 0; i < size; i++) {
-            profileResults.add(TimingProfileResultTests.createTestItem(1, false));
+            profileResults.add(ProfileResultTests.createTestItem(1));
         }
 
-        return new AbstractProfileShardResult<TimingProfileResult>(profileResults) {
-            @Override
-            public TimingProfileResult createProfileResult(StreamInput in) throws IOException {
-                return new TimingProfileResult(in);
-            }
+        return new AbstractProfileShardResult(profileResults);
+    }
 
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeVInt(profileResults.size());
-                for (TimingProfileResult p : profileResults) {
-                    p.writeTo(out);
-                }
-            }
+    public void testFromXContent() throws IOException {
+        AbstractProfileShardResult profileResult = createTestItem();
+        XContentType xContentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toShuffledXContent(profileResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                builder.startArray("test-plugin");
-                for (TimingProfileResult p : profileResults) {
-                    p.toXContent(builder, params);
-                }
-                builder.endArray();
-                builder.endObject();
-                return builder;
-            }
-        };
+        AbstractProfileShardResult parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            parsed = AbstractProfileShardResult.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
 }

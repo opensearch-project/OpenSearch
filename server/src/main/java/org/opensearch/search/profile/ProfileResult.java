@@ -32,9 +32,7 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -46,13 +44,9 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -69,7 +63,7 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public abstract class AbstractProfileResult<T extends AbstractProfileResult<T>> implements Writeable, ToXContentObject {
+public class ProfileResult implements Writeable, ToXContentObject {
     protected static final ParseField TYPE = new ParseField("type");
     protected static final ParseField DESCRIPTION = new ParseField("description");
     protected static final ParseField BREAKDOWN = new ParseField("breakdown");
@@ -80,14 +74,14 @@ public abstract class AbstractProfileResult<T extends AbstractProfileResult<T>> 
     protected final String description;
     protected final Map<String, Long> breakdown;
     protected final Map<String, Object> debug;
-    protected List<T> children;
+    protected List<ProfileResult> children;
 
-    public AbstractProfileResult(
+    public ProfileResult(
         String type,
         String description,
         Map<String, Long> breakdown,
         Map<String, Object> debug,
-        List<T> children
+        List<ProfileResult> children
     ) {
         this.type = type;
         this.description = description;
@@ -99,11 +93,12 @@ public abstract class AbstractProfileResult<T extends AbstractProfileResult<T>> 
     /**
      * Read from a stream.
      */
-    public AbstractProfileResult(StreamInput in) throws IOException {
+    public ProfileResult(StreamInput in) throws IOException {
         this.type = in.readString();
         this.description = in.readString();
         breakdown = in.readMap(StreamInput::readString, StreamInput::readLong);
         debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
+        children = in.readList(ProfileResult::new);
     }
 
     @Override
@@ -132,7 +127,7 @@ public abstract class AbstractProfileResult<T extends AbstractProfileResult<T>> 
     /**
      * The timing breakdown for this node.
      */
-    public Map<String, Long> getTimeBreakdown() {
+    public Map<String, Long> getBreakdown() {
         return Collections.unmodifiableMap(breakdown);
     }
 
@@ -146,19 +141,37 @@ public abstract class AbstractProfileResult<T extends AbstractProfileResult<T>> 
     /**
      * Returns a list of all profiled children queries
      */
-    public List<T> getProfiledChildren() {
+    public List<ProfileResult> getProfiledChildren() {
         return Collections.unmodifiableList(children);
     }
 
     @Override
-    public abstract XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(TYPE.getPreferredName(), getQueryName());
+        builder.field(DESCRIPTION.getPreferredName(), getLuceneDescription());
+        builder.field(BREAKDOWN.getPreferredName(), getBreakdown());
+        if (false == getDebugInfo().isEmpty()) {
+            builder.field(DEBUG.getPreferredName(), getDebugInfo());
+        }
 
-    private static final InstantiatingObjectParser<AbstractProfileResult, Void> PARSER;
+        if (false == children.isEmpty()) {
+            builder.startArray(CHILDREN.getPreferredName());
+            for (ProfileResult child : children) {
+                builder = child.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+
+        return builder.endObject();
+    }
+
+    private static final InstantiatingObjectParser<ProfileResult, Void> PARSER;
     static {
-        InstantiatingObjectParser.Builder<AbstractProfileResult, Void> parser = InstantiatingObjectParser.builder(
+        InstantiatingObjectParser.Builder<ProfileResult, Void> parser = InstantiatingObjectParser.builder(
             "profile_result",
             true,
-            AbstractProfileResult.class
+            ProfileResult.class
         );
         parser.declareString(constructorArg(), TYPE);
         parser.declareString(constructorArg(), DESCRIPTION);
@@ -168,7 +181,7 @@ public abstract class AbstractProfileResult<T extends AbstractProfileResult<T>> 
         PARSER = parser.build();
     }
 
-    public static AbstractProfileResult fromXContent(XContentParser p) throws IOException {
+    public static ProfileResult fromXContent(XContentParser p) throws IOException {
         return PARSER.parse(p, null);
     }
 }

@@ -119,7 +119,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             }
             builder.endArray();
             builder.startArray(PLUGINS_FIELD);
-            for (AbstractProfileShardResult<?> result : profileShardResult.getPluginProfileResults()) {
+            for (AbstractProfileShardResult result : profileShardResult.getPluginProfileResults()) {
                 result.toXContent(builder, params);
             }
             builder.endArray();
@@ -155,7 +155,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
-        List<AbstractProfileShardResult<?>> pluginProfileResults = new ArrayList<>();
+        List<AbstractProfileShardResult> pluginProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
         String id = null;
         String currentFieldName = null;
@@ -180,9 +180,9 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
                         queryProfileResults.add(QueryProfileShardResult.fromXContent(parser));
                     }
                 } else if (PLUGINS_FIELD.equals(currentFieldName)) {
-//                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-//                        pluginProfileResults.add(AbstractProfileShardResult.fromXContent(parser));
-//                    }
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        pluginProfileResults.add(AbstractProfileShardResult.fromXContent(parser));
+                    }
                 } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
                     aggProfileShardResult = AggregationProfileShardResult.fromXContent(parser);
                 } else {
@@ -208,16 +208,16 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
     public static ProfileShardResult buildShardResults(Profilers profilers, ShardSearchRequest request) {
         List<QueryProfiler> queryProfilers = profilers.getQueryProfilers();
         AggregationProfiler aggProfiler = profilers.getAggregationProfiler();
-        List<AbstractProfiler<?,?,?,?,?>> pluginProfilers = profilers.getPluginProfilers();
+        List<AbstractProfiler<?,?,?>> pluginProfilers = profilers.getPluginProfilers();
         List<QueryProfileShardResult> queryResults = new ArrayList<>(queryProfilers.size());
-        List<AbstractProfileShardResult<?>> pluginResults = new ArrayList<>(pluginProfilers.size());
+        List<AbstractProfileShardResult> pluginResults = new ArrayList<>(pluginProfilers.size());
         for (QueryProfiler queryProfiler : queryProfilers) {
             QueryProfileShardResult result = queryProfiler.createProfileShardResult();
             queryResults.add(result);
         }
         AggregationProfileShardResult aggResults = aggProfiler.createProfileShardResult();
-        for(AbstractProfiler<?,?,?,?,?> profiler : pluginProfilers) {
-            AbstractProfileShardResult<?> result = profiler.createProfileShardResult();
+        for(AbstractProfiler<?,?,?> profiler : pluginProfilers) {
+            AbstractProfileShardResult result = profiler.createProfileShardResult();
             pluginResults.add(result);
         }
         NetworkTime networkTime = new NetworkTime(0, 0);

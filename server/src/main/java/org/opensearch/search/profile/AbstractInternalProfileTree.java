@@ -45,7 +45,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<T>, T extends Enum<T>, E, R extends AbstractProfileResult<R>> {
+public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown, E> {
 
     protected ArrayList<PB> breakdowns;
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
@@ -149,8 +149,8 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      *
      * @return a hierarchical representation of the profiled query tree
      */
-    public List<R> getTree() {
-        ArrayList<R> results = new ArrayList<>(roots.size());
+    public List<ProfileResult> getTree() {
+        ArrayList<ProfileResult> results = new ArrayList<>(roots.size());
         for (Integer root : roots) {
             results.add(doGetTree(root));
         }
@@ -162,16 +162,16 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      * @param token  The node we are currently finalizing
      * @return       A hierarchical representation of the tree inclusive of children at this level
      */
-    private R doGetTree(int token) {
+    private ProfileResult doGetTree(int token) {
         E element = elements.get(token);
         PB breakdown = breakdowns.get(token);
         List<Integer> children = tree.get(token);
-        List<R> childrenProfileResults = Collections.emptyList();
+        List<ProfileResult> childrenProfileResults = Collections.emptyList();
 
         if (children != null) {
             childrenProfileResults = new ArrayList<>(children.size());
             for (Integer child : children) {
-                R childNode = doGetTree(child);
+                ProfileResult childNode = doGetTree(child);
                 childrenProfileResults.add(childNode);
             }
         }
@@ -180,10 +180,8 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // calculating the same times over and over...but worth the effort?
         String type = getTypeFromElement(element);
         String description = getDescriptionFromElement(element);
-        return createProfileResult(type, description, breakdown, childrenProfileResults);
+        return new ProfileResult(type, description, breakdown.toBreakdownMap(), breakdown.toDebugMap(), childrenProfileResults);
     }
-
-    protected abstract R createProfileResult(String type, String description, PB breakdown, List<R> childrenProfileResults);
 
     protected abstract String getTypeFromElement(E element);
 

@@ -237,10 +237,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(0));
-            assertThat(histoAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> breakdown = histoAggResult.getTimeBreakdown();
+            assertThat(histoAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> breakdown = histoAggResult.getBreakdown();
             assertThat(breakdown, notNullValue());
-            if (histoAggResult.getMaxSliceTime() != null) {
+            if (histoAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(breakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
                 for (QueryProfileShardResult collectorResult : profileShardResult.getQueryProfileResults()) {
@@ -291,10 +291,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
-            assertThat(histoAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
+            assertThat(histoAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> histoBreakdown = histoAggResult.getBreakdown();
             assertThat(histoBreakdown, notNullValue());
-            if (histoAggResult.getMaxSliceTime() != null) {
+            if (histoAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(histoBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
                 for (QueryProfileShardResult collectorResult : profileShardResult.getQueryProfileResults()) {
@@ -320,10 +320,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(termsAggResult, notNullValue());
             assertThat(termsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getSimpleName()));
             assertThat(termsAggResult.getLuceneDescription(), equalTo("terms"));
-            assertThat(termsAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> termsBreakdown = termsAggResult.getTimeBreakdown();
+            assertThat(termsAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> termsBreakdown = termsAggResult.getBreakdown();
             assertThat(termsBreakdown, notNullValue());
-            if (termsAggResult.getMaxSliceTime() != null) {
+            if (termsAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(termsBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -340,10 +340,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(avgAggResult, notNullValue());
             assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
             assertThat(avgAggResult.getLuceneDescription(), equalTo("avg"));
-            assertThat(avgAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> avgBreakdown = termsAggResult.getTimeBreakdown();
+            assertThat(avgAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> avgBreakdown = termsAggResult.getBreakdown();
             assertThat(avgBreakdown, notNullValue());
-            if (avgAggResult.getMaxSliceTime() != null) {
+            if (avgAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(avgBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -398,10 +398,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
-            assertThat(histoAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
+            assertThat(histoAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> histoBreakdown = histoAggResult.getBreakdown();
             assertThat(histoBreakdown, notNullValue());
-            if (histoAggResult.getMaxSliceTime() != null) {
+            if (histoAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(histoBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
                 for (QueryProfileShardResult collectorResult : profileShardResult.getQueryProfileResults()) {
@@ -427,10 +427,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(termsAggResult, notNullValue());
             assertThat(termsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getSimpleName()));
             assertThat(termsAggResult.getLuceneDescription(), equalTo("terms"));
-            assertThat(termsAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> termsBreakdown = termsAggResult.getTimeBreakdown();
+            assertThat(termsAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> termsBreakdown = termsAggResult.getBreakdown();
             assertThat(termsBreakdown, notNullValue());
-            if (termsAggResult.getMaxSliceTime() != null) {
+            if (termsAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(termsBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -447,10 +447,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(avgAggResult, notNullValue());
             assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
             assertThat(avgAggResult.getLuceneDescription(), equalTo("avg"));
-            assertThat(avgAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> avgBreakdown = avgAggResult.getTimeBreakdown();
+            assertThat(avgAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> avgBreakdown = avgAggResult.getBreakdown();
             assertThat(avgBreakdown, notNullValue());
-            if (avgAggResult.getMaxSliceTime() != null) {
+            if (avgAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(avgBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -490,10 +490,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(diversifyAggResult, notNullValue());
             assertThat(diversifyAggResult.getQueryName(), equalTo(DiversifiedOrdinalsSamplerAggregator.class.getSimpleName()));
             assertThat(diversifyAggResult.getLuceneDescription(), equalTo("diversify"));
-            assertThat(diversifyAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> diversifyBreakdown = diversifyAggResult.getTimeBreakdown();
+            assertThat(diversifyAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> diversifyBreakdown = diversifyAggResult.getBreakdown();
             assertThat(diversifyBreakdown, notNullValue());
-            if (diversifyAggResult.getMaxSliceTime() != null) {
+            if (diversifyAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(diversifyBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
                 for (QueryProfileShardResult collectorResult : profileShardResult.getQueryProfileResults()) {
@@ -518,10 +518,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(maxAggResult, notNullValue());
             assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
             assertThat(maxAggResult.getLuceneDescription(), equalTo("max"));
-            assertThat(maxAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> maxBreakdown = maxAggResult.getTimeBreakdown();
+            assertThat(maxAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> maxBreakdown = maxAggResult.getBreakdown();
             assertThat(maxBreakdown, notNullValue());
-            if (maxAggResult.getMaxSliceTime() != null) {
+            if (maxAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(maxBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -576,10 +576,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
-            assertThat(histoAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
+            assertThat(histoAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> histoBreakdown = histoAggResult.getBreakdown();
             assertThat(histoBreakdown, notNullValue());
-            if (histoAggResult.getMaxSliceTime() != null) {
+            if (histoAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(histoBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
                 for (QueryProfileShardResult collectorResult : profileShardResult.getQueryProfileResults()) {
@@ -610,10 +610,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             ProfileResult tagsAggResult = histoAggResultSubAggregations.get("tags");
             assertThat(tagsAggResult, notNullValue());
             assertThat(tagsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getSimpleName()));
-            assertThat(tagsAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> tagsBreakdown = tagsAggResult.getTimeBreakdown();
+            assertThat(tagsAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> tagsBreakdown = tagsAggResult.getBreakdown();
             assertThat(tagsBreakdown, notNullValue());
-            if (tagsAggResult.getMaxSliceTime() != null) {
+            if (tagsAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(tagsBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -635,10 +635,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             ProfileResult avgAggResult = tagsAggResultSubAggregations.get("avg");
             assertThat(avgAggResult, notNullValue());
             assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
-            assertThat(avgAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> avgBreakdown = avgAggResult.getTimeBreakdown();
+            assertThat(avgAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> avgBreakdown = avgAggResult.getBreakdown();
             assertThat(avgBreakdown, notNullValue());
-            if (avgAggResult.getMaxSliceTime() != null) {
+            if (avgAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(avgBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -656,10 +656,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             ProfileResult maxAggResult = tagsAggResultSubAggregations.get("max");
             assertThat(maxAggResult, notNullValue());
             assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
-            assertThat(maxAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> maxBreakdown = maxAggResult.getTimeBreakdown();
+            assertThat(maxAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> maxBreakdown = maxAggResult.getBreakdown();
             assertThat(maxBreakdown, notNullValue());
-            if (maxAggResult.getMaxSliceTime() != null) {
+            if (maxAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(maxBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -677,10 +677,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             ProfileResult stringsAggResult = histoAggResultSubAggregations.get("strings");
             assertThat(stringsAggResult, notNullValue());
             assertThat(stringsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getSimpleName()));
-            assertThat(stringsAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> stringsBreakdown = stringsAggResult.getTimeBreakdown();
+            assertThat(stringsAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> stringsBreakdown = stringsAggResult.getBreakdown();
             assertThat(stringsBreakdown, notNullValue());
-            if (stringsAggResult.getMaxSliceTime() != null) {
+            if (stringsAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(stringsBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -702,10 +702,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             avgAggResult = stringsAggResultSubAggregations.get("avg");
             assertThat(avgAggResult, notNullValue());
             assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
-            assertThat(avgAggResult.getTime(), greaterThan(0L));
-            avgBreakdown = avgAggResult.getTimeBreakdown();
+            assertThat(avgAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            avgBreakdown = avgAggResult.getBreakdown();
             assertThat(avgBreakdown, notNullValue());
-            if (avgAggResult.getMaxSliceTime() != null) {
+            if (avgAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(avgBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -723,10 +723,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             maxAggResult = stringsAggResultSubAggregations.get("max");
             assertThat(maxAggResult, notNullValue());
             assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
-            assertThat(maxAggResult.getTime(), greaterThan(0L));
-            maxBreakdown = maxAggResult.getTimeBreakdown();
+            assertThat(maxAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            maxBreakdown = maxAggResult.getBreakdown();
             assertThat(maxBreakdown, notNullValue());
-            if (maxAggResult.getMaxSliceTime() != null) {
+            if (maxAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(maxBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -745,10 +745,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(tagsAggResult, notNullValue());
             assertThat(tagsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getSimpleName()));
             assertThat(tagsAggResult.getLuceneDescription(), equalTo("tags"));
-            assertThat(tagsAggResult.getTime(), greaterThan(0L));
-            tagsBreakdown = tagsAggResult.getTimeBreakdown();
+            assertThat(tagsAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            tagsBreakdown = tagsAggResult.getBreakdown();
             assertThat(tagsBreakdown, notNullValue());
-            if (tagsAggResult.getMaxSliceTime() != null) {
+            if (tagsAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(tagsBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -770,10 +770,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             avgAggResult = tagsAggResultSubAggregations.get("avg");
             assertThat(avgAggResult, notNullValue());
             assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
-            assertThat(avgAggResult.getTime(), greaterThan(0L));
-            avgBreakdown = avgAggResult.getTimeBreakdown();
+            assertThat(avgAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            avgBreakdown = avgAggResult.getBreakdown();
             assertThat(avgBreakdown, notNullValue());
-            if (avgAggResult.getMaxSliceTime() != null) {
+            if (avgAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(avgBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -791,10 +791,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             maxAggResult = tagsAggResultSubAggregations.get("max");
             assertThat(maxAggResult, notNullValue());
             assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
-            assertThat(maxAggResult.getTime(), greaterThan(0L));
-            maxBreakdown = maxAggResult.getTimeBreakdown();
+            assertThat(maxAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            maxBreakdown = maxAggResult.getBreakdown();
             assertThat(maxBreakdown, notNullValue());
-            if (maxAggResult.getMaxSliceTime() != null) {
+            if (maxAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertThat(maxBreakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
             } else {
@@ -892,10 +892,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertEquals("GlobalAggregator", globalAggResult.getQueryName());
             assertEquals("global", globalAggResult.getLuceneDescription());
             assertEquals(1, globalAggResult.getProfiledChildren().size());
-            assertThat(globalAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> breakdown = globalAggResult.getTimeBreakdown();
+            assertThat(globalAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            Map<String, Long> breakdown = globalAggResult.getBreakdown();
             assertThat(breakdown, notNullValue());
-            if (globalAggResult.getMaxSliceTime() != null) {
+            if (globalAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                 // concurrent segment search enabled
                 assertEquals(CONCURRENT_SEARCH_BREAKDOWN_KEYS, breakdown.keySet());
                 for (QueryProfileShardResult collectorResult : profileShardResult.getQueryProfileResults()) {
@@ -946,10 +946,10 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
                 assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
                 assertThat(histoAggResult.getLuceneDescription(), containsString("histo_"));
                 assertThat(histoAggResult.getProfiledChildren().size(), equalTo(0));
-                assertThat(histoAggResult.getTime(), greaterThan(0L));
-                Map<String, Long> breakdown = histoAggResult.getTimeBreakdown();
+                assertThat(histoAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                Map<String, Long> breakdown = histoAggResult.getBreakdown();
                 assertThat(breakdown, notNullValue());
-                if (histoAggResult.getMaxSliceTime() != null) {
+                if (histoAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
                     // concurrent segment search enabled
                     assertThat(breakdown.keySet(), equalTo(CONCURRENT_SEARCH_BREAKDOWN_KEYS));
                     for (QueryProfileShardResult collectorResult : profileShardResult.getQueryProfileResults()) {

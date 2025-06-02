@@ -8,18 +8,18 @@
 
 package org.opensearch.search.profile;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Base class for all timing profile breakdowns.
  */
-public abstract class AbstractTimingProfileBreakdown<T extends Enum<T>> extends AbstractProfileBreakdown<T> {
+public abstract class AbstractTimingProfileBreakdown<T extends Enum<T>> extends AbstractProfileBreakdown {
 
     protected final Map<T, Timer> timers = new HashMap<>();
     public static final String TIMING_TYPE_COUNT_SUFFIX = "_count";
     public static final String TIMING_TYPE_START_TIME_SUFFIX = "_start_time";
+    public static final String NODE_TIME_RAW = "time_in_nanos";
 
     public AbstractTimingProfileBreakdown() {}
 
@@ -46,6 +46,7 @@ public abstract class AbstractTimingProfileBreakdown<T extends Enum<T>> extends 
             map.put(entry.getKey() + TIMING_TYPE_COUNT_SUFFIX, entry.getValue().getCount());
             map.put(entry.getKey() + TIMING_TYPE_START_TIME_SUFFIX, entry.getValue().getEarliestTimerStartTime());
         }
+        map.put(NODE_TIME_RAW, toNodeTime());
         return map;
     }
 }

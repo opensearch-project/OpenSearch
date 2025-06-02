@@ -57,7 +57,7 @@ public final class Profilers {
     private final List<QueryProfiler> queryProfilers;
     private final AggregationProfiler aggProfiler;
     private final boolean isConcurrentSegmentSearchEnabled;
-    private final List<AbstractProfiler<?,?,?,?,?>> pluginProfilers;
+    private final List<AbstractProfiler<?,?,?>> pluginProfilers;
 
     /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
     public Profilers(ContextIndexSearcher searcher, boolean isConcurrentSegmentSearchEnabled) {
@@ -80,11 +80,11 @@ public final class Profilers {
         return profiler;
     }
 
-    public void addPluginProfiler(AbstractProfiler<?,?,?,?,?> pluginProfiler) {
+    public void addPluginProfiler(AbstractProfiler<?,?,?> pluginProfiler) {
         pluginProfilers.add(pluginProfiler);
     }
 
-    public List<AbstractProfiler<?, ?, ?, ?,?>> getPluginProfilers() {
+    public List<AbstractProfiler<?,?,?>> getPluginProfilers() {
         return Collections.unmodifiableList(pluginProfilers);
     }
 

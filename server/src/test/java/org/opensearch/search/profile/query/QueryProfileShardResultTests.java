@@ -37,8 +37,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParserUtils;
-import org.opensearch.search.profile.TimingProfileResult;
-import org.opensearch.search.profile.TimingProfileResultTests;
+import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.ProfileResultTests;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -52,9 +52,9 @@ public class QueryProfileShardResultTests extends OpenSearchTestCase {
 
     public static QueryProfileShardResult createTestItem() {
         int size = randomIntBetween(0, 5);
-        List<TimingProfileResult> queryProfileResults = new ArrayList<>(size);
+        List<ProfileResult> queryProfileResults = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            queryProfileResults.add(TimingProfileResultTests.createTestItem(1, false));
+            queryProfileResults.add(ProfileResultTests.createTestItem(1));
         }
         CollectorResult profileCollector = CollectorResultTests.createTestItem(2, false);
         long rewriteTime = randomNonNegativeLong();

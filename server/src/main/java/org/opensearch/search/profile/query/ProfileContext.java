@@ -25,7 +25,7 @@ public interface ProfileContext {
      * @param context freestyle context
      * @return contextual profile breakdown instance
      */
-    public <T extends Enum<T>> AbstractProfileBreakdown<T> context(Object context);
+    public AbstractProfileBreakdown context(Object context);
 
     default public void associateCollectorToLeaves(Collector collector, LeafReaderContext leaf) {}
 

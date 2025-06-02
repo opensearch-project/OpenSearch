@@ -10,8 +10,8 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
+import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.Timer;
-import org.opensearch.search.profile.TimingProfileResult;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,8 +68,8 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
      * @return a hierarchical representation of the profiled tree
      */
     @Override
-    public List<TimingProfileResult> getTree() {
-        List<TimingProfileResult> profileResults = new ArrayList<>();
+    public List<ProfileResult> getTree() {
+        List<ProfileResult> profileResults = new ArrayList<>();
         for (Map.Entry<Long, ConcurrentQueryProfileTree> profile : threadToProfileTree.entrySet()) {
             profileResults.addAll(profile.getValue().getTree());
         }
