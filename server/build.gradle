@@ -39,6 +39,8 @@ plugins {
   id('me.champeau.gradle.japicmp') version '0.4.6'
 }
 
+apply from: "$rootDir/gradle/fips.gradle"
+
 publishing {
   publications {
     nebula(MavenPublication) {
@@ -122,6 +124,7 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
   }
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
 }
 
 tasks.withType(JavaCompile).configureEach {
