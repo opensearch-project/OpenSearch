@@ -8,71 +8,32 @@
 
 package org.opensearch.plugin.transport.grpc;
 
-import org.opensearch.action.index.IndexResponse;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.plugin.transport.grpc.ssl.NettyGrpcClient;
-import org.opensearch.plugins.Plugin;
 import org.opensearch.protobufs.SearchRequest;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.protobufs.SearchResponse;
 import org.opensearch.protobufs.services.SearchServiceGrpc;
-import org.opensearch.test.OpenSearchIntegTestCase;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 import io.grpc.ManagedChannel;
 
-import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
+/**
+ * Integration tests for the SearchService gRPC service.
+ */
+public class SearchServiceIT extends GrpcTransportBaseIT {
 
-public class SearchServiceIT extends OpenSearchIntegTestCase {
-
-    private TransportAddress randomNetty4GrpcServerTransportAddr() {
-        List<TransportAddress> addresses = new ArrayList<>();
-        for (Netty4GrpcServerTransport transport : internalCluster().getInstances(Netty4GrpcServerTransport.class)) {
-            TransportAddress tAddr = new TransportAddress(transport.getBoundAddress().publishAddress().address());
-            addresses.add(tAddr);
-        }
-        return randomFrom(addresses);
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(AUX_TRANSPORT_TYPES_KEY, GRPC_TRANSPORT_SETTING_KEY).build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GrpcPlugin.class);
-    }
-
+    /**
+     * Tests the search operation via gRPC.
+     */
     public void testSearchServiceSearch() throws Exception {
         // Create a test index
         String indexName = "test-search-index";
-        createIndex(indexName);
-        ensureGreen(indexName);
+        createTestIndex(indexName);
 
         // Add a document to the index
-        IndexResponse indexResponse = client().prepareIndex(indexName)
-            .setId("1")
-            .setSource("{\"field1\":\"value1\",\"field2\":42}", XContentType.JSON)
-            .get();
-
-        assertTrue(
-            "Document should be indexed without shard failures",
-            indexResponse.getShardInfo().getSuccessful() > 0 && indexResponse.getShardInfo().getFailed() == 0
-        );
-
-        // Refresh the index to make the document searchable
-        client().admin().indices().prepareRefresh(indexName).get();
+        indexTestDocument(indexName, "1", DEFAULT_DOCUMENT_SOURCE);
 
         // Create a gRPC client
-        try (NettyGrpcClient client = new NettyGrpcClient.Builder().setAddress(randomNetty4GrpcServerTransportAddr()).build()) {
+        try (NettyGrpcClient client = createGrpcClient()) {
             // Create a SearchService stub
             ManagedChannel channel = client.getChannel();
             SearchServiceGrpc.SearchServiceBlockingStub searchStub = SearchServiceGrpc.newBlockingStub(channel);
