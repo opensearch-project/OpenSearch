@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class ArrowStreamInput extends StreamInput {
+public class ArrowStreamInput extends StreamInput {
     private final VectorSchemaRoot root;
     private final ArrowStreamOutput.PathManager pathManager;
     private final Map<String, List<FieldVector>> vectorsByPath;

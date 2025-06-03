@@ -116,7 +116,7 @@ import java.util.function.BiConsumer;
  *       {@link NamedWriteable#getWriteableName()} value.</li>
  * </ul>
  */
-class ArrowStreamOutput extends StreamOutput {
+public class ArrowStreamOutput extends StreamOutput {
     private final BufferAllocator allocator;
     private final Map<String, VectorSchemaRoot> roots;
     private final PathManager pathManager;

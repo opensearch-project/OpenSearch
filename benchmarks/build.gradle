@@ -51,6 +51,7 @@ dependencies {
     // us to invoke the JMH uberjar as usual.
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
   }
+  api( project(":plugins:arrow-flight-rpc"))
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   // Dependencies of JMH
@@ -61,6 +62,7 @@ dependencies {
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes
 // needs to be added separately otherwise Gradle will quote it and javac will fail
 compileJava.options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
+compileJava.options.compilerArgs -= '-Werror'
 
 run.executable = "${BuildParams.runtimeJavaHome}/bin/java"
 
@@ -87,3 +89,4 @@ spotless {
 
 // Add support for incubator modules on supported Java versions.
 run.jvmArgs += ['--add-modules=jdk.incubator.vector']
+run.jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
