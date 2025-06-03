@@ -1,6 +1,6 @@
 network.host: "0.0.0.0"
 node.name: "node-1"
-cluster.initial_master_nodes:
+cluster.initial_cluster_manager_nodes:
 - "node-1"
 #- "node-2"
 #- "node-3"
@@ -37,6 +37,3 @@ plugins.security.restapi.roles_enabled:
 
 plugins.security.system_indices.enabled: true
 plugins.security.system_indices.indices: [".plugins-ml-model", ".plugins-ml-task", ".opendistro-alerting-config", ".opendistro-alerting-alert*", ".opendistro-anomaly-results*", ".opendistro-anomaly-detector*", ".opendistro-anomaly-checkpoints", ".opendistro-anomaly-detection-state", ".opendistro-reports-*", ".opensearch-notifications-*", ".opensearch-notebooks", ".opensearch-observability", ".opendistro-asynchronous-search-response*", ".replication-metadata-store"]
-
-### Option to allow Filebeat-oss 7.10.2 to work ###
-compatibility.override_main_response_version: true

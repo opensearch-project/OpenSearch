@@ -3,7 +3,6 @@ node.name: "wazuh.indexer"
 path.data: /var/lib/wazuh-indexer
 path.logs: /var/log/wazuh-indexer
 discovery.type: single-node
-compatibility.override_main_response_version: true
 plugins.security.ssl.http.pemcert_filepath: /usr/share/wazuh-indexer/config/certs/indexer.pem
 plugins.security.ssl.http.pemkey_filepath: /usr/share/wazuh-indexer/config/certs/indexer-key.pem
 plugins.security.ssl.http.pemtrustedcas_filepath: /usr/share/wazuh-indexer/config/certs/root-ca.pem

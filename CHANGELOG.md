@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 5.0.0]
 ### Added
-- 
+-
 
 ### Changed
 - Handle custom metadata files in subdirectory-store ([#20157](https://github.com/opensearch-project/OpenSearch/pull/20157))
@@ -41,15 +41,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fixes and refactoring in stream transport to make it more robust ([#20359](https://github.com/opensearch-project/OpenSearch/pull/20359))
 
 ### Dependencies
-- 
+-
 
 ### Changed
 - Migrate issue templates to 5.0.0 [(#855)](https://github.com/wazuh/wazuh-indexer/pull/855)
 - Migrate workflows and scripts from 6.0.0 [(861)](https://github.com/wazuh/wazuh-indexer/pull/861)
 - Migrate smoke tests to 5.0.0 [(#863)](https://github.com/wazuh/wazuh-indexer/pull/863)
+- Replace and remove deprecated settings [(#894)](https://github.com/wazuh/wazuh-indexer/pull/894)
 
 ### Deprecated
-- 
+-
 
 ### Removed
 - Remove extra files [(#866)](https://github.com/wazuh/wazuh-indexer/pull/866)
@@ -58,6 +59,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 -  Fix package upload to bucket subfolder 5.x [(#846)](https://github.com/wazuh/wazuh-indexer/pull/846)
 
 ### Security
-- 
+-
 
 [Unreleased 5.0.0]: https://github.com/wazuh/wazuh-indexer/compare/4.14.0...5.0.0

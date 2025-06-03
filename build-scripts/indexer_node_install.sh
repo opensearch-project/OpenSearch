@@ -53,7 +53,7 @@ if command -v apt-get &> /dev/null; then
     echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" | tee -a /etc/apt/sources.list.d/wazuh.list
     apt-get update
     apt-get -y install wazuh-indexer=$1-1
-else 
+else
   yum install coreutils -y
 
   rpm --import https://packages.wazuh.com/key/GPG-KEY-WAZUH
@@ -69,7 +69,7 @@ fi
 cat << EOF > /etc/wazuh-indexer/opensearch.yml
 network.host: "127.0.0.1"
 node.name: "node-1"
-cluster.initial_master_nodes:
+cluster.initial_cluster_manager_nodes:
   - "node-1"
 cluster.name: "wazuh-cluster"
 discovery.seed_hosts:
@@ -100,9 +100,6 @@ plugins.security.restapi.roles_enabled:
 
 plugins.security.system_indices.enabled: true
 plugins.security.system_indices.indices: [".plugins-ml-model", ".plugins-ml-task", ".opendistro-alerting-config", ".opendistro-alerting-alert*", ".opendistro-anomaly-results*", ".opendistro-anomaly-detector*", ".opendistro-anomaly-checkpoints", ".opendistro-anomaly-detection-state", ".opendistro-reports-*", ".opensearch-notifications-*", ".opensearch-notebooks", ".opensearch-observability", ".opendistro-asynchronous-search-response*", ".replication-metadata-store"]
-
-### Option to allow Filebeat-oss 7.10.2 to work ###
-compatibility.override_main_response_version: true
 EOF
 
 # =====
