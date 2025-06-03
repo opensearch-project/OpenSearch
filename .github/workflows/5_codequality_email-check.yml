@@ -9,9 +9,10 @@ jobs:
     if: github.repository == 'wazuh/wazuh-indexer'
     runs-on: ubuntu-24.04
     steps:
-      - uses: semcelik/commit-author-action@v1.0.0
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/5_codeanalysis_emailchecker
         with:
-            email_domain: 'wazuh.com'
+            email_domain: 'wazuh.com, @users.noreply.github.com'
             github_token: ${{ secrets.GITHUB_TOKEN }}
             error_on_fail: 'true'
-            
