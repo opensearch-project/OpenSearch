@@ -1,5 +1,8 @@
 ---
 "Custom size param still returns headers":
+  - skip:
+        version: " - 3.0.0"
+        reason: "wlm_stats_list API added after 3.0.0"
   - do:
       wlm_stats_list:
         size: 1
@@ -10,6 +13,9 @@
 
 ---
 "Sort by node_id asc does not error":
+  - skip:
+      version: " - 3.0.0"
+      reason: "wlm_stats_list API added after 3.0.0"
   - do:
       wlm_stats_list:
         sort: node_id
@@ -20,6 +26,9 @@
 
 ---
 "Sort by workload_group_id desc does not error":
+  - skip:
+      version: " - 3.0.0"
+      reason: "wlm_stats_list API added after 3.0.0"
   - do:
       wlm_stats_list:
         sort: workload_group
@@ -30,6 +39,9 @@
 
 ---
 "Invalid sort field returns error":
+  - skip:
+      version: " - 3.0.0"
+      reason: "wlm_stats_list API added after 3.0.0"
   - do:
       catch: bad_request
       wlm_stats_list:
@@ -40,6 +52,9 @@
 
 ---
 "Invalid sort order returns error":
+  - skip:
+      version: " - 3.0.0"
+      reason: "wlm_stats_list API added after 3.0.0"
   - do:
       catch: bad_request
       wlm_stats_list:
