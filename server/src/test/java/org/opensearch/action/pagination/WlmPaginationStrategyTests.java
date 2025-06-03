@@ -176,4 +176,56 @@ public class WlmPaginationStrategyTests extends OpenSearchTestCase {
             }
         }
     }
+
+    public void testPaginationWithExactPageSize() {
+        int pageSize = 3;
+        WlmStatsResponse response = mockResponse(3);
+
+        WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(
+            pageSize,
+            null,
+            SortBy.WORKLOAD_GROUP,
+            SortOrder.ASC,
+            response
+        );
+
+        assertEquals(3, paginationStrategy.getRequestedEntities().size());
+        assertNull(paginationStrategy.getResponseToken()); // Should not have a next page
+    }
+
+    public void testPaginationWithMoreThanPageSize() {
+        int pageSize = 3;
+        WlmStatsResponse response = mockResponse(6);
+
+        WlmPaginationStrategy paginationStrategy = new WlmPaginationStrategy(
+            pageSize,
+            null,
+            SortBy.WORKLOAD_GROUP,
+            SortOrder.ASC,
+            response
+        );
+
+        assertEquals(3, paginationStrategy.getRequestedEntities().size());
+        assertNotNull(paginationStrategy.getResponseToken()); // Should have a next page token
+    }
+
+    public void testTokenStructureValidationFailure() {
+        String malformedToken = PaginationStrategy.encryptStringToken("abc|def|ghi"); // only 3 parts, not 6
+
+        OpenSearchParseException ex = assertThrows(
+            OpenSearchParseException.class,
+            () -> new WlmPaginationStrategy(5, malformedToken, SortBy.NODE_ID, SortOrder.DESC, mockResponse(1))
+        );
+
+        assertTrue(ex.getMessage().contains("Invalid pagination token format"));
+    }
+
+    public void testEmptyStatsNoResponseToken() {
+        WlmStatsResponse response = new WlmStatsResponse(ClusterName.DEFAULT, new ArrayList<>(), Collections.emptyList());
+
+        WlmPaginationStrategy strategy = new WlmPaginationStrategy(10, null, SortBy.NODE_ID, SortOrder.ASC, response);
+        assertTrue(strategy.getRequestedEntities().isEmpty());
+        assertNull(strategy.getResponseToken());
+    }
+
 }

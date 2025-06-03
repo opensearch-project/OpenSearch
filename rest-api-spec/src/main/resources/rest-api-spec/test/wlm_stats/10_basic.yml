@@ -61,3 +61,15 @@
         order: upside_down
   - match:
           error.reason: "Invalid value for 'order'. Allowed: 'asc', 'desc'"
+
+---
+  "Invalid token returns 400":
+    - skip:
+        version: " - 3.0.0"
+        reason: "wlm_stats_list API added after 3.0.0"
+    - do:
+        catch: bad_request
+        wlm_stats_list:
+          next_token: "abcdef123456"
+
+    - match: { error: "Pagination state has changed (e.g., new workload groups added or removed). Please restart pagination from the beginning by omitting the 'next_token' parameter." }
