@@ -7,3 +7,78 @@ manage_wazuh_index:
   users:
   - "kibanaserver"
   and_backend_roles: []
+
+# Wazuh roles mappings for security configuration
+
+stateful-read:
+  reserved: true
+  hidden: false
+  backend_roles: [ ]
+  hosts: [ ]
+  users:
+    - "wazuh-server"
+    - "wazuh-dashboard"
+  and_backend_roles: [ ]
+
+stateful-write:
+  reserved: true
+  hidden: false
+  backend_roles: [ ]
+  hosts: [ ]
+  users:
+    - "wazuh-server"
+  and_backend_roles: [ ]
+
+stateful-delete:
+  reserved: true
+  hidden: false
+  backend_roles: [ ]
+  hosts: [ ]
+  users:
+    - "wazuh-server"
+  and_backend_roles: [ ]
+
+stateless-write:
+  reserved: true
+  hidden: false
+  backend_roles: [ ]
+  hosts: [ ]
+  users:
+    - "wazuh-server"
+  and_backend_roles: [ ]
+
+stateless-read:
+  reserved: true
+  hidden: false
+  backend_roles: [ ]
+  hosts: [ ]
+  users:
+    - "wazuh-dashboard"
+  and_backend_roles: [ ]
+
+metrics-read:
+  reserved: true
+  hidden: false
+  backend_roles: [ ]
+  hosts: [ ]
+  users:
+    - "wazuh-dashboard"
+  and_backend_roles: [ ]
+
+metrics-write:
+  reserved: true
+  hidden: false
+  backend_roles: [ ]
+  hosts: [ ]
+  users:
+    - "wazuh-dashboard"
+  and_backend_roles: [ ]
+
+sample-data-management:
+  reserved: true
+  hidden: false
+  backend_roles: [ ]
+  hosts: [ ]
+  users:
+    - "wazuh-dashboard"
+  and_backend_roles: [ ]

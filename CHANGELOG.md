@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 5.0.0]
 ### Added
+- Add new users, roles and mappings [(#886)](https://github.com/wazuh/wazuh-indexer/pull/886)
 - Add custom GitHub Action to validate commiter's emails by domain [(#896)](https://github.com/wazuh/wazuh-indexer/pull/896)
 
 ### Changed

@@ -16,3 +16,114 @@ manage_wazuh_index:
     - "index"
   tenant_permissions: []
   static: false
+
+# Wazuh roles for security configuration
+
+stateful-read:
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-states-*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "read"
+  tenant_permissions: []
+  static: true
+
+stateful-write:
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-states-*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "index"
+  tenant_permissions: []
+  static: true
+
+stateful-delete:
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-states-*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "delete"
+  tenant_permissions: []
+  static: true
+
+stateless-read:
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-alerts*"
+        - "wazuh-archives*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "read"
+  tenant_permissions: []
+  static: true
+
+stateless-write:
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-alerts*"
+        - "wazuh-archives*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "index"
+  tenant_permissions: []
+  static: true
+
+metrics-read:
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-monitoring*"
+        - "wazuh-statistics*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "read"
+  tenant_permissions: []
+  static: true
+
+metrics-write:
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-monitoring*"
+        - "wazuh-statistics*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "index"
+  tenant_permissions: []
+  static: true
+
+sample-data-management:
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "*-sample-*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "data_access"
+        - "manage"
+  tenant_permissions: []
+  static: true
