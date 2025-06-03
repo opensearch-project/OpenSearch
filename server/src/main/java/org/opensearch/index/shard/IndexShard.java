@@ -199,6 +199,7 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
@@ -379,7 +380,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
     private final ClusterApplierService clusterApplierService;
-    private List<DiscoveryNode> activeReplicaNodes = new ArrayList<>();
+    private final MergedSegmentPublisher mergedSegmentPublisher;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -417,7 +418,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         final Supplier<TimeValue> refreshInterval,
         final Object refreshMutex,
-        final ClusterApplierService clusterApplierService
+        final ClusterApplierService clusterApplierService,
+        @Nullable final MergedSegmentPublisher mergedSegmentPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -479,7 +481,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPool::absoluteTimeInMillis,
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
             this::getSafeCommitInfo,
-            new CompositeReplicationGroupListener(List.of(pendingReplicationActions, new IndexShardReplicationGroupListener(this))),
+            pendingReplicationActions,
             isShardOnRemoteEnabledNode
         );
 
@@ -525,18 +527,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshInterval = refreshInterval;
         this.refreshMutex = Objects.requireNonNull(refreshMutex);
         this.clusterApplierService = clusterApplierService;
+        this.mergedSegmentPublisher = mergedSegmentPublisher;
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
             }
-        }
-    }
-
-    private record CompositeReplicationGroupListener(List<Consumer<ReplicationGroup>> consumers) implements Consumer<ReplicationGroup> {
-
-        @Override
-        public void accept(ReplicationGroup replicationGroup) {
-            consumers.forEach(c -> c.accept(replicationGroup));
         }
     }
 
@@ -1858,6 +1853,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
         logger.trace("Recomputed ReplicationCheckpoint for shard {}", checkpoint);
         return checkpoint;
+    }
+
+    public void publishMergedSegment(SegmentCommitInfo segmentCommitInfo) throws IOException {
+        assert mergedSegmentPublisher != null;
+        mergedSegmentPublisher.publish(this, computeReplicationSegmentCheckpoint(segmentCommitInfo));
     }
 
     /**
@@ -5500,18 +5500,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Exclusively for testing, please do not use it elsewhere.
     public AsyncIOProcessor<Translog.Location> getTranslogSyncProcessor() {
         return translogSyncProcessor;
-    }
-
-    public DiscoveryNodes getDiscoveryNodes() {
-        return discoveryNodes;
-    }
-
-    public List<DiscoveryNode> getActiveReplicaNodes() {
-        return activeReplicaNodes;
-    }
-
-    public void setActiveReplicaNodes(List<DiscoveryNode> activeReplicaNodes) {
-        this.activeReplicaNodes = activeReplicaNodes;
     }
 
     enum ShardMigrationState {

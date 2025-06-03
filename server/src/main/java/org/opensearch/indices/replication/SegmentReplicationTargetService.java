@@ -28,15 +28,12 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardClosedException;
-import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.ForceSyncRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
-import org.opensearch.indices.replication.checkpoint.PublishMergedSegmentRequest;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
@@ -52,8 +49,8 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
@@ -85,7 +82,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     public static class Actions {
         public static final String FILE_CHUNK = "internal:index/shard/replication/file_chunk";
         public static final String FORCE_SYNC = "internal:index/shard/replication/segments_sync";
-        public static final String PUBLISH_MERGED_SEGMENT = "internal:index/shard/replication/publish_merged_segment";
         public static final String MERGED_SEGMENT_FILE_CHUNK = "internal:index/shard/replication/merged_segment_file_chunk";
     }
 
@@ -158,12 +154,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             ThreadPool.Names.GENERIC,
             ForceSyncRequest::new,
             new ForceSyncTransportRequestHandler()
-        );
-        transportService.registerRequestHandler(
-            Actions.PUBLISH_MERGED_SEGMENT,
-            ThreadPool.Names.GENERIC,
-            PublishMergedSegmentRequest::new,
-            new PublishMergedSegmentHandler()
         );
         transportService.registerRequestHandler(
             Actions.MERGED_SEGMENT_FILE_CHUNK,
@@ -650,27 +640,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
         }
     }
 
-    /**
-     * start a round of fetch merged segment files
-     */
-    public class PublishMergedSegmentHandler implements TransportRequestHandler<PublishMergedSegmentRequest> {
-        public PublishMergedSegmentHandler() {}
-
-        @Override
-        public void messageReceived(PublishMergedSegmentRequest request, TransportChannel channel, Task task) throws Exception {
-            onNewMergedSegmentCheckpoint(
-                request.getMergedSegment(),
-                indicesService.getShardOrNull(request.getMergedSegment().getShardId()),
-                channel
-            );
-        }
-    }
-
-    public synchronized void onNewMergedSegmentCheckpoint(
-        final ReplicationCheckpoint receivedCheckpoint,
-        final IndexShard replicaShard,
-        TransportChannel channel
-    ) throws IOException {
+    public void onNewMergedSegmentCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
         logger.debug(
             () -> new ParameterizedMessage("Replica received new merged segment checkpoint [{}] from primary", receivedCheckpoint)
         );
@@ -678,7 +648,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
         if (replicaShard.state().equals(IndexShardState.CLOSED)) {
             // ignore if shard is closed
             logger.trace(() -> "Ignoring merged segment checkpoint, Shard is closed");
-            channel.sendResponse(new IndexShardClosedException(replicaShard.shardId()));
             return;
         }
 
@@ -703,14 +672,12 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                                 ongoingReplicationTarget.getCheckpoint()
                             )
                         );
-                        channel.sendResponse(
-                            new IllegalArgumentException(String.format(Locale.ROOT, "merged segment %s already exist", receivedCheckpoint))
-                        );
                         return;
                     }
                 }
             }
             if (replicaShard.shouldProcessMergedSegmentCheckpoint(receivedCheckpoint)) {
+                CountDownLatch latch = new CountDownLatch(1);
                 startMergedSegmentReplication(replicaShard, receivedCheckpoint, new SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
@@ -723,11 +690,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                                 state.getTimingData()
                             )
                         );
-                        try {
-                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                        } catch (Exception e) {
-                            logger.warn("merge pre copy is successful, but fail to send merge pre copy response", e);
-                        }
+                        latch.countDown();
                     }
 
                     @Override
@@ -736,18 +699,24 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                         ReplicationFailedException e,
                         boolean sendShardFailure
                     ) {
-                        logReplicationFailure(state, e, replicaShard);
-                        if (sendShardFailure == true) {
-                            failShard(e, replicaShard);
-                        }
                         try {
-                            channel.sendResponse(e);
-                        } catch (Exception t) {
-                            t.addSuppressed(e);
-                            logger.warn("merge pre copy is failure, fail to send merge pre copy response", t);
+                            logReplicationFailure(state, e, replicaShard);
+                            if (sendShardFailure == true) {
+                                failShard(e, replicaShard);
+                            }
+                        } finally {
+                            latch.countDown();
                         }
                     }
                 });
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    logger.warn(
+                        () -> new ParameterizedMessage("Interrupted while waiting for pre copy merged segment [{}]", receivedCheckpoint),
+                        e
+                    );
+                }
             }
         } else {
             logger.trace(
@@ -757,7 +726,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                     replicaShard.state()
                 )
             );
-            channel.sendResponse(new IndexShardNotStartedException(replicaShard.shardId(), replicaShard.state()));
         }
     }
 

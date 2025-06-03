@@ -52,7 +52,6 @@ import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.EmptyTransportResponseHandler;
-import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 import org.junit.Assert;
@@ -500,7 +499,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             )
         );
         doReturn(List.of(targetSpy)).when(serviceSpy).getMergedSegmentReplicationTarget(any());
-        serviceSpy.onNewMergedSegmentCheckpoint(newPrimaryCheckpoint, replicaShard, mock(TransportChannel.class));
+        serviceSpy.onNewMergedSegmentCheckpoint(newPrimaryCheckpoint, replicaShard);
         // ensure the old target is cancelled. and new iteration kicks off.
         verify(targetSpy, times(1)).cancel("Cancelling stuck merged segment target after new primary");
         verify(serviceSpy, times(1)).startMergedSegmentReplication(eq(replicaShard), any(), any());
@@ -538,11 +537,11 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         );
         doReturn(List.of(targetSpy)).when(serviceSpy).getMergedSegmentReplicationTarget(any());
         // already exist
-        serviceSpy.onNewMergedSegmentCheckpoint(checkpoint, replicaShard, mock(TransportChannel.class));
+        serviceSpy.onNewMergedSegmentCheckpoint(checkpoint, replicaShard);
         verify(serviceSpy, times(0)).startMergedSegmentReplication(eq(replicaShard), any(), any());
 
         // new merged segment
-        serviceSpy.onNewMergedSegmentCheckpoint(newPrimaryCheckpoint, replicaShard, mock(TransportChannel.class));
+        serviceSpy.onNewMergedSegmentCheckpoint(newPrimaryCheckpoint, replicaShard);
         verify(serviceSpy, times(1)).startMergedSegmentReplication(eq(replicaShard), any(), any());
     }
 
@@ -561,7 +560,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             0L,
             replicaShard.getLatestReplicationCheckpoint().getCodec()
         );
-        spy.onNewMergedSegmentCheckpoint(oldCheckpoint, replicaShard, mock(TransportChannel.class));
+        spy.onNewMergedSegmentCheckpoint(oldCheckpoint, replicaShard);
         verify(spy, times(0)).startReplication(any(), any(), any());
     }
 
@@ -571,7 +570,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         spy.onNewCheckpoint(checkpoint, shard);
         verify(spy, times(0)).startReplication(any(), any(), any());
 
-        spy.onNewMergedSegmentCheckpoint(checkpoint, shard, mock(TransportChannel.class));
+        spy.onNewMergedSegmentCheckpoint(checkpoint, shard);
         verify(spy, times(0)).startMergedSegmentReplication(any(), any(), any());
         closeShards(shard);
     }
@@ -590,7 +589,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         // Verify that checkpoint is not processed as shard is in PrimaryMode.
         verify(spy, times(0)).startReplication(any(), any(), any());
 
-        spy.onNewMergedSegmentCheckpoint(aheadCheckpoint, spyShard, mock(TransportChannel.class));
+        spy.onNewMergedSegmentCheckpoint(aheadCheckpoint, spyShard);
         verify(spy, times(0)).startMergedSegmentReplication(any(), any(), any());
 
         closeShards(primaryShard);
@@ -672,7 +671,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         spy.onNewCheckpoint(aheadCheckpoint, replicaShard);
         verify(spy, times(0)).updateLatestReceivedCheckpoint(any(), any());
 
-        spy.onNewMergedSegmentCheckpoint(aheadCheckpoint, replicaShard, mock(TransportChannel.class));
+        spy.onNewMergedSegmentCheckpoint(aheadCheckpoint, replicaShard);
         verify(spy, times(0)).updateLatestReceivedCheckpoint(any(), any());
     }
 

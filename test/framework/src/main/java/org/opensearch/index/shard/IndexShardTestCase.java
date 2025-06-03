@@ -39,7 +39,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
@@ -80,7 +79,6 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
-import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.Environment;
@@ -143,7 +141,7 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.checkpoint.PublishMergedSegmentRequest;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
@@ -160,10 +158,8 @@ import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.Snapshot;
-import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -200,9 +196,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -701,33 +695,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             // This is fine since we are not testing the node stats now
             Function<ShardId, ReplicationStats> mockReplicationStatsProvider = mock(Function.class);
             when(mockReplicationStatsProvider.apply(any())).thenReturn(new ReplicationStats(800, 800, 500));
-
-            // mock transport service for merged segment warmer
-            CapturingTransport transport = new CapturingTransport();
-            TransportService transportService = transport.createTransportService(
-                Settings.EMPTY,
-                mock(ThreadPool.class),
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT),
-                null,
-                Collections.emptySet(),
-                NoopTracer.INSTANCE
-            );
-            transportService.start();
-            transportService.acceptIncomingRequests();
-            TransportService spyTransportService = spy(transportService);
-            doAnswer(invocation -> {
-                ActionListenerResponseHandler<TransportResponse.Empty> handler = invocation.getArgument(3);
-                handler.handleResponse(TransportResponse.Empty.INSTANCE);
-                return mock(TransportResponse.class);
-            }).when(spyTransportService)
-                .sendRequest(
-                    any(DiscoveryNode.class),
-                    eq(SegmentReplicationTargetService.Actions.PUBLISH_MERGED_SEGMENT),
-                    any(PublishMergedSegmentRequest.class),
-                    any()
-                );
-
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -759,12 +726,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 false,
                 discoveryNodes,
                 mockReplicationStatsProvider,
-                new MergedSegmentWarmerFactory(spyTransportService, new RecoverySettings(nodeSettings, clusterSettings), null),
+                new MergedSegmentWarmerFactory(null, new RecoverySettings(nodeSettings, clusterSettings), null),
                 false,
                 () -> Boolean.FALSE,
                 indexSettings::getRefreshInterval,
                 new Object(),
-                clusterService.getClusterApplierService()
+                clusterService.getClusterApplierService(),
+                MergedSegmentPublisher.EMPTY
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {
