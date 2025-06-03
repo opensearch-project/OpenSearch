@@ -1032,7 +1032,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public boolean isCancelled() {
-        return task.isCancelled();
+        return task != null && task.isCancelled();
     }
 
     @Override
