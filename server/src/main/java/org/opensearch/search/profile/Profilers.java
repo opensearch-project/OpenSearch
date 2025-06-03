@@ -32,15 +32,17 @@
 
 package org.opensearch.search.profile;
 
+import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.profile.aggregation.AggregationProfiler;
 import org.opensearch.search.profile.aggregation.ConcurrentAggregationProfiler;
-import org.opensearch.search.profile.query.*;
+import org.opensearch.search.profile.query.ConcurrentQueryProfileTree;
+import org.opensearch.search.profile.query.ConcurrentQueryProfiler;
+import org.opensearch.search.profile.query.InternalQueryProfileTree;
+import org.opensearch.search.profile.query.QueryProfiler;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * Wrapper around all the profilers that makes management easier.
@@ -54,32 +56,31 @@ public final class Profilers {
     private final List<QueryProfiler> queryProfilers;
     private final AggregationProfiler aggProfiler;
     private final boolean isConcurrentSegmentSearchEnabled;
-    private final List<AbstractProfileBreakdown<?>> pluginProfileBreakdowns;
+    private final Map<Class<? extends Query>, Class<? extends AbstractTimingProfileBreakdown>> pluginProfilers;
 
     /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
-    public Profilers(ContextIndexSearcher searcher, boolean isConcurrentSegmentSearchEnabled) {
+    public Profilers(ContextIndexSearcher searcher, boolean isConcurrentSegmentSearchEnabled, Map<Class<? extends Query>, Class<? extends AbstractTimingProfileBreakdown>> breakdownClasses) {
         this.searcher = searcher;
         this.isConcurrentSegmentSearchEnabled = isConcurrentSegmentSearchEnabled;
         this.queryProfilers = new ArrayList<>();
         this.aggProfiler = isConcurrentSegmentSearchEnabled ? new ConcurrentAggregationProfiler() : new AggregationProfiler();
-        this.pluginProfileBreakdowns = new ArrayList<>();
-        this.pluginProfileBreakdowns.add(new QueryTimingProfileBreakdown());
+        this.pluginProfilers = breakdownClasses;
         addQueryProfiler();
     }
 
     /** Switch to a new profile. */
     public QueryProfiler addQueryProfiler() {
         QueryProfiler profiler = isConcurrentSegmentSearchEnabled
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
-            : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setProfiler(profiler);
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(pluginProfilers), pluginProfilers)
+            : new QueryProfiler(new InternalQueryProfileTree(pluginProfilers));
+        searcher.setQueryProfiler(profiler);
         queryProfilers.add(profiler);
         return profiler;
     }
 
     /** Get the current profiler. */
     public QueryProfiler getCurrentQueryProfiler() {
-        return queryProfilers.get(queryProfilers.size() - 1);
+        return queryProfilers.getLast();
     }
 
     /** Return the list of all created {@link QueryProfiler}s so far. */

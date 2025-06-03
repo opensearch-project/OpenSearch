@@ -85,7 +85,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("ingestion_source.type", "kafka")
-                .put("ingestion_source.pointer.init.reset", "rewind_by_timestamp")
+                .put("ingestion_source.pointer.init.reset", "reset_by_timestamp")
                 // 1739459500000 is the timestamp of the first message
                 // 1739459800000 is the timestamp of the second message
                 // by resetting to 1739459600000, only the second message will be ingested
@@ -115,7 +115,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("ingestion_source.type", "kafka")
-                .put("ingestion_source.pointer.init.reset", "rewind_by_offset")
+                .put("ingestion_source.pointer.init.reset", "reset_by_offset")
                 .put("ingestion_source.pointer.init.reset.value", "1")
                 .put("ingestion_source.param.topic", "test")
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
@@ -138,7 +138,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         client().admin().indices().close(Requests.closeIndexRequest(indexName)).get();
     }
 
-    public void testUpdateAndDelete() throws Exception {
+    public void testMessageOperationTypes() throws Exception {
         // Step 1: Produce message and wait for it to be searchable
 
         produceData("1", "name", "25", defaultMessageTimestamp, "index");
@@ -167,6 +167,15 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "1"));
             SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             return response.getHits().getTotalHits().value() == 0;
+        });
+
+        // Step 4: Validate create operation
+        produceData("2", "name", "30", defaultMessageTimestamp, "create");
+        waitForState(() -> {
+            BoolQueryBuilder query = new BoolQueryBuilder().must(new TermQueryBuilder("_id", "2"));
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            return 30 == (Integer) response.getHits().getHits()[0].getSourceAsMap().get("age");
         });
     }
 

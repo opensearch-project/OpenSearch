@@ -73,6 +73,7 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.profile.query.*;
@@ -150,9 +151,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.searchContext = searchContext;
     }
 
-    public void setProfiler(QueryProfiler profiler) {
+    public void setQueryProfiler(QueryProfiler profiler) {
         this.profiler = profiler;
     }
+
+    public QueryProfiler getQueryProfiler() {
+        return profiler;
+    }
+
 
     /**
      * Add a {@link Runnable} that will be run on a regular basis while accessing documents in the
@@ -211,8 +217,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
-            AbstractTimingProfileBreakdown<QueryTimingType> profile = profiler.getQueryBreakdown(query);
-            Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT);
+            AbstractTimingProfileBreakdown profile = null;
+            try {
+                profile = profiler.getQueryBreakdown(query);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT.toString());
             timer.start();
             final Weight weight;
             try {

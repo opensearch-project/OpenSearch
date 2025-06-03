@@ -46,8 +46,8 @@ public class ConcurrentQueryTimingProfileBreakdownTests extends OpenSearchTestCa
 
     @Before
     public void setup() {
-        testQueryProfileBreakdown = new ConcurrentQueryTimingProfileBreakdown();
-        createWeightTimer = testQueryProfileBreakdown.getTimer(QueryTimingType.CREATE_WEIGHT);
+        testQueryProfileBreakdown = new ConcurrentQueryTimingProfileBreakdown(null);
+        createWeightTimer = testQueryProfileBreakdown.getTimer(QueryTimingType.CREATE_WEIGHT.toString());
         try {
             createWeightTimer.start();
             Thread.sleep(10);
@@ -61,7 +61,7 @@ public class ConcurrentQueryTimingProfileBreakdownTests extends OpenSearchTestCa
     public void testBreakdownMapWithNoLeafContext() throws Exception {
         final Map<String, Long> queryBreakDownMap = testQueryProfileBreakdown.toBreakdownMap();
         assertFalse(queryBreakDownMap == null || queryBreakDownMap.isEmpty());
-        assertEquals(66, queryBreakDownMap.size());
+        assertEquals(67, queryBreakDownMap.size());
         for (QueryTimingType queryTimingType : QueryTimingType.values()) {
             String timingTypeKey = queryTimingType.toString();
             String timingTypeCountKey = queryTimingType + TIMING_TYPE_COUNT_SUFFIX;
@@ -105,7 +105,7 @@ public class ConcurrentQueryTimingProfileBreakdownTests extends OpenSearchTestCa
         final long createWeightEarliestStartTime = createWeightTimer.getEarliestTimerStartTime();
         final long createWeightEndTime = createWeightEarliestStartTime + createWeightTimer.getApproximateTiming();
         final Map<String, Long> leafProfileBreakdownMap = getLeafBreakdownMap(createWeightEndTime + 10, 10, 1);
-        final AbstractTimingProfileBreakdown<QueryTimingType> leafProfileBreakdown = new TestQueryProfileBreakdown(
+        final AbstractTimingProfileBreakdown leafProfileBreakdown = new TestQueryProfileBreakdown(
             leafProfileBreakdownMap
         );
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector, sliceLeaf);
@@ -155,10 +155,10 @@ public class ConcurrentQueryTimingProfileBreakdownTests extends OpenSearchTestCa
         final long createWeightEndTime = createWeightEarliestStartTime + createWeightTimer.getApproximateTiming();
         final Map<String, Long> leafProfileBreakdownMap_1 = getLeafBreakdownMap(createWeightEndTime + 10, 10, 1);
         final Map<String, Long> leafProfileBreakdownMap_2 = getLeafBreakdownMap(createWeightEndTime + 40, 10, 1);
-        final AbstractTimingProfileBreakdown<QueryTimingType> leafProfileBreakdown_1 = new TestQueryProfileBreakdown(
+        final AbstractTimingProfileBreakdown leafProfileBreakdown_1 = new TestQueryProfileBreakdown(
             leafProfileBreakdownMap_1
         );
-        final AbstractTimingProfileBreakdown<QueryTimingType> leafProfileBreakdown_2 = new TestQueryProfileBreakdown(
+        final AbstractTimingProfileBreakdown leafProfileBreakdown_2 = new TestQueryProfileBreakdown(
             leafProfileBreakdownMap_2
         );
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_1, directoryReader.leaves().get(0));
@@ -219,10 +219,10 @@ public class ConcurrentQueryTimingProfileBreakdownTests extends OpenSearchTestCa
         final long createWeightEndTime = createWeightEarliestStartTime + createWeightTimer.getApproximateTiming();
         final Map<String, Long> leafProfileBreakdownMap_1 = getLeafBreakdownMap(createWeightEndTime + 10, 10, 1);
         final Map<String, Long> leafProfileBreakdownMap_2 = getLeafBreakdownMap(createWeightEndTime + 40, 20, 1);
-        final AbstractTimingProfileBreakdown<QueryTimingType> leafProfileBreakdown_1 = new TestQueryProfileBreakdown(
+        final AbstractTimingProfileBreakdown leafProfileBreakdown_1 = new TestQueryProfileBreakdown(
             leafProfileBreakdownMap_1
         );
-        final AbstractTimingProfileBreakdown<QueryTimingType> leafProfileBreakdown_2 = new TestQueryProfileBreakdown(
+        final AbstractTimingProfileBreakdown leafProfileBreakdown_2 = new TestQueryProfileBreakdown(
             leafProfileBreakdownMap_2
         );
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_1, directoryReader.leaves().get(0));
@@ -232,7 +232,7 @@ public class ConcurrentQueryTimingProfileBreakdownTests extends OpenSearchTestCa
 
         Map<String, Long> queryBreakDownMap = testQueryProfileBreakdown.toBreakdownMap();
         assertFalse(queryBreakDownMap == null || queryBreakDownMap.isEmpty());
-        assertEquals(66, queryBreakDownMap.size());
+        assertEquals(70, queryBreakDownMap.size());
 
         for (QueryTimingType queryTimingType : QueryTimingType.values()) {
             String timingTypeKey = queryTimingType.toString();
@@ -278,7 +278,7 @@ public class ConcurrentQueryTimingProfileBreakdownTests extends OpenSearchTestCa
         final long createWeightEarliestStartTime = createWeightTimer.getEarliestTimerStartTime();
         final long createWeightEndTime = createWeightEarliestStartTime + createWeightTimer.getApproximateTiming();
         final Map<String, Long> leafProfileBreakdownMap_1 = getLeafBreakdownMap(createWeightEndTime + 10, 10, 1);
-        final AbstractTimingProfileBreakdown<QueryTimingType> leafProfileBreakdown_1 = new TestQueryProfileBreakdown(
+        final AbstractTimingProfileBreakdown leafProfileBreakdown_1 = new TestQueryProfileBreakdown(
             leafProfileBreakdownMap_1
         );
         testQueryProfileBreakdown.associateCollectorToLeaves(sliceCollector_1, directoryReader.leaves().get(0));
@@ -288,7 +288,7 @@ public class ConcurrentQueryTimingProfileBreakdownTests extends OpenSearchTestCa
 
         Map<String, Long> queryBreakDownMap = testQueryProfileBreakdown.toBreakdownMap();
         assertFalse(queryBreakDownMap == null || queryBreakDownMap.isEmpty());
-        assertEquals(66, queryBreakDownMap.size());
+        assertEquals(70, queryBreakDownMap.size());
 
         for (QueryTimingType queryTimingType : QueryTimingType.values()) {
             String timingTypeKey = queryTimingType.toString();
@@ -333,7 +333,7 @@ public class ConcurrentQueryTimingProfileBreakdownTests extends OpenSearchTestCa
         final long createWeightEarliestStartTime = createWeightTimer.getEarliestTimerStartTime();
         final long createWeightEndTime = createWeightEarliestStartTime + createWeightTimer.getApproximateTiming();
         final Map<String, Long> leafProfileBreakdownMap_1 = getLeafBreakdownMap(createWeightEndTime + 10, 10, 1);
-        final AbstractTimingProfileBreakdown<QueryTimingType> leafProfileBreakdown_1 = new TestQueryProfileBreakdown(
+        final AbstractTimingProfileBreakdown leafProfileBreakdown_1 = new TestQueryProfileBreakdown(
             leafProfileBreakdownMap_1
         );
         testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(0), leafProfileBreakdown_1);
@@ -409,7 +409,7 @@ public class ConcurrentQueryTimingProfileBreakdownTests extends OpenSearchTestCa
         return DirectoryReader.open(directory);
     }
 
-    private static class TestQueryProfileBreakdown extends AbstractTimingProfileBreakdown<QueryTimingType> {
+    private static class TestQueryProfileBreakdown extends AbstractTimingProfileBreakdown {
         private Map<String, Long> breakdownMap;
 
         public TestQueryProfileBreakdown(Map<String, Long> breakdownMap) {

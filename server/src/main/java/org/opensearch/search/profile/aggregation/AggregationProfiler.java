@@ -34,11 +34,11 @@ package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.aggregations.Aggregator;
-import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.AbstractProfileShardResult;
 import org.opensearch.search.profile.AbstractProfiler;
-import org.opensearch.search.profile.TimingProfileResult;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Main class to profile aggregations
@@ -46,12 +46,12 @@ import java.util.*;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class AggregationProfiler extends AbstractProfiler<Aggregator> {
+public class AggregationProfiler extends AbstractProfiler<AggregationTimingProfileBreakdown, Aggregator, AggregationProfileShardResult> {
 
     private final Map<Aggregator, AggregationTimingProfileBreakdown> profileBreakdownLookup = new HashMap<>();
 
     public AggregationProfiler() {
-        super(new InternalAggregationProfileTree(Arrays.asList(AggregationTimingProfileBreakdown.class), Arrays.asList(TimingProfileResult.class)));
+        super(new InternalAggregationProfileTree());
     }
 
     /**
@@ -61,12 +61,17 @@ public class AggregationProfiler extends AbstractProfiler<Aggregator> {
      * on the Aggregation collector instances during construction.
      */
     @Override
-    public AggregationTimingProfileBreakdown getQueryBreakdown(Aggregator agg) {
+    public AggregationTimingProfileBreakdown getQueryBreakdown(Aggregator agg) throws Exception {
         AggregationTimingProfileBreakdown aggregationProfileBreakdown = profileBreakdownLookup.get(agg);
         if (aggregationProfileBreakdown == null) {
             aggregationProfileBreakdown = super.getQueryBreakdown(agg);
             profileBreakdownLookup.put(agg, aggregationProfileBreakdown);
         }
         return aggregationProfileBreakdown;
+    }
+
+    @Override
+    public AggregationProfileShardResult createProfileShardResult() {
+        return new AggregationProfileShardResult(getTree());
     }
 }

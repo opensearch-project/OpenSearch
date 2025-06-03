@@ -10,8 +10,8 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
+import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.Timer;
-import org.opensearch.search.profile.TimingProfileResult;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,7 +34,9 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
     // one thread will access the LinkedList at a time.
     private final Map<Long, LinkedList<Timer>> threadToRewriteTimers;
 
-    public ConcurrentQueryProfiler(AbstractQueryProfileTree profileTree) {
+    private final Map<Class<? extends Query>,  Class<? extends AbstractTimingProfileBreakdown>> pluginBreakdownClasses;
+
+    public ConcurrentQueryProfiler(AbstractQueryProfileTree profileTree, Map<Class<? extends Query>,  Class<? extends AbstractTimingProfileBreakdown>> pluginBreakdownClasses) {
         super(profileTree);
         long threadId = getCurrentThreadId();
         // We utilize LinkedHashMap to preserve the insertion order of the profiled queries
@@ -42,13 +44,14 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
         threadToProfileTree.put(threadId, (ConcurrentQueryProfileTree) profileTree);
         threadToRewriteTimers = new ConcurrentHashMap<>();
         threadToRewriteTimers.put(threadId, new LinkedList<>());
+        this.pluginBreakdownClasses = pluginBreakdownClasses;
     }
 
     @Override
-    public AbstractTimingProfileBreakdown<QueryTimingType> getQueryBreakdown(Query query) {
+    public AbstractTimingProfileBreakdown getQueryBreakdown(Query query) throws Exception {
         ConcurrentQueryProfileTree profileTree = threadToProfileTree.computeIfAbsent(
             getCurrentThreadId(),
-            k -> new ConcurrentQueryProfileTree()
+            k -> new ConcurrentQueryProfileTree(pluginBreakdownClasses)
         );
         return profileTree.getProfileBreakdown(query);
     }
@@ -68,8 +71,8 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
      * @return a hierarchical representation of the profiled tree
      */
     @Override
-    public List<TimingProfileResult> getTree() {
-        List<TimingProfileResult> profileResults = new ArrayList<>();
+    public List<ProfileResult> getTree() {
+        List<ProfileResult> profileResults = new ArrayList<>();
         for (Map.Entry<Long, ConcurrentQueryProfileTree> profile : threadToProfileTree.entrySet()) {
             profileResults.addAll(profile.getValue().getTree());
         }

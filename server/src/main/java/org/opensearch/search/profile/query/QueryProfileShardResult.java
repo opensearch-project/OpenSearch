@@ -36,10 +36,11 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.search.profile.TimingProfileResult;
+import org.opensearch.search.profile.AbstractProfileShardResult;
+import org.opensearch.search.profile.ProfileResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,21 +56,19 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class QueryProfileShardResult implements Writeable, ToXContentObject {
+public final class QueryProfileShardResult extends AbstractProfileShardResult {
 
     public static final String COLLECTOR = "collector";
     public static final String REWRITE_TIME = "rewrite_time";
     public static final String QUERY_ARRAY = "query";
 
-    private final List<TimingProfileResult> queryProfileResults;
-
     private final CollectorResult profileCollector;
 
     private final long rewriteTime;
 
-    public QueryProfileShardResult(List<TimingProfileResult> queryProfileResults, long rewriteTime, CollectorResult profileCollector) {
+    public QueryProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime, CollectorResult profileCollector) {
+        super(queryProfileResults);
         assert (profileCollector != null);
-        this.queryProfileResults = queryProfileResults;
         this.profileCollector = profileCollector;
         this.rewriteTime = rewriteTime;
     }
@@ -78,28 +77,23 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
      * Read from a stream.
      */
     public QueryProfileShardResult(StreamInput in) throws IOException {
-        int profileSize = in.readVInt();
-        queryProfileResults = new ArrayList<>(profileSize);
-        for (int j = 0; j < profileSize; j++) {
-            queryProfileResults.add(new TimingProfileResult(in));
-        }
-
+        super(in);
         profileCollector = new CollectorResult(in);
         rewriteTime = in.readLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(queryProfileResults.size());
-        for (TimingProfileResult p : queryProfileResults) {
+        out.writeVInt(profileResults.size());
+        for (ProfileResult p : profileResults) {
             p.writeTo(out);
         }
         profileCollector.writeTo(out);
         out.writeLong(rewriteTime);
     }
 
-    public List<TimingProfileResult> getQueryResults() {
-        return Collections.unmodifiableList(queryProfileResults);
+    public List<ProfileResult> getQueryResults() {
+        return Collections.unmodifiableList(profileResults);
     }
 
     public long getRewriteTime() {
@@ -114,7 +108,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray(QUERY_ARRAY);
-        for (TimingProfileResult p : queryProfileResults) {
+        for (ProfileResult p : profileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();
@@ -130,7 +124,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         String currentFieldName = null;
-        List<TimingProfileResult> queryProfileResults = new ArrayList<>();
+        List<ProfileResult> queryProfileResults = new ArrayList<>();
         long rewriteTime = 0;
         CollectorResult collector = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -145,7 +139,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (QUERY_ARRAY.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        queryProfileResults.add(TimingProfileResult.fromXContent(parser));
+                        queryProfileResults.add(ProfileResult.fromXContent(parser));
                     }
                 } else if (COLLECTOR.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

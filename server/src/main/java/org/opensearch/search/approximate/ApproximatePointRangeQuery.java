@@ -367,7 +367,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
                         return new ScorerSupplier() {
 
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, pointRangeQuery.getField());
+                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                             final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
@@ -395,7 +395,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                         size += deletedDocs;
                         return new ScorerSupplier() {
 
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, pointRangeQuery.getField());
+                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                             final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
@@ -449,7 +449,11 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         if (context.from() + context.size() == 0) {
             this.setSize(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
         } else {
-            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()));
+            // We add +1 to ensure we collect at least one more document than required. This guarantees correct relation value:
+            // - If we find exactly trackTotalHitsUpTo docs: relation = EQUAL_TO
+            // - If we find > trackTotalHitsUpTo docs: relation = GREATER_THAN_OR_EQUAL_TO
+            // With +1, we will consistently get GREATER_THAN_OR_EQUAL_TO relation.
+            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()) + 1);
         }
         if (context.request() != null && context.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());

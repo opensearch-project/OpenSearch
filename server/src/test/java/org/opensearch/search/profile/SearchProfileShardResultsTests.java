@@ -69,10 +69,15 @@ public class SearchProfileShardResultsTests extends OpenSearchTestCase {
                 queryProfileResults.add(QueryProfileShardResultTests.createTestItem());
             }
             AggregationProfileShardResult aggProfileShardResult = AggregationProfileShardResultTests.createTestItem(1);
+            List<AbstractProfileShardResult> pluginProfileResults = new ArrayList<>();
+            int pluginItems = rarely() ? 0 : randomIntBetween(1, 2);
+            for (int q = 0; q < pluginItems; q++) {
+                pluginProfileResults.add(AbstractProfileShardResultTests.createTestItem());
+            }
             NetworkTime networkTime = new NetworkTime(inboundTime, outboundTime);
             searchProfileResults.put(
                 randomAlphaOfLengthBetween(5, 10),
-                new ProfileShardResult(queryProfileResults, aggProfileShardResult, networkTime)
+                new ProfileShardResult(queryProfileResults, aggProfileShardResult, pluginProfileResults, networkTime)
             );
         }
         return new SearchProfileShardResults(searchProfileResults);

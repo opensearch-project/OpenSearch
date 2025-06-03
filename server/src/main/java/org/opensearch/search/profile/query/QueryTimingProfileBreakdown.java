@@ -12,16 +12,40 @@ import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 
-public class QueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown<QueryTimingType> implements TimingProfileContext {
+import java.util.List;
+import java.util.Map;
 
-    public QueryTimingProfileBreakdown() {
+/**
+ * A {@link AbstractTimingProfileBreakdown} for query timings.
+ */
+public class QueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown implements TimingProfileContext {
+
+    private final AbstractTimingProfileBreakdown pluginBreakdown;
+
+    public QueryTimingProfileBreakdown(AbstractTimingProfileBreakdown pluginBreakdown) {
         for(QueryTimingType type : QueryTimingType.values()) {
-            timers.put(type, new Timer());
+            timers.put(type.toString(), new Timer());
         }
+
+        if(pluginBreakdown != null) timers.putAll(pluginBreakdown.getTimers());
+
+        this.pluginBreakdown = pluginBreakdown;
+    }
+
+    public AbstractTimingProfileBreakdown getPluginBreakdown() {
+        return pluginBreakdown;
     }
 
     @Override
-    public AbstractTimingProfileBreakdown<QueryTimingType> context(Object context) {
+    public Map<String, Long> toBreakdownMap() {
+        Map<String, Long> map = super.toBreakdownMap();
+        if(pluginBreakdown != null) map.putAll(pluginBreakdown.toBreakdownMap());
+        return map;
+
+    }
+
+    @Override
+    public AbstractTimingProfileBreakdown context(Object context) {
         return this;
     }
 }

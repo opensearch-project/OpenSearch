@@ -69,6 +69,8 @@ import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.AbstractProfiler;
+import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.rescore.Rescorer;
 import org.opensearch.search.rescore.RescorerBuilder;
@@ -97,9 +99,14 @@ import static java.util.Collections.emptyMap;
  * @opensearch.api
  */
 public interface SearchPlugin {
-    default List<AbstractProfileBreakdown<?>> getProfileBreakdowns() {
-        return emptyList();
+
+    /**
+     * The plugin provider to be used to get the profilers from plugins.
+     */
+    default ProfileBreakdownProvider getProfileBreakdownProvider() {
+        return null;
     }
+
     /**
      * The new {@link ScoreFunction}s defined by this plugin.
      */
@@ -229,6 +236,18 @@ public interface SearchPlugin {
      */
     default Optional<ExecutorServiceProvider> getIndexSearcherExecutorProvider() {
         return Optional.empty();
+    }
+
+    /**
+     * Plugin Profiler provider
+     */
+    interface ProfileBreakdownProvider {
+        /**
+         * Provides a profiler instance
+         * @param isConcurrentSearchEnabled concurrent enabled
+         * @return profiler instance
+         */
+        Map<Class<? extends Query>,Class<? extends AbstractTimingProfileBreakdown>> getProfileBreakdown(boolean isConcurrentSearchEnabled);
     }
 
     /**

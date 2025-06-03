@@ -32,31 +32,36 @@
 
 package org.opensearch.search.profile.query;
 
-import org.opensearch.search.profile.*;
+import org.apache.lucene.search.Query;
+import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
+import org.opensearch.search.profile.ProfileResult;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
- * This class returns a list of {@link TimingProfileResult} that can be serialized back to the client in the non-concurrent execution.
+ * This class returns a list of {@link ProfileResult} that can be serialized back to the client in the non-concurrent execution.
  *
  * @opensearch.internal
  */
 public class InternalQueryProfileTree extends AbstractQueryProfileTree {
 
-//    @Override
-//    protected AbstractTimingProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-//        return new QueryTimingProfileBreakdown();
-//    }
-//
-//    @Override
-//    protected TimingProfileResult createProfileResult(String type, String description, AbstractTimingProfileBreakdown<QueryTimingType> breakdown, List<TimingProfileResult> childrenProfileResults) {
-//        return new TimingProfileResult(
-//            type,
-//            description,
-//            breakdown.toBreakdownMap(),
-//            breakdown.toDebugMap(),
-//            breakdown.toNodeTime(),
-//            childrenProfileResults
-//        );
-//    }
+    private final Map<Class<? extends Query>,  Class<? extends AbstractTimingProfileBreakdown>> pluginBreakdownClasses;
+
+    public InternalQueryProfileTree(Map<Class<? extends Query>, Class<? extends AbstractTimingProfileBreakdown>> breakdowns) {
+        this.pluginBreakdownClasses = breakdowns;
+    }
+
+    @Override
+    protected AbstractTimingProfileBreakdown createProfileBreakdown(Query query) throws Exception {
+        AbstractTimingProfileBreakdown pluginBreakdown = null;
+        if (pluginBreakdownClasses != null) {
+            Class<? extends AbstractTimingProfileBreakdown> pluginBreakdownClass = pluginBreakdownClasses.get(query.getClass());
+            if (pluginBreakdownClass != null) {
+                pluginBreakdown = pluginBreakdownClass.getDeclaredConstructor().newInstance();
+            }
+        }
+        return new QueryTimingProfileBreakdown(pluginBreakdown);
+    }
 }

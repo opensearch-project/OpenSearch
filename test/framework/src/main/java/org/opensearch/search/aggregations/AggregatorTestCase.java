@@ -613,7 +613,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         AggregationBuilder builder,
         boolean shardFanOut,
         MappedFieldType... fieldTypes
-    ) throws IOException {
+    ) throws Exception {
         return searchAndReduce(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, shardFanOut, fieldTypes);
     }
 
@@ -622,7 +622,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         Query query,
         AggregationBuilder builder,
         MappedFieldType... fieldTypes
-    ) throws IOException {
+    ) throws Exception {
         return searchAndReduce(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
     }
 
@@ -632,7 +632,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         Query query,
         AggregationBuilder builder,
         MappedFieldType... fieldTypes
-    ) throws IOException {
+    ) throws Exception {
         return searchAndReduce(indexSettings, searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
     }
 
@@ -642,7 +642,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         AggregationBuilder builder,
         int maxBucket,
         MappedFieldType... fieldTypes
-    ) throws IOException {
+    ) throws Exception {
         return searchAndReduce(createIndexSettings(), searcher, query, builder, maxBucket, randomBoolean(), fieldTypes);
     }
 
@@ -654,7 +654,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         int maxBucket,
         boolean shardFanOut,
         MappedFieldType... fieldTypes
-    ) throws IOException {
+    ) throws Exception {
         return searchAndReduce(indexSettings, searcher, query, builder, maxBucket, false, shardFanOut, fieldTypes);
     }
 
@@ -675,7 +675,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         boolean hasNested,
         boolean shardFanOut,
         MappedFieldType... fieldTypes
-    ) throws IOException {
+    ) throws Exception {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
@@ -775,7 +775,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         AggregatorFactory aggregatorFactory,
         boolean assertCollectorEarlyTermination,
         MappedFieldType... fieldTypes
-    ) throws IOException {
+    ) throws Exception {
         query = query.rewrite(searcher);
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
@@ -837,7 +837,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<V> verify,
         MappedFieldType... fieldTypes
-    ) throws IOException {
+    ) throws Exception {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             buildIndex.accept(indexWriter);
@@ -1402,7 +1402,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         }
 
         @Override
-        public void preCollection() throws IOException {
+        public void preCollection() throws Exception {
             delegate.preCollection();
         }
 

@@ -358,7 +358,7 @@ public class AwsS3ServiceImplTests extends AbstractS3RepositoryTestCase {
             assertThat(proxyConfiguration.password(), is(expectedProxyPassword));
         }
 
-        final ClientOverrideConfiguration clientOverrideConfiguration = S3Service.buildOverrideConfiguration(clientSettings);
+        final ClientOverrideConfiguration clientOverrideConfiguration = S3Service.buildOverrideConfiguration(clientSettings, null);
 
         assertTrue(clientOverrideConfiguration.retryPolicy().isPresent());
         assertThat(clientOverrideConfiguration.retryPolicy().get().numRetries(), is(expectedMaxRetries));

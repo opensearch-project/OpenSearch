@@ -19,8 +19,8 @@ public class GetIngestionStateResponseTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         ShardIngestionState[] shardStates = new ShardIngestionState[] {
-            new ShardIngestionState("index1", 0, "POLLING", "DROP", false),
-            new ShardIngestionState("index1", 1, "PAUSED", "BLOCK", true) };
+            new ShardIngestionState("index1", 0, "POLLING", "DROP", false, false, ""),
+            new ShardIngestionState("index1", 1, "PAUSED", "BLOCK", true, false, "") };
         GetIngestionStateResponse response = new GetIngestionStateResponse(shardStates, 2, 2, 0, null, Collections.emptyList());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {

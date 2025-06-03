@@ -138,7 +138,7 @@ public class MultiBucketCollector extends BucketCollector {
     }
 
     @Override
-    public void preCollection() throws IOException {
+    public void preCollection() throws Exception {
         for (BucketCollector collector : collectors) {
             collector.preCollection();
         }

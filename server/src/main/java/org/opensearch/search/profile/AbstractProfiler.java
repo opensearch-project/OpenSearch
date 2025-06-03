@@ -32,6 +32,9 @@
 
 package org.opensearch.search.profile;
 
+import org.apache.lucene.search.Query;
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.List;
 
 /**
@@ -39,11 +42,12 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public abstract class AbstractProfiler<E> {
+@PublicApi(since="3.0.0")
+public abstract class AbstractProfiler<PB extends AbstractProfileBreakdown, E, SR extends AbstractProfileShardResult> {
 
-    protected final AbstractInternalProfileTree<E> profileTree;
+    protected final AbstractInternalProfileTree<PB, E> profileTree;
 
-    public AbstractProfiler(AbstractInternalProfileTree<E> profileTree) {
+    public AbstractProfiler(AbstractInternalProfileTree<PB, E> profileTree) {
         this.profileTree = profileTree;
     }
 
@@ -51,7 +55,7 @@ public abstract class AbstractProfiler<E> {
      * Get the {@link AbstractProfileBreakdown} for the given element in the
      * tree, potentially creating it if it did not exist.
      */
-    public CompositeProfileBreakdown getQueryBreakdown(E query) throws Exception {
+    public PB getQueryBreakdown(E query) throws Exception {
         return profileTree.getProfileBreakdown(query);
     }
 
@@ -65,8 +69,10 @@ public abstract class AbstractProfiler<E> {
     /**
      * @return a hierarchical representation of the profiled tree
      */
-    public List<CompositeProfileResult> getTree() {
+    public List<ProfileResult> getTree() {
         return profileTree.getTree();
     }
+
+    public abstract SR createProfileShardResult();
 
 }

@@ -36,7 +36,6 @@ import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
-import org.opensearch.search.profile.TimingProfileResult;
 
 import java.util.Objects;
 
@@ -54,7 +53,7 @@ import java.util.Objects;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class QueryProfiler extends AbstractProfiler<Query> {
+public class QueryProfiler extends AbstractProfiler<AbstractTimingProfileBreakdown, Query, QueryProfileShardResult> {
 
     /**
      * The root Collector used in the search
@@ -105,4 +104,12 @@ public class QueryProfiler extends AbstractProfiler<Query> {
         return collector.getCollectorTree();
     }
 
+    public AbstractTimingProfileBreakdown getPluginBreakdown() {
+        return profileTree.getStackTop();
+    }
+
+    @Override
+    public QueryProfileShardResult createProfileShardResult() {
+        return new QueryProfileShardResult(getTree(), getRewriteTime() ,getCollector());
+    }
 }

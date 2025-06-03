@@ -17,13 +17,16 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * A profile breakdown for aggregations.
+ */
 @PublicApi(since = "3.0.0")
-public class AggregationTimingProfileBreakdown extends AbstractTimingProfileBreakdown<AggregationTimingType> {
+public class AggregationTimingProfileBreakdown extends AbstractTimingProfileBreakdown {
     private final Map<String, Object> extra = new HashMap<>();
 
     public AggregationTimingProfileBreakdown() {
         for(AggregationTimingType type : AggregationTimingType.values()) {
-            timers.put(type, new Timer());
+            timers.put(type.toString(), new Timer());
         }
     }
 

@@ -34,38 +34,18 @@ package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.profile.AbstractInternalProfileTree;
-import org.opensearch.search.profile.AbstractProfileBreakdown;
-import org.opensearch.search.profile.AbstractProfileResult;
-import org.opensearch.search.profile.TimingProfileResult;
-
-import java.util.List;
 
 /**
  * The profiling tree for different levels of agg profiling
  *
  * @opensearch.internal
  */
-public class InternalAggregationProfileTree extends AbstractInternalProfileTree<Aggregator> {
-    public InternalAggregationProfileTree(List<Class<? extends AbstractProfileBreakdown<?>>> breakdownClasses, List<Class<? extends AbstractProfileResult<?>>> resultClasses) {
-        super(breakdownClasses, resultClasses);
-    }
+public class InternalAggregationProfileTree extends AbstractInternalProfileTree<AggregationTimingProfileBreakdown, Aggregator> {
 
-//    @Override
-//    protected AggregationTimingProfileBreakdown createProfileBreakdown() {
-//        return new AggregationTimingProfileBreakdown();
-//    }
-//
-//    @Override
-//    protected TimingProfileResult createProfileResult(String type, String description, AggregationTimingProfileBreakdown breakdown, List<TimingProfileResult> childrenProfileResults) {
-//        return new TimingProfileResult(
-//            type,
-//            description,
-//            breakdown.toBreakdownMap(),
-//            breakdown.toDebugMap(),
-//            breakdown.toNodeTime(),
-//            childrenProfileResults
-//        );
-//    }
+    @Override
+    protected AggregationTimingProfileBreakdown createProfileBreakdown(Aggregator aggregator) {
+        return new AggregationTimingProfileBreakdown();
+    }
 
     @Override
     protected String getTypeFromElement(Aggregator element) {

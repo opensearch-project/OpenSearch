@@ -32,6 +32,8 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,14 +47,11 @@ import static java.util.Collections.emptyMap;
  *
  * @opensearch.internal
  */
-public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
-
-    String name;
+@PublicApi(since="3.0.0")
+public abstract class AbstractProfileBreakdown {
 
     /** Sole constructor. */
-    public AbstractProfileBreakdown(String name) {
-        this.name = name;
-    }
+    public AbstractProfileBreakdown() {}
 
     /**
      * Build a breakdown for current instance

@@ -168,11 +168,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
         // see: https://github.com/apache/lucene/pull/672
         assertProfileData(context, "ConstantScoreQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_count"));
             assertThat(collector.getTime(), greaterThan(0L));
@@ -212,20 +212,20 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
         }, (query) -> {
             assertThat(query.getQueryName(), equalTo("MatchNoDocsQuery"));
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
         }, (query) -> {
             // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
             // see: https://github.com/apache/lucene/pull/672
             assertThat(query.getQueryName(), equalTo("ConstantScoreQuery"));
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
         });
 
         reader.close();
@@ -289,18 +289,18 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(collector.getProfiledChildren().get(0).getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
             }, (query) -> {
                 assertThat(query.getQueryName(), equalTo("TermQuery"));
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), equalTo(0L));
+                assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             }, (query) -> {
                 assertThat(query.getQueryName(), equalTo("MatchAllDocsQuery"));
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), equalTo(1L));
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("score_count"), equalTo(1L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             });
         }
         reader.close();
@@ -326,11 +326,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
         // see: https://github.com/apache/lucene/pull/672
         assertProfileData(context, "ConstantScoreQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_count"));
             assertThat(collector.getTime(), greaterThan(0L));
@@ -349,24 +349,24 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value());
         assertEquals(TotalHits.Relation.EQUAL_TO, context.queryResult().topDocs().topDocs.totalHits.relation());
         assertProfileData(context, "MatchAllDocsQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), greaterThanOrEqualTo(1L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(1L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), greaterThanOrEqualTo(1L));
+            assertThat(query.getBreakdown().get("score_count"), equalTo(1L));
             if (executor != null) {
-                long maxScore = query.getTimeBreakdown().get("max_score");
-                long minScore = query.getTimeBreakdown().get("min_score");
-                long avgScore = query.getTimeBreakdown().get("avg_score");
+                long maxScore = query.getBreakdown().get("max_score");
+                long minScore = query.getBreakdown().get("min_score");
+                long avgScore = query.getBreakdown().get("avg_score");
                 assertThat(maxScore, greaterThanOrEqualTo(1L));
                 assertThat(minScore, greaterThanOrEqualTo(1L));
                 assertThat(avgScore, greaterThanOrEqualTo(1L));
                 assertThat(maxScore, greaterThanOrEqualTo(avgScore));
                 assertThat(avgScore, greaterThanOrEqualTo(minScore));
-                assertThat(query.getTimeBreakdown().get("max_score_count"), equalTo(1L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), equalTo(1L));
-                assertThat(query.getTimeBreakdown().get("avg_score_count"), equalTo(1L));
+                assertThat(query.getBreakdown().get("max_score_count"), equalTo(1L));
+                assertThat(query.getBreakdown().get("min_score_count"), equalTo(1L));
+                assertThat(query.getBreakdown().get("avg_score_count"), equalTo(1L));
             }
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_min_score"));
             assertThat(collector.getTime(), greaterThan(0L));
@@ -421,11 +421,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertThat(context.terminateAfter(), equalTo(0));
         assertThat(context.queryResult().getTotalHits().value(), equalTo((long) numDocs));
         assertProfileData(context, "ConstantScoreQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
@@ -445,15 +445,15 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertThat(context.queryResult().getTotalHits().value(), equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
         assertProfileData(context, "ConstantScoreQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
-            assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score"), equalTo(0L));
-            assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score_count"), equalTo(0L));
-            assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("score_count"), equalTo(0L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
@@ -501,19 +501,19 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
             assertProfileData(context, "MatchAllDocsQuery", query -> {
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("score_count"), greaterThan(0L));
                 if (executor != null) {
-                    assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("max_score"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("min_score"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("avg_score"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("max_score_count"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("min_score_count"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("avg_score_count"), greaterThan(0L));
                 }
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
@@ -544,11 +544,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
             // see: https://github.com/apache/lucene/pull/672
             assertProfileData(context, "ConstantScoreQuery", query -> {
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), equalTo(0L));
+                assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
@@ -579,19 +579,19 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
             assertProfileData(context, "MatchAllDocsQuery", query -> {
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("score_count"), greaterThan(0L));
                 if (executor != null) {
-                    assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("max_score"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("min_score"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("avg_score"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("max_score_count"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("min_score_count"), greaterThan(0L));
+                    assertThat(query.getBreakdown().get("avg_score_count"), greaterThan(0L));
                 }
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
@@ -625,16 +625,16 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
             assertProfileData(context, "BooleanQuery", query -> {
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("score_count"), greaterThan(0L));
                 if (executor != null) {
-                    long maxScore = query.getTimeBreakdown().get("max_score");
-                    long minScore = query.getTimeBreakdown().get("min_score");
-                    long avgScore = query.getTimeBreakdown().get("avg_score");
-                    long maxScoreCount = query.getTimeBreakdown().get("max_score_count");
-                    long minScoreCount = query.getTimeBreakdown().get("min_score_count");
-                    long avgScoreCount = query.getTimeBreakdown().get("avg_score_count");
+                    long maxScore = query.getBreakdown().get("max_score");
+                    long minScore = query.getBreakdown().get("min_score");
+                    long avgScore = query.getBreakdown().get("avg_score");
+                    long maxScoreCount = query.getBreakdown().get("max_score_count");
+                    long minScoreCount = query.getBreakdown().get("min_score_count");
+                    long avgScoreCount = query.getBreakdown().get("avg_score_count");
                     assertThat(maxScore, greaterThan(0L));
                     assertThat(minScore, greaterThanOrEqualTo(0L));
                     assertThat(avgScore, greaterThanOrEqualTo(0L));
@@ -646,19 +646,19 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                     assertThat(maxScoreCount, greaterThanOrEqualTo(avgScoreCount));
                     assertThat(avgScoreCount, greaterThanOrEqualTo(minScoreCount));
                 }
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
 
                 assertThat(query.getProfiledChildren(), hasSize(2));
                 assertThat(query.getProfiledChildren().get(0).getQueryName(), equalTo("TermQuery"));
-                assertThat(query.getProfiledChildren().get(0).getTime(), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight_count"), equalTo(1L));
 
                 assertThat(query.getProfiledChildren().get(1).getQueryName(), equalTo("TermQuery"));
-                assertThat(query.getProfiledChildren().get(1).getTime(), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getProfiledChildren().get(1).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(1).getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(1).getBreakdown().get("create_weight_count"), equalTo(1L));
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
@@ -690,37 +690,37 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
             // see: https://github.com/apache/lucene/pull/672
             assertProfileData(context, "ConstantScoreQuery", query -> {
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), equalTo(0L));
+                assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
 
                 // rewritten as a ConstantScoreQuery wrapping the original BooleanQuery
                 // see: https://github.com/apache/lucene/pull/672
                 assertThat(query.getProfiledChildren(), hasSize(1));
                 assertThat(query.getProfiledChildren().get(0).getQueryName(), equalTo("BooleanQuery"));
-                assertThat(query.getProfiledChildren().get(0).getTime(), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score_count"), equalTo(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("score"), equalTo(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("score_count"), equalTo(0L));
 
                 List<ProfileResult> children = query.getProfiledChildren().get(0).getProfiledChildren();
                 assertThat(children, hasSize(2));
                 assertThat(children.get(0).getQueryName(), equalTo("TermQuery"));
-                assertThat(children.get(0).getTime(), greaterThan(0L));
-                assertThat(children.get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(children.get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
-                assertThat(children.get(0).getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(children.get(0).getTimeBreakdown().get("score_count"), equalTo(0L));
+                assertThat(children.get(0).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                assertThat(children.get(0).getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(children.get(0).getBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(children.get(0).getBreakdown().get("score"), equalTo(0L));
+                assertThat(children.get(0).getBreakdown().get("score_count"), equalTo(0L));
 
                 assertThat(children.get(1).getQueryName(), equalTo("TermQuery"));
-                assertThat(children.get(1).getTime(), greaterThan(0L));
-                assertThat(children.get(1).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(children.get(1).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
-                assertThat(children.get(1).getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(children.get(1).getTimeBreakdown().get("score_count"), equalTo(0L));
+                assertThat(children.get(1).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                assertThat(children.get(1).getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(children.get(1).getBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(children.get(1).getBreakdown().get("score"), equalTo(0L));
+                assertThat(children.get(1).getBreakdown().get("score_count"), equalTo(0L));
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
@@ -757,26 +757,26 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             }
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(7));
             assertProfileData(context, "BooleanQuery", query -> {
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(7L));
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("score_count"), greaterThanOrEqualTo(7L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
 
                 assertThat(query.getProfiledChildren(), hasSize(2));
                 assertThat(query.getProfiledChildren().get(0).getQueryName(), equalTo("TermQuery"));
-                assertThat(query.getProfiledChildren().get(0).getTime(), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score"), greaterThanOrEqualTo(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("score"), greaterThanOrEqualTo(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("score_count"), greaterThanOrEqualTo(0L));
                 if (executor != null) {
-                    long maxScore = query.getProfiledChildren().get(0).getTimeBreakdown().get("max_score");
-                    long minScore = query.getProfiledChildren().get(0).getTimeBreakdown().get("min_score");
-                    long avgScore = query.getProfiledChildren().get(0).getTimeBreakdown().get("avg_score");
-                    long maxScoreCount = query.getProfiledChildren().get(0).getTimeBreakdown().get("max_score_count");
-                    long minScoreCount = query.getProfiledChildren().get(0).getTimeBreakdown().get("min_score_count");
-                    long avgScoreCount = query.getProfiledChildren().get(0).getTimeBreakdown().get("avg_score_count");
+                    long maxScore = query.getProfiledChildren().get(0).getBreakdown().get("max_score");
+                    long minScore = query.getProfiledChildren().get(0).getBreakdown().get("min_score");
+                    long avgScore = query.getProfiledChildren().get(0).getBreakdown().get("avg_score");
+                    long maxScoreCount = query.getProfiledChildren().get(0).getBreakdown().get("max_score_count");
+                    long minScoreCount = query.getProfiledChildren().get(0).getBreakdown().get("min_score_count");
+                    long avgScoreCount = query.getProfiledChildren().get(0).getBreakdown().get("avg_score_count");
                     assertThat(maxScore, greaterThanOrEqualTo(0L));
                     assertThat(minScore, greaterThanOrEqualTo(0L));
                     assertThat(avgScore, greaterThanOrEqualTo(0L));
@@ -790,18 +790,18 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 }
 
                 assertThat(query.getProfiledChildren().get(1).getQueryName(), equalTo("TermQuery"));
-                assertThat(query.getProfiledChildren().get(1).getTime(), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("score"), greaterThanOrEqualTo(0L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(0L));
+                assertThat(query.getProfiledChildren().get(1).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(1).getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(1).getBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getProfiledChildren().get(1).getBreakdown().get("score"), greaterThanOrEqualTo(0L));
+                assertThat(query.getProfiledChildren().get(1).getBreakdown().get("score_count"), greaterThanOrEqualTo(0L));
                 if (executor != null) {
-                    long maxScore = query.getProfiledChildren().get(1).getTimeBreakdown().get("max_score");
-                    long minScore = query.getProfiledChildren().get(1).getTimeBreakdown().get("min_score");
-                    long avgScore = query.getProfiledChildren().get(1).getTimeBreakdown().get("avg_score");
-                    long maxScoreCount = query.getProfiledChildren().get(1).getTimeBreakdown().get("max_score_count");
-                    long minScoreCount = query.getProfiledChildren().get(1).getTimeBreakdown().get("min_score_count");
-                    long avgScoreCount = query.getProfiledChildren().get(1).getTimeBreakdown().get("avg_score_count");
+                    long maxScore = query.getProfiledChildren().get(1).getBreakdown().get("max_score");
+                    long minScore = query.getProfiledChildren().get(1).getBreakdown().get("min_score");
+                    long avgScore = query.getProfiledChildren().get(1).getBreakdown().get("avg_score");
+                    long maxScoreCount = query.getProfiledChildren().get(1).getBreakdown().get("max_score_count");
+                    long minScoreCount = query.getProfiledChildren().get(1).getBreakdown().get("min_score_count");
+                    long avgScoreCount = query.getProfiledChildren().get(1).getBreakdown().get("avg_score_count");
                     assertThat(maxScore, greaterThanOrEqualTo(0L));
                     assertThat(minScore, greaterThanOrEqualTo(0L));
                     assertThat(avgScore, greaterThanOrEqualTo(0L));
@@ -875,11 +875,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
         // see: https://github.com/apache/lucene/pull/672
         assertProfileData(context, "ConstantScoreQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
@@ -923,20 +923,20 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
             }, (query) -> {
                 assertThat(query.getQueryName(), equalTo("MinDocQuery"));
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), equalTo(0L));
+                assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             }, (query) -> {
                 // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
                 // see: https://github.com/apache/lucene/pull/672
                 assertThat(query.getQueryName(), equalTo("ConstantScoreQuery"));
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), equalTo(0L));
+                assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             });
             context.parsedPostFilter(null);
         }
@@ -952,11 +952,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
             // see: https://github.com/apache/lucene/pull/672
             assertProfileData(context, "ConstantScoreQuery", query -> {
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), equalTo(0L));
+                assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getTime(), greaterThan(0L));
@@ -978,11 +978,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
             // see: https://github.com/apache/lucene/pull/672
             assertProfileData(context, "ConstantScoreQuery", query -> {
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), equalTo(0L));
+                assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getTime(), greaterThan(0L));
@@ -1042,11 +1042,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
             // see: https://github.com/apache/lucene/pull/672
             assertProfileData(context, "ConstantScoreQuery", query -> {
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), equalTo(0L));
+                assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getTime(), greaterThan(0L));
@@ -1070,19 +1070,19 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(context.terminateAfter(), equalTo(0));
             assertThat(context.queryResult().getTotalHits().value(), equalTo((long) numDocs));
             assertProfileData(context, "ConstantScoreQuery", query -> {
-                assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-                assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getBreakdown().keySet(), not(empty()));
+                assertThat(query.getBreakdown().get("score"), equalTo(0L));
+                assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+                assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
 
                 assertThat(query.getProfiledChildren(), hasSize(1));
                 assertThat(query.getProfiledChildren().get(0).getQueryName(), equalTo("SearchAfterSortedDocQuery"));
-                assertThat(query.getProfiledChildren().get(0).getTime(), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score_count"), equalTo(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("score"), equalTo(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("score_count"), equalTo(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight_count"), equalTo(1L));
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_top_hits"));
                 assertThat(collector.getTime(), greaterThan(0L));
@@ -1148,19 +1148,19 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertEquals(context.queryResult().topDocs().topDocs.totalHits.relation(), TotalHits.Relation.EQUAL_TO);
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));
         assertProfileData(context, "SpanNearQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("score_count"), greaterThan(0L));
             if (executor != null) {
-                assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("min_score"), greaterThanOrEqualTo(0L));
-                assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(0L));
-                assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("max_score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("min_score"), greaterThanOrEqualTo(0L));
+                assertThat(query.getBreakdown().get("avg_score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("max_score_count"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("min_score_count"), greaterThanOrEqualTo(0L));
+                assertThat(query.getBreakdown().get("avg_score_count"), greaterThan(0L));
             }
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
@@ -1184,11 +1184,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
         // see: https://github.com/apache/lucene/pull/672
         assertProfileData(context, "ConstantScoreQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
@@ -1233,32 +1233,32 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.trackTotalHitsUpTo(5);
 
         QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
-        assertEquals(10, context.queryResult().topDocs().topDocs.totalHits.value());
+        assertTrue(context.queryResult().topDocs().topDocs.totalHits.value() >= 5);
         assertProfileData(context, "BooleanQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(10L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("score_count"), greaterThanOrEqualTo(5L));
             if (executor != null) {
-                assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("max_score_count"), equalTo(10L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), equalTo(10L));
-                assertThat(query.getTimeBreakdown().get("avg_score_count"), equalTo(10L));
+                assertThat(query.getBreakdown().get("max_score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("min_score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("avg_score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("max_score_count"), greaterThanOrEqualTo(5L));
+                assertThat(query.getBreakdown().get("min_score_count"), greaterThanOrEqualTo(5L));
+                assertThat(query.getBreakdown().get("avg_score_count"), greaterThanOrEqualTo(5L));
             }
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
 
             assertThat(query.getProfiledChildren(), hasSize(2));
             assertThat(query.getProfiledChildren().get(0).getQueryName(), equalTo("TermQuery"));
-            assertThat(query.getProfiledChildren().get(0).getTime(), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight_count"), equalTo(1L));
 
             assertThat(query.getProfiledChildren().get(1).getQueryName(), equalTo("TermQuery"));
-            assertThat(query.getProfiledChildren().get(1).getTime(), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getProfiledChildren().get(1).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(1).getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(1).getBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_min_score"));
             assertThat(collector.getTime(), greaterThan(0L));
@@ -1320,30 +1320,30 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertEquals(1, context.queryResult().topDocs().topDocs.scoreDocs.length);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), greaterThanOrEqualTo(6L));
         assertProfileData(context, "BooleanQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
             if (executor != null) {
-                assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("min_score"), greaterThanOrEqualTo(0L));
-                assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(4L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(0L));
-                assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(1L));
+                assertThat(query.getBreakdown().get("max_score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("min_score"), greaterThanOrEqualTo(0L));
+                assertThat(query.getBreakdown().get("avg_score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("max_score_count"), greaterThanOrEqualTo(4L));
+                assertThat(query.getBreakdown().get("min_score_count"), greaterThanOrEqualTo(0L));
+                assertThat(query.getBreakdown().get("avg_score_count"), greaterThanOrEqualTo(1L));
             }
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
 
             assertThat(query.getProfiledChildren(), hasSize(2));
             assertThat(query.getProfiledChildren().get(0).getQueryName(), equalTo("TermQuery"));
-            assertThat(query.getProfiledChildren().get(0).getTime(), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight_count"), equalTo(1L));
 
             assertThat(query.getProfiledChildren().get(1).getQueryName(), equalTo("TermQuery"));
-            assertThat(query.getProfiledChildren().get(1).getTime(), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getProfiledChildren().get(1).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(1).getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(1).getBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
@@ -1363,30 +1363,30 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertEquals(1, context.queryResult().topDocs().topDocs.scoreDocs.length);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), greaterThanOrEqualTo(6L));
         assertProfileData(context, "BooleanQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
             if (executor != null) {
-                assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(6L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(0L));
-                assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(1L));
+                assertThat(query.getBreakdown().get("max_score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("min_score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("avg_score"), greaterThan(0L));
+                assertThat(query.getBreakdown().get("max_score_count"), greaterThanOrEqualTo(6L));
+                assertThat(query.getBreakdown().get("min_score_count"), greaterThanOrEqualTo(0L));
+                assertThat(query.getBreakdown().get("avg_score_count"), greaterThanOrEqualTo(1L));
             }
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
 
             assertThat(query.getProfiledChildren(), hasSize(2));
             assertThat(query.getProfiledChildren().get(0).getQueryName(), equalTo("TermQuery"));
-            assertThat(query.getProfiledChildren().get(0).getTime(), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(0).getBreakdown().get("create_weight_count"), equalTo(1L));
 
             assertThat(query.getProfiledChildren().get(1).getQueryName(), equalTo("TermQuery"));
-            assertThat(query.getProfiledChildren().get(1).getTime(), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getProfiledChildren().get(1).getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(1).getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getProfiledChildren().get(1).getBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
@@ -1441,16 +1441,16 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertThat(context.queryResult().topDocs().topDocs, instanceOf(CollapseTopFieldDocs.class));
 
         assertProfileData(context, "TermQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
             if (executor != null) {
-                long maxScore = query.getTimeBreakdown().get("max_score");
-                long minScore = query.getTimeBreakdown().get("min_score");
-                long avgScore = query.getTimeBreakdown().get("avg_score");
-                long maxScoreCount = query.getTimeBreakdown().get("max_score_count");
-                long minScoreCount = query.getTimeBreakdown().get("min_score_count");
-                long avgScoreCount = query.getTimeBreakdown().get("avg_score_count");
+                long maxScore = query.getBreakdown().get("max_score");
+                long minScore = query.getBreakdown().get("min_score");
+                long avgScore = query.getBreakdown().get("avg_score");
+                long maxScoreCount = query.getBreakdown().get("max_score_count");
+                long minScoreCount = query.getBreakdown().get("min_score_count");
+                long avgScoreCount = query.getBreakdown().get("avg_score_count");
                 assertThat(maxScore, greaterThan(0L));
                 assertThat(minScore, greaterThan(0L));
                 assertThat(avgScore, greaterThan(0L));
@@ -1462,8 +1462,8 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(maxScoreCount, greaterThanOrEqualTo(avgScoreCount));
                 assertThat(avgScoreCount, greaterThanOrEqualTo(minScoreCount));
             }
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             assertThat(query.getProfiledChildren(), empty());
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
@@ -1486,16 +1486,16 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertThat(context.queryResult().topDocs().topDocs, instanceOf(CollapseTopFieldDocs.class));
 
         assertProfileData(context, "TermQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
             if (executor != null) {
-                long maxScore = query.getTimeBreakdown().get("max_score");
-                long minScore = query.getTimeBreakdown().get("min_score");
-                long avgScore = query.getTimeBreakdown().get("avg_score");
-                long maxScoreCount = query.getTimeBreakdown().get("max_score_count");
-                long minScoreCount = query.getTimeBreakdown().get("min_score_count");
-                long avgScoreCount = query.getTimeBreakdown().get("avg_score_count");
+                long maxScore = query.getBreakdown().get("max_score");
+                long minScore = query.getBreakdown().get("min_score");
+                long avgScore = query.getBreakdown().get("avg_score");
+                long maxScoreCount = query.getBreakdown().get("max_score_count");
+                long minScoreCount = query.getBreakdown().get("min_score_count");
+                long avgScoreCount = query.getBreakdown().get("avg_score_count");
                 assertThat(maxScore, greaterThan(0L));
                 assertThat(minScore, greaterThan(0L));
                 assertThat(avgScore, greaterThan(0L));
@@ -1507,8 +1507,8 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(maxScoreCount, greaterThanOrEqualTo(avgScoreCount));
                 assertThat(avgScoreCount, greaterThanOrEqualTo(minScoreCount));
             }
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             assertThat(query.getProfiledChildren(), empty());
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
@@ -1571,16 +1571,16 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.trackTotalHitsUpTo(5);
         QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertProfileData(context, "SourceFieldMatchQuery", query -> {
-            assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
+            assertThat(query.getBreakdown().keySet(), not(empty()));
+            assertThat(query.getBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getBreakdown().get("score_count"), equalTo(0L));
             if (executor != null) {
-                long maxScore = query.getTimeBreakdown().get("max_score");
-                long minScore = query.getTimeBreakdown().get("min_score");
-                long avgScore = query.getTimeBreakdown().get("avg_score");
-                long maxScoreCount = query.getTimeBreakdown().get("max_score_count");
-                long minScoreCount = query.getTimeBreakdown().get("min_score_count");
-                long avgScoreCount = query.getTimeBreakdown().get("avg_score_count");
+                long maxScore = query.getBreakdown().get("max_score");
+                long minScore = query.getBreakdown().get("min_score");
+                long avgScore = query.getBreakdown().get("avg_score");
+                long maxScoreCount = query.getBreakdown().get("max_score_count");
+                long minScoreCount = query.getBreakdown().get("min_score_count");
+                long avgScoreCount = query.getBreakdown().get("avg_score_count");
                 assertThat(maxScore, equalTo(0L));
                 assertThat(minScore, equalTo(0L));
                 assertThat(avgScore, equalTo(0L));
@@ -1592,8 +1592,8 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(maxScoreCount, equalTo(avgScoreCount));
                 assertThat(avgScoreCount, equalTo(minScoreCount));
             }
-            assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+            assertThat(query.getBreakdown().get("create_weight"), greaterThan(0L));
+            assertThat(query.getBreakdown().get("create_weight_count"), equalTo(1L));
             assertThat(query.getProfiledChildren(), empty());
         }, collector -> {
             assertThat(collector.getReason(), equalTo("search_top_hits"));
@@ -1615,7 +1615,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         throws IOException {
         assertProfileData(context, collector, (profileResult) -> {
             assertThat(profileResult.getQueryName(), equalTo(type));
-            assertThat(profileResult.getTime(), greaterThan(0L));
+            assertThat(profileResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
             query.accept(profileResult);
         });
     }

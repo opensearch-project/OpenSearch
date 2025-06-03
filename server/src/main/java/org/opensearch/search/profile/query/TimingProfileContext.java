@@ -10,7 +10,10 @@ package org.opensearch.search.profile.query;
 
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 
+/**
+ * A timing profile context
+ */
 public interface TimingProfileContext extends ProfileContext {
     @Override
-    public AbstractTimingProfileBreakdown<QueryTimingType> context(Object context);
+    public AbstractTimingProfileBreakdown context(Object context);
 }

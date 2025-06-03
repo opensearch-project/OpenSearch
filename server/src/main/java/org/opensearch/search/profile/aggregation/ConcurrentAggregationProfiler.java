@@ -13,9 +13,8 @@
 
 package org.opensearch.search.profile.aggregation;
 
-import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
-import org.opensearch.search.profile.TimingProfileResult;
+import org.opensearch.search.profile.ProfileResult;
 
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -36,17 +35,17 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
     private static final String[] breakdownCountStatsTypes = { "build_leaf_collector_count", "collect_count" };
 
     @Override
-    public List<TimingProfileResult> getTree() {
-        List<TimingProfileResult> tree = profileTree.getTree();
-        List<TimingProfileResult> reducedTree = new LinkedList<>();
-        Map<String, List<TimingProfileResult>> sliceLevelAggregationMap = getSliceLevelAggregationMap(tree);
-        for (List<TimingProfileResult> profileResultsAcrossSlices : sliceLevelAggregationMap.values()) {
+    public List<ProfileResult> getTree() {
+        List<ProfileResult> tree = profileTree.getTree();
+        List<ProfileResult> reducedTree = new LinkedList<>();
+        Map<String, List<ProfileResult>> sliceLevelAggregationMap = getSliceLevelAggregationMap(tree);
+        for (List<ProfileResult> profileResultsAcrossSlices : sliceLevelAggregationMap.values()) {
             reducedTree.addAll(reduceProfileResultsTree(profileResultsAcrossSlices));
         }
         return reducedTree;
     }
 
-    private List<TimingProfileResult> reduceProfileResultsTree(List<TimingProfileResult> profileResultsAcrossSlices) {
+    private List<ProfileResult> reduceProfileResultsTree(List<ProfileResult> profileResultsAcrossSlices) {
         String type = profileResultsAcrossSlices.get(0).getQueryName();
         String description = profileResultsAcrossSlices.get(0).getLuceneDescription();
         long maxSliceNodeEndTime = Long.MIN_VALUE;
@@ -60,11 +59,11 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         Map<String, Long> maxSliceEndTimeMap = new HashMap<>();
         Map<String, Long> countStatsMap = new HashMap<>();
         Map<String, Object> debug = new HashMap<>();
-        List<TimingProfileResult> children = new LinkedList<>();
+        List<ProfileResult> children = new LinkedList<>();
 
-        for (TimingProfileResult profileResult : profileResultsAcrossSlices) {
-            long profileNodeTime = profileResult.getTime();
-            long sliceStartTime = profileResult.getTimeBreakdown().get(START_TIME_KEY);
+        for (ProfileResult profileResult : profileResultsAcrossSlices) {
+            long profileNodeTime = profileResult.getBreakdown().get(AbstractTimingProfileBreakdown.NODE_TIME_RAW);
+            long sliceStartTime = profileResult.getBreakdown().get(START_TIME_KEY);
 
             // Profiled total time
             maxSliceNodeEndTime = Math.max(maxSliceNodeEndTime, sliceStartTime + profileNodeTime);
@@ -83,9 +82,9 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
             // Profiled breakdown total time
             for (AggregationTimingType timingType : AggregationTimingType.values()) {
                 String breakdownTimingType = timingType.toString();
-                Long startTime = profileResult.getTimeBreakdown()
+                Long startTime = profileResult.getBreakdown()
                     .get(breakdownTimingType + AbstractTimingProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX);
-                Long endTime = startTime + profileResult.getTimeBreakdown().get(breakdownTimingType);
+                Long endTime = startTime + profileResult.getBreakdown().get(breakdownTimingType);
                 minSliceStartTimeMap.put(
                     breakdownTimingType,
                     Math.min(minSliceStartTimeMap.getOrDefault(breakdownTimingType, Long.MAX_VALUE), startTime)
@@ -107,7 +106,7 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
                 String breakdownTypeCount = breakdownType + AbstractTimingProfileBreakdown.TIMING_TYPE_COUNT_SUFFIX;
                 breakdown.put(
                     breakdownTypeCount,
-                    breakdown.getOrDefault(breakdownTypeCount, 0L) + profileResult.getTimeBreakdown().get(breakdownTypeCount)
+                    breakdown.getOrDefault(breakdownTypeCount, 0L) + profileResult.getBreakdown().get(breakdownTypeCount)
                 );
             }
 
@@ -135,24 +134,20 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         }
 
         // children
-        List<TimingProfileResult> reducedChildrenTree = new LinkedList<>();
+        List<ProfileResult> reducedChildrenTree = new LinkedList<>();
         if (!children.isEmpty()) {
-            Map<String, List<TimingProfileResult>> sliceLevelAggregationMap = getSliceLevelAggregationMap(children);
-            for (List<TimingProfileResult> profileResults : sliceLevelAggregationMap.values()) {
+            Map<String, List<ProfileResult>> sliceLevelAggregationMap = getSliceLevelAggregationMap(children);
+            for (List<ProfileResult> profileResults : sliceLevelAggregationMap.values()) {
                 reducedChildrenTree.addAll(reduceProfileResultsTree(profileResults));
             }
         }
 
-        TimingProfileResult reducedResult = new TimingProfileResult(
+        ProfileResult reducedResult = new ProfileResult(
             type,
             description,
             breakdown,
             debug,
-            nodeTime,
-            reducedChildrenTree,
-            maxSliceNodeTime,
-            minSliceNodeTime,
-            avgSliceNodeTime
+            reducedChildrenTree
         );
         return List.of(reducedResult);
     }
@@ -166,30 +161,30 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         breakdown.put(avgBreakdownType, statsMap.get(avgBreakdownType) / treeSize);
     }
 
-    static void buildBreakdownStatsMap(Map<String, Long> statsMap, TimingProfileResult result, String breakdownType) {
+    static void buildBreakdownStatsMap(Map<String, Long> statsMap, ProfileResult result, String breakdownType) {
         String maxBreakdownType = MAX_PREFIX + breakdownType;
         String minBreakdownType = MIN_PREFIX + breakdownType;
         String avgBreakdownType = AVG_PREFIX + breakdownType;
         statsMap.put(
             maxBreakdownType,
-            Math.max(statsMap.getOrDefault(maxBreakdownType, Long.MIN_VALUE), result.getTimeBreakdown().get(breakdownType))
+            Math.max(statsMap.getOrDefault(maxBreakdownType, Long.MIN_VALUE), result.getBreakdown().get(breakdownType))
         );
         statsMap.put(
             minBreakdownType,
-            Math.min(statsMap.getOrDefault(minBreakdownType, Long.MAX_VALUE), result.getTimeBreakdown().get(breakdownType))
+            Math.min(statsMap.getOrDefault(minBreakdownType, Long.MAX_VALUE), result.getBreakdown().get(breakdownType))
         );
-        statsMap.put(avgBreakdownType, statsMap.getOrDefault(avgBreakdownType, 0L) + result.getTimeBreakdown().get(breakdownType));
+        statsMap.put(avgBreakdownType, statsMap.getOrDefault(avgBreakdownType, 0L) + result.getBreakdown().get(breakdownType));
     }
 
     /**
      * @return a slice level aggregation map where the key is the description of the aggregation and
      * the value is a list of ProfileResult across all slices.
      */
-    static Map<String, List<TimingProfileResult>> getSliceLevelAggregationMap(List<TimingProfileResult> tree) {
-        Map<String, List<TimingProfileResult>> sliceLevelAggregationMap = new HashMap<>();
-        for (TimingProfileResult result : tree) {
+    static Map<String, List<ProfileResult>> getSliceLevelAggregationMap(List<ProfileResult> tree) {
+        Map<String, List<ProfileResult>> sliceLevelAggregationMap = new HashMap<>();
+        for (ProfileResult result : tree) {
             String description = result.getLuceneDescription();
-            final List<TimingProfileResult> sliceLevelAggregationList = sliceLevelAggregationMap.computeIfAbsent(
+            final List<ProfileResult> sliceLevelAggregationList = sliceLevelAggregationMap.computeIfAbsent(
                 description,
                 k -> new LinkedList<>()
             );

@@ -282,12 +282,7 @@ import org.opensearch.search.suggest.term.TermSuggestion;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -321,6 +316,8 @@ public class SearchModule {
 
     private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
 
+    private final List<SearchPlugin.ProfileBreakdownProvider> pluginProfilerProviders;
+
     /**
      * Constructs a new SearchModule object
      * <p>
@@ -350,6 +347,7 @@ public class SearchModule {
         indexSearcherExecutorProvider = registerIndexSearcherExecutorProvider(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
         concurrentSearchDeciderFactories = registerConcurrentSearchDeciderFactories(plugins);
+        pluginProfilerProviders = registerProfilerProviders(plugins);
     }
 
     private Collection<ConcurrentSearchRequestDecider.Factory> registerConcurrentSearchDeciderFactories(List<SearchPlugin> plugins) {
@@ -1297,6 +1295,20 @@ public class SearchModule {
         return provider;
     }
 
+    private List<SearchPlugin.ProfileBreakdownProvider> registerProfilerProviders(List<SearchPlugin> plugins) {
+
+        List<SearchPlugin.ProfileBreakdownProvider> profilerProviders = new ArrayList<>();
+
+        for (SearchPlugin plugin : plugins) {
+            SearchPlugin.ProfileBreakdownProvider profilerProvider = plugin.getProfileBreakdownProvider();
+            if(profilerProvider != null) {
+                profilerProviders.add(profilerProvider);
+            }
+        }
+
+        return profilerProviders;
+    }
+
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
     }
@@ -1307,5 +1319,9 @@ public class SearchModule {
 
     public @Nullable ExecutorService getIndexSearcherExecutor(ThreadPool pool) {
         return (indexSearcherExecutorProvider != null) ? indexSearcherExecutorProvider.getExecutor(pool) : null;
+    }
+
+    public List<SearchPlugin.ProfileBreakdownProvider> getPluginProfileBreakdownProviders() {
+        return Collections.unmodifiableList(pluginProfilerProviders);
     }
 }

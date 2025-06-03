@@ -16,13 +16,16 @@ import java.util.EmptyStackException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Interface for profiling context
+ */
 public interface ProfileContext {
     /**
      * Return (or create) contextual profile breakdown instance
      * @param context freestyle context
      * @return contextual profile breakdown instance
      */
-    public <T extends Enum<T>> AbstractProfileBreakdown<T> context(Object context);
+    public AbstractProfileBreakdown context(Object context);
 
     default public void associateCollectorToLeaves(Collector collector, LeafReaderContext leaf) {}
 

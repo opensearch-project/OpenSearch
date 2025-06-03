@@ -10,39 +10,37 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
-import org.opensearch.search.profile.TimingProfileResult;
+import org.opensearch.search.profile.ProfileResult;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * This class returns a list of {@link TimingProfileResult} that can be serialized back to the client in the concurrent execution.
+ * This class returns a list of {@link ProfileResult} that can be serialized back to the client in the concurrent execution.
  *
  * @opensearch.internal
  */
 public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
 
-    @Override
-    protected AbstractTimingProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new ConcurrentQueryTimingProfileBreakdown();
+    private final Map<Class<? extends Query>,  Class<? extends AbstractTimingProfileBreakdown>> pluginBreakdownClasses;
+
+    public ConcurrentQueryProfileTree(Map<Class<? extends Query>, Class<? extends AbstractTimingProfileBreakdown>> breakdowns) {
+        this.pluginBreakdownClasses = breakdowns;
     }
 
     @Override
-    protected TimingProfileResult createProfileResult(String type, String description, AbstractTimingProfileBreakdown<QueryTimingType> breakdown, List<TimingProfileResult> childrenProfileResults) {
-        assert breakdown instanceof ConcurrentQueryTimingProfileBreakdown;
-        final ConcurrentQueryTimingProfileBreakdown concurrentBreakdown = (ConcurrentQueryTimingProfileBreakdown) breakdown;
-        return new TimingProfileResult(
-            type,
-            description,
-            concurrentBreakdown.toBreakdownMap(),
-            concurrentBreakdown.toDebugMap(),
-            concurrentBreakdown.toNodeTime(),
-            childrenProfileResults,
-            concurrentBreakdown.getMaxSliceNodeTime(),
-            concurrentBreakdown.getMinSliceNodeTime(),
-            concurrentBreakdown.getAvgSliceNodeTime()
-        );
+    protected AbstractTimingProfileBreakdown createProfileBreakdown(Query query) throws Exception {
+        AbstractTimingProfileBreakdown pluginBreakdown = null;
+        if (pluginBreakdownClasses != null) {
+            Class<? extends AbstractTimingProfileBreakdown> pluginBreakdownClass = pluginBreakdownClasses.get(query.getClass());
+            if (pluginBreakdownClass != null) {
+                pluginBreakdown = pluginBreakdownClass.getDeclaredConstructor().newInstance();
+            }
+        }
+        return new ConcurrentQueryTimingProfileBreakdown(pluginBreakdown);
     }
 
     /**
@@ -55,9 +53,9 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
      * @return a hierarchical representation of the profiled query tree
      */
     @Override
-    public List<TimingProfileResult> getTree() {
+    public List<ProfileResult> getTree() {
         for (Integer root : roots) {
-            final AbstractTimingProfileBreakdown<QueryTimingType> parentBreakdown = breakdowns.get(root);
+            final AbstractTimingProfileBreakdown parentBreakdown = breakdowns.get(root);
             assert parentBreakdown instanceof ConcurrentQueryTimingProfileBreakdown;
             final Map<Collector, List<LeafReaderContext>> parentCollectorToLeaves = ((ConcurrentQueryTimingProfileBreakdown) parentBreakdown)
                 .getSliceCollectorsToLeaves();
@@ -77,7 +75,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
         final List<Integer> children = tree.get(parentToken);
         if (children != null) {
             for (Integer currentChild : children) {
-                final QueryTimingProfileBreakdown currentChildBreakdown = (QueryTimingProfileBreakdown) breakdowns.get(currentChild);
+                final TimingProfileContext currentChildBreakdown = (TimingProfileContext) breakdowns.get(currentChild);
                 currentChildBreakdown.associateCollectorsToLeaves(collectorToLeaves);
                 updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves);
             }

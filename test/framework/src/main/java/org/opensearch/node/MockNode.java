@@ -52,6 +52,7 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
+import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -60,6 +61,7 @@ import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchPhase;
+import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -72,10 +74,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.nio.file.Path;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -171,7 +170,8 @@ public class MockNode extends Node {
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories
+        Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
+        List<SearchPlugin.ProfileBreakdownProvider> pluginProfilers
     ) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(
@@ -186,7 +186,8 @@ public class MockNode extends Node {
                 circuitBreakerService,
                 indexSearcherExecutor,
                 taskResourceTrackingService,
-                concurrentSearchDeciderFactories
+                concurrentSearchDeciderFactories,
+                pluginProfilers
             );
         }
         return new MockSearchService(

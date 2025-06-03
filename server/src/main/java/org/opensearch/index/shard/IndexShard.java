@@ -67,7 +67,6 @@ import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IngestionStatus;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -76,6 +75,7 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
@@ -190,6 +190,7 @@ import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
+import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
@@ -375,6 +376,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Supplier<TimeValue> refreshInterval;
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
+    private final ClusterApplierService clusterApplierService;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -411,7 +413,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final boolean shardLevelRefreshEnabled,
         final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         final Supplier<TimeValue> refreshInterval,
-        final Object refreshMutex
+        final Object refreshMutex,
+        final ClusterApplierService clusterApplierService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -518,6 +521,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.fixedRefreshIntervalSchedulingEnabled = fixedRefreshIntervalSchedulingEnabled;
         this.refreshInterval = refreshInterval;
         this.refreshMutex = Objects.requireNonNull(refreshMutex);
+        this.clusterApplierService = clusterApplierService;
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
@@ -4127,7 +4131,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null, // DESC @timestamp default order for
             // timeseries
             () -> docMapper(),
-            mergedSegmentWarmerFactory.get(this)
+            mergedSegmentWarmerFactory.get(this),
+            clusterApplierService
         );
     }
 
@@ -5285,7 +5290,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
                 assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
-                    : "There should not be any segments file in the dir";
+                    || indexSettings.isWarmIndex() : "There should not be any segments file in the dir";
                 store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
             } else if (segmentsNFile != null) {
                 try (
@@ -5481,24 +5486,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
 
-        updateShardIngestionState(indexMetadata.getIngestionStatus());
+        IngestionSettings ingestionSettings = IngestionSettings.builder()
+            .setIsPaused(indexMetadata.getIngestionStatus().isPaused())
+            .build();
+        updateShardIngestionState(ingestionSettings);
     }
 
     /**
      * Updates the ingestion state by delegating to the ingestion engine.
      */
-    public void updateShardIngestionState(IngestionStatus ingestionStatus) {
+    public void updateShardIngestionState(IngestionSettings ingestionSettings) {
         synchronized (engineMutex) {
             if (getEngineOrNull() instanceof IngestionEngine == false) {
                 return;
             }
 
             IngestionEngine ingestionEngine = (IngestionEngine) getEngineOrNull();
-            if (ingestionStatus.isPaused()) {
-                ingestionEngine.pauseIngestion();
-            } else {
-                ingestionEngine.resumeIngestion();
-            }
+            ingestionEngine.updateIngestionSettings(ingestionSettings);
         }
     }
 
