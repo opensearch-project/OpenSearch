@@ -63,13 +63,74 @@
           error.reason: "Invalid value for 'order'. Allowed: 'asc', 'desc'"
 
 ---
-  "Invalid token returns 400":
-    - skip:
-        version: " - 3.0.0"
-        reason: "wlm_stats_list API added after 3.0.0"
-    - do:
-        catch: bad_request
-        wlm_stats_list:
-          next_token: "abcdef123456"
+"Invalid token returns 400":
+  - skip:
+      version: " - 3.0.0"
+      reason: "wlm_stats_list API added after 3.0.0"
+  - do:
+      catch: bad_request
+      wlm_stats_list:
+        next_token: "abcdef123456"
 
-    - match: { error: "Pagination state has changed (e.g., new workload groups added or removed). Please restart pagination from the beginning by omitting the 'next_token' parameter." }
+  - match: { error: "Pagination state has changed (e.g., new workload groups added or removed). Please restart pagination from the beginning by omitting the 'next_token' parameter." }
+
+---
+"Default request returns 200 and contains expected keys":
+  - skip:
+      version: " - 3.0.0"
+      reason: "wlm_stats_list API added after 3.0.0"
+  - do:
+      wlm_stats_list:
+        v: true
+  - is_true: $body
+  - match:
+      $body: /WORKLOAD_GROUP_ID/
+
+---
+"Max allowed size param returns success":
+  - skip:
+      version: " - 3.0.0"
+      reason: "wlm_stats_list API added after 3.0.0"
+  - do:
+      wlm_stats_list:
+        size: 100
+  - is_true: $body
+
+---
+"Too large page size returns error":
+  - skip:
+      version: " - 3.0.0"
+      reason: "wlm_stats_list API added after 3.0.0"
+  - do:
+      catch: bad_request
+      wlm_stats_list:
+        size: 1000
+  - match:
+      error: "Invalid value for 'size'. Allowed range: 1 to 100"
+
+---
+"Negative page size returns error":
+  - skip:
+      version: " - 3.0.0"
+      reason: "wlm_stats_list API added after 3.0.0"
+  - do:
+      catch: bad_request
+      wlm_stats_list:
+        size: -1
+  - match:
+      error.reason: "Invalid value for 'size'. Allowed range: 1 to 100"
+
+
+---
+"Sort param omitted uses default 'node_id'":
+  - skip:
+      version: " - 3.0.0"
+      reason: "wlm_stats_list API added after 3.0.0"
+  - do:
+      wlm_stats_list:
+        size: 1
+        v: true
+  - is_true: $body
+  - match:
+      $body: /NODE_ID/
+
