@@ -10,13 +10,13 @@ IS_STAGE=${IS_STAGE:-false}
 DISTRIBUTION=${DISTRIBUTION:-rpm}
 ARCHITECTURE=${ARCHITECTURE:-x64}
 
+PLUGINS_REPO_DIR="/repositories/wazuh-indexer-plugins"
+
 # Function to clone repositories
 clone_repositories() {
     echo "----------------------------------------"
     echo "Cloning Repositories"
     echo "----------------------------------------"
-
-    PLUGINS_REPO_DIR="/repositories/wazuh-indexer-plugins"
 
     if [ -d "$PLUGINS_REPO_DIR/.git" ]; then
         git -C "$PLUGINS_REPO_DIR" checkout "$INDEXER_PLUGINS_BRANCH"
@@ -32,7 +32,7 @@ build_plugins() {
     echo "----------------------------------------"
     local version="$1"
     local revision="$2"
-    cd /repositories/wazuh-indexer-plugins/plugins/setup
+    cd ${PLUGINS_REPO_DIR}/plugins/setup
     echo "Building setup plugin..."
     ./gradlew build -Dversion="$version" -Drevision="$revision" --no-daemon
 }
@@ -46,7 +46,7 @@ copy_builds() {
     local revision="$2"
     mkdir -p ~/artifacts/plugins
     echo "Copying setup plugin..."
-    cp /repositories/wazuh-indexer-plugins/plugins/setup/build/distributions/wazuh-indexer-setup-"$version"."$revision".zip ~/artifacts/plugins
+    cp ${PLUGINS_REPO_DIR}/plugins/setup/build/distributions/wazuh-indexer-setup-"$version"."$revision".zip ~/artifacts/plugins
 }
 
 # Function for packaging process
@@ -63,7 +63,7 @@ package_artifacts() {
     local package_min_name
     local package_name
 
-    plugins_hash=$(cd /repositories/wazuh-indexer-plugins && git rev-parse --short HEAD)
+    plugins_hash=$(cd ${PLUGINS_REPO_DIR} && git rev-parse --short HEAD)
 
     cd ~
 

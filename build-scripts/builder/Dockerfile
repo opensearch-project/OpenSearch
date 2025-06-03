@@ -1,51 +1,37 @@
 # Use the official Ubuntu Noble image as the base image
-FROM ubuntu:noble
+FROM ubuntu:jammy
 
-RUN userdel -r ubuntu
+USER root
 
 # Set environment variables for non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-
 # Update the package list and install necessary tools
-RUN apt-get update \
-    && apt-get upgrade -y \
-    && apt-get install -y \
+RUN apt-get update && \
+    apt-get install -y curl gnupg lsb-release && \
+    curl -fsSL https://www.aptly.info/pubkey.txt | gpg --dearmor -o /usr/share/keyrings/aptly.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/aptly.gpg] http://repo.aptly.info/ squeeze main" | tee /etc/apt/sources.list.d/aptly.list && \
+    apt-get update -y && \
+    apt-get install -y --no-install-recommends \
     wget \
-    curl \
     unzip \
-    gnupg2 \
     git \
     build-essential \
     debmake \
     debhelper-compat \
-    libxrender1 \
-    libxtst6 \
+    libxext6 \
+    libx11-6 \
     libxi6 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libatspi2.0-dev \
-    libxcomposite-dev \
-    libxdamage1 \
-    libxfixes3 \
-    libxfixes-dev \
-    libxrandr2 \
-    libgbm-dev \
-    libxkbcommon-x11-0 \
-    libpangocairo-1.0-0 \
-    libcairo2 \
-    libcairo2-dev \
-    libnss3 \
-    libnspr4 \
-    libnspr4-dev \
+    libxtst6 \
+    libxrender1 \
     aptly \
     cpio \
     rpm \
     rpm2cpio \
     maven \
     jq \
+    python3 \
+    python3-debian \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install OpenJDK 21
@@ -54,7 +40,7 @@ RUN wget -O- https://download.java.net/openjdk/jdk21/ri/openjdk-21+35_linux-x64_
 # Set JAVA_HOME environment variable
 ENV JAVA_HOME=/opt/jdk-21
 ENV PATH=$JAVA_HOME/bin:$PATH
-ENV GRADLE_VERSION=8.10
+ENV GRADLE_VERSION=8.14
 ENV GRADLE_OPTS="-Xmx2048m -XX:ReservedCodeCacheSize=440m"
 
 # Download gradle
@@ -74,9 +60,8 @@ RUN addgroup --gid 1000 wazuh-indexer && \
     adduser --ingroup wazuh-indexer --uid 1000 wazuh-indexer
 
 # Create repositories path
-
 RUN mkdir -p /repositories/wazuh-indexer-plugins && \
-    chown wazuh-indexer:wazuh-indexer /repositories/wazuh-indexer-plugins && \
+    chown wazuh-indexer:wazuh-indexer /repositories/wazuh-indexer-plugins
 
 # Copy your build scripts into the container as root
 COPY build-scripts/builder/entrypoint.sh /
