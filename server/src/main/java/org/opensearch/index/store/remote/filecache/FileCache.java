@@ -14,10 +14,12 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
-import org.opensearch.index.store.remote.utils.cache.CacheUsage;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.utils.cache.RefCountedCache;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
-import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.AggregateRefCountedCacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.IRefCountedCacheStats;
+import org.opensearch.index.store.remote.utils.cache.stats.RefCountedCacheStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -122,6 +124,31 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         theCache.decRef(key);
     }
 
+    /**
+     * Pins the key in the cache, preventing it from being evicted.
+     *
+     * @param key
+     */
+    @Override
+    public void pin(Path key) {
+        theCache.pin(key);
+    }
+
+    /**
+     * Unpins the key in the cache, allowing it to be evicted.
+     *
+     * @param key
+     */
+    @Override
+    public void unpin(Path key) {
+        theCache.unpin(key);
+    }
+
+    @Override
+    public Integer getRef(Path key) {
+        return theCache.getRef(key);
+    }
+
     @Override
     public long prune() {
         return theCache.prune();
@@ -133,20 +160,35 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     }
 
     @Override
-    public CacheUsage usage() {
+    public long usage() {
         return theCache.usage();
     }
 
     @Override
-    public CacheStats stats() {
+    public long activeUsage() {
+        return theCache.activeUsage();
+    }
+
+    /**
+     * Returns the pinned usage of this cache.
+     *
+     * @return the combined pinned weight of the values in this cache.
+     */
+    @Override
+    public long pinnedUsage() {
+        return theCache.pinnedUsage();
+    }
+
+    @Override
+    public IRefCountedCacheStats stats() {
         return theCache.stats();
     }
 
     // To be used only for debugging purposes
     public void logCurrentState() {
         logger.trace("CURRENT STATE OF FILE CACHE \n");
-        CacheUsage cacheUsage = theCache.usage();
-        logger.trace("Total Usage: " + cacheUsage.usage() + " , Active Usage: " + cacheUsage.activeUsage());
+        long cacheUsage = theCache.usage();
+        logger.trace("Total Usage: " + cacheUsage + " , Active Usage: " + theCache.activeUsage());
         theCache.logCurrentState();
     }
 
@@ -203,19 +245,57 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     }
 
     /**
-     * Returns the current {@link FileCacheStats}
+     * Returns the current {@link AggregateFileCacheStats}
      */
-    public FileCacheStats fileCacheStats() {
-        CacheStats stats = stats();
-        CacheUsage usage = usage();
-        return new FileCacheStats(
+    public AggregateFileCacheStats fileCacheStats() {
+        final AggregateRefCountedCacheStats stats = (AggregateRefCountedCacheStats) stats();
+
+        final RefCountedCacheStats overallCacheStats = stats.getOverallCacheStats();
+        final RefCountedCacheStats fullFileCacheStats = stats.getFullFileCacheStats();
+        final RefCountedCacheStats blockFileCacheStats = stats.getBlockFileCacheStats();
+        final RefCountedCacheStats pinnedFileCacheStats = stats.getPinnedFileCacheStats();
+        return new AggregateFileCacheStats(
             System.currentTimeMillis(),
-            usage.activeUsage(),
-            capacity(),
-            usage.usage(),
-            stats.evictionWeight(),
-            stats.hitCount(),
-            stats.missCount()
+            new FileCacheStats(
+                overallCacheStats.activeUsage(),
+                capacity(),
+                overallCacheStats.usage(),
+                overallCacheStats.pinnedUsage(),
+                overallCacheStats.evictionWeight(),
+                overallCacheStats.hitCount(),
+                overallCacheStats.missCount(),
+                FileCacheStatsType.OVER_ALL_STATS
+            ),
+            new FileCacheStats(
+                fullFileCacheStats.activeUsage(),
+                capacity(),
+                fullFileCacheStats.usage(),
+                fullFileCacheStats.pinnedUsage(),
+                fullFileCacheStats.evictionWeight(),
+                fullFileCacheStats.hitCount(),
+                fullFileCacheStats.missCount(),
+                FileCacheStatsType.FULL_FILE_STATS
+            ),
+            new FileCacheStats(
+                blockFileCacheStats.activeUsage(),
+                capacity(),
+                blockFileCacheStats.usage(),
+                blockFileCacheStats.pinnedUsage(),
+                blockFileCacheStats.evictionWeight(),
+                blockFileCacheStats.hitCount(),
+                blockFileCacheStats.missCount(),
+                FileCacheStatsType.BLOCK_FILE_STATS
+            ),
+            new FileCacheStats(
+                pinnedFileCacheStats.activeUsage(),
+                capacity(),
+                pinnedFileCacheStats.usage(),
+                pinnedFileCacheStats.pinnedUsage(),
+                pinnedFileCacheStats.evictionWeight(),
+                pinnedFileCacheStats.hitCount(),
+                pinnedFileCacheStats.missCount(),
+                FileCacheStatsType.PINNED_FILE_STATS
+            )
         );
     }
 
