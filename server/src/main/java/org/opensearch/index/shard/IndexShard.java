@@ -1180,8 +1180,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         SourceToParse sourceToParse,
         String id
     ) throws IOException {
-        // Only use segment replication path if sourceToParse is null
-        if (indexSettings.isSegRepEnabledOrRemoteNode() && routingEntry().primary() == false && sourceToParse == null) {
+        if (indexSettings.isSegRepEnabledOrRemoteNode() && routingEntry().primary() == false) {
             Engine.Index index = new Engine.Index(
                 new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
                 null, // ParsedDocument is null for segment replication
@@ -1393,7 +1392,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 version,
                 null,
                 Engine.Operation.Origin.REPLICA,
-                threadPool.absoluteTimeInMillis(),
+                System.nanoTime(),
                 UNASSIGNED_SEQ_NO,
                 0
             );
