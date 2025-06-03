@@ -84,6 +84,9 @@ public class LocalMergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
 
     @Override
     public void warm(LeafReader leafReader) throws IOException {
+        // IndexWriter.IndexReaderWarmer#warm is called by IndexWriter#mergeMiddle. The type of leafReader should be SegmentReader.
+        assert leafReader instanceof SegmentReader;
+
         SegmentCommitInfo segmentCommitInfo = ((SegmentReader) leafReader).getSegmentInfo();
         ReplicationSegmentCheckpoint mergedSegment = indexShard.computeReplicationSegmentCheckpoint(segmentCommitInfo);
         PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(mergedSegment);
