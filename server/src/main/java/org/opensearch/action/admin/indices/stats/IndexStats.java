@@ -49,7 +49,7 @@ import java.util.Map;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndexStats implements Iterable<IndexShardStats>, ToXContentFragment {
+public class IndexStats implements Iterable<IndexShardStats> {
 
     private final String index;
 
@@ -146,16 +146,6 @@ public class IndexStats implements Iterable<IndexShardStats>, ToXContentFragment
             }
         }
         return max;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("index", index);
-        builder.field("uuid", uuid);
-        builder.field("last_index_request_timestamp", getLastIndexRequestTimestamp());
-        builder.endObject();
-        return builder;
     }
 
     /**
