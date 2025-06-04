@@ -133,4 +133,3 @@
   - is_true: $body
   - match:
       $body: /NODE_ID/
-
