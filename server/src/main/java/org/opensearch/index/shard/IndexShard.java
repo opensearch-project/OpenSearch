@@ -4085,7 +4085,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this,
                 this.checkpointPublisher,
                 remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId()),
-                remoteStoreSettings);
+                remoteStoreSettings
+            );
 
             internalRefreshListener.add(
                 new RemoteStoreRefreshListener(

@@ -9,33 +9,21 @@
 package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
-import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.UploadListener;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.index.engine.EngineException;
-import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
-import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.RemoteStoreSettings;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -43,15 +31,8 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-
-import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 
 /**
  * RefreshListener implementation to upload newly created segment files to the remote store
@@ -120,8 +101,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         }
         // initializing primary term with the primary term of latest metadata in remote store.
         // if no metadata is present, this value will be initialized with -1.
-        this.primaryTerm = remoteSegmentMetadata != null ? remoteSegmentMetadata.getPrimaryTerm() :
-            INVALID_PRIMARY_TERM;
+        this.primaryTerm = remoteSegmentMetadata != null ? remoteSegmentMetadata.getPrimaryTerm() : INVALID_PRIMARY_TERM;
         this.segmentTracker = segmentTracker;
         resetBackOffDelayIterator();
         this.checkpointPublisher = checkpointPublisher;
@@ -233,7 +213,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return ThreadPool.Names.REMOTE_REFRESH_RETRY;
     }
 
-    //todo: create a common class
+    // todo: create a common class
     private boolean isRefreshAfterCommit() throws IOException {
         String lastCommittedLocalSegmentFileName = SegmentInfos.getLastCommitSegmentsFileName(storeDirectory);
         return (lastCommittedLocalSegmentFileName != null
@@ -253,7 +233,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return false;
     }
 
-    //todo
+    // todo
     boolean isLowPriorityUpload() {
         return isLocalOrSnapshotRecoveryOrSeeding();
     }
@@ -264,7 +244,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @param file that needs to be uploaded.
      * @return true if the upload has to be skipped for the file.
      */
-    //todo: create a common class
+    // todo: create a common class
     private boolean skipUpload(String file) {
         try {
             // Exclude files that are already uploaded and the exclude files to come up with the list of files to be uploaded.
@@ -295,7 +275,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      *
      * @return updated map of local segment files and filesize
      */
-    //todo: create a common class
+    // todo: create a common class
     private Map<String, Long> updateLocalSizeMapAndTracker(Collection<String> segmentFiles) {
         return segmentTracker.updateLatestLocalFileNameLengthMap(segmentFiles, storeDirectory::fileLength);
     }
@@ -305,7 +285,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * returned value of this method for scheduling retries in syncSegments method.
      * @return true iff the shard is a started with primary mode true or it is local or snapshot recovery.
      */
-    //todo: create a common class
+    // todo: create a common class
     private boolean isReadyForUpload() {
         boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecoveryOrSeeding();
 
@@ -329,7 +309,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return isReady;
     }
 
-    //todo: create a common class
+    // todo: create a common class
     boolean isLocalOrSnapshotRecoveryOrSeeding() {
         // In this case when the primary mode is false, we need to upload segments to Remote Store
         // This is required in case of remote migration seeding/snapshots/shrink/ split/clone where we need to durable persist

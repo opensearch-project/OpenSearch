@@ -30,8 +30,6 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
-import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILES;
 import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
@@ -51,6 +49,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILES;
 
 public class RemoteUploaderService {
 
@@ -411,8 +411,8 @@ public class RemoteUploaderService {
         return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
             && indexShard.recoveryState() != null
             && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-            || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
-            || indexShard.shouldSeedRemoteStore());
+                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                || indexShard.shouldSeedRemoteStore());
     }
 
     private String getChecksumOfLocalFile(String file) throws IOException {
