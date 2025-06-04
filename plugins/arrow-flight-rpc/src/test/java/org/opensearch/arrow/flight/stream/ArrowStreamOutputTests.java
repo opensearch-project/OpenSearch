@@ -210,13 +210,11 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
         VectorSchemaRoot root = output.getUnifiedRoot();
         assertEquals(4, root.getFieldVectors().size());
 
-        // Verify column names follow ordinal pattern
         assertEquals("root.0", root.getVector(0).getField().getName());
         assertEquals("root.1", root.getVector(1).getField().getName());
         assertEquals("root.2", root.getVector(2).getField().getName());
         assertEquals("root.3", root.getVector(3).getField().getName());
 
-        // Verify values
         assertEquals(100, ((IntVector) root.getVector(0)).get(0));
         assertEquals("test", new String(((VarCharVector) root.getVector(1)).get(0), StandardCharsets.UTF_8));
         assertEquals(1, ((BitVector) root.getVector(2)).get(0));
@@ -228,14 +226,11 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
         output.writeNamedWriteable(testWriteable);
 
         VectorSchemaRoot root = output.getUnifiedRoot();
-        assertEquals(1, root.getFieldVectors().size());
+        assertEquals(4, root.getFieldVectors().size());
 
         StructVector structVector = (StructVector) root.getVector(0);
         assertEquals("root.0", structVector.getField().getName());
         assertEquals("test-writeable", structVector.getField().getMetadata().get("name"));
-
-        // The struct should have nested fields for the writeable's data
-        assertTrue(structVector.getValueCount() > 0);
     }
 
     public void testWriteList() throws IOException {
@@ -248,13 +243,8 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
         output.writeList(testList);
 
         VectorSchemaRoot root = output.getUnifiedRoot();
-        assertEquals(1, root.getFieldVectors().size());
-
-        StructVector structVector = (StructVector) root.getVector(0);
-        assertEquals("root.0", structVector.getField().getName());
-
-        // List should have multiple rows for each element
-        assertTrue(structVector.getValueCount() > 0);
+        // 1 int vector, 1 string vector, 1 boolean vector to determine if values need to be written
+        assertEquals(3, root.getFieldVectors().size());
     }
 
     public void testWriteEmptyList() throws IOException {
@@ -262,10 +252,7 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
         output.writeList(emptyList);
 
         VectorSchemaRoot root = output.getUnifiedRoot();
-        assertEquals(1, root.getFieldVectors().size());
-
-        StructVector structVector = (StructVector) root.getVector(0);
-        assertEquals("root.0", structVector.getField().getName());
+        assertEquals(0, root.getFieldVectors().size());
     }
 
     public void testWriteNullMap() throws IOException {
@@ -306,7 +293,6 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
         assertEquals("root", pathManager.getCurrentPath());
         assertEquals(0, pathManager.getCurrentRow());
 
-        // Add a child and move to it
         int childOrdinal = pathManager.addChild();
         assertEquals(0, childOrdinal);
 
@@ -314,7 +300,6 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
         assertEquals("root.0", pathManager.getCurrentPath());
         assertEquals(0, pathManager.getCurrentRow());
 
-        // Move back to parent
         pathManager.moveToParent();
         assertEquals("root", pathManager.getCurrentPath());
     }
@@ -359,11 +344,9 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
     }
 
     public void testColumnOrderingValidation() throws IOException {
-        // This test verifies that columns must be added in order
         output.writeInt(1);
         output.writeString("test");
 
-        // The implementation should handle proper ordering internally
         VectorSchemaRoot root = output.getUnifiedRoot();
         assertEquals(2, root.getFieldVectors().size());
         assertEquals("root.0", root.getVector(0).getField().getName());
@@ -377,7 +360,6 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
         VectorSchemaRoot root = output.getUnifiedRoot();
         assertEquals(2, root.getFieldVectors().size());
 
-        // VInt and VLong should be stored as regular Int and Long
         IntVector intVector = (IntVector) root.getVector(0);
         assertEquals(12345, intVector.get(0));
 
@@ -411,15 +393,391 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
         expectThrows(UnsupportedOperationException.class, () -> output.flush());
     }
 
-    // Helper classes for testing
-    private static class TestWriteable implements Writeable {
-        private final int intValue;
-        private final String stringValue;
+    public void testWriteMinMaxValues() throws IOException {
+        output.writeByte(Byte.MIN_VALUE);
+        output.writeByte(Byte.MAX_VALUE);
+        output.writeInt(Integer.MIN_VALUE);
+        output.writeInt(Integer.MAX_VALUE);
+        output.writeLong(Long.MIN_VALUE);
+        output.writeLong(Long.MAX_VALUE);
+        output.writeFloat(Float.MIN_VALUE);
+        output.writeFloat(Float.MAX_VALUE);
+        output.writeFloat(Float.NEGATIVE_INFINITY);
+        output.writeFloat(Float.POSITIVE_INFINITY);
+        output.writeFloat(Float.NaN);
+        output.writeDouble(Double.MIN_VALUE);
+        output.writeDouble(Double.MAX_VALUE);
+        output.writeDouble(Double.NEGATIVE_INFINITY);
+        output.writeDouble(Double.POSITIVE_INFINITY);
+        output.writeDouble(Double.NaN);
 
-        TestWriteable(int intValue, String stringValue) {
-            this.intValue = intValue;
-            this.stringValue = stringValue;
+        VectorSchemaRoot root = output.getUnifiedRoot();
+        assertEquals(16, root.getFieldVectors().size());
+
+        TinyIntVector byteVector1 = (TinyIntVector) root.getVector(0);
+        TinyIntVector byteVector2 = (TinyIntVector) root.getVector(1);
+        assertEquals(Byte.MIN_VALUE, byteVector1.get(0));
+        assertEquals(Byte.MAX_VALUE, byteVector2.get(0));
+
+        IntVector intVector1 = (IntVector) root.getVector(2);
+        IntVector intVector2 = (IntVector) root.getVector(3);
+        assertEquals(Integer.MIN_VALUE, intVector1.get(0));
+        assertEquals(Integer.MAX_VALUE, intVector2.get(0));
+
+        BigIntVector longVector1 = (BigIntVector) root.getVector(4);
+        BigIntVector longVector2 = (BigIntVector) root.getVector(5);
+        assertEquals(Long.MIN_VALUE, longVector1.get(0));
+        assertEquals(Long.MAX_VALUE, longVector2.get(0));
+
+        Float4Vector floatVector1 = (Float4Vector) root.getVector(6);
+        Float4Vector floatVector2 = (Float4Vector) root.getVector(7);
+        Float4Vector floatVector3 = (Float4Vector) root.getVector(8);
+        Float4Vector floatVector4 = (Float4Vector) root.getVector(9);
+        Float4Vector floatVector5 = (Float4Vector) root.getVector(10);
+        assertEquals(Float.MIN_VALUE, floatVector1.get(0), 0.0f);
+        assertEquals(Float.MAX_VALUE, floatVector2.get(0), 0.0f);
+        assertEquals(Float.NEGATIVE_INFINITY, floatVector3.get(0), 0.0f);
+        assertEquals(Float.POSITIVE_INFINITY, floatVector4.get(0), 0.0f);
+        assertTrue(Float.isNaN(floatVector5.get(0)));
+
+        Float8Vector doubleVector1 = (Float8Vector) root.getVector(11);
+        Float8Vector doubleVector2 = (Float8Vector) root.getVector(12);
+        Float8Vector doubleVector3 = (Float8Vector) root.getVector(13);
+        Float8Vector doubleVector4 = (Float8Vector) root.getVector(14);
+        Float8Vector doubleVector5 = (Float8Vector) root.getVector(15);
+        assertEquals(Double.MIN_VALUE, doubleVector1.get(0), 0.0);
+        assertEquals(Double.MAX_VALUE, doubleVector2.get(0), 0.0);
+        assertEquals(Double.NEGATIVE_INFINITY, doubleVector3.get(0), 0.0);
+        assertEquals(Double.POSITIVE_INFINITY, doubleVector4.get(0), 0.0);
+        assertTrue(Double.isNaN(doubleVector5.get(0)));
+    }
+
+    public void testWriteEmptyAndNullStrings() throws IOException {
+        output.writeString("");
+        // TODO: how does regular stream output handle null strings?
+        // output.writeString(null);
+        output.writeText(new Text(""));
+        // output.writeText(null);
+
+        VectorSchemaRoot root = output.getUnifiedRoot();
+        assertEquals(2, root.getFieldVectors().size());
+
+        VarCharVector stringVector1 = (VarCharVector) root.getVector(0);
+        // VarCharVector stringVector2 = (VarCharVector) root.getVector(1);
+        VarCharVector textVector1 = (VarCharVector) root.getVector(1);
+        // VarCharVector textVector2 = (VarCharVector) root.getVector(3);
+
+        assertEquals("", new String(stringVector1.get(0), StandardCharsets.UTF_8));
+        // assertTrue(stringVector2.isNull(0));
+        assertEquals("", new String(textVector1.get(0), StandardCharsets.UTF_8));
+        // assertTrue(textVector2.isNull(0));
+    }
+
+    public void testWriteLargeStrings() throws IOException {
+        StringBuilder largeString = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            largeString.append("This is a test string with some content ");
         }
+        String testString = largeString.toString();
+
+        output.writeString(testString);
+        output.writeText(new Text(testString));
+
+        VectorSchemaRoot root = output.getUnifiedRoot();
+        assertEquals(2, root.getFieldVectors().size());
+
+        VarCharVector stringVector = (VarCharVector) root.getVector(0);
+        VarCharVector textVector = (VarCharVector) root.getVector(1);
+
+        assertEquals(testString, new String(stringVector.get(0), StandardCharsets.UTF_8));
+        assertEquals(testString, new String(textVector.get(0), StandardCharsets.UTF_8));
+    }
+
+    public void testWriteUnicodeStrings() throws IOException {
+        String unicodeString = "Hello 世界 🌍";
+        output.writeString(unicodeString);
+        output.writeText(new Text(unicodeString));
+
+        VectorSchemaRoot root = output.getUnifiedRoot();
+        assertEquals(2, root.getFieldVectors().size());
+
+        VarCharVector stringVector = (VarCharVector) root.getVector(0);
+        VarCharVector textVector = (VarCharVector) root.getVector(1);
+
+        assertEquals(unicodeString, new String(stringVector.get(0), StandardCharsets.UTF_8));
+        assertEquals(unicodeString, new String(textVector.get(0), StandardCharsets.UTF_8));
+    }
+
+    public void testWriteLargeByteArrays() throws IOException {
+        byte[] largeArray = new byte[10000];
+        for (int i = 0; i < largeArray.length; i++) {
+            largeArray[i] = (byte) (i % 256);
+        }
+
+        output.writeBytes(largeArray, 0, largeArray.length);
+
+        output.writeBytes(largeArray, 5000, 2500);
+
+        VectorSchemaRoot root = output.getUnifiedRoot();
+        assertEquals(2, root.getFieldVectors().size());
+
+        VarBinaryVector binaryVector1 = (VarBinaryVector) root.getVector(0);
+        VarBinaryVector binaryVector2 = (VarBinaryVector) root.getVector(1);
+
+        assertArrayEquals(largeArray, binaryVector1.get(0));
+
+        byte[] expectedPartial = new byte[2500];
+        System.arraycopy(largeArray, 5000, expectedPartial, 0, 2500);
+        assertArrayEquals(expectedPartial, binaryVector2.get(0));
+    }
+
+    public void testWriteBytesEdgeCases() throws IOException {
+        byte[] testArray = "Hello World".getBytes(StandardCharsets.UTF_8);
+
+        output.writeBytes(testArray, 0, testArray.length);
+
+        output.writeBytes(testArray, testArray.length, 0);
+
+        output.writeBytes(testArray, 0, 1);
+
+        output.writeBytes(testArray, testArray.length - 1, 1);
+
+        VectorSchemaRoot root = output.getUnifiedRoot();
+        assertEquals(4, root.getFieldVectors().size());
+
+        VarBinaryVector vector1 = (VarBinaryVector) root.getVector(0);
+        VarBinaryVector vector2 = (VarBinaryVector) root.getVector(1);
+        VarBinaryVector vector3 = (VarBinaryVector) root.getVector(2);
+        VarBinaryVector vector4 = (VarBinaryVector) root.getVector(3);
+
+        assertArrayEquals(testArray, vector1.get(0));
+        assertTrue(vector2.isNull(0)); // Zero length should be null
+        assertArrayEquals(new byte[] { testArray[0] }, vector3.get(0));
+        assertArrayEquals(new byte[] { testArray[testArray.length - 1] }, vector4.get(0));
+    }
+
+    public void testWriteBytesWithInvalidParameters() {
+        byte[] testArray = "test".getBytes(StandardCharsets.UTF_8);
+        expectThrows(ArrayIndexOutOfBoundsException.class, () -> { output.writeBytes(testArray, -1, 1); });
+        expectThrows(ArrayIndexOutOfBoundsException.class, () -> { output.writeBytes(testArray, testArray.length + 1, 1); });
+        expectThrows(ArrayIndexOutOfBoundsException.class, () -> { output.writeBytes(testArray, 1, testArray.length); });
+    }
+
+    public void testMultipleResetsAndReuse() throws IOException {
+        for (int cycle = 0; cycle < 3; cycle++) {
+            output.writeInt(cycle);
+            output.writeString("cycle-" + cycle);
+
+            VectorSchemaRoot root = output.getUnifiedRoot();
+            assertEquals(2, root.getFieldVectors().size());
+
+            IntVector intVector = (IntVector) root.getVector(0);
+            VarCharVector stringVector = (VarCharVector) root.getVector(1);
+
+            assertEquals(cycle, intVector.get(0));
+            assertEquals("cycle-" + cycle, new String(stringVector.get(0), StandardCharsets.UTF_8));
+
+            output.reset();
+
+            // After reset, should have no vectors
+            VectorSchemaRoot resetRoot = output.getUnifiedRoot();
+            assertEquals(0, resetRoot.getFieldVectors().size());
+        }
+    }
+
+    public void testLargeNumberOfColumns() throws IOException {
+        int numColumns = 100;
+        for (int i = 0; i < numColumns; i++) {
+            output.writeInt(i);
+        }
+
+        VectorSchemaRoot root = output.getUnifiedRoot();
+        assertEquals(numColumns, root.getFieldVectors().size());
+
+        for (int i = 0; i < numColumns; i++) {
+            IntVector vector = (IntVector) root.getVector(i);
+            assertEquals("root." + i, vector.getField().getName());
+            assertEquals(i, vector.get(0));
+        }
+    }
+
+    public void testLargeList() throws IOException {
+        List<TestWriteable> largeList = new java.util.ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            largeList.add(new TestWriteable(i, "item-" + i));
+        }
+
+        output.writeList(largeList);
+
+        VectorSchemaRoot root = output.getUnifiedRoot();
+        assertEquals(3, root.getFieldVectors().size());
+    }
+
+    public void testMixedDataTypes() throws IOException {
+        output.writeInt(42);// 1
+        output.writeString("test");// 2
+        output.writeBoolean(true);// 3
+        output.writeFloat(3.14f);// 4
+        output.writeDouble(2.718281828);// 5
+        output.writeLong(123456789L);// 6
+        output.writeByte((byte) 255);// 7
+        output.writeBytes("binary data".getBytes(StandardCharsets.UTF_8), 0, "binary data".length());// 8
+        output.writeText(new Text("text data"));// 9
+
+        List<TestWriteable> testList = Arrays.asList(new TestWriteable(1, "list-item-1"), new TestWriteable(2, "list-item-2"));
+        output.writeList(testList);// 10, 11, 12(boolean)
+
+        output.writeNamedWriteable(new TestNamedWriteable("named", 999, "named-value"));// 13(struct), 14, 15, 16
+        output.writeMap(null);// 17
+        output.writeMap(Collections.emptyMap());// 18
+
+        VectorSchemaRoot root = output.getUnifiedRoot();
+        assertEquals(18, root.getFieldVectors().size());
+    }
+
+    public void testPathManagerComplexNavigation() throws IOException {
+        ArrowStreamOutput.PathManager pathManager = output.getPathManager();
+
+        assertEquals("root", pathManager.getCurrentPath());
+        assertEquals(0, pathManager.getCurrentRow());
+
+        int child1 = pathManager.addChild();
+        int child2 = pathManager.addChild();
+        int child3 = pathManager.addChild();
+
+        assertEquals(0, child1);
+        assertEquals(1, child2);
+        assertEquals(2, child3);
+
+        pathManager.moveToChild(true);
+        assertEquals("root.2", pathManager.getCurrentPath());
+        assertEquals(0, pathManager.getCurrentRow());
+
+        int grandchild1 = pathManager.addChild();
+        int grandchild2 = pathManager.addChild();
+
+        assertEquals(0, grandchild1);
+        assertEquals(1, grandchild2);
+
+        pathManager.moveToChild(false);
+        assertEquals("root.2.1", pathManager.getCurrentPath());
+        assertEquals(0, pathManager.getCurrentRow());
+
+        pathManager.nextRow();
+        pathManager.nextRow();
+        assertEquals(2, pathManager.getCurrentRow());
+
+        pathManager.moveToParent();
+        assertEquals("root.2", pathManager.getCurrentPath());
+        assertEquals(0, pathManager.getCurrentRow()); // Should still be 0 since we didn't propagate
+
+        pathManager.moveToParent();
+        assertEquals("root", pathManager.getCurrentPath());
+        assertEquals(0, pathManager.getCurrentRow());
+    }
+
+    public void testPathManagerRowPropagation() throws IOException {
+        ArrowStreamOutput.PathManager pathManager = output.getPathManager();
+
+        // Increment row at root level
+        pathManager.nextRow();
+        pathManager.nextRow();
+        assertEquals(2, pathManager.getCurrentRow());
+
+        // Add child and move with row propagation
+        int child = pathManager.addChild();
+        pathManager.moveToChild(true);
+        assertEquals("root.0", pathManager.getCurrentPath());
+        assertEquals(2, pathManager.getCurrentRow()); // Should inherit parent's row
+
+        // Move back and try without propagation
+        pathManager.moveToParent();
+        int child2 = pathManager.addChild();
+        pathManager.moveToChild(false);
+        assertEquals("root.1", pathManager.getCurrentPath());
+        assertEquals(0, pathManager.getCurrentRow()); // Should start at 0
+    }
+
+    public void testPathManagerReset() throws IOException {
+        ArrowStreamOutput.PathManager pathManager = output.getPathManager();
+
+        pathManager.addChild();
+        pathManager.addChild();
+        pathManager.moveToChild(true);
+        pathManager.nextRow();
+        pathManager.addChild();
+        pathManager.nextRow();
+
+        // Verify complex state
+        assertEquals("root.1", pathManager.getCurrentPath());
+        assertEquals(2, pathManager.getCurrentRow());
+
+        // Reset
+        pathManager.reset();
+
+        // Verify reset state
+        assertEquals("root", pathManager.getCurrentPath());
+        assertEquals(0, pathManager.getCurrentRow());
+        assertTrue(pathManager.getRow().isEmpty());
+        assertTrue(pathManager.getColumn().isEmpty());
+    }
+
+    public void testNestedWriteableStructures() throws IOException {
+        TestNestedWriteable nested = new TestNestedWriteable(
+            "outer",
+            new TestWriteable(42, "inner"),
+            Arrays.asList(new TestWriteable(1, "first"), new TestWriteable(2, "second"))
+        );
+
+        output.writeNamedWriteable(nested);
+
+        VectorSchemaRoot root = output.getUnifiedRoot();
+        // 1 struct, 2 for testwriteable, 3 for list
+        assertEquals(7, root.getFieldVectors().size());
+
+        // respect serialization order
+        StructVector structVector = (StructVector) root.getVector(3);
+        assertEquals("root.0", structVector.getField().getName());
+        assertEquals("test-nested-writeable", structVector.getField().getMetadata().get("name"));
+    }
+
+    // TODO: need to evaluate if this is the right with respect to how column mismatch works, should we fix this?
+    // public void testComplexListStructures() throws IOException {
+    // List<TestComplexWriteable> complexList = Arrays.asList(
+    // new TestComplexWriteable("item1", Arrays.asList("a", "b", "c"), Map.of("key1", 100, "key2", 200)),
+    // new TestComplexWriteable("item2", Arrays.asList("x", "y"), Map.of("key3", 300))
+    // );
+    //
+    // output.writeList(complexList);
+    //
+    // VectorSchemaRoot root = output.getUnifiedRoot();
+    // assertEquals(1, root.getFieldVectors().size());
+    //
+    // StructVector structVector = (StructVector) root.getVector(0);
+    // assertEquals("root.0", structVector.getField().getName());
+    // assertTrue(structVector.getValueCount() > 0);
+    // }
+
+    public void testListOfLists() throws IOException {
+        List<List<TestWriteable>> listOfLists = Arrays.asList(
+            Arrays.asList(new TestWriteable(1, "first-inner-1"), new TestWriteable(2, "first-inner-2")),
+            Arrays.asList(
+                new TestWriteable(3, "second-inner-1"),
+                new TestWriteable(4, "second-inner-2"),
+                new TestWriteable(5, "second-inner-3")
+            ),
+            Collections.emptyList()
+        );
+
+        output.writeList(listOfLists.stream().map(ListWriteable::new).collect(java.util.stream.Collectors.toList()));
+
+        VectorSchemaRoot root = output.getUnifiedRoot();
+        // 1 outer boolean vector, 2 inner vectors and 1 inner boolean vector
+        assertEquals(4, root.getFieldVectors().size());
+    }
+
+    // Helper classes for testing
+    private record TestWriteable(int intValue, String stringValue) implements Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -428,16 +786,7 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
         }
     }
 
-    private static class TestNamedWriteable implements NamedWriteable {
-        private final String name;
-        private final int intValue;
-        private final String stringValue;
-
-        TestNamedWriteable(String name, int intValue, String stringValue) {
-            this.name = name;
-            this.intValue = intValue;
-            this.stringValue = stringValue;
-        }
+    private record TestNamedWriteable(String name, int intValue, String stringValue) implements NamedWriteable {
 
         @Override
         public String getWriteableName() {
@@ -449,6 +798,49 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
             out.writeString(name);
             out.writeInt(intValue);
             out.writeString(stringValue);
+        }
+    }
+
+    private record TestNestedWriteable(String name, TestWriteable inner, List<TestWriteable> list) implements NamedWriteable {
+
+        @Override
+        public String getWriteableName() {
+            return "test-nested-writeable";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            inner.writeTo(out);
+            out.writeList(list);
+        }
+    }
+
+    private record TestComplexWriteable(String name, List<String> tags, Map<String, Integer> metadata) implements Writeable {
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeStringCollection(tags);
+            // For metadata, we'll write it as a simple count and key-value pairs
+            out.writeVInt(metadata.size());
+            for (Map.Entry<String, Integer> entry : metadata.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeInt(entry.getValue());
+            }
+        }
+    }
+
+    private static class ListWriteable implements Writeable {
+        private final List<TestWriteable> innerList;
+
+        ListWriteable(List<TestWriteable> innerList) {
+            this.innerList = innerList;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeList(innerList);
         }
     }
 }

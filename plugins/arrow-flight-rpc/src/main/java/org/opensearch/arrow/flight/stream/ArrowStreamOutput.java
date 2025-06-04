@@ -193,10 +193,13 @@ public class ArrowStreamOutput extends StreamOutput {
 
     @Override
     public void writeString(String str) throws IOException {
-        writeLeafValue(
-            new ArrowType.Utf8(),
-            (VarCharVector vector, Integer index) -> vector.setSafe(index, str.getBytes(StandardCharsets.UTF_8))
-        );
+        writeLeafValue(new ArrowType.Utf8(), (VarCharVector vector, Integer index) -> {
+            if (str == null) {
+                vector.setNull(index);
+            } else {
+                vector.setSafe(index, str.getBytes(StandardCharsets.UTF_8));
+            }
+        });
     }
 
     @Override
@@ -229,10 +232,13 @@ public class ArrowStreamOutput extends StreamOutput {
 
     @Override
     public void writeText(Text text) throws IOException {
-        writeLeafValue(
-            new ArrowType.Utf8(),
-            (VarCharVector vector, Integer index) -> vector.setSafe(index, text.toString().getBytes(StandardCharsets.UTF_8))
-        );
+        writeLeafValue(new ArrowType.Utf8(), (VarCharVector vector, Integer index) -> {
+            if (text == null) {
+                vector.setNull(index);
+            } else {
+                vector.setSafe(index, text.toString().getBytes(StandardCharsets.UTF_8));
+            }
+        });
     }
 
     @Override
@@ -259,6 +265,7 @@ public class ArrowStreamOutput extends StreamOutput {
         int row = pathManager.getCurrentRow();
         if (row == 0) {
             // setting the name of the writeable in metadata of the field
+            // TODO: I don't think we need a struct vector here for metadata
             Field field = new Field(
                 pathManager.getCurrentPath() + "." + colOrd,
                 new FieldType(true, new ArrowType.Struct(), null, Map.of("name", namedWriteable.getWriteableName())),
@@ -279,15 +286,10 @@ public class ArrowStreamOutput extends StreamOutput {
      */
     @Override
     public void writeList(List<? extends Writeable> list) throws IOException {
-        int colOrd = pathManager.addChild();
-        int row = pathManager.getCurrentRow();
-        if (row == 0) {
-            Field field = new Field(pathManager.getCurrentPath() + "." + colOrd, new FieldType(true, new ArrowType.Struct(), null), null);
-            addColumnToRoot(colOrd, field);
-        }
         pathManager.moveToChild(false);
         for (int i = 0; i < list.size(); i++) {
             list.get(i).writeTo(this);
+            // TODO: this boolean vector needs to go, redundant info
             this.writeBoolean((i + 1) < list.size());
             pathManager.nextRow();
         }
@@ -311,12 +313,6 @@ public class ArrowStreamOutput extends StreamOutput {
         }
         structVector.setValueCount(row + 1);
     }
-
-    // @Override
-    // public <K, V> void writeMap(final Map<K, V> map, final Writeable.Writer<K> keyWriter, final Writeable.Writer<V> valueWriter) throws
-    // IOException{
-    //// writeVInt();
-    // }
 
     public VectorSchemaRoot getUnifiedRoot() {
         List<FieldVector> allFields = new ArrayList<>();
@@ -365,7 +361,7 @@ public class ArrowStreamOutput extends StreamOutput {
         }
 
         int getCurrentRow() {
-            return row.get(currentPath);
+            return row.getOrDefault(currentPath, 0);
         }
 
         public Map<String, Integer> getRow() {
@@ -389,11 +385,22 @@ public class ArrowStreamOutput extends StreamOutput {
         }
 
         /**
-         * Ensure {@link #addChild()} is called before
+         * Ensure {@link #addChild()} is called before, except for list operations
          */
         void moveToChild(boolean propagateRow) {
             String parentPath = currentPath;
-            currentPath = currentPath + "." + (column.get(currentPath) - 1);
+            int parentColumn = column.getOrDefault(currentPath, 0);
+
+            // If no column has been added at this path yet (parentColumn == 0),
+            // this is likely a list operation that moves directly to child without addChild()
+            // In this case, use "0" as the child path
+            if (parentColumn == 0) {
+                currentPath = currentPath + ".0";
+            } else {
+                // Normal case: addChild() was called, use the last added column
+                currentPath = currentPath + "." + (parentColumn - 1);
+            }
+
             column.put(currentPath, 0);
             if (propagateRow) {
                 row.put(currentPath, row.get(parentPath));
@@ -405,7 +412,7 @@ public class ArrowStreamOutput extends StreamOutput {
         }
 
         void nextRow() {
-            row.put(currentPath, row.get(currentPath) + 1);
+            row.put(currentPath, row.getOrDefault(currentPath, 0) + 1);
             column.put(currentPath, 0);
         }
 

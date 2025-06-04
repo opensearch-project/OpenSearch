@@ -59,10 +59,13 @@ public class ArrowStreamInput extends StreamInput {
         return lastDot == -1 ? "root" : fieldName.substring(0, lastDot);
     }
 
-    private FieldVector getVector(String path, int colIndex) {
+    private FieldVector getVector(String path, int colIndex) throws IOException {
         List<FieldVector> vectors = vectorsByPath.get(path);
-        if (vectors == null || colIndex >= vectors.size()) {
+        if (vectors == null) {
             throw new RuntimeException("No vector found for path: " + path + ", column: " + colIndex);
+        }
+        if (colIndex >= vectors.size()) {
+            throw new EOFException("No more data at path: " + path + ", column: " + colIndex);
         }
         return vectors.get(colIndex);
     }
@@ -76,7 +79,7 @@ public class ArrowStreamInput extends StreamInput {
         }
         T typedVector = vectorType.cast(vector);
         int rowIndex = pathManager.getCurrentRow();
-        if (rowIndex >= typedVector.getValueCount() || typedVector.isNull(rowIndex)) {
+        if (rowIndex >= typedVector.getValueCount()) {
             throw new EOFException("No more data at path: " + path + ", row: " + rowIndex);
         }
         return extractor.extract(typedVector, rowIndex);
@@ -94,7 +97,30 @@ public class ArrowStreamInput extends StreamInput {
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
-        byte[] data = readPrimitive(VarBinaryVector.class, VarBinaryVector::get);
+        // Parameter validation
+        if (offset < 0) {
+            throw new IndexOutOfBoundsException("offset < 0");
+        }
+        if (len < 0) {
+            throw new IndexOutOfBoundsException("len < 0");
+        }
+        if (offset > b.length) {
+            throw new IndexOutOfBoundsException("offset > buffer length");
+        }
+        if (offset + len > b.length) {
+            throw new IndexOutOfBoundsException("offset + len > buffer length");
+        }
+
+        if (len == 0) {
+            return; // Nothing to read
+        }
+
+        byte[] data = readPrimitive(VarBinaryVector.class, (vector, index) -> {
+            if (vector.isNull(index)) {
+                return new byte[0];
+            }
+            return vector.get(index);
+        });
         if (data.length != len) {
             throw new IOException("Expected " + len + " bytes, got " + data.length);
         }
@@ -103,7 +129,12 @@ public class ArrowStreamInput extends StreamInput {
 
     @Override
     public String readString() throws IOException {
-        return readPrimitive(VarCharVector.class, (vector, index) -> new String(vector.get(index), StandardCharsets.UTF_8));
+        return readPrimitive(VarCharVector.class, (vector, index) -> {
+            if (vector.isNull(index)) {
+                return null;
+            }
+            return new String(vector.get(index), StandardCharsets.UTF_8);
+        });
     }
 
     @Override
@@ -148,7 +179,8 @@ public class ArrowStreamInput extends StreamInput {
 
     @Override
     public Text readText() throws IOException {
-        return new Text(readString());
+        String str = readString();
+        return str == null ? null : new Text(str);
     }
 
     @Override
@@ -164,10 +196,15 @@ public class ArrowStreamInput extends StreamInput {
             throw new IOException("No 'name' metadata found for NamedWriteable at path: " + path + ", column: " + colOrd);
         }
         pathManager.moveToChild(true);
-        Writeable.Reader<? extends C> reader = namedWriteableRegistry().getReader(categoryClass, name);
-        C result = reader.read(this);
-        pathManager.moveToParent();
-        return result;
+        try {
+            Writeable.Reader<? extends C> reader = namedWriteableRegistry().getReader(categoryClass, name);
+            C result = reader.read(this);
+            pathManager.moveToParent();
+            return result;
+        } catch (IllegalArgumentException e) {
+            pathManager.moveToParent();
+            throw new IOException("Failed to read NamedWriteable: " + e.getMessage(), e);
+        }
     }
 
     @Override
@@ -180,24 +217,20 @@ public class ArrowStreamInput extends StreamInput {
 
     @Override
     public <T> List<T> readList(final Writeable.Reader<T> reader) throws IOException {
-        int colOrd = pathManager.addChild();
-        String path = pathManager.getCurrentPath();
-        FieldVector vector = getVector(path, colOrd);
-        if (!(vector instanceof StructVector)) {
-            throw new IOException("Expected StructVector for list at path: " + path + ", column: " + colOrd);
-        }
-        pathManager.moveToChild(true);
+        pathManager.moveToChild(false);
+
         List<T> result = new ArrayList<>();
         List<FieldVector> childVectors = vectorsByPath.getOrDefault(pathManager.getCurrentPath(), Collections.emptyList());
         int maxRows = childVectors.stream().mapToInt(FieldVector::getValueCount).min().orElse(0);
+
         while (pathManager.getCurrentRow() < maxRows) {
             try {
                 result.add(reader.read(this));
-                if (!this.readBoolean()) {
-                    pathManager.nextRow();
+                boolean hasMore = this.readBoolean();
+                pathManager.nextRow();
+                if (!hasMore) {
                     break;
                 }
-                pathManager.nextRow();
             } catch (EOFException e) {
                 break;
             }
