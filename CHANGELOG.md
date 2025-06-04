@@ -50,6 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Migrate smoke tests to 5.0.0 [(#863)](https://github.com/wazuh/wazuh-indexer/pull/863)
 - Replace and remove deprecated settings [(#894)](https://github.com/wazuh/wazuh-indexer/pull/894)
 - Backport packaging improvements [(#906)](https://github.com/wazuh/wazuh-indexer/pull/906)
+- Apply Lintian overrides [(#908)](https://github.com/wazuh/wazuh-indexer/pull/908)
 
 ### Deprecated
 -
