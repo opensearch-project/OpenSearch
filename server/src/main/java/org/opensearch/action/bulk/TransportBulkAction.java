@@ -247,20 +247,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         final Metadata metadata = clusterService.state().getMetadata();
         final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
+
+        // Determine if any requests require ingest pipeline execution.
         boolean hasIndexRequestsWithPipelines = resolvePipelinesForActionRequests(bulkRequest.requests, metadata, minNodeVersion);
 
         if (hasIndexRequestsWithPipelines) {
-            // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
-            // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
-            // this path is never taken.
+            // If ingest pipeline execution is required, we will execute the pipelines first before other operations.
+            // After pipeline execution, this method (doExecute) will be called again, but with the requests updated from ingest processing.
+            // The execution will also update the pipelines to IngestService.NOOP_PIPELINE_NAME on each request.
+            // This ensures that this on the second time through this method, we will not execute pipelines again.
             try {
                 if (Assertions.ENABLED) {
-                    final boolean arePipelinesResolved = bulkRequest.requests().stream().flatMap(request -> {
-                        if (request instanceof UpdateRequest updateRequest) {
-                            return updateRequest.getChildIndexRequests().stream();
-                        }
-                        return Stream.of(getIndexWriteRequest(request));
-                    }).filter(Objects::nonNull).allMatch(IndexRequest::isPipelineResolved);
+                    final boolean arePipelinesResolved = extractIndexRequests(bulkRequest.requests()).stream()
+                        .allMatch(IndexRequest::isPipelineResolved);
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
@@ -365,6 +364,30 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
+    /**
+     * Helper to extract the underlying index requests from a list of DocWriteRequests
+     * @param docWriteRequests the list of doc write requests
+     * @return A list of the extracted index requests
+     */
+    private List<IndexRequest> extractIndexRequests(List<DocWriteRequest<?>> docWriteRequests) {
+        return docWriteRequests.stream().flatMap(request -> {
+            if (request instanceof UpdateRequest updateRequest) {
+                return updateRequest.getChildIndexRequests().stream();
+            }
+            return Stream.of(getIndexWriteRequest(request));
+        }).filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * Helper method that resolves the correct pipelines for a given list of doc write requests.
+     * Index, update, and delete operations are passed in through the bulk request as doc write requests and
+     * have different interactions with ingest pipelines depending on user parameters.
+     * If pipelines are resolved for a request, the request is mutated with the pipeline information.
+     * @param docWriteRequests the incoming requests from the bulk operation
+     * @param metadata additional metadata used to resolve pipelines, such as index information
+     * @param minNodeVersion the minimum node version of the cluster
+     * @return whether any index request has had a pipeline resolved.
+     */
     private boolean resolvePipelinesForActionRequests(
         List<DocWriteRequest<?>> docWriteRequests,
         Metadata metadata,
@@ -378,14 +401,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 // This means the pipeline is only executed on the partial doc, which may not contain all fields.
                 // System ingest pipelines and processors should handle these cases individually.
                 boolean indexRequestHasPipeline = false;
-                if (updateRequest.upsertRequest() != null) {
-                    indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, updateRequest.upsertRequest(), metadata);
+                IndexRequest upsertRequest = updateRequest.upsertRequest();
+                IndexRequest docRequest = updateRequest.doc();
+                if (upsertRequest != null) {
+                    indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, upsertRequest, metadata);
                 }
-                if (updateRequest.doc() != null) {
+                if (docRequest != null) {
                     if (updateRequest.docAsUpsert()) {
-                        indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, updateRequest.doc(), metadata);
+                        indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, docRequest, metadata);
                     } else {
-                        indexRequestHasPipeline |= ingestService.resolveSystemIngestPipeline(actionRequest, updateRequest.doc(), metadata);
+                        // In the case when doc as upsert is false or not defined, we only resolve system ingest pipelines.
+                        // This is to preserve backwards compatibility where default and final pipelines are NOT resolved
+                        // and NOT executed on the partial doc passed in from the user request.
+                        // TODO : In the future we want to add configurability to do resolve all pipelines for the doc request
+                        // See https://github.com/opensearch-project/OpenSearch/issues/17742
+                        indexRequestHasPipeline |= ingestService.resolveSystemIngestPipeline(actionRequest, docRequest, metadata);
                     }
                 }
                 hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
@@ -393,8 +423,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
                 // Skip resolving pipelines for delete requests
                 if (indexRequest != null) {
-                    boolean indexRequestHasPipeline = ingestService.resolvePipelines(actionRequest, indexRequest, metadata);
-                    hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
+                    hasIndexRequestsWithPipelines |= ingestService.resolvePipelines(actionRequest, indexRequest, metadata);
                 }
             }
 
