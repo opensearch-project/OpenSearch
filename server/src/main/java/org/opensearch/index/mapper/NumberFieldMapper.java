@@ -344,15 +344,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
                     l = parse(lowerTerm, false);
-                    if (includeLower == false) {
-                        l = HalfFloatPoint.nextUp(l);
+                    if (includeLower) {
+                        l = HalfFloatPoint.nextDown(l);
                     }
+                    l = HalfFloatPoint.nextUp(l);
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm, false);
-                    if (includeUpper == false) {
-                        u = HalfFloatPoint.nextDown(u);
+                    if (includeUpper) {
+                        u = HalfFloatPoint.nextUp(u);
                     }
+                    u = HalfFloatPoint.nextDown(u);
                 }
                 if (isSearchable && hasDocValues) {
                     Query query = HalfFloatPoint.newRangeQuery(field, l, u);
