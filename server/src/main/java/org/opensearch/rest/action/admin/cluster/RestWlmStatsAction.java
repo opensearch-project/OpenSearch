@@ -127,7 +127,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
         });
     }
 
-    private SortBy parseSortBy(String sortByParam) throws OpenSearchParseException {
+    protected SortBy parseSortBy(String sortByParam) throws OpenSearchParseException {
         try {
             return SortBy.fromString(sortByParam);
         } catch (IllegalArgumentException e) {
@@ -135,7 +135,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
         }
     }
 
-    private SortOrder parseSortOrder(String sortOrderParam) throws OpenSearchParseException {
+    protected SortOrder parseSortOrder(String sortOrderParam) throws OpenSearchParseException {
         try {
             return SortOrder.fromString(sortOrderParam);
         } catch (IllegalArgumentException e) {
@@ -143,7 +143,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
         }
     }
 
-    private int parsePageSize(RestRequest request) {
+    protected int parsePageSize(RestRequest request) {
         int pageSize = request.paramAsInt("size", DEFAULT_PAGE_SIZE);
         if (pageSize <= 0 || pageSize > MAX_PAGE_SIZE) {
             throw new OpenSearchParseException("Invalid value for 'size'. Allowed range: 1 to " + MAX_PAGE_SIZE);
