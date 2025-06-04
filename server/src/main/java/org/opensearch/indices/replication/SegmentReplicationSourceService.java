@@ -25,12 +25,9 @@ import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.transport.TransportResponse;
-import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardClosedException;
-import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
@@ -191,35 +188,9 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             );
             final ShardId shardId = request.getCheckpoint().getShardId();
             IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            if (indexService == null) {
-                listener.onFailure(new IndexNotFoundException(shardId.getIndexName()));
-                return;
-            }
             IndexShard indexShard = indexService.getShard(shardId.id());
-            if (indexShard == null || indexShard.state().equals(IndexShardState.CLOSED)) {
-                listener.onFailure(new IndexShardClosedException(shardId));
-                return;
-            }
-            if (indexShard.state().equals(IndexShardState.STARTED) == false) {
-                listener.onFailure(new IndexShardNotStartedException(shardId, indexShard.state()));
-                return;
-            }
-            if (indexShard.routingEntry().primary() == false || indexShard.isPrimaryMode() == false) {
-                listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT, "%s is not primary", shardId)));
-                return;
-            }
-            if (indexShard.getOperationPrimaryTerm() > request.getCheckpoint().getPrimaryTerm()) {
-                listener.onFailure(
-                    new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "request primary term %d is lower than %d",
-                            request.getCheckpoint().getPrimaryTerm(),
-                            indexShard.getOperationPrimaryTerm()
-                        )
-                    )
-                );
-                return;
+            if (indexShard.state().equals(IndexShardState.STARTED) == false || indexShard.isPrimaryMode() == false) {
+                throw new IllegalStateException(String.format(Locale.ROOT, "%s is not a started primary shard", shardId));
             }
 
             RemoteSegmentFileChunkWriter mergedSegmentFileChunkWriter = new RemoteSegmentFileChunkWriter(
