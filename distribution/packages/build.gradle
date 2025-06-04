@@ -149,14 +149,13 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     }
 
     String packagingFiles = "build/packaging/${jdk ? '' : 'no-jdk-'}${type}"
-
-    String scripts = "${packagingFiles}/scripts"
-    preInstall file("${scripts}/preinst")
-    postInstall file("${scripts}/postinst")
-    preUninstall file("${scripts}/prerm")
-    postUninstall file("${scripts}/postrm")
-    if (type == 'rpm') {
-      postTrans file("${scripts}/posttrans")
+    if (type == 'deb') {
+      String scripts = "${packagingFiles}/debian"
+      preInstall file("${scripts}/preinst")
+      postInstall file("${scripts}/postinst")
+      preUninstall file("${scripts}/prerm")
+    } else {
+      String scripts = "${packagingFiles}"
     }
 
     // top level "into" directive is not inherited from ospackage for some reason, so we must
@@ -298,7 +297,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         unix 0750
       }
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/init.d/wazuh-indexer"
+      from "src/common/init.d/wazuh-indexer"
     }
 
     // ========= empty dirs =========

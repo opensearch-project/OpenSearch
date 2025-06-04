@@ -612,8 +612,8 @@ subprojects {
       ],
 
       'error.file': [
-        'deb': "-XX:ErrorFile=/usr/share/wazuh-indexer/hs_err_pid%p.log",
-        'rpm': "-XX:ErrorFile=/usr/share/wazuh-indexer/hs_err_pid%p.log",
+        'deb': "-XX:ErrorFile=/var/log/wazuh-indexer/hs_err_pid%p.log",
+        'rpm': "-XX:ErrorFile=/var/log/wazuh-indexer/hs_err_pid%p.log",
         'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
       ],
 

@@ -1,22 +1,15 @@
-# Copyright OpenSearch Contributors
-# SPDX-License-Identifier: Apache-2.0
-#
-# The OpenSearch Contributors require contributions made to
-# this file be licensed under the Apache-2.0 license or a
-# compatible open source license.
-
 [Unit]
 Description=OpenSearch Performance Analyzer
+PartOf=wazuh-indexer.service
 
 [Service]
-Type=simple
 ExecStart=/usr/share/wazuh-indexer/bin/opensearch-performance-analyzer/performance-analyzer-agent-cli
 Restart=on-failure
 User=wazuh-indexer
 Group=wazuh-indexer
 Environment=OPENSEARCH_HOME=/usr/share/wazuh-indexer
-Environment=OPENSEARCH_PATH_CONF=/etc/wazuh-indexer/
+Environment=OPENSEARCH_PATH_CONF=/etc/wazuh-indexer
 WorkingDirectory=/usr/share/wazuh-indexer
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=wazuh-indexer.service

@@ -28,27 +28,74 @@ chown -R ${name}:${name} ${log_dir}
 chown -R ${name}:${name} ${data_dir}
 chown -R ${name}:${name} ${pid_dir}
 
-# Reload systemd
-command -v systemctl >/dev/null && systemctl daemon-reload
-command -v systemctl >/dev/null && systemctl restart systemd-sysctl.service
-command -v systemd-tmpfiles >/dev/null && systemd-tmpfiles --create ${name}.conf
-
-# Preserve service state flag across upgrade
-if [ -f ${state_file} ]; then
-    echo "Restarting ${name}.service because it was active before upgrade"
-    rm -f ${state_file}
-    command -v systemctl >/dev/null && systemctl restart ${name}.service
-else
-    echo "### NOT starting on installation, please execute the following statements to configure ${name} service to start automatically using systemd"
-    echo " sudo systemctl daemon-reload"
-    echo " sudo systemctl enable ${name}.service"
-    echo "### You can start ${name} service by executing"
-    echo " sudo systemctl start ${name}.service"
+# Reload systemctl daemon
+if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+    systemctl daemon-reload > /dev/null 2>&1
 fi
 
-# Remove legacy VERSION file on upgrade
-if [ -f "${product_dir}"/VERSION ]; then
-    rm -f "${product_dir}"/VERSION
+# Reload other configs
+if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+    systemctl restart systemd-sysctl.service || true
+fi
+
+if command -v systemd-tmpfiles > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+    systemd-tmpfiles --create ${name}.conf > /dev/null 2>&1
+fi
+
+# Check if the script is executed on upgrade
+if [ -n "$2" ]; then
+    if [ -f ${state_file}  ]; then
+        echo "Restarting ${name}.service because it was active before upgrade"
+        rm -f ${state_file}
+        if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+            systemctl restart ${name}.service > /dev/null 2>&1
+        elif command -v service > /dev/null 2>&1; then
+            service ${name} restart > /dev/null 2>&1
+        elif command -v /etc/init.d/${name} > /dev/null 2>&1; then
+            /etc/init.d/${name} restart > /dev/null 2>&1
+        fi
+    else
+        echo "### NOT restarting ${name} service after upgrade"
+        echo "### You can start ${name} service by executing"
+        if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+            echo " sudo systemctl start ${name}.service"
+        elif command -v service > /dev/null 2>&1; then
+            echo " sudo service ${name} start"
+        elif command -v /etc/init.d/${name} > /dev/null 2>&1; then
+            echo " sudo /etc/init.d/${name} start"
+        fi
+    fi
+else
+    # Messages
+    if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+        echo "### NOT starting on installation, please execute the following statements to configure ${name} service to start automatically using systemd"
+        echo " sudo systemctl daemon-reload"
+        echo " sudo systemctl enable ${name}.service"
+        echo "### You can start ${name} service by executing"
+        echo " sudo systemctl start ${name}.service"
+    else
+        if command -v chkconfig > /dev/null 2>&1; then
+            echo "### NOT starting on installation, please execute the following statements to configure ${name} service to start automatically using chkconfig"
+            echo " sudo chkconfig --add ${name}"
+        elif command -v update-rc.d > /dev/null 2>&1; then
+            echo "### NOT starting on installation, please execute the following statements to configure ${name} service to start automatically using update-rc.d"
+            echo " sudo update-rc.d ${name} defaults 95 10"
+        fi
+        if command -v service > /dev/null 2>&1; then
+            echo "### You can start ${name} service by executing"
+            echo " sudo service ${name} start"
+        elif command -v /etc/init.d/${name} > /dev/null 2>&1; then
+            echo "### You can start ${name} service by executing"
+            echo " sudo /etc/init.d/${name} start"
+        fi
+    fi
+    if ! [ -d "${config_dir}/certs" ] && [ -f "${product_dir}/plugins/opensearch-security/tools/install-demo-certificates.sh" ]; then
+        echo "### Installing ${name} demo certificates in ${config_dir}"
+        echo " If you are using a custom certificates path, ignore this message"
+        echo " See demo certs creation log in ${log_dir}/install_demo_certificates.log"
+        bash "${product_dir}/plugins/opensearch-security/tools/install-demo-certificates.sh" >"${log_dir}/install_demo_certificates.log" 2>&1
+        yes | ${product_dir}/jdk/bin/keytool -trustcacerts -keystore ${product_dir}/jdk/lib/security/cacerts -importcert -alias wazuh-root-ca -file ${config_dir}/certs/root-ca.pem > /dev/null 2>&1
+    fi
 fi
 
 exit 0
