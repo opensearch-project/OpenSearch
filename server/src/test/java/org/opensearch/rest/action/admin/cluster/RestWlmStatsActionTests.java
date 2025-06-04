@@ -47,7 +47,7 @@ public class RestWlmStatsActionTests extends OpenSearchTestCase {
 
     public void testParsePageSizeTooLarge() {
         RestRequest request = mock(RestRequest.class);
-        when(request.paramAsInt("size", 10)).thenReturn(101);
+        when(request.paramAsInt("size", 10)).thenReturn(102);
         expectThrows(OpenSearchParseException.class, () -> action.parsePageSize(request));
     }
 
