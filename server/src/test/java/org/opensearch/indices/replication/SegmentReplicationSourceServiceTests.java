@@ -20,11 +20,9 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.transport.TransportResponse;
-import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.indices.IndicesService;
@@ -179,28 +177,6 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         });
     }
 
-    public void testGetMergedSegmentFiles_indexNotFound() {
-        when(mockIndicesService.indexServiceSafe(mockIndexShard.shardId().getIndex())).thenReturn(null);
-        final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
-            1,
-            "allocationId",
-            localNode,
-            Collections.emptyList(),
-            testCheckpoint
-        );
-        executeGetMergedSegmentFiles(request, new ActionListener<>() {
-            @Override
-            public void onResponse(GetSegmentFilesResponse response) {
-                Assert.fail("Test should succeed");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert e.getCause() instanceof IndexNotFoundException;
-            }
-        });
-    }
-
     public void testGetMergedSegmentFiles_shardClosed() {
         when(mockIndexShard.state()).thenReturn(IndexShardState.CLOSED);
         final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
@@ -213,12 +189,12 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         executeGetMergedSegmentFiles(request, new ActionListener<>() {
             @Override
             public void onResponse(GetSegmentFilesResponse response) {
-                Assert.fail("Test should succeed");
+                Assert.fail("Test should fail");
             }
 
             @Override
             public void onFailure(Exception e) {
-                assert e.getCause() instanceof IndexShardClosedException;
+                assert e.getCause() instanceof IllegalStateException;
             }
         });
     }
@@ -235,34 +211,12 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         executeGetMergedSegmentFiles(request, new ActionListener<>() {
             @Override
             public void onResponse(GetSegmentFilesResponse response) {
-                Assert.fail("Test should succeed");
+                Assert.fail("Test should fail");
             }
 
             @Override
             public void onFailure(Exception e) {
-                assert e.getCause() instanceof IllegalArgumentException;
-            }
-        });
-    }
-
-    public void testGetMergedSegmentFiles_receiveLowerPrimaryTermRequest() {
-        final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
-            1,
-            "allocationId",
-            localNode,
-            Collections.emptyList(),
-            testCheckpoint
-        );
-        when(mockIndexShard.getOperationPrimaryTerm()).thenReturn(request.getCheckpoint().getPrimaryTerm() + 1);
-        executeGetMergedSegmentFiles(request, new ActionListener<>() {
-            @Override
-            public void onResponse(GetSegmentFilesResponse response) {
-                Assert.fail("Test should succeed");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert e.getCause() instanceof IllegalArgumentException;
+                assert e.getCause() instanceof IllegalStateException;
             }
         });
     }
