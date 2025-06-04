@@ -280,7 +280,7 @@ public class SegmentReplicator {
     /**
      * Runnable implementation to trigger a replication event.
      */
-    private class ReplicationRunner<R extends SegmentReplicationTarget> extends AbstractRunnable {
+    private class ReplicationRunner<R extends AbstractSegmentReplicationTarget> extends AbstractRunnable {
 
         final long replicationId;
         final ReplicationCollection<R> onGoingReplications;
@@ -309,12 +309,14 @@ public class SegmentReplicator {
 
     private void start(
         final long replicationId,
-        ReplicationCollection<? extends SegmentReplicationTarget> onGoingReplications,
+        ReplicationCollection<? extends AbstractSegmentReplicationTarget> onGoingReplications,
         Map<ShardId, SegmentReplicationState> completedReplications
     ) {
-        final SegmentReplicationTarget target;
+        final AbstractSegmentReplicationTarget target;
         try (
-            ReplicationCollection.ReplicationRef<? extends SegmentReplicationTarget> replicationRef = onGoingReplications.get(replicationId)
+            ReplicationCollection.ReplicationRef<? extends AbstractSegmentReplicationTarget> replicationRef = onGoingReplications.get(
+                replicationId
+            )
         ) {
             // This check is for handling edge cases where the reference is removed before the ReplicationRunner is started by the
             // threadpool.
@@ -362,7 +364,7 @@ public class SegmentReplicator {
         threadPool.generic().execute(new ReplicationRunner(replicationId, onGoingReplications, completedReplications));
     }
 
-    private boolean isStoreCorrupt(SegmentReplicationTarget target) {
+    private boolean isStoreCorrupt(AbstractSegmentReplicationTarget target) {
         // ensure target is not already closed. In that case
         // we can assume the store is not corrupt and that the replication
         // event completed successfully.

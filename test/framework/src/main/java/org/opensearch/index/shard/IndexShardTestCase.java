@@ -133,6 +133,7 @@ import org.opensearch.indices.recovery.RecoverySourceHandlerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
+import org.opensearch.indices.replication.AbstractSegmentReplicationTarget;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
 import org.opensearch.indices.replication.GetSegmentFilesResponse;
 import org.opensearch.indices.replication.MergedSegmentReplicationTarget;
@@ -1808,7 +1809,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         assertEquals("Replication merged segment should complete successfully", 0, countDownLatch.getCount());
     }
 
-    private void writeFileChunks(SegmentReplicationTarget target, IndexShard primary, StoreFileMetadata[] files) throws IOException {
+    private void writeFileChunks(AbstractSegmentReplicationTarget target, IndexShard primary, StoreFileMetadata[] files)
+        throws IOException {
         for (StoreFileMetadata md : files) {
             try (IndexInput in = primary.store().directory().openInput(md.name(), IOContext.READONCE)) {
                 int pos = 0;

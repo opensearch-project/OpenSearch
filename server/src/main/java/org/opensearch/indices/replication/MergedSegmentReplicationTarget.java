@@ -32,11 +32,8 @@
 
 package org.opensearch.indices.replication;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -50,7 +47,7 @@ import java.util.function.BiConsumer;
  *
  * @opensearch.internal
  */
-public class MergedSegmentReplicationTarget extends SegmentReplicationTarget {
+public class MergedSegmentReplicationTarget extends AbstractSegmentReplicationTarget {
     public final static String MERGE_REPLICATION_PREFIX = "merge.";
 
     public MergedSegmentReplicationTarget(
@@ -59,7 +56,7 @@ public class MergedSegmentReplicationTarget extends SegmentReplicationTarget {
         SegmentReplicationSource source,
         ReplicationListener listener
     ) {
-        super(indexShard, checkpoint, source, listener);
+        super("merged_segment_replication_target", indexShard, checkpoint, source, listener);
     }
 
     @Override
@@ -68,32 +65,29 @@ public class MergedSegmentReplicationTarget extends SegmentReplicationTarget {
     }
 
     @Override
-    public void startReplication(ActionListener<Void> listener, BiConsumer<ReplicationCheckpoint, IndexShard> checkpointUpdater) {
-        state.setStage(SegmentReplicationState.Stage.REPLICATING);
-        cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
-            throw new CancellableThreads.ExecutionCancelledException("merge replication was canceled reason [" + reason + "]");
-        });
+    protected void getCheckpointMetadata(StepListener<CheckpointInfoResponse> checkpointInfoListener) {
+        checkpointInfoListener.onResponse(new CheckpointInfoResponse(checkpoint, checkpoint.getMetadataMap(), null));
+    }
 
-        final StepListener<GetSegmentFilesResponse> getFilesListener = new StepListener<>();
+    @Override
+    protected void updateCheckpoint(ReplicationCheckpoint checkpoint, BiConsumer<ReplicationCheckpoint, IndexShard> checkpointUpdater) {}
 
-        logger.trace(new ParameterizedMessage("Starting Merge Replication Target: {}", description()));
-
-        state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
-        List<StoreFileMetadata> filesToFetch;
-        try {
-            filesToFetch = getFiles(new CheckpointInfoResponse(checkpoint, checkpoint.getMetadataMap(), null));
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-        state.setStage(SegmentReplicationState.Stage.GET_FILES);
-        cancellableThreads.checkForCancel();
+    @Override
+    protected void getFilesFromSource(
+        CheckpointInfoResponse checkpointInfo,
+        List<StoreFileMetadata> filesToFetch,
+        StepListener<GetSegmentFilesResponse> getFilesListener
+    ) {
         source.getMergedSegmentFiles(getId(), checkpoint, filesToFetch, indexShard, this::updateFileRecoveryBytes, getFilesListener);
-        getFilesListener.whenComplete(response -> {
-            state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
-            cancellableThreads.checkForCancel();
-            multiFileWriter.renameAllTempFiles();
-            listener.onResponse(null);
-        }, listener::onFailure);
+    }
+
+    @Override
+    protected void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws Exception {
+        multiFileWriter.renameAllTempFiles();
+    }
+
+    @Override
+    public MergedSegmentReplicationTarget retryCopy() {
+        return new MergedSegmentReplicationTarget(indexShard, checkpoint, source, listener);
     }
 }
