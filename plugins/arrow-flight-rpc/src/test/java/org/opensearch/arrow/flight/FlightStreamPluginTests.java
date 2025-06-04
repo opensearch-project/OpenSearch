@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

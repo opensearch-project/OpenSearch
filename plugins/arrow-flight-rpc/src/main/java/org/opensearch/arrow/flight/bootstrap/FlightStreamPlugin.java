@@ -43,6 +43,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;

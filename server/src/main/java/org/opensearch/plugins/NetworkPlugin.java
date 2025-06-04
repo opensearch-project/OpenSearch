@@ -48,6 +48,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
 
@@ -66,38 +67,6 @@ import static org.opensearch.common.settings.Setting.affixKeySetting;
  * @opensearch.api
  */
 public interface NetworkPlugin {
-
-    /**
-     * Auxiliary transports are lifecycle components with an associated port range.
-     * These pluggable client/server transport implementations have their lifecycle managed by Node.
-     *
-     * Auxiliary transports are additionally defined by a port range on which they bind. Opening permissions on these
-     * ports is awkward as {@link org.opensearch.bootstrap.Security} is configured previous to Node initialization during
-     * bootstrap. To allow pluggable AuxTransports access to configurable port ranges we require the port range be provided
-     * through an {@link org.opensearch.common.settings.Setting.AffixSetting} of the form 'AUX_SETTINGS_PREFIX.{aux-transport-key}.ports'.
-     */
-    @ExperimentalApi
-    abstract class AuxTransport extends AbstractLifecycleComponent {
-        public static final String AUX_SETTINGS_PREFIX = "aux.transport.";
-        public static final String AUX_TRANSPORT_TYPES_KEY = AUX_SETTINGS_PREFIX + "types";
-        public static final String AUX_PORT_DEFAULTS = "9400-9500";
-        public static final Setting.AffixSetting<PortsRange> AUX_TRANSPORT_PORT = affixKeySetting(
-            AUX_SETTINGS_PREFIX,
-            "port",
-            key -> new Setting<>(key, AUX_PORT_DEFAULTS, PortsRange::new, Setting.Property.NodeScope)
-        );
-
-        public static final Setting<List<String>> AUX_TRANSPORT_TYPES_SETTING = Setting.listSetting(
-            AUX_TRANSPORT_TYPES_KEY,
-            emptyList(),
-            Function.identity(),
-            Setting.Property.NodeScope
-        );
-
-        // public for tests
-        public abstract BoundTransportAddress getBoundAddress();
-    }
-
     /**
      * Auxiliary transports are optional and run in parallel to the default HttpServerTransport.
      * Returns a map of AuxTransport suppliers.
@@ -166,7 +135,7 @@ public interface NetworkPlugin {
 
     /**
      * Returns a map of secure {@link AuxTransport} suppliers.
-     * See {@link org.opensearch.plugins.NetworkPlugin.AuxTransport#AUX_TRANSPORT_TYPES_SETTING} to configure a specific implementation.
+     * See {@link org.opensearch.transport.AuxTransport#AUX_TRANSPORT_TYPES_SETTING} to configure a specific implementation.
      */
     @ExperimentalApi
     default Map<String, Supplier<AuxTransport>> getSecureAuxTransports(

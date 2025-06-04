@@ -23,9 +23,9 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.BoundTransportAddress;
-import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
 
 import java.security.AccessController;
@@ -37,7 +37,7 @@ import java.util.Objects;
  * It handles the initialization, startup, and shutdown of the Flight server and client,
  * as well as managing the stream operations through a FlightStreamManager.
  */
-public class FlightService extends NetworkPlugin.AuxTransport {
+public class FlightService extends AuxTransport {
     private static final Logger logger = LogManager.getLogger(FlightService.class);
     private final ServerComponents serverComponents;
     private FlightStreamManager streamManager;
