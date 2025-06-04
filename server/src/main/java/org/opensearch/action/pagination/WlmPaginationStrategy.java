@@ -122,7 +122,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         return result;
     }
 
-    private int getStartIndex(List<WlmStats> sortedStats, WlmStrategyToken token) {
+    protected int getStartIndex(List<WlmStats> sortedStats, WlmStrategyToken token) {
         if (token == null) {
             return 0;
         }
@@ -163,7 +163,7 @@ public class WlmPaginationStrategy implements PaginationStrategy<WlmStats> {
         }
     }
 
-    private OptionalInt findIndex(List<WlmStats> stats, String nodeId, String workloadGroupId) {
+    protected OptionalInt findIndex(List<WlmStats> stats, String nodeId, String workloadGroupId) {
         for (int i = 0; i < stats.size(); i++) {
             WlmStats stat = stats.get(i);
             if (stat.getNode().getId().equals(nodeId) && stat.getWorkloadGroupStats().getStats().containsKey(workloadGroupId)) {

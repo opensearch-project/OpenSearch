@@ -151,7 +151,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
         return pageSize;
     }
 
-    private void handlePaginationError(
+    protected void handlePaginationError(
         RestChannel channel,
         String nextToken,
         int pageSize,
@@ -179,7 +179,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
         channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
     }
 
-    private Table createTableWithHeaders(PageToken pageToken, boolean verbose) {
+    protected Table createTableWithHeaders(PageToken pageToken, boolean verbose) {
         Table table = new Table(pageToken);
         table.startHeaders();
         table.addCell("NODE_ID", verbose ? "desc:Node ID" : "");
@@ -199,7 +199,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
         return table;
     }
 
-    private void addRow(Table table, String nodeId, String workloadGroupId, WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder) {
+    protected void addRow(Table table, String nodeId, String workloadGroupId, WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder) {
         final String PLACEHOLDER = "NA";
 
         table.startRow();
@@ -223,7 +223,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
         table.endRow();
     }
 
-    private void addFooterRow(Table table, int COLUMN_COUNT) {
+    protected void addFooterRow(Table table, int COLUMN_COUNT) {
         table.startRow();
         table.addCell("No more pages available");
         for (int i = 1; i < COLUMN_COUNT; i++) {
@@ -235,7 +235,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
     /**
      * Builds a tabular response with '|' column separators.
      */
-    private void buildTable(Table table, List<WlmStats> paginatedStats, WlmPaginationStrategy paginationStrategy) {
+    protected void buildTable(Table table, List<WlmStats> paginatedStats, WlmPaginationStrategy paginationStrategy) {
         final int COLUMN_COUNT = 13;
 
         for (WlmStats wlmStats : paginatedStats) {
