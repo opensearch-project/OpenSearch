@@ -11,10 +11,12 @@ package org.opensearch.action.search;
 import org.opensearch.action.support.StreamChannelActionListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
@@ -80,6 +82,9 @@ public class StreamSearchTransportService extends SearchTransportService {
         SearchTask task,
         final SearchActionListener<SearchPhaseResult> listener
     ) {
+        final boolean fetchDocuments = request.numberOfShards() == 1;
+        Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
+
         TransportResponseHandler<SearchPhaseResult> transportHandler = new TransportResponseHandler<SearchPhaseResult>() {
 
             @Override
@@ -105,7 +110,7 @@ public class StreamSearchTransportService extends SearchTransportService {
 
             @Override
             public SearchPhaseResult read(StreamInput in) throws IOException {
-                return new QuerySearchResult(in);
+                return reader.read(in);
             }
         };
         transportService.sendChildRequest(
