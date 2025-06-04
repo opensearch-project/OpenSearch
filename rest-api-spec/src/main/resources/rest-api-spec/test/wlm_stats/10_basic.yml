@@ -106,7 +106,7 @@
       wlm_stats_list:
         size: 1000
   - match:
-      error: "Invalid value for 'size'. Allowed range: 1 to 100"
+      error.reason: "Invalid value for 'size'. Allowed range: 1 to 100"
 
 ---
 "Negative page size returns error":
