@@ -27,6 +27,9 @@ import java.util.function.BiConsumer;
  */
 public class InMemoryRuleProcessingService {
 
+    /**
+     * Wildcard character which will be removed as we only support prefix based search rather than pattern match based
+     */
     public static final String WILDCARD = "*";
     private final AttributeValueStoreFactory attributeValueStoreFactory;
 

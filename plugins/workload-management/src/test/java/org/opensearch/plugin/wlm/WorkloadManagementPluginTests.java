@@ -38,6 +38,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
+import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -56,7 +57,9 @@ public class WorkloadManagementPluginTests extends OpenSearchTestCase {
         super.setUp();
         mockClusterService = mock(ClusterService.class);
         Settings settings = Settings.builder().put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000).build();
-        when(mockClusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, new HashSet<>(plugin.getSettings())));
+        ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(plugin.getSettings()));
+        clusterSettings.registerSetting(WorkloadManagementSettings.WLM_MODE_SETTING);
+        when(mockClusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(mockClusterService.getSettings()).thenReturn(settings);
     }
 
