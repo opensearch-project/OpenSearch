@@ -82,6 +82,8 @@ public class FlightServerChannel implements TcpChannel {
                 completionListener.onResponse(null);
                 return;
             }
+            // we do not want to close the root right after putNext() call as we do not know the status of it whether
+            // its transmitted at transport;  we close them all at complete stream.
             pendingRoots.add(root);
             serverStreamListener.start(root);
             serverStreamListener.putNext();
@@ -172,7 +174,7 @@ public class FlightServerChannel implements TcpChannel {
 
     @Override
     public ChannelStats getChannelStats() {
-        return new ChannelStats(); // TODO: Implement stats if needed
+        return new ChannelStats(); // TODO: Implement stats. Add custom stats as needed
     }
 
     @Override
