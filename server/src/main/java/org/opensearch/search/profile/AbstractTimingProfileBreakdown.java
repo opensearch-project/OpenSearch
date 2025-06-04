@@ -22,6 +22,7 @@ public abstract class AbstractTimingProfileBreakdown extends AbstractProfileBrea
     protected final Map<String, Timer> timers = new HashMap<>();
     public static final String TIMING_TYPE_COUNT_SUFFIX = "_count";
     public static final String TIMING_TYPE_START_TIME_SUFFIX = "_start_time";
+    public static final String TIMING_TYPE_TIME_SUFFIX = "_time";
     public static final String NODE_TIME_RAW = "time_in_nanos";
 
     public AbstractTimingProfileBreakdown() {}
@@ -49,7 +50,7 @@ public abstract class AbstractTimingProfileBreakdown extends AbstractProfileBrea
     public Map<String, Long> toBreakdownMap() {
         Map<String, Long> map = new HashMap<>(timers.size() * 3);
         for (Map.Entry<String, Timer> entry : timers.entrySet()) {
-            map.put(entry.getKey(), entry.getValue().getApproximateTiming());
+            map.put(entry.getKey() + TIMING_TYPE_TIME_SUFFIX, entry.getValue().getApproximateTiming());
             map.put(entry.getKey() + TIMING_TYPE_COUNT_SUFFIX, entry.getValue().getCount());
             map.put(entry.getKey() + TIMING_TYPE_START_TIME_SUFFIX, entry.getValue().getEarliestTimerStartTime());
         }

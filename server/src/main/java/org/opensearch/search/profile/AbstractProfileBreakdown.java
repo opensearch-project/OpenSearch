@@ -37,6 +37,7 @@ import org.opensearch.common.annotation.PublicApi;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 
@@ -63,5 +64,13 @@ public abstract class AbstractProfileBreakdown {
      */
     public Map<String, Object> toDebugMap() {
         return emptyMap();
+    }
+
+    /**
+     *
+     * @return a {@link BiFunction} that handles the concurrent plugin metric for the profiler
+     */
+    public BiFunction<String, Long, Long> handleConcurrentPluginMetric() {
+        throw new IllegalCallerException("must be overridden by plugin");
     }
 }

@@ -16,4 +16,6 @@ import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 public interface TimingProfileContext extends ProfileContext {
     @Override
     public AbstractTimingProfileBreakdown context(Object context);
+
+    public AbstractTimingProfileBreakdown getPluginBreakdown(Object context);
 }

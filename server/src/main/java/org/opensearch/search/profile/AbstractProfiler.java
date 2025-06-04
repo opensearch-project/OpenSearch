@@ -36,6 +36,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.PublicApi;
 
 import java.util.List;
+import java.util.function.BiFunction;
 
 /**
  * Base class for a profiler
@@ -73,6 +74,9 @@ public abstract class AbstractProfiler<PB extends AbstractProfileBreakdown, E, S
         return profileTree.getTree();
     }
 
+    /**
+     * @return a new instance of a {@link AbstractProfileShardResult}
+     */
     public abstract SR createProfileShardResult();
 
 }

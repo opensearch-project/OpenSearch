@@ -8,12 +8,15 @@
 
 package org.opensearch.search.profile.query;
 
+import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 /**
  * A {@link AbstractTimingProfileBreakdown} for query timings.
@@ -22,18 +25,22 @@ public class QueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown 
 
     private final AbstractTimingProfileBreakdown pluginBreakdown;
 
-    public QueryTimingProfileBreakdown(AbstractTimingProfileBreakdown pluginBreakdown) {
+    public QueryTimingProfileBreakdown(Class<? extends AbstractTimingProfileBreakdown> pluginBreakdownClass) {
         for(QueryTimingType type : QueryTimingType.values()) {
             timers.put(type.toString(), new Timer());
         }
 
-        if(pluginBreakdown != null) timers.putAll(pluginBreakdown.getTimers());
-
-        this.pluginBreakdown = pluginBreakdown;
-    }
-
-    public AbstractTimingProfileBreakdown getPluginBreakdown() {
-        return pluginBreakdown;
+        if (pluginBreakdownClass != null) {
+            try {
+                pluginBreakdown = pluginBreakdownClass.getDeclaredConstructor().newInstance();
+                timers.putAll(pluginBreakdown.getTimers());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        else {
+            pluginBreakdown = null;
+        }
     }
 
     @Override
@@ -47,5 +54,10 @@ public class QueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown 
     @Override
     public AbstractTimingProfileBreakdown context(Object context) {
         return this;
+    }
+
+    @Override
+    public AbstractTimingProfileBreakdown getPluginBreakdown(Object context) {
+        return pluginBreakdown;
     }
 }

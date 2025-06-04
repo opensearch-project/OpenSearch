@@ -104,7 +104,7 @@ public class QueryProfiler extends AbstractProfiler<AbstractTimingProfileBreakdo
         return collector.getCollectorTree();
     }
 
-    public AbstractTimingProfileBreakdown getPluginBreakdown() {
+    public AbstractTimingProfileBreakdown getTopBreakdown() {
         return profileTree.getStackTop();
     }
 

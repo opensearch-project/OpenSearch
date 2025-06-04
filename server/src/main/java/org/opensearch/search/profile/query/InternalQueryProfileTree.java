@@ -55,13 +55,6 @@ public class InternalQueryProfileTree extends AbstractQueryProfileTree {
 
     @Override
     protected AbstractTimingProfileBreakdown createProfileBreakdown(Query query) throws Exception {
-        AbstractTimingProfileBreakdown pluginBreakdown = null;
-        if (pluginBreakdownClasses != null) {
-            Class<? extends AbstractTimingProfileBreakdown> pluginBreakdownClass = pluginBreakdownClasses.get(query.getClass());
-            if (pluginBreakdownClass != null) {
-                pluginBreakdown = pluginBreakdownClass.getDeclaredConstructor().newInstance();
-            }
-        }
-        return new QueryTimingProfileBreakdown(pluginBreakdown);
+        return new QueryTimingProfileBreakdown(pluginBreakdownClasses.get(query.getClass()));
     }
 }
