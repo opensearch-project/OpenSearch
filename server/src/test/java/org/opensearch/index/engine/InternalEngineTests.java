@@ -1782,7 +1782,7 @@ public class InternalEngineTests extends EngineTestCase {
                         new SoftDeletesRetentionMergePolicy(
                             Lucene.SOFT_DELETES_FIELD,
                             MatchAllDocsQuery::new,
-                            new PrunePostingsMergePolicy(indexWriterConfig.getMergePolicy(), "_id")
+                            new PrunePostingsAndKnnMergePolicy(indexWriterConfig.getMergePolicy(), "_id")
                         )
                     )
                 )
