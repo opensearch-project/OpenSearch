@@ -344,17 +344,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
                     l = parse(lowerTerm, false);
-                    if (includeLower) {
-                        l = HalfFloatPoint.nextDown(l);
+                    if (includeLower == false) {
+                        l = HalfFloatPoint.nextUp(l);
                     }
-                    l = HalfFloatPoint.nextUp(l);
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm, false);
-                    if (includeUpper) {
-                        u = HalfFloatPoint.nextUp(u);
+                    if (includeUpper == false) {
+                        u = HalfFloatPoint.nextDown(u);
                     }
-                    u = HalfFloatPoint.nextDown(u);
                 }
                 if (isSearchable && hasDocValues) {
                     Query query = HalfFloatPoint.newRangeQuery(field, l, u);
@@ -363,7 +361,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         HalfFloatPoint.halfFloatToSortableShort(l),
                         HalfFloatPoint.halfFloatToSortableShort(u)
                     );
-                    return new IndexOrDocValuesQuery(query, dvQuery);
+                    Query combined = new IndexOrDocValuesQuery(query, dvQuery);
+                    byte[] lowerPoint = new byte[HalfFloatPoint.BYTES];
+                    byte[] upperPoint = new byte[HalfFloatPoint.BYTES];
+                    HalfFloatPoint.encodeDimension(l, lowerPoint, 0);
+                    HalfFloatPoint.encodeDimension(u, upperPoint, 0);
+                    return new ApproximateScoreQuery(
+                        combined,
+                        new ApproximatePointRangeQuery(field, lowerPoint, upperPoint, 1, ApproximatePointRangeQuery.HALF_FLOAT_FORMAT)
+                    );
                 }
                 if (hasDocValues) {
                     return SortedNumericDocValuesField.newSlowRangeQuery(
@@ -949,65 +955,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
                 return new BitmapDocValuesQuery(field, bitmap);
             }
-
-            // Original Integer range query
-
-            /*@Override
-            public Query rangeQuery(
-                String field,
-                Object lowerTerm,
-                Object upperTerm,
-                boolean includeLower,
-                boolean includeUpper,
-                boolean hasDocValues,
-                boolean isSearchable,
-                QueryShardContext context
-            ) {
-                int l = Integer.MIN_VALUE;
-                int u = Integer.MAX_VALUE;
-                if (lowerTerm != null) {
-                    l = parse(lowerTerm, true);
-                    // if the lower bound is decimal:
-                    // - if the bound is positive then we increment it:
-                    // if lowerTerm=1.5 then the (inclusive) bound becomes 2
-                    // - if the bound is negative then we leave it as is:
-                    // if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
-                    boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
-                    if ((lowerTermHasDecimalPart == false && includeLower == false) || (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
-                        if (l == Integer.MAX_VALUE) {
-                            return new MatchNoDocsQuery();
-                        }
-                        ++l;
-                    }
-                }
-                if (upperTerm != null) {
-                    u = parse(upperTerm, true);
-                    boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
-                    if ((upperTermHasDecimalPart == false && includeUpper == false) || (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
-                        if (u == Integer.MIN_VALUE) {
-                            return new MatchNoDocsQuery();
-                        }
-                        --u;
-                    }
-                }
-                if (isSearchable && hasDocValues) {
-                    Query query = IntPoint.newRangeQuery(field, l, u);
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                    query = new IndexOrDocValuesQuery(query, dvQuery);
-                    if (context.indexSortedOnField(field)) {
-                        query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
-                    }
-                    return query;
-                }
-                if (hasDocValues) {
-                    Query query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                    if (context.indexSortedOnField(field)) {
-                        query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
-                    }
-                    return query;
-                }
-                return IntPoint.newRangeQuery(field, l, u);
-            }*/
 
             @Override
             public Query rangeQuery(
