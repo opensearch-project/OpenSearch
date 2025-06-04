@@ -8,6 +8,7 @@
 
 package org.opensearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
@@ -50,9 +51,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+
 public class RemoteUploaderService {
 
-    private final Logger logger;
+    private final Logger logger = LogManager.getLogger(RemoteUploaderService.class);
 
     /**
      * The initial retry interval at which the retry job gets scheduled after a failure.
@@ -85,20 +87,17 @@ public class RemoteUploaderService {
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
 
     public RemoteUploaderService(
-        Logger logger,
         IndexShard indexShard,
+        SegmentReplicationCheckpointPublisher checkpointPublisher,
         RemoteSegmentTransferTracker segmentTracker,
-        RemoteStoreSettings remoteStoreSettings,
-        Directory storeDirectory,
-        SegmentReplicationCheckpointPublisher checkpointPublisher
+        RemoteStoreSettings remoteStoreSettings
     ) {
-        this.logger = logger;
         this.indexShard = indexShard;
         this.segmentTracker = segmentTracker;
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
             .getDelegate()).getDelegate();
         this.remoteStoreSettings = remoteStoreSettings;
-        this.storeDirectory = storeDirectory;
+        this.storeDirectory = indexShard.store().directory();
         this.checkpointPublisher = checkpointPublisher;
         this.localSegmentChecksumMap = new HashMap<>();
 
