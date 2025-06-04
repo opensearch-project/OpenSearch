@@ -6,7 +6,7 @@
 # compatible open source license.
 
 # Description:
-# Default opensearch.service file
+# Default wazuh-indexer.service file
 
 [Unit]
 Description=wazuh-indexer
@@ -39,7 +39,7 @@ ExecStart=/usr/share/wazuh-indexer/bin/systemd-entrypoint -p ${PID_DIR}/wazuh-in
 # logging, you can simply remove the "quiet" option from ExecStart.
 StandardOutput=journal
 StandardError=inherit
-SyslogIdentifier=opensearch
+SyslogIdentifier=wazuh-indexer
 
 # Specifies the maximum file descriptor number that can be opened by this process
 LimitNOFILE=65535
@@ -133,10 +133,10 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 # Filesystem Access
 
-ReadWritePaths=/var/log/opensearch
-ReadWritePaths=/var/lib/opensearch
+ReadWritePaths=/var/log/wazuh-indexer
+ReadWritePaths=/var/lib/wazuh-indexer
 ReadWritePaths=/dev/shm/
-ReadWritePaths=-/etc/opensearch
+ReadWritePaths=-/etc/wazuh-indexer
 ReadWritePaths=-/mnt/snapshots
 
 ## Allow read access to system files

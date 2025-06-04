@@ -181,6 +181,9 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
           with jdkFiles(project, 'linux', architecture)
         }
       }
+      into('agent') {
+        with agentFiles()
+      }
       into ('') {
         with versionFile()
       }

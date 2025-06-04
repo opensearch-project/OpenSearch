@@ -208,6 +208,9 @@ allprojects {
       gradle.startParameter.taskNames.contains('cleanEclipse')
 
     buildMetadata = buildMetadataMap
+
+    // Add OpenSearch version to all subprojects
+    opensearch = VersionProperties.getOpenSearch()
   }
 }
 

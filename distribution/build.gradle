@@ -360,6 +360,18 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
+    agentFiles = {
+      copySpec {
+        from(project(':libs:agent-sm:agent').prepareAgent) {
+          include '**/*.jar'
+          exclude '**/*-javadoc.jar'
+          exclude '**/*-sources.jar'
+          // strip the version since jvm.options is using agent without version
+          rename("opensearch-agent-${project.opensearch}.jar", "opensearch-agent.jar")
+        }
+      }
+    }
+
     versionFile = {
       copySpec {
         from(rootProject.file('VERSION.json'))
