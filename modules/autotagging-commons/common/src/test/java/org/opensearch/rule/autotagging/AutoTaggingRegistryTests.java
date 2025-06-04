@@ -20,16 +20,19 @@ import static org.mockito.Mockito.when;
 
 public class AutoTaggingRegistryTests extends OpenSearchTestCase {
 
+    private static String TEST_FEATURE_TYPE_NAME;
+
     @BeforeClass
     public static void setUpOnce() {
+        TEST_FEATURE_TYPE_NAME = TEST_FEATURE_TYPE + randomAlphaOfLength(2);
         FeatureType featureType = mock(FeatureType.class);
-        when(featureType.getName()).thenReturn(TEST_FEATURE_TYPE);
+        when(featureType.getName()).thenReturn(TEST_FEATURE_TYPE_NAME);
         AutoTaggingRegistry.registerFeatureType(featureType);
     }
 
     public void testGetFeatureType_Success() {
-        FeatureType retrievedFeatureType = AutoTaggingRegistry.getFeatureType(TEST_FEATURE_TYPE);
-        assertEquals(TEST_FEATURE_TYPE, retrievedFeatureType.getName());
+        FeatureType retrievedFeatureType = AutoTaggingRegistry.getFeatureType(TEST_FEATURE_TYPE_NAME);
+        assertEquals(TEST_FEATURE_TYPE_NAME, retrievedFeatureType.getName());
     }
 
     public void testRuntimeException() {
@@ -39,7 +42,7 @@ public class AutoTaggingRegistryTests extends OpenSearchTestCase {
     public void testIllegalStateExceptionException() {
         assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(null));
         FeatureType featureType = mock(FeatureType.class);
-        when(featureType.getName()).thenReturn(TEST_FEATURE_TYPE);
+        when(featureType.getName()).thenReturn(TEST_FEATURE_TYPE_NAME);
         assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(featureType));
         when(featureType.getName()).thenReturn(randomAlphaOfLength(MAX_FEATURE_TYPE_NAME_LENGTH + 1));
         assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(featureType));
