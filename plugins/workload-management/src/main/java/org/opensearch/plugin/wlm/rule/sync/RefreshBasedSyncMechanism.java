@@ -23,10 +23,11 @@ import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
-import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.WlmMode;
+import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -57,7 +58,6 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
         RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME,
         RULE_SYNC_REFRESH_INTERVAL_DEFAULT_MS,
         MIN_SYNC_REFRESH_INTERVAL_MS,
-        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -68,7 +68,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
     private final InMemoryRuleProcessingService ruleProcessingService;
     private final RulePersistenceService rulePersistenceService;
     private final RuleEventClassifier ruleEventClassifier;
-    private final FeatureType featureType;
+    private WlmMode wlmMode;
     // This var keeps the Rules which were present during last run of this service
     private Set<Rule> lastRunIndexedRules;
     private static final Logger logger = LogManager.getLogger(RefreshBasedSyncMechanism.class);
@@ -81,7 +81,6 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
      * @param clusterSettings
      * @param parser
      * @param ruleProcessingService
-     * @param featureType
      * @param rulePersistenceService
      * @param ruleEventClassifier
      */
@@ -91,7 +90,6 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
         ClusterSettings clusterSettings,
         RuleEntityParser parser,
         InMemoryRuleProcessingService ruleProcessingService,
-        FeatureType featureType,
         RulePersistenceService rulePersistenceService,
         RuleEventClassifier ruleEventClassifier
     ) {
@@ -99,14 +97,22 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
         refreshInterval = RULE_SYNC_REFRESH_INTERVAL_SETTING.get(settings);
         this.parser = parser;
         this.ruleProcessingService = ruleProcessingService;
-        this.featureType = featureType;
         this.rulePersistenceService = rulePersistenceService;
         this.lastRunIndexedRules = new HashSet<>();
         this.ruleEventClassifier = ruleEventClassifier;
-        clusterSettings.addSettingsUpdateConsumer(RULE_SYNC_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
+        wlmMode = WorkloadManagementSettings.WLM_MODE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(WorkloadManagementSettings.WLM_MODE_SETTING, this::setWlmMode);
     }
 
-    void doRun() {
+    /**
+     * synchronized check is needed in case two scheduled runs happen concurrently though highly improbable
+     * but theoretically possible
+     */
+    synchronized void doRun() {
+        if (wlmMode != WlmMode.ENABLED) {
+            return;
+        }
+
         rulePersistenceService.getRule(
             new GetRuleRequest(null, Collections.emptyMap(), null, WorkloadGroupFeatureType.INSTANCE),
             new ActionListener<GetRuleResponse>() {
@@ -151,15 +157,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
         }
     }
 
-    /**
-     * sets the refresh interval for the rule sync mechanism
-     * @param refreshInterval
-     */
-    public void setRefreshInterval(long refreshInterval) {
-        if (refreshInterval < MIN_SYNC_REFRESH_INTERVAL_MS) {
-            logger.warn("Refresh interval must be at least {}ms. Neglecting this change", MIN_SYNC_REFRESH_INTERVAL_MS);
-            throw new IllegalArgumentException("Refresh interval must be at least " + MIN_SYNC_REFRESH_INTERVAL_MS + "ms");
-        }
-        this.refreshInterval = refreshInterval;
+    public void setWlmMode(WlmMode mode) {
+        this.wlmMode = mode;
     }
 }

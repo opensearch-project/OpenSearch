@@ -107,12 +107,4 @@ public class InMemoryRuleProcessingService {
         }
         return result;
     }
-
-    /**
-     * AttributeValueStoreFactory getter
-     * @return
-     */
-    public AttributeValueStoreFactory getAttributeValueStoreFactory() {
-        return attributeValueStoreFactory;
-    }
 }

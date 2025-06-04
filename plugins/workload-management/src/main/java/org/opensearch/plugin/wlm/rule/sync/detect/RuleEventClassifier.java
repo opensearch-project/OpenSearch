@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 
 /**
  * This class is responsible for determining new {@link RuleEvent}s based on the previous snapshot of {@link Rule}s
+ * <b>Warning:</b>  This class is not thread-safe and is expected to be called from a single thread only
  */
 public class RuleEventClassifier {
     private Set<Rule> previousRules;

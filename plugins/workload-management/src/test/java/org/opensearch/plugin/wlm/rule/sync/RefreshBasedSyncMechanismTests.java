@@ -29,6 +29,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
+import org.opensearch.wlm.WlmMode;
+import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,8 +63,12 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         try (WorkloadManagementPlugin plugin = new WorkloadManagementPlugin()) {
-            Settings settings = Settings.builder().put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000).build();
-            ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(plugin.getSettings()));
+            Settings settings = Settings.builder()
+                .put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000)
+                .put(WorkloadManagementSettings.WLM_MODE_SETTING_NAME, "enabled")
+                .build();
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(plugin.getSettings()));
+            clusterSettings.registerSetting(WorkloadManagementSettings.WLM_MODE_SETTING);
             mockThreadPool = mock(ThreadPool.class);
             rulePersistenceService = mock(RulePersistenceService.class);
             ruleEventClassifier = new RuleEventClassifier(Collections.emptySet());
@@ -70,7 +76,6 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             RuleEntityParser parser = new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE);
             ruleProcessingService = mock(InMemoryRuleProcessingService.class);
             mockClient = mock(Client.class);
-            when(ruleProcessingService.getAttributeValueStoreFactory()).thenReturn(attributeValueStoreFactory);
             scheduledFuture = mock(Scheduler.Cancellable.class);
             when(mockThreadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(scheduledFuture);
 
@@ -80,7 +85,6 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
                 clusterSettings,
                 parser,
                 ruleProcessingService,
-                WorkloadGroupFeatureType.INSTANCE,
                 rulePersistenceService,
                 ruleEventClassifier
             );
@@ -107,6 +111,18 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
         sut.doStart();
         sut.doClose();
         verify(scheduledFuture, times(1)).cancel();
+    }
+
+    /**
+     * Tests the behavior of doRun when the WLM mode is disabled.
+     * This test verifies that the method does not perform any operations
+     * when the WLM mode is set to DISABLED.
+     */
+    @SuppressWarnings("unchecked")
+    public void testDoRunWhenWLM_isDisabled() {
+        sut.setWlmMode(WlmMode.DISABLED);
+        sut.doRun();
+        verify(rulePersistenceService, times(0)).getRule(any(GetRuleRequest.class), any(ActionListener.class));
     }
 
     /**
