@@ -10,7 +10,7 @@
 
 # wazuh-indexer configuration directory
 # Note: this setting will be shared with command-line tools
-OPENSEARCH_PATH_CONF=/etc/opensearch
+OPENSEARCH_PATH_CONF=${path.conf}
 
 # wazuh-indexer PID directory
 #PID_DIR=/run/wazuh-indexer

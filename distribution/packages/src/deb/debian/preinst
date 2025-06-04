@@ -31,15 +31,6 @@ case "$1" in
             /etc/init.d/${name} stop > /dev/null 2>&1
             touch ${state_file}
         fi
-
-        echo "Stop existing ${name}-performance-analyzer.service"
-        if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1 && systemctl is-active ${name}-performance-analyzer.service > /dev/null 2>&1; then
-            systemctl --no-reload stop ${name}-performance-analyzer.service > /dev/null 2>&1
-        elif command -v service > /dev/null 2>&1 && service ${name}-performance-analyzer status > /dev/null 2>&1; then
-            service ${name}-performance-analyzer stop > /dev/null 2>&1
-        elif command -v /etc/init.d/${name}-performance-analyzer > /dev/null 2>&1 && /etc/init.d/${name}-performance-analyzer status > /dev/null 2>&1; then
-            /etc/init.d/${name}-performance-analyzer stop > /dev/null 2>&1
-        fi
         ;;
     *)
         ;;

@@ -126,7 +126,6 @@ For Debian packages, the `assemble.sh` script will perform the following operati
 
    - `usr`, `etc` and `var` folders contain `wazuh-indexer` files, extracted from `wazuh-indexer-min-*.deb`.
    - `Makefile` and the `debmake_install` are copied over from `wazuh-indexer/distribution/packages/src/deb`.
-   - The `wazuh-indexer-performance-analyzer.service` file is also copied from the same folder. It is a dependency of the SPEC file.
 
 2. Install the plugins using the `opensearch-plugin` CLI tool.
 3. Set up configuration files.
@@ -187,8 +186,7 @@ For RPM packages, the `assemble.sh` script will:
 
    - `usr`, `etc` and `var` folders contain `wazuh-indexer` files, extracted from `wazuh-indexer-min-*.rpm`.
    - `wazuh-indexer.rpm.spec` is copied over from `wazuh-indexer/distribution/packages/src/rpm/wazuh-indexer.rpm.spec`.
-   - The `wazuh-indexer-performance-analyzer.service` file is also copied from the same folder. It is a dependency of the SPEC file.
-
+   
 2. Install the plugins using the `opensearch-plugin` CLI tool.
 3. Set up configuration files.
 

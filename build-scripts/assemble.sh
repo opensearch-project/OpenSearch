@@ -16,7 +16,6 @@ TEST=${TEST:-false}
 
 if ($TEST); then
     plugins=(
-        "performance-analyzer"
         "opensearch-security"
     )
     wazuh_plugins=()
@@ -35,7 +34,6 @@ else
         "opensearch-notifications-core"
         "notifications" # "opensearch-notifications". Requires "opensearch-notifications-core"
         "opensearch-observability"
-        "performance-analyzer" # "opensearch-performance-analyzer"
         "opensearch-security"
         "opensearch-security-analytics"
         "opensearch-sql-plugin" # "opensearch-sql"
@@ -205,34 +203,6 @@ function add_demo_certs_installer() {
 }
 
 # ====
-# Copy performance analyzer service file
-# ====
-function enable_performance_analyzer() {
-    mkdir -p "${TMP_DIR}"/usr/lib/systemd/system
-    cp "distribution/packages/src/common/wazuh-indexer-performance-analyzer.service" "${TMP_DIR}"/usr/lib/systemd/system
-}
-
-# ====
-# Fix https://github.com/wazuh/wazuh-indexer/issues/205
-# ====
-function fix_log_rotation() {
-    {
-        echo 'grant {'
-        echo '  permission java.lang.RuntimePermission "accessUserInformation";'
-        echo '};'
-    } >>"${1}/opensearch-performance-analyzer/opensearch_security.policy"
-}
-
-# ====
-# Move performance-analyzer-rca to its final location
-# ====
-function enable_performance_analyzer_rca() {
-    local rca_src="${1}/plugins/opensearch-performance-analyzer/performance-analyzer-rca"
-    local rca_dest="${1}"
-    mv "${rca_src}" "${rca_dest}"
-}
-
-# ====
 # Install plugins
 # ====
 function install_plugins() {
@@ -303,7 +273,6 @@ function assemble_tar() {
 
     # Install plugins
     install_plugins "${PRODUCT_VERSION}"
-    fix_log_rotation "${PATH_CONF}"
     add_demo_certs_installer
     # Swap configuration files
     add_configuration_files
@@ -325,8 +294,6 @@ function assemble_tar() {
 function assemble_rpm() {
     # Copy spec
     cp "distribution/packages/src/rpm/wazuh-indexer.rpm.spec" "${TMP_DIR}"
-    # Copy performance analyzer service file
-    enable_performance_analyzer
 
     cd "${TMP_DIR}"
     local src_path="./usr/share/wazuh-indexer"
@@ -342,8 +309,6 @@ function assemble_rpm() {
 
     # Install plugins
     install_plugins "${PRODUCT_VERSION}"
-    fix_log_rotation ${PATH_CONF}
-    enable_performance_analyzer_rca ${src_path}
     add_demo_certs_installer
     # Swap configuration files
     add_configuration_files
@@ -378,8 +343,6 @@ function assemble_deb() {
     cp "distribution/packages/src/deb/debmake_install.sh" "${TMP_DIR}"
     cp -r "distribution/packages/src/deb/debian" "${TMP_DIR}"
     chmod a+x "${TMP_DIR}/debmake_install.sh"
-    # Copy performance analyzer service file
-    enable_performance_analyzer
 
     cd "${TMP_DIR}"
     local src_path="./usr/share/wazuh-indexer"
@@ -396,8 +359,6 @@ function assemble_deb() {
 
     # Install plugins
     install_plugins "${PRODUCT_VERSION}"
-    fix_log_rotation ${PATH_CONF}
-    enable_performance_analyzer_rca ${src_path}
     add_demo_certs_installer
     # Swap configuration files
     add_configuration_files
