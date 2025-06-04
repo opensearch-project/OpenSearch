@@ -39,6 +39,7 @@ public final class ClusterManagerMetrics {
     public final Counter asyncFetchFailureCounter;
     public final Counter asyncFetchSuccessCounter;
     public final Counter nodeLeftCounter;
+    public final Counter fsHealthFailCounter;
 
     public ClusterManagerMetrics(MetricsRegistry metricsRegistry) {
         clusterStateAppliersHistogram = metricsRegistry.createHistogram(
@@ -87,6 +88,11 @@ public final class ClusterManagerMetrics {
             COUNTER_METRICS_UNIT
         );
         nodeLeftCounter = metricsRegistry.createCounter("node.left.count", "Counter for node left operation", COUNTER_METRICS_UNIT);
+        fsHealthFailCounter = metricsRegistry.createCounter(
+            "fsHealth.failure.count",
+            "Counter for number of times FS health check has failed",
+            COUNTER_METRICS_UNIT
+        );
     }
 
     public void recordLatency(Histogram histogram, Double value) {
