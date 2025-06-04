@@ -252,8 +252,8 @@ public class RecoverySettings {
         this.replicationMaxBytesPerSec = INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
         this.mergedSegmentReplicationMaxBytesPerSec = INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
         this.mergedSegmentReplicationTimeout = INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.get(settings);
-        updateReplicationRateLimiter();
-        updateMergedSegmentReplicationRateLimiter();
+        replicationRateLimiter = getReplicationRateLimiter(replicationMaxBytesPerSec);
+        mergedSegmentReplicationRateLimiter = getReplicationRateLimiter(mergedSegmentReplicationMaxBytesPerSec);
 
         logger.debug("using recovery max_bytes_per_sec[{}]", recoveryMaxBytesPerSec);
         this.internalRemoteUploadTimeout = INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.get(settings);
@@ -376,31 +376,31 @@ public class RecoverySettings {
         } else {
             recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
         }
-        if (replicationMaxBytesPerSec.getBytes() < 0) updateReplicationRateLimiter();
-        if (mergedSegmentReplicationMaxBytesPerSec.getBytes() < 0) updateMergedSegmentReplicationRateLimiter();
+        if (replicationMaxBytesPerSec.getBytes() < 0) {
+            replicationRateLimiter = getReplicationRateLimiter(replicationMaxBytesPerSec);
+        }
+        if (mergedSegmentReplicationMaxBytesPerSec.getBytes() < 0) {
+            mergedSegmentReplicationRateLimiter = getReplicationRateLimiter(mergedSegmentReplicationMaxBytesPerSec);
+        }
     }
 
     private void setReplicationMaxBytesPerSec(ByteSizeValue replicationMaxBytesPerSec) {
         this.replicationMaxBytesPerSec = replicationMaxBytesPerSec;
-        updateReplicationRateLimiter();
+        replicationRateLimiter = getReplicationRateLimiter(replicationMaxBytesPerSec);
     }
 
-    private void updateReplicationRateLimiter() {
+    private SimpleRateLimiter getReplicationRateLimiter(ByteSizeValue replicationMaxBytesPerSec) {
         if (replicationMaxBytesPerSec.getBytes() >= 0) {
             if (replicationMaxBytesPerSec.getBytes() == 0) {
-                replicationRateLimiter = null;
-            } else if (replicationRateLimiter != null) {
-                replicationRateLimiter.setMBPerSec(replicationMaxBytesPerSec.getMbFrac());
+                return null;
             } else {
-                replicationRateLimiter = new SimpleRateLimiter(replicationMaxBytesPerSec.getMbFrac());
+                return new SimpleRateLimiter(replicationMaxBytesPerSec.getMbFrac());
             }
         } else { // when replicationMaxBytesPerSec = -1B, use setting of recovery
             if (recoveryMaxBytesPerSec.getBytes() <= 0) {
-                replicationRateLimiter = null;
-            } else if (replicationRateLimiter != null) {
-                replicationRateLimiter.setMBPerSec(recoveryMaxBytesPerSec.getMbFrac());
+                return null;
             } else {
-                replicationRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
+                return new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
             }
         }
     }
@@ -411,31 +411,11 @@ public class RecoverySettings {
 
     private void setMergedSegmentReplicationMaxBytesPerSec(ByteSizeValue mergedSegmentReplicationMaxBytesPerSec) {
         this.mergedSegmentReplicationMaxBytesPerSec = mergedSegmentReplicationMaxBytesPerSec;
-        updateMergedSegmentReplicationRateLimiter();
+        mergedSegmentReplicationRateLimiter = getReplicationRateLimiter(mergedSegmentReplicationMaxBytesPerSec);
     }
 
     public void setMergedSegmentReplicationTimeout(TimeValue mergedSegmentReplicationTimeout) {
         this.mergedSegmentReplicationTimeout = mergedSegmentReplicationTimeout;
-    }
-
-    private void updateMergedSegmentReplicationRateLimiter() {
-        if (mergedSegmentReplicationMaxBytesPerSec.getBytes() >= 0) {
-            if (mergedSegmentReplicationMaxBytesPerSec.getBytes() == 0) {
-                mergedSegmentReplicationRateLimiter = null;
-            } else if (mergedSegmentReplicationRateLimiter != null) {
-                mergedSegmentReplicationRateLimiter.setMBPerSec(mergedSegmentReplicationMaxBytesPerSec.getMbFrac());
-            } else {
-                mergedSegmentReplicationRateLimiter = new SimpleRateLimiter(mergedSegmentReplicationMaxBytesPerSec.getMbFrac());
-            }
-        } else { // when mergeReplicationMaxBytesPerSec = -1B, use setting of recovery
-            if (recoveryMaxBytesPerSec.getBytes() <= 0) {
-                mergedSegmentReplicationRateLimiter = null;
-            } else if (mergedSegmentReplicationRateLimiter != null) {
-                mergedSegmentReplicationRateLimiter.setMBPerSec(recoveryMaxBytesPerSec.getMbFrac());
-            } else {
-                mergedSegmentReplicationRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
-            }
-        }
     }
 
     public int getMaxConcurrentFileChunks() {
