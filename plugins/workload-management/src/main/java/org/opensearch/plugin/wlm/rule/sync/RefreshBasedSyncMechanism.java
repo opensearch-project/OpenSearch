@@ -121,7 +121,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
                     final Set<Rule> newRules = new HashSet<>(response.getRules().values());
                     ruleEventClassifier.setPreviousRules(lastRunIndexedRules);
 
-                    ruleEventClassifier.getRuleEvents(newRules).forEach(event -> { event.process(ruleProcessingService); });
+                    ruleEventClassifier.getRuleEvents(newRules).forEach(event -> { event.process(); });
 
                     lastRunIndexedRules = newRules;
                 }

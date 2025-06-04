@@ -9,6 +9,7 @@
 package org.opensearch.plugin.wlm.rule.sync.detect;
 
 import org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism;
+import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.autotagging.Rule;
 
 import java.util.ArrayList;
@@ -25,14 +26,16 @@ public class RuleEventClassifier {
     private Set<Rule> previousRules;
     private Map<String, Rule> previousRuleMap;
     private Map<String, Rule> newRuleMap;
+    private final InMemoryRuleProcessingService ruleProcessingService;
 
     /**
      * Constructor
      *
      * @param previousRules
      */
-    public RuleEventClassifier(Set<Rule> previousRules) {
+    public RuleEventClassifier(Set<Rule> previousRules, InMemoryRuleProcessingService ruleProcessingService) {
         this.previousRules = previousRules;
+        this.ruleProcessingService = ruleProcessingService;
         this.previousRuleMap = previousRules.stream().collect(Collectors.toMap(Rule::getId, rule -> rule));
     }
 
@@ -50,9 +53,9 @@ public class RuleEventClassifier {
         for (Rule newRule : newRules) {
             if (isPotentialNewRule(newRule)) {
                 if (isRuleUpdated(newRule)) {
-                    ruleEvents.add(new UpdateRuleEvent(previousRuleMap.get(newRule.getId()), newRule));
+                    ruleEvents.add(new UpdateRuleEvent(previousRuleMap.get(newRule.getId()), newRule, ruleProcessingService));
                 } else {
-                    ruleEvents.add(new AddRuleEvent(newRule));
+                    ruleEvents.add(new AddRuleEvent(newRule, ruleProcessingService));
                 }
             }
         }
@@ -60,7 +63,7 @@ public class RuleEventClassifier {
         // handles deletes
         for (Rule previousRule : previousRules) {
             if (isRuleDeleted(previousRule)) {
-                ruleEvents.add(new DeleteRuleEvent(previousRule));
+                ruleEvents.add(new DeleteRuleEvent(previousRule, ruleProcessingService));
             }
         }
         return ruleEvents;

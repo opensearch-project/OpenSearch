@@ -8,8 +8,6 @@
 
 package org.opensearch.plugin.wlm.rule.sync.detect;
 
-import org.opensearch.rule.InMemoryRuleProcessingService;
-
 /**
  * This interface represents a rule event which can be consumed by {@link org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism}
  */
@@ -17,7 +15,6 @@ public interface RuleEvent {
     /**
      * This method is used to consume this event
      *
-     * @param inMemoryRuleProcessingService
      */
-    void process(InMemoryRuleProcessingService inMemoryRuleProcessingService);
+    void process();
 }

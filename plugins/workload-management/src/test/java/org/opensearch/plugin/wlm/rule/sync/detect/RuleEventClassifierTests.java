@@ -9,6 +9,7 @@
 package org.opensearch.plugin.wlm.rule.sync.detect;
 
 import org.opensearch.plugin.wlm.AutoTaggingActionFilterTests;
+import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -19,12 +20,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.mockito.Mockito.mock;
+
 public class RuleEventClassifierTests extends OpenSearchTestCase {
     public static final int TOTAL_RULE_COUNT = 10;
     RuleEventClassifier sut;
 
+    InMemoryRuleProcessingService ruleProcessingService = mock(InMemoryRuleProcessingService.class);
+
     public void testGetRuleEventsForAddRuleEvents() {
-        sut = new RuleEventClassifier(Collections.emptySet());
+        sut = new RuleEventClassifier(Collections.emptySet(), ruleProcessingService);
         Set<Rule> newRules = new HashSet<>();
         for (int i = 0; i < TOTAL_RULE_COUNT; i++) {
             newRules.add(getRandomRule(String.valueOf(i)));
@@ -46,7 +51,7 @@ public class RuleEventClassifierTests extends OpenSearchTestCase {
         for (int i = 0; i < EXISTING_RULE_COUNT; i++) {
             newRules.add(ruleIterator.next());
         }
-        sut = new RuleEventClassifier(previousRules);
+        sut = new RuleEventClassifier(previousRules, ruleProcessingService);
         List<RuleEvent> deleteRuleEvents = sut.getRuleEvents(newRules);
 
         assertEquals(TOTAL_RULE_COUNT - EXISTING_RULE_COUNT, deleteRuleEvents.size());
@@ -69,7 +74,7 @@ public class RuleEventClassifierTests extends OpenSearchTestCase {
         for (int i = EXISTING_RULE_COUNT; i < TOTAL_RULE_COUNT; i++) {
             newRules.add(getRandomRule(String.valueOf(i)));
         }
-        sut = new RuleEventClassifier(previousRules);
+        sut = new RuleEventClassifier(previousRules, ruleProcessingService);
         List<RuleEvent> deleteRuleEvents = sut.getRuleEvents(newRules);
 
         assertEquals(TOTAL_RULE_COUNT - EXISTING_RULE_COUNT, deleteRuleEvents.size());

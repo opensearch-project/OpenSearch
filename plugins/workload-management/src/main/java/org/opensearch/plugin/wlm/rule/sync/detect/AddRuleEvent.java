@@ -16,17 +16,19 @@ import org.opensearch.rule.autotagging.Rule;
  */
 public class AddRuleEvent implements RuleEvent {
     private final Rule newRule;
+    private final InMemoryRuleProcessingService ruleProcessingService;
 
     /**
      * Constructor
      * @param newRule
      */
-    public AddRuleEvent(Rule newRule) {
+    public AddRuleEvent(Rule newRule, InMemoryRuleProcessingService ruleProcessingService) {
         this.newRule = newRule;
+        this.ruleProcessingService = ruleProcessingService;
     }
 
     @Override
-    public void process(InMemoryRuleProcessingService inMemoryRuleProcessingService) {
-        inMemoryRuleProcessingService.add(newRule);
+    public void process() {
+        ruleProcessingService.add(newRule);
     }
 }

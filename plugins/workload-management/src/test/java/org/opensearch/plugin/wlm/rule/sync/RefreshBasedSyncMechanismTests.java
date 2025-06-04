@@ -70,11 +70,11 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(plugin.getSettings()));
             clusterSettings.registerSetting(WorkloadManagementSettings.WLM_MODE_SETTING);
             mockThreadPool = mock(ThreadPool.class);
+            ruleProcessingService = mock(InMemoryRuleProcessingService.class);
             rulePersistenceService = mock(RulePersistenceService.class);
-            ruleEventClassifier = new RuleEventClassifier(Collections.emptySet());
+            ruleEventClassifier = new RuleEventClassifier(Collections.emptySet(), ruleProcessingService);
             attributeValueStoreFactory = new AttributeValueStoreFactory(WorkloadGroupFeatureType.INSTANCE, DefaultAttributeValueStore::new);
             RuleEntityParser parser = new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE);
-            ruleProcessingService = mock(InMemoryRuleProcessingService.class);
             mockClient = mock(Client.class);
             scheduledFuture = mock(Scheduler.Cancellable.class);
             when(mockThreadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(scheduledFuture);

@@ -16,17 +16,19 @@ import org.opensearch.rule.autotagging.Rule;
  */
 public class DeleteRuleEvent implements RuleEvent {
     private Rule deletedRule;
+    private final InMemoryRuleProcessingService ruleProcessingService;
 
     /**
      * Constructor
      * @param deletedRule
      */
-    public DeleteRuleEvent(Rule deletedRule) {
+    public DeleteRuleEvent(Rule deletedRule, InMemoryRuleProcessingService ruleProcessingService) {
         this.deletedRule = deletedRule;
+        this.ruleProcessingService = ruleProcessingService;
     }
 
     @Override
-    public void process(InMemoryRuleProcessingService inMemoryRuleProcessingService) {
-        inMemoryRuleProcessingService.remove(deletedRule);
+    public void process() {
+        ruleProcessingService.remove(deletedRule);
     }
 }
