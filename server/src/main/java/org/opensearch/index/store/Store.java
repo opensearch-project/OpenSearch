@@ -390,21 +390,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Segment Replication method - Fetch a map of StoreFileMetadata for segmentCommitInfo.
-     * @param segmentCommitInfo {@link SegmentCommitInfo} from which to compute metadata.
-     * @return {@link Map} map file name to {@link StoreFileMetadata}.
-     */
-    public Map<String, StoreFileMetadata> getSegmentMetadataMap(SegmentCommitInfo segmentCommitInfo) throws IOException {
-        failIfCorrupted();
-        try {
-            return loadMetadata(segmentCommitInfo, directory, logger);
-        } catch (NoSuchFileException | CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-            markStoreCorrupted(ex);
-            throw ex;
-        }
-    }
-
-    /**
      * Segment Replication method
      * Returns a diff between the Maps of StoreFileMetadata that can be used for getting list of files to copy over to a replica for segment replication. The returned diff will hold a list of files that are:
      * <ul>
@@ -1206,26 +1191,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
             }
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
-        }
-
-        static Map<String, StoreFileMetadata> loadMetadata(SegmentCommitInfo info, Directory directory, Logger logger) throws IOException {
-            Map<String, StoreFileMetadata> builder = new HashMap<>();
-            final Version version = info.info.getVersion();
-            if (version == null) {
-                // version is written since 3.1+: we should have already hit IndexFormatTooOld.
-                throw new IllegalArgumentException("expected valid version value: " + info.info.toString());
-            }
-            for (String file : info.files()) {
-                checksumFromLuceneFile(
-                    directory,
-                    file,
-                    builder,
-                    logger,
-                    version,
-                    SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file))
-                );
-            }
-            return unmodifiableMap(builder);
         }
 
         private static void checksumFromLuceneFile(

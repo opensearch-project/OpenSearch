@@ -12,6 +12,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -1029,7 +1030,9 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.flush();
             SegmentInfos segmentInfos = Lucene.readSegmentInfos(primaryShard.store().directory());
             for (SegmentCommitInfo segmentCommitInfo : segmentInfos) {
-                Map<String, StoreFileMetadata> segmentMetadataMap = primaryShard.store().getSegmentMetadataMap(segmentCommitInfo);
+                SegmentInfos tempSegmentInfos = new SegmentInfos(Version.LATEST.major);
+                tempSegmentInfos.add(segmentCommitInfo);
+                Map<String, StoreFileMetadata> segmentMetadataMap = primaryShard.store().getSegmentMetadataMap(tempSegmentInfos);
                 ReplicationSegmentCheckpoint expectedCheckpoint = new ReplicationSegmentCheckpoint(
                     primaryShard.shardId,
                     primaryShard.getOperationPrimaryTerm(),

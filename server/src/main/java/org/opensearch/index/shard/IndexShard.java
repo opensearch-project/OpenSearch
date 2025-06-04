@@ -57,6 +57,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
+import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRunnable;
@@ -1869,7 +1870,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IOException When there is an error computing segment metadata from the store.
      */
     public ReplicationSegmentCheckpoint computeReplicationSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
-        Map<String, StoreFileMetadata> segmentMetadataMap = store.getSegmentMetadataMap(segmentCommitInfo);
+        // Only need to get the file metadata information in segmentCommitInfo and reuse Store#getSegmentMetadataMap.
+        SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
+        segmentInfos.add(segmentCommitInfo);
+        Map<String, StoreFileMetadata> segmentMetadataMap = store.getSegmentMetadataMap(segmentInfos);
         return new ReplicationSegmentCheckpoint(
             shardId,
             getOperationPrimaryTerm(),
