@@ -171,7 +171,7 @@ public class FlightStreamPlugin extends Plugin
             return Collections.emptyMap();
         }
         flightService.setNetworkService(networkService);
-        return Collections.singletonMap(FlightService.AUX_TRANSPORT_TYPES_KEY, () -> flightService);
+        return Collections.singletonMap(flightService.settingKey(), () -> flightService);
     }
 
     /**

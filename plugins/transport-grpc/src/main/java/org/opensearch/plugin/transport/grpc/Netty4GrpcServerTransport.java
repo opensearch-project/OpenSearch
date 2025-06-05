@@ -233,7 +233,7 @@ public class Netty4GrpcServerTransport extends AuxTransport {
     }
 
     @Override
-    public String enableKey() {
+    public String settingKey() {
         return GRPC_TRANSPORT_SETTING_KEY;
     }
 

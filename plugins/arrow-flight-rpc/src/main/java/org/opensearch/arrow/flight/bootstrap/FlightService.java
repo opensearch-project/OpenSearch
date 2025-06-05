@@ -65,7 +65,7 @@ public class FlightService extends AuxTransport {
     }
 
     @Override
-    public String enableKey() {
+    public String settingKey() {
         return ARROW_FLIGHT_TRANSPORT_SETTING_KEY;
     }
 

@@ -93,7 +93,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
     }
 
     @Override
-    public String enableKey() {
+    public String settingKey() {
         return GRPC_SECURE_TRANSPORT_SETTING_KEY;
     }
 

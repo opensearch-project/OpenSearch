@@ -47,10 +47,10 @@ public abstract class AuxTransport extends AbstractLifecycleComponent {
     );
 
     /**
-     * @return unique key for enabling this transport per AUX_TRANSPORT_TYPES_KEY.
-     * This key is used to identify the aux transport in settings across plugins.
+     * @return unique name for which this transport is identified in settings.
+     * This should identify your transport for the purposes of enabling with AUX_TRANSPORT_TYPES_KEY setting.
      */
-    public abstract String enableKey();
+    public abstract String settingKey();
 
     // public for tests
     public abstract BoundTransportAddress getBoundAddress();
