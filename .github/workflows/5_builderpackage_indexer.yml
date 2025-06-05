@@ -364,7 +364,7 @@ jobs:
         run: |
           sudo bash build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
           sudo systemctl stop wazuh-indexer
-          sudo dpkg -i "artifacts/dist/${{ steps.package.outputs.name }}"
+          sudo DEBIAN_FRONTEND=noninteractive dpkg -i --force-confnew "artifacts/dist/${{ steps.package.outputs.name }}"
 
           sudo apt-get remove --purge wazuh-indexer -y
 
@@ -373,7 +373,7 @@ jobs:
         run: |
 
           sudo bash build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
-          sudo dpkg -i "artifacts/dist/${{ steps.package.outputs.name }}"
+          sudo DEBIAN_FRONTEND=noninteractive dpkg -i --force-confnew "artifacts/dist/${{ steps.package.outputs.name }}"
 
 
       - name: Upload artifact
