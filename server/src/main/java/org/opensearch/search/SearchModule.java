@@ -257,6 +257,7 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.opensearch.search.query.QueryCollectorContextFactoryRegistery;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhaseSearcherWrapper;
@@ -321,6 +322,8 @@ public class SearchModule {
 
     private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
 
+    // private final QueryCollectorContextFactory queryCollectorContextFactory;
+
     /**
      * Constructs a new SearchModule object
      * <p>
@@ -350,6 +353,7 @@ public class SearchModule {
         indexSearcherExecutorProvider = registerIndexSearcherExecutorProvider(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
         concurrentSearchDeciderFactories = registerConcurrentSearchDeciderFactories(plugins);
+        registerQueryCollectorContextFactory(plugins);
     }
 
     private Collection<ConcurrentSearchRequestDecider.Factory> registerConcurrentSearchDeciderFactories(List<SearchPlugin> plugins) {
@@ -1295,6 +1299,23 @@ public class SearchModule {
             provider = (ThreadPool threadPool) -> threadPool.executor(INDEX_SEARCHER);
         }
         return provider;
+    }
+
+    private void registerQueryCollectorContextFactory(List<SearchPlugin> plugins) {
+        // QueryCollectorContextFactory queryCollectorContextFactory = null;
+        // for (SearchPlugin plugin : plugins) {
+        // final Optional<QueryCollectorContextFactory> factoryOpt = plugin.getCollectorContextFactory();
+        //
+        // if (factoryOpt.isPresent()) {
+        // queryCollectorContextFactory = factoryOpt.get();
+        // break;
+        // }
+        // }
+        // if (queryCollectorContextFactory == null) {
+        // queryCollectorContextFactory = new TopDocsCollectorContextFactory();
+        // }
+        // return queryCollectorContextFactory;
+        registerFromPlugin(plugins, SearchPlugin::getCollectorContextFactory, QueryCollectorContextFactoryRegistery::registerFactory);
     }
 
     public FetchPhase getFetchPhase() {

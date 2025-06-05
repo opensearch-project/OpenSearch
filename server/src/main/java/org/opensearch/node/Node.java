@@ -1583,6 +1583,7 @@ public class Node implements Closeable {
                 b.bind(SegmentReplicator.class).toInstance(segmentReplicator);
                 b.bind(MergedSegmentWarmerFactory.class).toInstance(mergedSegmentWarmerFactory);
                 b.bind(MappingTransformerRegistry.class).toInstance(mappingTransformerRegistry);
+                // b.bind(QueryCollectorContextFactory.class).toInstance(searchModule.getQueryCollectorContextFactory());
 
                 taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });

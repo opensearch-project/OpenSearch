@@ -83,7 +83,6 @@ import static org.opensearch.search.query.QueryCollectorContext.createEarlyTermi
 import static org.opensearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createMultiCollectorContext;
-import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
 
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
@@ -446,8 +445,16 @@ public class QueryPhase {
             boolean hasTimeout
         ) throws IOException {
             // create the top docs collector last when the other collectors are known
-            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
-            return searchWithCollector(searchContext, searcher, query, collectors, topDocsFactory, hasFilterCollector, hasTimeout);
+            QueryCollectorContextFactory queryCollectorContextFactory = QueryCollectorContextFactoryRegistery.getFactory(query);
+            CollectorContextParams collectorContextParams = new CollectorContextParams.Builder().withSearchContext(searchContext)
+                .withHasFilterCollector(hasFilterCollector)
+                .build();
+            if (queryCollectorContextFactory == null) {
+                queryCollectorContextFactory = new TopDocsCollectorContextFactory();
+            }
+            final QueryCollectorContext queryCollectorContext = queryCollectorContextFactory.createCollectorContext(collectorContextParams);
+            // final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
+            return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
         }
 
         protected boolean searchWithCollector(

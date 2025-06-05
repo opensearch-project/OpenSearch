@@ -68,6 +68,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
+import org.opensearch.search.query.QueryCollectorContextFactory;
 import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.rescore.Rescorer;
 import org.opensearch.search.rescore.RescorerBuilder;
@@ -225,6 +226,10 @@ public interface SearchPlugin {
      */
     default Optional<ExecutorServiceProvider> getIndexSearcherExecutorProvider() {
         return Optional.empty();
+    }
+
+    default List<FactorySpec<?>> getCollectorContextFactory() {
+        return emptyList();
     }
 
     /**
@@ -404,6 +409,39 @@ public interface SearchPlugin {
          */
         public QuerySpec(String name, Writeable.Reader<T> reader, QueryParser<T> parser) {
             super(name, reader, parser);
+        }
+    }
+
+    class FactorySpec<T extends QueryBuilder> {
+        public String getName() {
+            return name;
+        }
+
+        public QueryCollectorContextFactory getQueryCollectorContextFactory() {
+            return queryCollectorContextFactory;
+        }
+
+        private final String name;
+
+        public Class<?> getClassType() {
+            return classType;
+        }
+
+        private final Class<?> classType;
+        private final QueryCollectorContextFactory queryCollectorContextFactory;
+
+        /**
+         * Specification of custom {@link Query}.
+         *
+         * @param name the name by which this query might be parsed or deserialized. Make sure that the query builder returns this name for
+         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
+         *        names from other plugins.
+         * @param queryCollectorContextFactory Factory associated with the query builder
+         */
+        public FactorySpec(String name, Class<?> classType, QueryCollectorContextFactory queryCollectorContextFactory) {
+            this.name = name;
+            this.classType = classType;
+            this.queryCollectorContextFactory = queryCollectorContextFactory;
         }
     }
 
