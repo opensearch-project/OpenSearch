@@ -54,7 +54,6 @@ public abstract class AbstractTimingProfileBreakdown extends AbstractProfileBrea
             map.put(entry.getKey() + TIMING_TYPE_COUNT_SUFFIX, entry.getValue().getCount());
             map.put(entry.getKey() + TIMING_TYPE_START_TIME_SUFFIX, entry.getValue().getEarliestTimerStartTime());
         }
-        map.put(NODE_TIME_RAW, toNodeTime());
         return map;
     }
 }

@@ -55,6 +55,11 @@ public abstract class AbstractProfileBreakdown {
     public AbstractProfileBreakdown() {}
 
     /**
+     * Gather important metrics for current instance
+     */
+    abstract public Map<String, Long> toImportantMetricsMap();
+
+    /**
      * Build a breakdown for current instance
      */
     abstract public Map<String, Long> toBreakdownMap();
@@ -72,5 +77,15 @@ public abstract class AbstractProfileBreakdown {
      */
     public BiFunction<String, Long, Long> handleConcurrentPluginMetric() {
         throw new IllegalCallerException("must be overridden by plugin");
+    }
+
+    public Map<String, Long> filterZeros(Map<String, Long> map) {
+        Map<String, Long> filteredMap = new HashMap<>(map.size());
+        for (Map.Entry<String, Long> entry : map.entrySet()) {
+            if (entry.getValue() != 0) {
+                filteredMap.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return Collections.unmodifiableMap(filteredMap);
     }
 }

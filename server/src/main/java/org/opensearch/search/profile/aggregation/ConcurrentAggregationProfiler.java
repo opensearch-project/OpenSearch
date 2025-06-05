@@ -58,6 +58,7 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         Map<String, Long> minSliceStartTimeMap = new HashMap<>();
         Map<String, Long> maxSliceEndTimeMap = new HashMap<>();
         Map<String, Long> countStatsMap = new HashMap<>();
+        Map<String, Long> importantMetrics = new HashMap<>();
         Map<String, Object> debug = new HashMap<>();
         List<ProfileResult> children = new LinkedList<>();
 
@@ -145,6 +146,7 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         ProfileResult reducedResult = new ProfileResult(
             type,
             description,
+            importantMetrics,
             breakdown,
             debug,
             reducedChildrenTree

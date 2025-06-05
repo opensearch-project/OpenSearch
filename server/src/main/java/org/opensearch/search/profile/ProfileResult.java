@@ -65,6 +65,7 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
 @PublicApi(since = "1.0.0")
 public class ProfileResult implements Writeable, ToXContentObject {
     protected static final ParseField TYPE = new ParseField("type");
+    protected static final ParseField METRICS = new ParseField("important_metrics");
     protected static final ParseField DESCRIPTION = new ParseField("description");
     protected static final ParseField BREAKDOWN = new ParseField("breakdown");
     protected static final ParseField DEBUG = new ParseField("debug");
@@ -72,6 +73,7 @@ public class ProfileResult implements Writeable, ToXContentObject {
 
     protected final String type;
     protected final String description;
+    protected final Map<String, Long> importantMetrics;
     protected final Map<String, Long> breakdown;
     protected final Map<String, Object> debug;
     protected List<ProfileResult> children;
@@ -79,12 +81,14 @@ public class ProfileResult implements Writeable, ToXContentObject {
     public ProfileResult(
         String type,
         String description,
+        Map<String, Long> importantMetrics,
         Map<String, Long> breakdown,
         Map<String, Object> debug,
         List<ProfileResult> children
     ) {
         this.type = type;
         this.description = description;
+        this.importantMetrics = Objects.requireNonNull(importantMetrics, "required breakdown argument missing");
         this.breakdown = Objects.requireNonNull(breakdown, "required breakdown argument missing");
         this.debug = debug == null ? Map.of() : debug;
         this.children = children == null ? List.of() : children;
@@ -96,6 +100,7 @@ public class ProfileResult implements Writeable, ToXContentObject {
     public ProfileResult(StreamInput in) throws IOException {
         this.type = in.readString();
         this.description = in.readString();
+        importantMetrics = in.readMap(StreamInput::readString, StreamInput::readLong);
         breakdown = in.readMap(StreamInput::readString, StreamInput::readLong);
         debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
         children = in.readList(ProfileResult::new);
@@ -105,6 +110,7 @@ public class ProfileResult implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type);
         out.writeString(description);
+        out.writeMap(importantMetrics, StreamOutput::writeString, StreamOutput::writeLong);
         out.writeMap(breakdown, StreamOutput::writeString, StreamOutput::writeLong);
         out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
         out.writeList(children);
@@ -125,7 +131,14 @@ public class ProfileResult implements Writeable, ToXContentObject {
     }
 
     /**
-     * The timing breakdown for this node.
+     * The important metrics for this node.
+     */
+    public Map<String, Long> getImportantMetrics() {
+        return Collections.unmodifiableMap(importantMetrics);
+    }
+
+    /**
+     * The breakdown for this node.
      */
     public Map<String, Long> getBreakdown() {
         return Collections.unmodifiableMap(breakdown);
@@ -150,6 +163,7 @@ public class ProfileResult implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(TYPE.getPreferredName(), getQueryName());
         builder.field(DESCRIPTION.getPreferredName(), getLuceneDescription());
+        builder.field(METRICS.getPreferredName(), getImportantMetrics());
         builder.field(BREAKDOWN.getPreferredName(), getBreakdown());
         if (false == getDebugInfo().isEmpty()) {
             builder.field(DEBUG.getPreferredName(), getDebugInfo());
@@ -175,6 +189,7 @@ public class ProfileResult implements Writeable, ToXContentObject {
         );
         parser.declareString(constructorArg(), TYPE);
         parser.declareString(constructorArg(), DESCRIPTION);
+        parser.declareObject(constructorArg(), (p, c) -> p.map(), METRICS);
         parser.declareObject(constructorArg(), (p, c) -> p.map(), BREAKDOWN);
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), DEBUG);
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> fromXContent(p), CHILDREN);

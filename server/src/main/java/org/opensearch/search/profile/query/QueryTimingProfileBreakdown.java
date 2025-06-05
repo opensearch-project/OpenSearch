@@ -44,6 +44,12 @@ public class QueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown 
     }
 
     @Override
+    public Map<String, Long> toImportantMetricsMap() {
+        if(pluginBreakdown != null) return pluginBreakdown.toImportantMetricsMap();
+        return Map.of();
+    }
+
+    @Override
     public Map<String, Long> toBreakdownMap() {
         Map<String, Long> map = super.toBreakdownMap();
         if(pluginBreakdown != null) map.putAll(pluginBreakdown.toBreakdownMap());
