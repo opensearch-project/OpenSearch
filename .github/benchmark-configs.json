@@ -52,7 +52,7 @@
     "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_4": {
-    "description": "Search only test-procedure for big5, uses snapshot to restore the data for OS-3.1.0",
+    "description": "Search only test-procedure for big5, uses snapshot to restore the data for OS-3.x",
     "supported_major_versions": ["3"],
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
@@ -206,7 +206,7 @@
     "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_13": {
-    "description": "Search only test-procedure for HTTP_LOGS, uses snapshot to restore the data for OS-3.1.0",
+    "description": "Search only test-procedure for HTTP_LOGS, uses snapshot to restore the data for OS-3.x",
     "supported_major_versions": ["3"],
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
@@ -223,7 +223,7 @@
     "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_14": {
-    "description": "Search only test-procedure for NYC_TAXIS, uses snapshot to restore the data for OS-3.1.0",
+    "description": "Search only test-procedure for NYC_TAXIS, uses snapshot to restore the data for OS-3.x",
     "supported_major_versions": ["3"],
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
