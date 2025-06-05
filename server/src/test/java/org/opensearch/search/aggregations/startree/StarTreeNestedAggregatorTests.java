@@ -199,6 +199,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
             () -> terms("term_size").field(SIZE),
             () -> terms("term_status").field(STATUS),
             () -> range("range_agg").field(STATUS).addRange(10, 30).addRange(30, 50),
+            () -> terms("term_keyword").field(KEYWORD_FIELD).collectMode(Aggregator.SubAggCollectionMode.DEPTH_FIRST),
             () -> terms("term_keyword").field(KEYWORD_FIELD).collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST),
             () -> dateHistogram("by_day").field(TIMESTAMP_FIELD).calendarInterval(DateHistogramInterval.DAY)
         );
@@ -219,7 +220,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                     testCase(indexSearcher, query, queryBuilder, outer, starTree, supportedDimensions, skipReducedMultiBucketConsumerAssertion);
 
                     // Numeric-terms query with numeric terms aggregation
-                    for (int cases = 0; cases < 10; cases++) {
+                    for (int cases = 0; cases < 20; cases++) {
                         String queryField;
                         long queryValue;
                         if (randomBoolean()) {
@@ -256,7 +257,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                         testCase(indexSearcher, query, queryBuilder, outermost, starTree, supportedDimensions, skipReducedMultiBucketConsumerAssertion);
 
                         // Numeric-terms query with numeric terms aggregation
-                        for (int cases = 0; cases < 10; cases++) {
+                        for (int cases = 0; cases < 20; cases++) {
                             String queryField;
                             long queryValue;
                             if (randomBoolean()) {

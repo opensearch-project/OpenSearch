@@ -408,17 +408,7 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
         // TODO: Evaluate optimizing StarTree traversal filter with specific ranges instead of MATCH_ALL_DEFAULT
         return new StarTreeBucketCollector(
             starTreeValues,
-            parent == null
-                ? StarTreeTraversalUtil.getStarTreeResult(
-                    starTreeValues,
-                    StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
-                        context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
-                        dimensionsToMerge,
-                        List.of(DimensionFilter.MATCH_ALL_DEFAULT)
-                    ),
-                    context
-                )
-                : null
+            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parentCollector, context, dimensionsToMerge)
         ) {
             @Override
             public void setSubCollectors() throws IOException {

@@ -373,17 +373,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         LongUnaryOperator globalOperator = valuesSource.globalOrdinalsMapping(ctx);
         return new StarTreeBucketCollector(
             starTreeValues,
-            parent == null
-                ? StarTreeTraversalUtil.getStarTreeResult(
-                    starTreeValues,
-                    StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
-                        context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
-                        dimensionsToMerge,
-                        List.of(DimensionFilter.MATCH_ALL_DEFAULT)
-                    ),
-                    context
-                )
-                : null
+            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parent, context, dimensionsToMerge)
         ) {
             @Override
             public void setSubCollectors() throws IOException {
@@ -405,7 +395,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         if (collectionStrategy instanceof RemapGlobalOrdsStarTree rangeSTGlobalOrds) {
                             rangeSTGlobalOrds.collectGlobalOrdsForStarTree(owningBucketOrd, starTreeEntry, ord, this, metricValue);
                         } else {
-                            long bucketOrd = collectionStrategy.globalOrdToBucketOrd(owningBucketOrd, ord);
+                            long bucketOrd = collectionStrategy.getOrAddBucketOrd(owningBucketOrd, ord);
                             collectStarTreeBucket(this, metricValue, bucketOrd, starTreeEntry);
                         }
                     }
@@ -679,6 +669,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * they'll skip all global ords that weren't collected.
          */
         abstract void forEach(long owningBucketOrd, BucketInfoConsumer consumer) throws IOException;
+
+        /**
+         * Add a global ordinal if it hasn't been seen before.
+         * Convert the global ordinal into a bucket ordinal.
+         */
+        abstract long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) throws IOException;
     }
 
     interface BucketInfoConsumer {
@@ -727,6 +723,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     consumer.accept(globalOrd, globalOrd, docCount);
                 }
             }
+        }
+
+        @Override
+        long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) {
+            return globalOrdToBucketOrd(owningBucketOrd, globalOrd);
         }
 
         @Override
@@ -808,6 +809,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     consumer.accept(ordsEnum.value(), ordsEnum.ord(), bucketDocCount(ordsEnum.ord()));
                 }
             }
+        }
+
+        @Override
+        long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) {
+            return bucketOrds.add(owningBucketOrd, globalOrd);
         }
 
         @Override

@@ -197,17 +197,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         List<String> dimensionsToMerge = getDimensionFilters();
         return new StarTreeBucketCollector(
             starTreeValues,
-            parent == null
-                ? StarTreeTraversalUtil.getStarTreeResult(
-                    starTreeValues,
-                    StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
-                        context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
-                        dimensionsToMerge,
-                        List.of(DimensionFilter.MATCH_ALL_DEFAULT)
-                    ),
-                    context
-                )
-                : null
+            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parent, context, dimensionsToMerge)
         ) {
             @Override
             public void setSubCollectors() throws IOException {

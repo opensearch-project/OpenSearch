@@ -827,7 +827,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         countingAggregator.postCollection();
         aggs.add(countingAggregator.buildTopLevel());
         if (compositeIndexFieldInfo != null && assertCollectorEarlyTermination) {
-            assertEquals(0, countingAggregator.collectCounter.get());
+             assertEquals(0, countingAggregator.collectCounter.get());
         }
 
         MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
@@ -843,7 +843,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
         @SuppressWarnings("unchecked")
         A internalAgg = (A) aggs.get(0).reduce(aggs, context);
-        if(!skipReducedMultiBucketConsumerAssertion) doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+        if(skipReducedMultiBucketConsumerAssertion == false) doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
         return internalAgg;
     }
 
