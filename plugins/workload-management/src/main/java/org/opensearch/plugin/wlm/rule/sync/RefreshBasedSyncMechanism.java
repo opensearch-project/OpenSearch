@@ -82,6 +82,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
      * @param clusterSettings
      * @param parser
      * @param ruleProcessingService
+     * @param featureType
      * @param rulePersistenceService
      * @param ruleEventClassifier
      */
