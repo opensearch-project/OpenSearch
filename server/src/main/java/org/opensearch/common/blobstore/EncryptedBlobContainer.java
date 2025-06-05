@@ -200,4 +200,44 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
         );
         blobContainer.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder, encryptedMetadataListener);
     }
+
+    @Override
+    public Map<String, BlobMetadata> listBlobVersions(String blobName) throws IOException {
+        Map<String, BlobMetadata> versionMap = blobContainer.listBlobVersions(blobName);
+        // Convert each version's metadata to encrypted metadata
+        return versionMap.entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> new EncryptedBlobMetadata<>(entry.getValue(), cryptoHandler, getEncryptedHeaderContentSupplier(blobName))
+                )
+            );
+    }
+
+    @Override
+    public InputStream readBlobVersion(String blobName, String versionId) throws IOException {
+        InputStream inputStream = blobContainer.readBlobVersion(blobName, versionId);
+        return cryptoHandler.createDecryptingStream(inputStream);
+    }
+
+    @Override
+    public InputStream readBlobVersion(String blobName, String versionId, long position, long length) throws IOException {
+        U encryptionMetadata = cryptoHandler.loadEncryptionMetadata(getEncryptedHeaderContentSupplier(blobName));
+        DecryptedRangedStreamProvider decryptedStreamProvider = cryptoHandler.createDecryptingStreamOfRange(
+            encryptionMetadata,
+            position,
+            position + length - 1
+        );
+        long adjustedPos = decryptedStreamProvider.getAdjustedRange()[0];
+        long adjustedLength = decryptedStreamProvider.getAdjustedRange()[1] - adjustedPos + 1;
+        InputStream encryptedStream = blobContainer.readBlobVersion(blobName, versionId, adjustedPos, adjustedLength);
+        return decryptedStreamProvider.getDecryptedStreamProvider().apply(encryptedStream);
+    }
+
+    @Override
+    public BlobMetadata headBlobVersion(String blobName, String versionId) throws IOException {
+        BlobMetadata metadata = blobContainer.headBlobVersion(blobName, versionId);
+        return new EncryptedBlobMetadata<>(metadata, cryptoHandler, getEncryptedHeaderContentSupplier(blobName));
+    }
 }
