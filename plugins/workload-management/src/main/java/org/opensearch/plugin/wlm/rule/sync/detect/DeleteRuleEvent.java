@@ -21,6 +21,7 @@ public class DeleteRuleEvent implements RuleEvent {
     /**
      * Constructor
      * @param deletedRule
+     * @param ruleProcessingService
      */
     public DeleteRuleEvent(Rule deletedRule, InMemoryRuleProcessingService ruleProcessingService) {
         this.deletedRule = deletedRule;

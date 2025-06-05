@@ -32,6 +32,7 @@ public class RuleEventClassifier {
      * Constructor
      *
      * @param previousRules
+     * @param ruleProcessingService
      */
     public RuleEventClassifier(Set<Rule> previousRules, InMemoryRuleProcessingService ruleProcessingService) {
         this.previousRules = previousRules;

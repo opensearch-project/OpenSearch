@@ -21,6 +21,7 @@ public class AddRuleEvent implements RuleEvent {
     /**
      * Constructor
      * @param newRule
+     * @param ruleProcessingService
      */
     public AddRuleEvent(Rule newRule, InMemoryRuleProcessingService ruleProcessingService) {
         this.newRule = newRule;

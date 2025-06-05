@@ -157,7 +157,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
         }
     }
 
-    public void setWlmMode(WlmMode mode) {
+    void setWlmMode(WlmMode mode) {
         this.wlmMode = mode;
     }
 }

@@ -23,6 +23,7 @@ public class UpdateRuleEvent implements RuleEvent {
      * Constructor
      * @param previousRule
      * @param newRule
+     * @param ruleProcessingService
      */
     public UpdateRuleEvent(Rule previousRule, Rule newRule, InMemoryRuleProcessingService ruleProcessingService) {
         this.previousRule = previousRule;
