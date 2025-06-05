@@ -39,7 +39,6 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         Set.of("value2")
     );
     public static final String UPDATED_AT = "2025-02-24T07:42:10.123456Z";
-    public static final String INVALID_CLASS = "invalid_class";
     public static final String INVALID_ATTRIBUTE = "invalid_attribute";
     public static final String INVALID_FEATURE = "invalid_feature";
 
@@ -92,7 +91,7 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         public TestFeatureType() {}
 
         static {
-            INSTANCE.registerFeatureType();
+            AutoTaggingRegistry.registerFeatureType(INSTANCE);
         }
 
         @Override
@@ -113,11 +112,6 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         @Override
         public Map<String, Attribute> getAllowedAttributesRegistry() {
             return ALLOWED_ATTRIBUTES;
-        }
-
-        @Override
-        public void registerFeatureType() {
-            AutoTaggingRegistry.registerFeatureType(INSTANCE);
         }
     }
 
