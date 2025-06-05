@@ -125,8 +125,32 @@ public class PolicyFile extends java.security.Policy {
         entries.add(new PolicyEntry(codesource, permissions));
     }
 
+    /**
+     * Expands known system properties like ${java.home} and ${user.home} to their absolute
+     * path equivalents.
+     */
+    private static String expandKnownSystemProperty(final String property, final String value) {
+        final int index = value.indexOf("${" + property + "}/");
+        final String path = System.getProperty(property);
+        if (path.endsWith(File.pathSeparator)) {
+            return path + value.substring(index + property.length() + 4 /* replace the path separator */);
+        } else {
+            return path + value.substring(index + property.length() + 3 /* keep the path separator */);
+        }
+    }
+
     private static PermissionEntry expandPermissionName(PermissionEntry pe) {
-        if (pe.name() == null || !pe.name().contains("${{")) {
+        if (pe.name() == null) {
+            return pe;
+        }
+
+        if (pe.name().startsWith("${java.home}")) {
+            return new PermissionEntry(pe.permission(), expandKnownSystemProperty("java.home", pe.name()), pe.action());
+        } else if (pe.name().startsWith("${user.home}")) {
+            return new PermissionEntry(pe.permission(), expandKnownSystemProperty("user.home", pe.name()), pe.action());
+        }
+
+        if (!pe.name().contains("${{")) {
             return pe;
         }
 
@@ -137,7 +161,13 @@ public class PolicyFile extends java.security.Policy {
         while ((b = pe.name().indexOf("${{", startIndex)) != -1 && (e = pe.name().indexOf("}}", b)) != -1) {
             sb.append(pe.name(), startIndex, b);
             String value = pe.name().substring(b + 3, e);
-            sb.append("${{").append(value).append("}}");
+            String propertyValue = System.getProperty(value);
+            if (propertyValue != null) {
+                sb.append(propertyValue);
+            } else {
+                // replacement not found
+                sb.append("${{").append(value).append("}}");
+            }
             startIndex = e + 2;
         }
 

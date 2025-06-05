@@ -26,7 +26,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.metrics.OperationMetrics;
@@ -63,6 +62,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_SEARCH_PIPELINE;
+import static org.opensearch.cluster.service.ClusterManagerTask.PUT_SEARCH_PIPELINE;
 
 /**
  * The main entry point for search pipelines. Handles CRUD operations and exposes the API to execute search pipelines
@@ -126,8 +128,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             searchPipelinePlugins,
             p -> p.getSearchPhaseResultsProcessors(parameters)
         );
-        putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_SEARCH_PIPELINE_KEY, true);
-        deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SEARCH_PIPELINE_KEY, true);
+        putPipelineTaskKey = clusterService.registerClusterManagerTask(PUT_SEARCH_PIPELINE, true);
+        deletePipelineTaskKey = clusterService.registerClusterManagerTask(DELETE_SEARCH_PIPELINE, true);
     }
 
     private static <T extends Processor> Map<String, Processor.Factory<T>> processorFactories(
@@ -309,25 +311,27 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             new Processor.PipelineContext(Processor.PipelineSource.VALIDATE_PIPELINE)
         );
         List<Exception> exceptions = new ArrayList<>();
-        for (SearchRequestProcessor processor : pipeline.getSearchRequestProcessors()) {
-            for (Map.Entry<DiscoveryNode, SearchPipelineInfo> entry : searchPipelineInfos.entrySet()) {
-                String type = processor.getType();
-                if (entry.getValue().containsProcessor(Pipeline.REQUEST_PROCESSORS_KEY, type) == false) {
-                    String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
-                    exceptions.add(ConfigurationUtils.newConfigurationException(processor.getType(), processor.getTag(), null, message));
-                }
-            }
-        }
-        for (SearchResponseProcessor processor : pipeline.getSearchResponseProcessors()) {
-            for (Map.Entry<DiscoveryNode, SearchPipelineInfo> entry : searchPipelineInfos.entrySet()) {
-                String type = processor.getType();
-                if (entry.getValue().containsProcessor(Pipeline.RESPONSE_PROCESSORS_KEY, type) == false) {
-                    String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
-                    exceptions.add(ConfigurationUtils.newConfigurationException(processor.getType(), processor.getTag(), null, message));
-                }
-            }
-        }
+        validateProcessors(searchPipelineInfos, exceptions, Pipeline.REQUEST_PROCESSORS_KEY, pipeline.getSearchRequestProcessors());
+        validateProcessors(searchPipelineInfos, exceptions, Pipeline.RESPONSE_PROCESSORS_KEY, pipeline.getSearchResponseProcessors());
+        validateProcessors(searchPipelineInfos, exceptions, Pipeline.PHASE_PROCESSORS_KEY, pipeline.getSearchPhaseResultsProcessors());
         ExceptionsHelper.rethrowAndSuppress(exceptions);
+    }
+
+    private void validateProcessors(
+        Map<DiscoveryNode, SearchPipelineInfo> searchPipelineInfos,
+        List<Exception> exceptions,
+        String processorKey,
+        List<? extends Processor> processors
+    ) {
+        for (Processor processor : processors) {
+            for (Map.Entry<DiscoveryNode, SearchPipelineInfo> entry : searchPipelineInfos.entrySet()) {
+                String type = processor.getType();
+                if (entry.getValue().containsProcessor(processorKey, type) == false) {
+                    String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
+                    exceptions.add(ConfigurationUtils.newConfigurationException(processor.getType(), processor.getTag(), null, message));
+                }
+            }
+        }
     }
 
     public void deletePipeline(DeleteSearchPipelineRequest request, ActionListener<AcknowledgedResponse> listener) throws Exception {
@@ -458,6 +462,10 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return responseProcessorFactories;
     }
 
+    Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessorFactories() {
+        return phaseInjectorProcessorFactories;
+    }
+
     @Override
     public SearchPipelineInfo info() {
         List<ProcessorInfo> requestProcessorInfoList = requestProcessorFactories.keySet()
@@ -468,8 +476,19 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             .stream()
             .map(ProcessorInfo::new)
             .collect(Collectors.toList());
+        List<ProcessorInfo> phaseProcessorInfoList = phaseInjectorProcessorFactories.keySet()
+            .stream()
+            .map(ProcessorInfo::new)
+            .collect(Collectors.toList());
         return new SearchPipelineInfo(
-            Map.of(Pipeline.REQUEST_PROCESSORS_KEY, requestProcessorInfoList, Pipeline.RESPONSE_PROCESSORS_KEY, responseProcessorInfoList)
+            Map.of(
+                Pipeline.REQUEST_PROCESSORS_KEY,
+                requestProcessorInfoList,
+                Pipeline.RESPONSE_PROCESSORS_KEY,
+                responseProcessorInfoList,
+                Pipeline.PHASE_PROCESSORS_KEY,
+                phaseProcessorInfoList
+            )
         );
     }
 

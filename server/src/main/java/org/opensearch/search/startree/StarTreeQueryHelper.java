@@ -22,7 +22,6 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
@@ -227,17 +226,23 @@ public class StarTreeQueryHelper {
         return new StarTreeFilter(dimensionFilterMap);
     }
 
-    public static FixedBitSet getStarTreeResult(StarTreeValues starTreeValues, StarTreeBucketCollector parent, SearchContext context, List<String> dimensionsToMerge) throws IOException {
+    public static FixedBitSet getStarTreeResult(
+        StarTreeValues starTreeValues,
+        StarTreeBucketCollector parent,
+        SearchContext context,
+        List<String> dimensionsToMerge
+    ) throws IOException {
         return parent == null
             ? StarTreeTraversalUtil.getStarTreeResult(
-            starTreeValues,
-            StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
-                context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
-                dimensionsToMerge,
-                List.of(DimensionFilter.MATCH_ALL_DEFAULT)
-            ),
-            context
-        ) : null ;
+                starTreeValues,
+                StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+                    context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
+                    dimensionsToMerge,
+                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
+                ),
+                context
+            )
+            : null;
     }
 
 }

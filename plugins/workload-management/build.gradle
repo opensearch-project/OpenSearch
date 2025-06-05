@@ -9,6 +9,7 @@
  * GitHub history for details.
  */
 
+apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
@@ -16,8 +17,17 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
   description = 'OpenSearch Workload Management Plugin.'
   classname = 'org.opensearch.plugin.wlm.WorkloadManagementPlugin'
+  extendedPlugins = ['rule-framework']
 }
 
 dependencies {
-  api project(":libs:opensearch-autotagging-commons")
+  implementation project(':modules:autotagging-commons:common')
+  compileOnly project(':modules:autotagging-commons:spi')
+  compileOnly project(':modules:autotagging-commons')
+  testImplementation project(':modules:autotagging-commons')
+  testImplementation project(':modules:autotagging-commons:common')
+}
+
+testClusters.all {
+  testDistribution = 'archive'
 }

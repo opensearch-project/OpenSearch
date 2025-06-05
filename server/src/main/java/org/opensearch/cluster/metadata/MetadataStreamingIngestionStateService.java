@@ -48,7 +48,7 @@ public class MetadataStreamingIngestionStateService {
     /**
      *  This method updates the ingestion poller state in two phases for provided index shards.
      *  <ul>
-     *      <li>Phase 1: Publishes cluster state update to pause/resume ingestion. This phase finishes once the update is acknowledge</li>
+     *      <li>Phase 1: Publishes cluster state update to pause/resume ingestion. This phase finishes once the update is acknowledged</li>
      *      <li>Phase 2: Runs transport action to update cluster state on individual shards and collects success/failure responses.</li>
      *  </ul>
      *
@@ -62,11 +62,15 @@ public class MetadataStreamingIngestionStateService {
         ActionListener<UpdateIngestionStateResponse> listener
     ) {
         if (concreteIndices == null || concreteIndices.length == 0) {
-            throw new IllegalArgumentException("Index  is missing");
+            throw new IllegalArgumentException("Index is missing");
         }
 
         if (request.getIngestionPaused() == null) {
             throw new IllegalArgumentException("Ingestion poller target state is missing");
+        }
+
+        if (request.getResetSettings() != null && request.getResetSettings().length > 0 && request.getIngestionPaused() != false) {
+            throw new IllegalArgumentException("Poller position can only be reset during a resume operation.");
         }
 
         clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(Priority.URGENT) {
@@ -82,7 +86,6 @@ public class MetadataStreamingIngestionStateService {
                     logger.debug("Cluster state did not change when trying to set ingestionPaused={}", request.getIngestionPaused());
                     listener.onResponse(new UpdateIngestionStateResponse(false, 0, 0, 0, Collections.emptyList()));
                 } else {
-                    // todo: should we run this on a different thread?
                     processUpdateIngestionRequestOnShards(request, new ActionListener<>() {
 
                         @Override
@@ -132,6 +135,49 @@ public class MetadataStreamingIngestionStateService {
         ActionListener<UpdateIngestionStateResponse> listener
     ) {
         transportUpdateIngestionStateAction.execute(updateIngestionStateRequest, listener);
+    }
+
+    /**
+     * This method resets the consumer and resumes ingestion. This is done in 3 phases.
+     * <ol>
+     *      <li>First, reset consumer operation is executed.</li>
+     *      <li>Second, ingestion state update is started. This then follows the 2 phase approach from {@link #updateIngestionPollerState} to first update
+     *      the cluster state followed by synchronously updating each shard of the index</li>
+     * </ol>
+     *
+     * Ingestion state will only be updated if consumer reset is performed successfully.
+     */
+    public void resetShardPointerAndResumeIngestion(
+        String source,
+        Index[] concreteIndices,
+        UpdateIngestionStateRequest shardPointerUpdateRequest,
+        UpdateIngestionStateRequest resumeIngestionRequest,
+        ActionListener<UpdateIngestionStateResponse> listener
+    ) {
+        if (concreteIndices == null || concreteIndices.length == 0) {
+            throw new IllegalArgumentException("Index is missing");
+        }
+
+        transportUpdateIngestionStateAction.execute(shardPointerUpdateRequest, new ActionListener<>() {
+
+            @Override
+            public void onResponse(UpdateIngestionStateResponse updateIngestionStateResponse) {
+                boolean isSuccessfulUpdate = updateIngestionStateResponse.isAcknowledged()
+                    && updateIngestionStateResponse.getFailedShards() == 0;
+                if (isSuccessfulUpdate) {
+                    updateIngestionPollerState(source, concreteIndices, resumeIngestionRequest, listener);
+                } else {
+                    logger.debug("Error resetting consumer pointers");
+                    listener.onResponse(updateIngestionStateResponse);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug("Error resetting consumer pointers", e);
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**

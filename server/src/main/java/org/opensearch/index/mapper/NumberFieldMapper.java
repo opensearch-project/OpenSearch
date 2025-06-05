@@ -59,6 +59,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
@@ -186,6 +187,63 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         public boolean isDataCubeMetricSupported() {
             return true;
         }
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Considerations:
+     *    1. When using doc values, for multi value field, result would be in sorted order
+     *    2. For "half_float", there might be precision loss, when using doc values(stored as HalfFloatPoint) as
+     *       compared to stored field(stored as float)
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
+            @Override
+            public Object convert(Object value) {
+                Long val = (Long) value;
+                if (val == null) {
+                    return null;
+                }
+                return switch (type) {
+                    case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(val.shortValue());
+                    case FLOAT -> NumericUtils.sortableIntToFloat(val.intValue());
+                    case DOUBLE -> NumericUtils.sortableLongToDouble(val);
+                    case BYTE, SHORT, INTEGER, LONG -> val;
+                    case UNSIGNED_LONG -> Numbers.toUnsignedBigInteger(val);
+                };
+            }
+
+            // Unsigned long is sorted according to it's long value, as it is getting ingested as long, so we need to
+            // sort it again as per its unsigned long value to keep the behavior consistent
+            @Override
+            public void write(XContentBuilder builder, List<Object> values) throws IOException {
+                if (type != NumberType.UNSIGNED_LONG) {
+                    super.write(builder, values);
+                    return;
+                }
+                if (values.isEmpty()) {
+                    return;
+                }
+                if (values.size() == 1) {
+                    builder.field(simpleName, convert(values.getFirst()));
+                } else {
+                    final BigInteger[] displayValues = new BigInteger[values.size()];
+                    for (int i = 0; i < values.size(); i++) {
+                        displayValues[i] = (BigInteger) convert(values.get(i));
+                    }
+                    Arrays.sort(displayValues);
+                    builder.array(simpleName, displayValues);
+                }
+            }
+        }, new StoredFieldFetcher(mappedFieldType, simpleName()));
+    }
+
+    @Override
+    protected void canDeriveSourceInternal() {
+        checkStoredAndDocValuesForDerivedSource();
     }
 
     /**

@@ -20,6 +20,7 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -110,6 +111,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * This class runs Segment Replication Integ test suite with partial locality indices (warm indices).
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18157")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
@@ -128,10 +130,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
 
     @Override
     public Settings indexSettings() {
-        return Settings.builder()
-            .put(super.indexSettings())
-            .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL.name())
-            .build();
+        return Settings.builder().put(super.indexSettings()).put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true).build();
     }
 
     @Override

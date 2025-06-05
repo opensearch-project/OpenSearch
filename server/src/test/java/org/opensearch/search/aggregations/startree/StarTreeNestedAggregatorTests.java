@@ -213,11 +213,20 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                     ValuesSourceAggregationBuilder<?> inner = innerSupplier.get().subAggregation(aggregationBuilder);
                     ValuesSourceAggregationBuilder<?> outer = outerSupplier.get().subAggregation(inner);
 
-                    // Skipping [DateHistogramAggregationBuilder + RangeAggregationBuilder] combinations for a ReducedMultiBucketConsumer assertion in
+                    // Skipping [DateHistogramAggregationBuilder + RangeAggregationBuilder] combinations for a ReducedMultiBucketConsumer
+                    // assertion in
                     // searchAndReduceStarTree
                     boolean skipReducedMultiBucketConsumerAssertion = (inner instanceof RangeAggregationBuilder
                         && outer instanceof DateHistogramAggregationBuilder);
-                    testCase(indexSearcher, query, queryBuilder, outer, starTree, supportedDimensions, skipReducedMultiBucketConsumerAssertion);
+                    testCase(
+                        indexSearcher,
+                        query,
+                        queryBuilder,
+                        outer,
+                        starTree,
+                        supportedDimensions,
+                        skipReducedMultiBucketConsumerAssertion
+                    );
 
                     // Numeric-terms query with numeric terms aggregation
                     for (int cases = 0; cases < 20; cases++) {
@@ -231,7 +240,15 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                         queryValue = random.nextInt(10);
                         query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
                         queryBuilder = new TermQueryBuilder(queryField, queryValue);
-                        testCase(indexSearcher, query, queryBuilder, outer, starTree, supportedDimensions, skipReducedMultiBucketConsumerAssertion);
+                        testCase(
+                            indexSearcher,
+                            query,
+                            queryBuilder,
+                            outer,
+                            starTree,
+                            supportedDimensions,
+                            skipReducedMultiBucketConsumerAssertion
+                        );
                     }
                 }
             }
@@ -249,12 +266,21 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                         ValuesSourceAggregationBuilder<?> middle = middleSupplier.get().subAggregation(innermost);
                         ValuesSourceAggregationBuilder<?> outermost = outermostSupplier.get().subAggregation(middle);
 
-                        // Skipping [DateHistogramAggregationBuilder + RangeAggregationBuilder] combinations for a ReducedMultiBucketConsumer assertion in
+                        // Skipping [DateHistogramAggregationBuilder + RangeAggregationBuilder] combinations for a
+                        // ReducedMultiBucketConsumer assertion in
                         // searchAndReduceStarTree
                         boolean skipReducedMultiBucketConsumerAssertion = (middle instanceof RangeAggregationBuilder
                             && outermost instanceof DateHistogramAggregationBuilder)
                             || (middle instanceof DateHistogramAggregationBuilder && innermost instanceof RangeAggregationBuilder);
-                        testCase(indexSearcher, query, queryBuilder, outermost, starTree, supportedDimensions, skipReducedMultiBucketConsumerAssertion);
+                        testCase(
+                            indexSearcher,
+                            query,
+                            queryBuilder,
+                            outermost,
+                            starTree,
+                            supportedDimensions,
+                            skipReducedMultiBucketConsumerAssertion
+                        );
 
                         // Numeric-terms query with numeric terms aggregation
                         for (int cases = 0; cases < 20; cases++) {
@@ -268,7 +294,15 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                             queryValue = random.nextInt(10);
                             query = SortedNumericDocValuesField.newSlowExactQuery(queryField, queryValue);
                             queryBuilder = new TermQueryBuilder(queryField, queryValue);
-                            testCase(indexSearcher, query, queryBuilder, outermost, starTree, supportedDimensions, skipReducedMultiBucketConsumerAssertion);
+                            testCase(
+                                indexSearcher,
+                                query,
+                                queryBuilder,
+                                outermost,
+                                starTree,
+                                supportedDimensions,
+                                skipReducedMultiBucketConsumerAssertion
+                            );
                         }
 
                     }

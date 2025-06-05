@@ -26,6 +26,9 @@ WorkingDirectory=/usr/share/opensearch
 User=opensearch
 Group=opensearch
 
+ExecStartPre=/bin/mkdir -p /dev/shm/performanceanalyzer
+ExecStartPre=/bin/chown opensearch:opensearch /dev/shm/performanceanalyzer
+
 ExecStart=/usr/share/opensearch/bin/systemd-entrypoint -p ${PID_DIR}/opensearch.pid --quiet
 
 # StandardOutput is configured to redirect to journalctl since
@@ -97,6 +100,9 @@ LockPersonality=yes
 # System call filterings which restricts which system calls a process can make
 # @ means allowed
 # ~ means not allowed
+# These syscalls are related to mmap which is needed for OpenSearch Services
+SystemCallFilter=seccomp mincore
+SystemCallFilter=madvise mlock mlock2 munlock get_mempolicy sched_getaffinity sched_setaffinity fcntl
 SystemCallFilter=@system-service
 SystemCallFilter=~@reboot
 SystemCallFilter=~@swap
@@ -130,11 +136,12 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 ReadWritePaths=/var/log/opensearch
 ReadWritePaths=/var/lib/opensearch
+ReadWritePaths=/dev/shm/
 ReadWritePaths=-/etc/opensearch
 ReadWritePaths=-/mnt/snapshots
 
 ## Allow read access to system files
-ReadOnlyPaths=/etc/os-release /usr/lib/os-release /etc/system-release
+ReadOnlyPaths=-/etc/os-release -/usr/lib/os-release -/etc/system-release
 
 ## Allow read access to Linux IO stats
 ReadOnlyPaths=/proc/self/mountinfo /proc/diskstats
@@ -149,15 +156,23 @@ RestrictNamespaces=true
 NoNewPrivileges=true
 
 # Memory and execution protection
-MemoryDenyWriteExecute=true           # Prevent creating writable executable memory mappings
-SystemCallArchitectures=native        # Allow only native system calls
-KeyringMode=private                   # Service does not share key material with other services
-LockPersonality=true                  # Prevent changing ABI personality
-RestrictSUIDSGID=true                 # Prevent creating SUID/SGID files
-RestrictRealtime=true                 # Prevent acquiring realtime scheduling
-ProtectHostname=true                  # Prevent changes to system hostname
-ProtectKernelLogs=true                # Prevent reading/writing kernel logs
-ProtectClock=true                     # Prevent tampering with the system clock
+
+# Allow only native system calls
+SystemCallArchitectures=native
+# Service does not share key material with other services
+KeyringMode=private
+# Prevent changing ABI personality
+LockPersonality=true
+# Prevent creating SUID/SGID files
+RestrictSUIDSGID=true
+# Prevent acquiring realtime scheduling
+RestrictRealtime=true
+# Prevent changes to system hostname
+ProtectHostname=true
+# Prevent reading/writing kernel logs
+ProtectKernelLogs=true
+# Prevent tampering with the system clock
+ProtectClock=true
 
 [Install]
 WantedBy=multi-user.target
