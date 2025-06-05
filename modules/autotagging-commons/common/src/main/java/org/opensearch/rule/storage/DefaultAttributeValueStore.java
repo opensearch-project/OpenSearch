@@ -109,7 +109,12 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
 
     @Override
     public void clear() {
-        trie.clear();
+        writeLock.lock();
+        try {
+            trie.clear();
+        } finally {
+            writeLock.unlock();
+        }
     }
 
     @Override
