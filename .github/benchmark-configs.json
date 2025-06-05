@@ -52,7 +52,7 @@
     "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_4": {
-    "description": "Search only test-procedure for big5, uses snapshot to restore the data for OS-3.0.0",
+    "description": "Search only test-procedure for big5, uses snapshot to restore the data for OS-3.1.0",
     "supported_major_versions": ["3"],
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
@@ -206,13 +206,30 @@
     "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_13": {
-    "description": "Search only test-procedure for HTTP_LOGS, uses snapshot to restore the data for OS-3.0.0",
+    "description": "Search only test-procedure for HTTP_LOGS, uses snapshot to restore the data for OS-3.1.0",
     "supported_major_versions": ["3"],
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "http_logs",
       "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.2.1\",\"snapshot_name\":\"http_logs_1_shard\"}",
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "restore-from-snapshot"
+    },
+    "cluster_configuration": {
+      "size": "Single-Node",
+      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
+  },
+  "id_14": {
+    "description": "Search only test-procedure for NYC_TAXIS, uses snapshot to restore the data for OS-3.1.0",
+    "supported_major_versions": ["3"],
+    "cluster-benchmark-configs": {
+      "SINGLE_NODE_CLUSTER": "true",
+      "MIN_DISTRIBUTION": "true",
+      "TEST_WORKLOAD": "nyc_taxis",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.2.1\",\"snapshot_name\":\"nyc_taxis_1_shard\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
