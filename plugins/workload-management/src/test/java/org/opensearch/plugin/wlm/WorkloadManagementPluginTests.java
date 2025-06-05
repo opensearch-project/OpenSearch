@@ -123,7 +123,7 @@ public class WorkloadManagementPluginTests extends OpenSearchTestCase {
     public void testGetFeatureTypeReturnsWorkloadGroupFeatureType() {
         plugin.createComponents(
             mock(Client.class),
-            mock(ClusterService.class),
+            mockClusterService,
             mock(ThreadPool.class),
             mock(ResourceWatcherService.class),
             mock(ScriptService.class),

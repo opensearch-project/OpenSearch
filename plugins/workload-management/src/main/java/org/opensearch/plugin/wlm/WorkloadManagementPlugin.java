@@ -136,6 +136,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             clusterService.getSettings(),
             clusterService.getClusterSettings(),
             parser,
+            ruleProcessingService,
             featureType,
             rulePersistenceService,
             new RuleEventClassifier(Collections.emptySet(), ruleProcessingService)

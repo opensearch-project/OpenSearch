@@ -16,13 +16,13 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
 
 /**
  * This class pulls the latest rules from the RULES system index to update the in-memory view
@@ -68,6 +69,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
     private final InMemoryRuleProcessingService ruleProcessingService;
     private final RulePersistenceService rulePersistenceService;
     private final RuleEventClassifier ruleEventClassifier;
+    private final FeatureType featureType;
     private WlmMode wlmMode;
     // This var keeps the Rules which were present during last run of this service
     private Set<Rule> lastRunIndexedRules;
@@ -90,6 +92,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
         ClusterSettings clusterSettings,
         RuleEntityParser parser,
         InMemoryRuleProcessingService ruleProcessingService,
+        FeatureType featureType,
         RulePersistenceService rulePersistenceService,
         RuleEventClassifier ruleEventClassifier
     ) {
@@ -97,6 +100,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
         refreshInterval = RULE_SYNC_REFRESH_INTERVAL_SETTING.get(settings);
         this.parser = parser;
         this.ruleProcessingService = ruleProcessingService;
+        this.featureType = featureType;
         this.rulePersistenceService = rulePersistenceService;
         this.lastRunIndexedRules = new HashSet<>();
         this.ruleEventClassifier = ruleEventClassifier;
@@ -114,7 +118,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
         }
 
         rulePersistenceService.getRule(
-            new GetRuleRequest(null, Collections.emptyMap(), null, WorkloadGroupFeatureType.INSTANCE),
+            new GetRuleRequest(null, Collections.emptyMap(), null, featureType),
             new ActionListener<GetRuleResponse>() {
                 @Override
                 public void onResponse(GetRuleResponse response) {

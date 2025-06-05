@@ -13,7 +13,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.AutoTaggingActionFilterTests;
 import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
-import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
@@ -21,6 +20,7 @@ import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
@@ -58,6 +58,7 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
     ThreadPool mockThreadPool;
     Scheduler.Cancellable scheduledFuture;
     RuleEventClassifier ruleEventClassifier;
+    FeatureType featureType;
 
     @Override
     public void setUp() throws Exception {
@@ -69,12 +70,13 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
                 .build();
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(plugin.getSettings()));
             clusterSettings.registerSetting(WorkloadManagementSettings.WLM_MODE_SETTING);
+            featureType = mock(FeatureType.class);
             mockThreadPool = mock(ThreadPool.class);
             ruleProcessingService = mock(InMemoryRuleProcessingService.class);
             rulePersistenceService = mock(RulePersistenceService.class);
             ruleEventClassifier = new RuleEventClassifier(Collections.emptySet(), ruleProcessingService);
-            attributeValueStoreFactory = new AttributeValueStoreFactory(WorkloadGroupFeatureType.INSTANCE, DefaultAttributeValueStore::new);
-            RuleEntityParser parser = new XContentRuleParser(WorkloadGroupFeatureType.INSTANCE);
+            attributeValueStoreFactory = new AttributeValueStoreFactory(featureType, DefaultAttributeValueStore::new);
+            RuleEntityParser parser = new XContentRuleParser(featureType);
             mockClient = mock(Client.class);
             scheduledFuture = mock(Scheduler.Cancellable.class);
             when(mockThreadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(scheduledFuture);
@@ -85,6 +87,7 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
                 clusterSettings,
                 parser,
                 ruleProcessingService,
+                featureType,
                 rulePersistenceService,
                 ruleEventClassifier
             );
