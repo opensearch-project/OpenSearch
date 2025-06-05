@@ -9,10 +9,8 @@
 package org.opensearch.index.shard;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -28,7 +26,6 @@ import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -64,7 +61,6 @@ import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.checkpoint.ReplicationSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
@@ -1017,32 +1013,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 .getLatestSegmentInfosAndCheckpoint();
             try (final GatedCloseable<SegmentInfos> closeable = latestSegmentInfosAndCheckpoint.v1()) {
                 assertEquals(latestReplicationCheckpoint, primaryShard.computeReplicationCheckpoint(closeable.get()));
-            }
-        }
-    }
-
-    public void testComputeReplicationSegmentCheckpoint() throws Exception {
-        try (ReplicationGroup shards = createGroup(0, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir())) {
-            final IndexShard primaryShard = shards.getPrimary();
-            shards.startAll();
-            shards.indexDocs(10);
-            shards.refresh("test");
-            shards.flush();
-            SegmentInfos segmentInfos = Lucene.readSegmentInfos(primaryShard.store().directory());
-            for (SegmentCommitInfo segmentCommitInfo : segmentInfos) {
-                SegmentInfos tempSegmentInfos = new SegmentInfos(Version.LATEST.major);
-                tempSegmentInfos.add(segmentCommitInfo);
-                Map<String, StoreFileMetadata> segmentMetadataMap = primaryShard.store().getSegmentMetadataMap(tempSegmentInfos);
-                ReplicationSegmentCheckpoint expectedCheckpoint = new ReplicationSegmentCheckpoint(
-                    primaryShard.shardId,
-                    primaryShard.getOperationPrimaryTerm(),
-                    segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
-                    primaryShard.getDefaultCodecName(),
-                    segmentMetadataMap,
-                    segmentCommitInfo.info.name
-                );
-                ReplicationSegmentCheckpoint checkpoint = primaryShard.computeReplicationSegmentCheckpoint(segmentCommitInfo);
-                assertEquals(expectedCheckpoint, checkpoint);
             }
         }
     }
