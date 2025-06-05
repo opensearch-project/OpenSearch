@@ -36,10 +36,15 @@ import org.opensearch.transport.TransportService;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.*;
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
 
@@ -106,7 +111,14 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final ReplicationSegmentCheckpoint checkpoint = new ReplicationSegmentCheckpoint(indexShard.shardId(), 1, 1111, Codec.getDefault().getName(), Collections.emptyMap(), "_1");
+        final ReplicationSegmentCheckpoint checkpoint = new ReplicationSegmentCheckpoint(
+            indexShard.shardId(),
+            1,
+            1111,
+            Codec.getDefault().getName(),
+            Collections.emptyMap(),
+            "_1"
+        );
         final PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(checkpoint);
 
         action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
@@ -143,7 +155,14 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final ReplicationSegmentCheckpoint checkpoint = new ReplicationSegmentCheckpoint(indexShard.shardId(), 1, 1111, Codec.getDefault().getName(), Collections.emptyMap(), "_1");
+        final ReplicationSegmentCheckpoint checkpoint = new ReplicationSegmentCheckpoint(
+            indexShard.shardId(),
+            1,
+            1111,
+            Codec.getDefault().getName(),
+            Collections.emptyMap(),
+            "_1"
+        );
 
         final PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(checkpoint);
 
@@ -187,7 +206,14 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final ReplicationSegmentCheckpoint checkpoint = new ReplicationSegmentCheckpoint(indexShard.shardId(), 1, 1111, Codec.getDefault().getName(), Collections.emptyMap(), "_1");
+        final ReplicationSegmentCheckpoint checkpoint = new ReplicationSegmentCheckpoint(
+            indexShard.shardId(),
+            1,
+            1111,
+            Codec.getDefault().getName(),
+            Collections.emptyMap(),
+            "_1"
+        );
 
         final PublishMergedSegmentRequest request = new PublishMergedSegmentRequest(checkpoint);
 
