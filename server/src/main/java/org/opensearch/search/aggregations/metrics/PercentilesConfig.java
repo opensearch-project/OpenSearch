@@ -129,7 +129,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
      * @opensearch.internal
      */
     public static class TDigest extends PercentilesConfig {
-        static final double DEFAULT_COMPRESSION = 100.0;
+        static final double DEFAULT_COMPRESSION = 200.0;
         private double compression;
 
         public TDigest() {
