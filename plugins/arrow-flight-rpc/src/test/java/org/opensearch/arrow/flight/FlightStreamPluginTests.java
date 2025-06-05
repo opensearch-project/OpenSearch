@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import static org.opensearch.arrow.flight.bootstrap.FlightService.ARROW_FLIGHT_TRANSPORT_SETTING_KEY;
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
 import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 import static org.mockito.Mockito.mock;
@@ -87,7 +88,7 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
 
         assertTrue(
             plugin.getAuxTransports(null, null, null, new NetworkService(List.of()), null, null)
-                .get(AUX_TRANSPORT_TYPES_KEY)
+                .get(ARROW_FLIGHT_TRANSPORT_SETTING_KEY)
                 .get() instanceof FlightService
         );
         assertEquals(1, plugin.getRestHandlers(null, null, null, null, null, null, null).size());
