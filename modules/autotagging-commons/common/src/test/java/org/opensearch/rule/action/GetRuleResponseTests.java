@@ -24,10 +24,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.rule.action.GetRuleRequestTests.SEARCH_AFTER;
-import static org.opensearch.rule.action.GetRuleRequestTests._ID_ONE;
-import static org.opensearch.rule.action.GetRuleRequestTests.assertEqualRules;
-import static org.opensearch.rule.action.GetRuleRequestTests.ruleMap;
+import static org.opensearch.rule.utils.RuleTestUtils.SEARCH_AFTER;
+import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRules;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleMap;
 import static org.mockito.Mockito.mock;
 
 public class GetRuleResponseTests extends OpenSearchTestCase {
@@ -109,7 +109,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
         String expected = "{\n"
             + "  \"rules\" : [\n"
             + "    {\n"
-            + "      \"_id\" : \"id_1\",\n"
+            + "      \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n"
             + "      \"description\" : \"description_1\",\n"
             + "      \"mock_attribute_one\" : [\n"
             + "        \"mock_attribute_one\"\n"

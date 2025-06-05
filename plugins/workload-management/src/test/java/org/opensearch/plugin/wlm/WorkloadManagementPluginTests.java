@@ -98,7 +98,20 @@ public class WorkloadManagementPluginTests extends OpenSearchTestCase {
     }
 
     public void testGetFeatureTypeReturnsWorkloadGroupFeatureType() {
-        FeatureType featureType = plugin.getFeatureType();
+        plugin.createComponents(
+            mock(Client.class),
+            mock(ClusterService.class),
+            mock(ThreadPool.class),
+            mock(ResourceWatcherService.class),
+            mock(ScriptService.class),
+            mock(NamedXContentRegistry.class),
+            mock(Environment.class),
+            null,
+            mock(NamedWriteableRegistry.class),
+            mock(IndexNameExpressionResolver.class),
+            () -> mock(RepositoriesService.class)
+        );
+        FeatureType featureType = plugin.getFeatureTypeSupplier().get();
         assertEquals("workload_group", featureType.getName());
     }
 

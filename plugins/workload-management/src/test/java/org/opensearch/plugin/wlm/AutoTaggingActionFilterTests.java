@@ -92,9 +92,6 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         public Map<String, Attribute> getAllowedAttributesRegistry() {
             return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
         }
-
-        @Override
-        public void registerFeatureType() {}
     }
 
     public enum TestAttribute implements Attribute {
