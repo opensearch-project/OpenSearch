@@ -67,6 +67,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.jline:jline` from 3.29.0 to 3.30.3 ([#18368](https://github.com/opensearch-project/OpenSearch/pull/18368))
 - Bump `com.nimbusds:oauth2-oidc-sdk` from 11.23.1 to 11.25 ([#18369](https://github.com/opensearch-project/OpenSearch/pull/18369))
 - Bump `gradle/actions` from 3 to 4 ([#18371](https://github.com/opensearch-project/OpenSearch/pull/18371))
+- Bump `com.azure:azure-storage-common` from 12.28.0 to 12.29.0 ([#18415](https://github.com/opensearch-project/OpenSearch/pull/18415))
 
 ### Deprecated
 
