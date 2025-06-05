@@ -34,7 +34,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-
 /**
  * This class pulls the latest rules from the RULES system index to update the in-memory view
  */
