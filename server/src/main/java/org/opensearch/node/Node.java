@@ -525,6 +525,10 @@ public class Node implements Closeable {
                 );
             }
 
+            // Ensure feature flags from opensearch.yml are valid during plugin initialization.
+            // Bug fix: https://github.com/opensearch-project/OpenSearch/issues/18417
+            FeatureFlags.initializeFeatureFlags(tmpSettings);
+
             this.pluginsService = new PluginsService(
                 tmpSettings,
                 initialEnvironment.configDir(),
