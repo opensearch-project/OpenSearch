@@ -41,6 +41,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
     );
 
     public static final Rule ruleOne = Rule.builder()
+        .id(_ID_ONE)
         .description(DESCRIPTION_ONE)
         .featureType(RuleTestUtils.MockRuleFeatureType.INSTANCE)
         .featureValue(FEATURE_VALUE_ONE)

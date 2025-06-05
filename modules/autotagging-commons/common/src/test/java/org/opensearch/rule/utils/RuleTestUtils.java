@@ -42,6 +42,7 @@ public class RuleTestUtils {
     );
 
     public static final Rule ruleOne = Rule.builder()
+        .id(_ID_ONE)
         .description(DESCRIPTION_ONE)
         .featureType(RuleTestUtils.MockRuleFeatureType.INSTANCE)
         .featureValue(FEATURE_VALUE_ONE)
@@ -50,6 +51,7 @@ public class RuleTestUtils {
         .build();
 
     public static final Rule ruleTwo = Rule.builder()
+        .id(_ID_TWO)
         .description(DESCRIPTION_TWO)
         .featureType(RuleTestUtils.MockRuleFeatureType.INSTANCE)
         .featureValue(FEATURE_VALUE_TWO)
