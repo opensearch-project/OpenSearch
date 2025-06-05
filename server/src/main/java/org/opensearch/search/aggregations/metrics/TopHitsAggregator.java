@@ -158,10 +158,7 @@ class TopHitsAggregator extends MetricsAggregator {
                     // but here we create collectors ourselves and we need prevent OOM because of crazy an offset and size.
                     topN = Math.min(topN, subSearchContext.searcher().getIndexReader().maxDoc());
                     if (sort == null) {
-                        collectors = new Collectors(
-                            new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE, false).newCollector(),
-                            null
-                        );
+                        collectors = new Collectors(new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE).newCollector(), null);
                     } else {
                         // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
                         // Note that this would require to catch CollectionTerminatedException

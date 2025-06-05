@@ -1362,6 +1362,7 @@ public class Node implements Closeable {
                 clusterManagerMetrics,
                 remoteClusterStateService
             );
+
             final SearchPipelineService searchPipelineService = new SearchPipelineService(
                 clusterService,
                 threadPool,

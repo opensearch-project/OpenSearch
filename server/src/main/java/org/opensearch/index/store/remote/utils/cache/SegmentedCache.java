@@ -136,6 +136,18 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
+    public void pin(K key) {
+        if (key == null) throw new NullPointerException();
+        segmentFor(key).pin(key);
+    }
+
+    @Override
+    public void unpin(K key) {
+        if (key == null) throw new NullPointerException();
+        segmentFor(key).unpin(key);
+    }
+
+    @Override
     public Integer getRef(K key) {
         if (key == null) throw new NullPointerException();
         return segmentFor(key).getRef(key);
@@ -180,22 +192,43 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
         return totalActiveUsage;
     }
 
+    /**
+     * Returns the pinned usage of this cache.
+     *
+     * @return the combined pinned weight of the values in this cache.
+     */
+    @Override
+    public long pinnedUsage() {
+        long totalPinnedUsage = 0L;
+        for (RefCountedCache<K, V> cache : table) {
+            IRefCountedCacheStats c = cache.stats();
+            totalPinnedUsage += c.pinnedUsage();
+        }
+        return totalPinnedUsage;
+    }
+
     @Override
     public IRefCountedCacheStats stats() {
 
-        final RefCountedCacheStats totalOverallCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0);
-        final RefCountedCacheStats totalFullFileCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0);
-        final RefCountedCacheStats totalBlockFileCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0);
-
+        final RefCountedCacheStats totalOverallCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        final RefCountedCacheStats totalFullFileCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        final RefCountedCacheStats totalBlockFileCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        final RefCountedCacheStats totalPinnedFileCacheStats = new RefCountedCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         for (RefCountedCache<K, V> cache : table) {
             AggregateRefCountedCacheStats aggregateStats = (AggregateRefCountedCacheStats) cache.stats();
 
             totalOverallCacheStats.accumulate(aggregateStats.getOverallCacheStats());
             totalFullFileCacheStats.accumulate(aggregateStats.getFullFileCacheStats());
             totalBlockFileCacheStats.accumulate(aggregateStats.getBlockFileCacheStats());
+            totalPinnedFileCacheStats.accumulate(aggregateStats.getPinnedFileCacheStats());
         }
 
-        return new AggregateRefCountedCacheStats(totalOverallCacheStats, totalFullFileCacheStats, totalBlockFileCacheStats);
+        return new AggregateRefCountedCacheStats(
+            totalOverallCacheStats,
+            totalFullFileCacheStats,
+            totalBlockFileCacheStats,
+            totalPinnedFileCacheStats
+        );
     }
 
     // To be used only for debugging purposes
