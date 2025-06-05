@@ -247,7 +247,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 assert pointTree.moveToParent() == false;
             }
 
-            // custom intersect visitor to walk the left of the tree
             public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
                 if (docCount[0] >= size) {
@@ -258,6 +257,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 if (r == PointValues.Relation.CELL_OUTSIDE_QUERY) {
                     return;
                 }
+
                 // Handle leaf nodes
                 if (pointTree.moveToChild() == false) {
                     if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
@@ -268,25 +268,28 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     }
                     return;
                 }
-                // Internal node - get right child reference
+
+                // For CELL_INSIDE_QUERY, check if we can skip right child
+                if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
+                    long leftSize = pointTree.size();
+                    long needed = size - docCount[0];
+
+                    if (leftSize >= needed) {
+                        // Process only left child
+                        intersectLeft(visitor, pointTree, docCount);
+                        pointTree.moveToParent();
+                        return;
+                    }
+                }
+
+                // We need both children - now clone right
                 PointValues.PointTree rightChild = null;
                 if (pointTree.moveToSibling()) {
                     rightChild = pointTree.clone();
                     pointTree.moveToParent();
                     pointTree.moveToChild();
                 }
-                // For CELL_INSIDE_QUERY, check if we can skip right child
-                if (r == PointValues.Relation.CELL_INSIDE_QUERY && rightChild != null) {
-                    long leftSize = pointTree.size();
-                    long needed = size - docCount[0];
 
-                    if (leftSize >= needed) {
-                        // Left child has all we need - only process left
-                        intersectLeft(visitor, pointTree, docCount);
-                        pointTree.moveToParent();
-                        return;
-                    }
-                }
                 // Process both children: left first, then right if needed
                 intersectLeft(visitor, pointTree, docCount);
                 if (docCount[0] < size && rightChild != null) {
