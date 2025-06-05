@@ -92,6 +92,11 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
         }
     }
 
+    @Override
+    public String enableKey() {
+        return GRPC_SECURE_TRANSPORT_SETTING_KEY;
+    }
+
     /**
      * Construct JdkSslContext, wrapping javax SSLContext as supplied by SecureAuxTransportSettingsProvider with applied
      * configurations settings in SecureAuxTransportParameters for this transport.

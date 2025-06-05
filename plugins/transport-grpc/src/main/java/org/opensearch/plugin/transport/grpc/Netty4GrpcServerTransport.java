@@ -232,6 +232,11 @@ public class Netty4GrpcServerTransport extends AuxTransport {
         this.portSettingKey = SETTING_GRPC_PORT.getKey();
     }
 
+    @Override
+    public String enableKey() {
+        return GRPC_TRANSPORT_SETTING_KEY;
+    }
+
     // public for tests
     @Override
     public BoundTransportAddress getBoundAddress() {

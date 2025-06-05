@@ -28,8 +28,7 @@ public interface SecureAuxTransportSettingsProvider {
      * Fetch an SSLContext as managed by pluggable security provider.
      * @return an instance of SSLContext.
      */
-    default Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, AuxTransport transport)
-        throws SSLException {
+    default Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, AuxTransport transport) throws SSLException {
         return Optional.empty();
     }
 

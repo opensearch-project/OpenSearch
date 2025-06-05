@@ -38,6 +38,8 @@ import java.util.Objects;
  * as well as managing the stream operations through a FlightStreamManager.
  */
 public class FlightService extends AuxTransport {
+    public static final String ARROW_FLIGHT_TRANSPORT_SETTING_KEY = "experimental-transport-arrow-flight-rpc";
+
     private static final Logger logger = LogManager.getLogger(FlightService.class);
     private final ServerComponents serverComponents;
     private FlightStreamManager streamManager;
@@ -60,6 +62,11 @@ public class FlightService extends AuxTransport {
         }
         this.serverComponents = new ServerComponents(settings);
         this.streamManager = new FlightStreamManager();
+    }
+
+    @Override
+    public String enableKey() {
+        return ARROW_FLIGHT_TRANSPORT_SETTING_KEY;
     }
 
     void setClusterService(ClusterService clusterService) {

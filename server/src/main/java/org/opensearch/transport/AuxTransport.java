@@ -39,13 +39,18 @@ public abstract class AuxTransport extends AbstractLifecycleComponent {
         "port",
         key -> new Setting<>(key, AUX_PORT_DEFAULTS, PortsRange::new, Setting.Property.NodeScope)
     );
-
     public static final Setting<List<String>> AUX_TRANSPORT_TYPES_SETTING = Setting.listSetting(
         AUX_TRANSPORT_TYPES_KEY,
         emptyList(),
         Function.identity(),
         Setting.Property.NodeScope
     );
+
+    /**
+     * @return unique key for enabling this transport per AUX_TRANSPORT_TYPES_KEY.
+     * This key is used to identify the aux transport in settings across plugins.
+     */
+    public abstract String enableKey();
 
     // public for tests
     public abstract BoundTransportAddress getBoundAddress();

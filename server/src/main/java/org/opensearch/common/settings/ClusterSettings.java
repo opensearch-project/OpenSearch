@@ -147,7 +147,6 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.decider.EnableAssignmentDecider;
-import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
