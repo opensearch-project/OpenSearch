@@ -47,6 +47,9 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
 
     private final Class<? extends AbstractTimingProfileBreakdown> pluginBreakdownClass;
 
+    private Set<String> timingMetrics;
+    private Set<String> nonTimingMetrics;
+
     public ConcurrentQueryTimingProfileBreakdown(Class<? extends AbstractTimingProfileBreakdown> pluginBreakdownClass) {
         for(QueryTimingType type : QueryTimingType.values()) {
             timers.put(type.toString(), new Timer());
@@ -124,10 +127,8 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
         }
 
         // first create the slice level breakdowns
-        Set<String> timingMetrics = new HashSet<>();
-        Set<String> nonTimingMetrics = new HashSet<>();
-        final Map<Collector, Map<String, Long>> sliceLevelBreakdowns = buildSliceLevelBreakdown(timingMetrics, nonTimingMetrics);
-        return filterZeros(buildQueryBreakdownMap(sliceLevelBreakdowns, createWeightTime, createWeightStartTime, timingMetrics, nonTimingMetrics));
+        final Map<Collector, Map<String, Long>> sliceLevelBreakdowns = buildSliceLevelBreakdown();
+        return filterZeros(buildQueryBreakdownMap(sliceLevelBreakdowns, createWeightTime, createWeightStartTime));
     }
 
     /**
@@ -173,7 +174,7 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
      *
      * @return map of collector (or slice) to breakdown map
      */
-    Map<Collector, Map<String, Long>> buildSliceLevelBreakdown(Set<String> timingMetrics, Set<String> nonTimingMetrics) {
+    Map<Collector, Map<String, Long>> buildSliceLevelBreakdown() {
         final Map<Collector, Map<String, Long>> sliceLevelBreakdowns = new HashMap<>();
         long totalSliceNodeTime = 0L;
         for (Map.Entry<Collector, List<LeafReaderContext>> slice : sliceCollectorsToLeaves.entrySet()) {
@@ -184,93 +185,108 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
             long sliceMaxEndTime = Long.MIN_VALUE;
             long sliceMinStartTime = Long.MAX_VALUE;
 
-            for (LeafReaderContext sliceLeaf : slice.getValue()) {
-                if (!contexts.containsKey(sliceLeaf)) {
-                    // In case like early termination, the sliceCollectorToLeave association will be added for a
-                    // leaf, but the leaf level breakdown will not be created in the contexts map.
-                    // This is because before updating the contexts map, the query hits earlyTerminationException.
-                    // To handle such case, we will ignore the leaf that is not present.
-                    //
-                    // Other than early termination, it can also happen in other cases. For example: there is a must boolean query
-                    // with 2 boolean clauses. While creating scorer for first clause if no docs are found for the field in a leaf
-                    // context then it will return null scorer. Then for 2nd clause weight as well no scorer will be created for this
-                    // leaf context (as it is a must query). Due to this it will end up missing the leaf context in the contexts map
-                    // for second clause weight.
+            timingMetrics = getTimingMetrics(slice.getValue().getFirst());
+            nonTimingMetrics = getNonTimingMetrics(slice.getValue().getFirst());
+
+            for (String timingType : timingMetrics) {
+                if (timingType.equals(QueryTimingType.CREATE_WEIGHT.toString())) {
+                    // do nothing for create weight as that is query level time and not slice level
                     continue;
                 }
-                final Map<String, Long> currentSliceLeafBreakdownMap = contexts.get(sliceLeaf).toBreakdownMap();
-                long sliceLeafTimingTypeStartTime = 0;
-                for(String metric : currentSliceLeafBreakdownMap.keySet()) {
-                    if (metric.equals(QueryTimingType.CREATE_WEIGHT + TIMING_TYPE_TIME_SUFFIX)) {
-                        // do nothing for create weight as that is query level time and not slice level
+
+                // for each timing type compute maxSliceEndTime and minSliceStartTime. Also add the counts of timing type to
+                // compute total count at slice level
+                final String timingTypeCountKey = timingType + TIMING_TYPE_COUNT_SUFFIX;
+                final String timingTypeStartKey = timingType + TIMING_TYPE_START_TIME_SUFFIX;
+                final String timingTypeSliceStartTimeKey = timingType + SLICE_START_TIME_SUFFIX;
+                final String timingTypeSliceEndTimeKey = timingType + SLICE_END_TIME_SUFFIX;
+
+                for (LeafReaderContext sliceLeaf : slice.getValue()) {
+                    if (!contexts.containsKey(sliceLeaf)) {
+                        // In case like early termination, the sliceCollectorToLeave association will be added for a
+                        // leaf, but the leaf level breakdown will not be created in the contexts map.
+                        // This is because before updating the contexts map, the query hits earlyTerminationException.
+                        // To handle such case, we will ignore the leaf that is not present.
+                        //
+                        // Other than early termination, it can also happen in other cases. For example: there is a must boolean query
+                        // with 2 boolean clauses. While creating scorer for first clause if no docs are found for the field in a leaf
+                        // context then it will return null scorer. Then for 2nd clause weight as well no scorer will be created for this
+                        // leaf context (as it is a must query). Due to this it will end up missing the leaf context in the contexts map
+                        // for second clause weight.
                         continue;
                     }
-                    if(metric.endsWith(TIMING_TYPE_COUNT_SUFFIX)) {
-                        // get the count for current leaf timing type
-                        timingMetrics.add(metric.replace(TIMING_TYPE_COUNT_SUFFIX, ""));
-                        final long sliceLeafTimingTypeCount = currentSliceLeafBreakdownMap.get(metric);
-                        currentSliceBreakdown.compute(
-                            metric,
-                            (key, value) -> (value == null) ? sliceLeafTimingTypeCount : value + sliceLeafTimingTypeCount
-                        );
+                    final Map<String, Long> currentSliceLeafBreakdownMap = contexts.get(sliceLeaf).toBreakdownMap();
+                    // get the count for current leaf timing type
+                    final long sliceLeafTimingTypeCount = currentSliceLeafBreakdownMap.get(timingTypeCountKey);
+                    currentSliceBreakdown.compute(
+                        timingTypeCountKey,
+                        (key, value) -> (value == null) ? sliceLeafTimingTypeCount : value + sliceLeafTimingTypeCount
+                    );
 
+                    if (sliceLeafTimingTypeCount == 0L) {
+                        // In case where a slice with multiple leaves, it is possible that any one of the leaves has 0 invocations for a
+                        // specific breakdown type. We should skip the slice start/end time computation for any leaf with 0 invocations on a
+                        // timing type, as 0 does not represent an actual timing.
+                        // For example, a slice has 0 invocations for a breakdown type from its leading leaves. Another example, let's
+                        // consider a slice with three leaves: leaf A with a score count of 5, leaf B with a score count of 0,
+                        // and leaf C with a score count of 4. In this situation, we only compute the timing type slice start/end time based
+                        // on leaf A and leaf C. This is because leaf B has a start time of zero.
+                        continue;
+                    }
 
-                        if (sliceLeafTimingTypeCount == 0L) {
-                            // In case where a slice with multiple leaves, it is possible that any one of the leaves has 0 invocations for a
-                            // specific breakdown type. We should skip the slice start/end time computation for any leaf with 0 invocations on a
-                            // timing type, as 0 does not represent an actual timing.
-                            // For example, a slice has 0 invocations for a breakdown type from its leading leaves. Another example, let's
-                            // consider a slice with three leaves: leaf A with a score count of 5, leaf B with a score count of 0,
-                            // and leaf C with a score count of 4. In this situation, we only compute the timing type slice start/end time based
-                            // on leaf A and leaf C. This is because leaf B has a start time of zero.
-                            continue;
-                        }
-                    }
-                    else if(metric.endsWith(TIMING_TYPE_START_TIME_SUFFIX)) {
-                        // compute the sliceStartTime for timingType using min of startTime across slice leaves
-                        final long sliceStartTime = currentSliceLeafBreakdownMap.get(metric);
-                        if(sliceStartTime != 0) {
-                            sliceMinStartTime = Math.min(sliceMinStartTime, sliceStartTime);
-                        }
-                        currentSliceBreakdown.compute(
-                            metric.replace(TIMING_TYPE_COUNT_SUFFIX, SLICE_START_TIME_SUFFIX),
-                            (key, value) -> (value == null) ? sliceStartTime : Math.min(value, sliceStartTime)
-                        );
-                    }
-                    else if(metric.endsWith(TIMING_TYPE_TIME_SUFFIX)) {
-                        // compute the sliceEndTime for timingType using max of endTime across slice leaves
-                        final long sliceLeafTimingTypeEndTime = sliceLeafTimingTypeStartTime + currentSliceLeafBreakdownMap.get(metric);
-                        sliceMaxEndTime = Math.max(sliceMaxEndTime, sliceLeafTimingTypeEndTime);
-                        currentSliceBreakdown.compute(
-                            metric.replace(TIMING_TYPE_TIME_SUFFIX, SLICE_END_TIME_SUFFIX),
-                            (key, value) -> (value == null) ? sliceLeafTimingTypeEndTime : Math.max(value, sliceLeafTimingTypeEndTime)
-                        );
-                    }
-                    else {
-                        nonTimingMetrics.add(metric);
-                        final long sliceLeafMetricValue = currentSliceLeafBreakdownMap.get(metric);
-                        currentSliceBreakdown.compute(
-                            metric,
-                            (key, value) -> (value == null) ? sliceLeafMetricValue : value + sliceLeafMetricValue
-                        );
-                    }
+                    // compute the sliceStartTime for timingType using min of startTime across slice leaves
+                    final long sliceLeafTimingTypeStartTime = currentSliceLeafBreakdownMap.get(timingTypeStartKey);
+                    currentSliceBreakdown.compute(
+                        timingTypeSliceStartTimeKey,
+                        (key, value) -> (value == null) ? sliceLeafTimingTypeStartTime : Math.min(value, sliceLeafTimingTypeStartTime)
+                    );
+
+                    // compute the sliceEndTime for timingType using max of endTime across slice leaves
+                    final long sliceLeafTimingTypeEndTime = sliceLeafTimingTypeStartTime + currentSliceLeafBreakdownMap.get(
+                        timingType + TIMING_TYPE_TIME_SUFFIX
+                    );
+                    currentSliceBreakdown.compute(
+                        timingTypeSliceEndTimeKey,
+                        (key, value) -> (value == null) ? sliceLeafTimingTypeEndTime : Math.max(value, sliceLeafTimingTypeEndTime)
+                    );
                 }
+                // Only when we've checked all leaves in a slice and still find no invocations, then we should set the slice start/end time
+                // to the default 0L. This is because buildQueryBreakdownMap expects timingTypeSliceStartTimeKey and
+                // timingTypeSliceEndTimeKey in the slice level breakdowns.
+                if (currentSliceBreakdown.get(timingTypeCountKey) != null && currentSliceBreakdown.get(timingTypeCountKey) == 0L) {
+                    currentSliceBreakdown.put(timingTypeSliceStartTimeKey, 0L);
+                    currentSliceBreakdown.put(timingTypeSliceEndTimeKey, 0L);
+                }
+                // compute sliceMaxEndTime as max of sliceEndTime across all timing types
+                sliceMaxEndTime = Math.max(sliceMaxEndTime, currentSliceBreakdown.getOrDefault(timingTypeSliceEndTimeKey, Long.MIN_VALUE));
+                long currentSliceStartTime = currentSliceBreakdown.getOrDefault(timingTypeSliceStartTimeKey, Long.MAX_VALUE);
+                if (currentSliceStartTime == 0L) {
+                    // The timer for the current timing type never starts, so we continue here
+                    continue;
+                }
+                sliceMinStartTime = Math.min(sliceMinStartTime, currentSliceStartTime);
+                // compute total time for each timing type at slice level using sliceEndTime and sliceStartTime
+                currentSliceBreakdown.put(
+                    timingType,
+                    currentSliceBreakdown.getOrDefault(timingTypeSliceEndTimeKey, 0L) - currentSliceBreakdown.getOrDefault(
+                        timingTypeSliceStartTimeKey,
+                        0L
+                    )
+                );
             }
 
-            for(String metric : timingMetrics) {
-                if(currentSliceBreakdown.get(metric + TIMING_TYPE_COUNT_SUFFIX) == 0L) {
-                    // Only when we've checked all leaves in a slice and still find no invocations, then we should set the slice start/end time
-                    // to the default 0L. This is because buildQueryBreakdownMap expects timingTypeSliceStartTimeKey and
-                    // timingTypeSliceEndTimeKey in the slice level breakdowns.
-                    currentSliceBreakdown.put(metric + SLICE_START_TIME_SUFFIX, 0L);
-                    currentSliceBreakdown.put(metric + SLICE_END_TIME_SUFFIX, 0L);
+            for(String metric : nonTimingMetrics) {
+                for (LeafReaderContext sliceLeaf : slice.getValue()) {
+                    if (!contexts.containsKey(sliceLeaf)) {
+                        continue;
+                    }
+                    final Map<String, Long> currentSliceLeafBreakdownMap = contexts.get(sliceLeaf).toBreakdownMap();
+                    final long sliceLeafMetricValue = currentSliceLeafBreakdownMap.get(metric);
+                    currentSliceBreakdown.compute(
+                        metric,
+                        (key, value) -> (value == null) ? sliceLeafMetricValue : value + sliceLeafMetricValue
+                    );
                 }
-                Long timingTypeSliceStartTimeValue = currentSliceBreakdown.getOrDefault(metric + SLICE_START_TIME_SUFFIX, 0L);
-                Long timingTypeSliceEndTimValue = currentSliceBreakdown.getOrDefault(metric + SLICE_END_TIME_SUFFIX, 0L);
-                currentSliceBreakdown.put(
-                    metric,
-                    timingTypeSliceEndTimValue - timingTypeSliceStartTimeValue
-                );
             }
 
             // currentSliceNodeTime does not include the create weight time, as that is computed in non-concurrent part
@@ -279,11 +295,11 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
                 currentSliceNodeTime = 0L;
             } else if (sliceMinStartTime == Long.MAX_VALUE || sliceMaxEndTime == Long.MIN_VALUE) {
                 throw new OpenSearchException(
-                        "Unexpected value of sliceMinStartTime ["
-                                + sliceMinStartTime
-                                + "] or sliceMaxEndTime ["
-                                + sliceMaxEndTime
-                                + "] while computing the slice level timing profile breakdowns"
+                    "Unexpected value of sliceMinStartTime ["
+                        + sliceMinStartTime
+                        + "] or sliceMaxEndTime ["
+                        + sliceMaxEndTime
+                        + "] while computing the slice level timing profile breakdowns"
                 );
             } else {
                 currentSliceNodeTime = sliceMaxEndTime - sliceMinStartTime;
@@ -313,14 +329,13 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
     public Map<String, Long> buildQueryBreakdownMap(
             Map<Collector, Map<String, Long>> sliceLevelBreakdowns,
             long createWeightTime,
-            long createWeightStartTime,
-            Set<String> timingMetrics,
-            Set<String> nonTimingMetrics
+            long createWeightStartTime
     ) {
         final Map<String, Long> queryBreakdownMap = new HashMap<>();
         long queryEndTime = Long.MIN_VALUE;
         for(String metric : timingMetrics) {
 
+            final String timingTypeTimeKey = metric + TIMING_TYPE_TIME_SUFFIX;
             final String timingTypeCountKey = metric + TIMING_TYPE_COUNT_SUFFIX;
             final String sliceEndTimeForTimingType = metric + SLICE_END_TIME_SUFFIX;
             final String sliceStartTimeForTimingType = metric + SLICE_START_TIME_SUFFIX;
@@ -337,38 +352,41 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
             long queryTimingTypeCount = 0L;
 
             // the create weight time is computed at the query level and is called only once per query
-            if (metric.equals(QueryTimingType.CREATE_WEIGHT + TIMING_TYPE_TIME_SUFFIX)) {
+            if (metric.equals(QueryTimingType.CREATE_WEIGHT.toString())) {
                 queryBreakdownMap.put(timingTypeCountKey, 1L);
                 queryBreakdownMap.put(metric, createWeightTime);
                 continue;
             }
             // for all other timing types, we will compute min/max/avg/total across slices
             for (Map.Entry<Collector, Map<String, Long>> sliceBreakdown : sliceLevelBreakdowns.entrySet()) {
-                long sliceBreakdownTypeTime = sliceBreakdown.getValue().getOrDefault(metric, 0L);
+                long sliceBreakdownTypeTime = sliceBreakdown.getValue().getOrDefault(timingTypeTimeKey, 0L);
                 long sliceBreakdownTypeCount = sliceBreakdown.getValue().getOrDefault(timingTypeCountKey, 0L);
                 // compute max/min/avg TimingType time across slices
                 addStatsToMap(queryBreakdownMap, maxBreakdownTypeTime, minBreakdownTypeTime, avgBreakdownTypeTime, sliceBreakdownTypeTime);
                 // compute max/min/avg TimingType count across slices
                 addStatsToMap(queryBreakdownMap, maxBreakdownTypeCount, minBreakdownTypeCount, avgBreakdownTypeCount, sliceBreakdownTypeCount);
-                // compute max slice end time across slices
-                queryEndTime = Math.max(queryEndTime, sliceBreakdown.getValue().getOrDefault(sliceEndTimeForTimingType, 0L));
-                // compute min slice start time across slices
-                queryTimingTypeStartTime = Math.min(queryTimingTypeStartTime, sliceBreakdown.getValue().getOrDefault(
-                        sliceStartTimeForTimingType, Long.MAX_VALUE));
-                // compute total count across slices
-                queryTimingTypeCount += sliceBreakdown.getValue().getOrDefault(timingTypeCountKey, 0L);
+                // query start/end time for a TimingType is min/max of start/end time across slices for that TimingType
+                queryTimingTypeEndTime = Math.max(
+                    queryTimingTypeEndTime,
+                    sliceBreakdown.getValue().getOrDefault(sliceEndTimeForTimingType, Long.MIN_VALUE)
+                );
+                queryTimingTypeStartTime = Math.min(
+                    queryTimingTypeStartTime,
+                    sliceBreakdown.getValue().getOrDefault(sliceStartTimeForTimingType, Long.MAX_VALUE)
+                );
+                queryTimingTypeCount += sliceBreakdownTypeCount;
             }
-//            if (queryTimingTypeStartTime == Long.MAX_VALUE || queryTimingTypeEndTime == Long.MIN_VALUE) {
-//                throw new OpenSearchException(
-//                    "Unexpected timing type ["
-//                        + metric
-//                        + "] start ["
-//                        + queryTimingTypeStartTime
-//                        + "] or end time ["
-//                        + queryTimingTypeEndTime
-//                        + "] computed across slices for profile results"
-//                );
-//            }
+            if (queryTimingTypeStartTime == Long.MAX_VALUE || queryTimingTypeEndTime == Long.MIN_VALUE) {
+                throw new OpenSearchException(
+                    "Unexpected timing type ["
+                        + metric
+                        + "] start ["
+                        + queryTimingTypeStartTime
+                        + "] or end time ["
+                        + queryTimingTypeEndTime
+                        + "] computed across slices for profile results"
+                );
+            }
             queryBreakdownMap.put(metric, queryTimingTypeEndTime - queryTimingTypeStartTime);
             queryBreakdownMap.put(timingTypeCountKey, queryTimingTypeCount);
             queryBreakdownMap.compute(avgBreakdownTypeTime, (key, value) -> (value == null) ? 0L : value / sliceLevelBreakdowns.size());
@@ -392,17 +410,6 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
                 addStatsToMap(queryBreakdownMap, maxBreakdownTypeTime, minBreakdownTypeTime, avgBreakdownTypeTime, sliceBreakdownValue);
                 totalBreakdownValue += sliceBreakdownValue;
             }
-//            if (queryTimingTypeStartTime == Long.MAX_VALUE || queryTimingTypeEndTime == Long.MIN_VALUE) {
-//                throw new OpenSearchException(
-//                    "Unexpected timing type ["
-//                        + metric
-//                        + "] start ["
-//                        + queryTimingTypeStartTime
-//                        + "] or end time ["
-//                        + queryTimingTypeEndTime
-//                        + "] computed across slices for profile results"
-//                );
-//            }
             queryBreakdownMap.put(metric, totalBreakdownValue);
             queryBreakdownMap.compute(avgBreakdownTypeTime, (key, value) -> (value == null) ? 0L : value / sliceLevelBreakdowns.size());
         }
@@ -428,6 +435,22 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
             avgKey,
             (key, value) -> (value == null) ? sliceValue : (value + sliceValue)
         );
+    }
+
+    private Set<String> getTimingMetrics(LeafReaderContext context) {
+        if (!contexts.containsKey(context)) {
+            return Set.of();
+        }
+        final Map<String, Long> map = contexts.get(context).toBreakdownMap();
+        return map.keySet().stream().filter(key -> key.endsWith(TIMING_TYPE_COUNT_SUFFIX)).map(key -> key.replace(TIMING_TYPE_COUNT_SUFFIX, "")).collect(Collectors.toSet());
+    }
+
+    private Set<String> getNonTimingMetrics(LeafReaderContext context) {
+        if (!contexts.containsKey(context)) {
+            return Set.of();
+        }
+        final Map<String, Long> map = contexts.get(context).toBreakdownMap();
+        return map.keySet().stream().filter(key -> !key.endsWith(TIMING_TYPE_TIME_SUFFIX) && !key.endsWith(TIMING_TYPE_COUNT_SUFFIX) && !key.endsWith(TIMING_TYPE_START_TIME_SUFFIX)).collect(Collectors.toSet());
     }
 
     @Override
