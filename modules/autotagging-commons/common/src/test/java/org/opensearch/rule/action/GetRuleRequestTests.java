@@ -11,15 +11,15 @@ package org.opensearch.rule.action;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.rule.GetRuleRequest;
+import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
-
-import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_MAP;
-import static org.opensearch.rule.utils.RuleTestUtils.SEARCH_AFTER;
-import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
+import java.util.Map;
+import java.util.Set;
 
 public class GetRuleRequestTests extends OpenSearchTestCase {
     /**

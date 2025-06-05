@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.plugin.wlm.rule.sync.detect.RuleEvent;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
@@ -125,7 +126,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
                     final Set<Rule> newRules = new HashSet<>(response.getRules().values());
                     ruleEventClassifier.setPreviousRules(lastRunIndexedRules);
 
-                    ruleEventClassifier.getRuleEvents(newRules).forEach(event -> { event.process(); });
+                    ruleEventClassifier.getRuleEvents(newRules).forEach(RuleEvent::process);
 
                     lastRunIndexedRules = newRules;
                 }
