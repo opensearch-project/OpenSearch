@@ -117,7 +117,6 @@ import static org.opensearch.cluster.ClusterManagerMetrics.REASON_TAG;
 import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_DISCONNECTED;
 import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL;
 import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_HEALTHCHECK_FAIL;
-import static org.opensearch.cluster.coordination.FollowersChecker.NODE_LEFT_REASON_LAGGING;
 import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
@@ -370,7 +369,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 );
                 String reasonToPublish = switch (reason) {
                     case NODE_LEFT_REASON_DISCONNECTED -> "disconnected";
-                    case NODE_LEFT_REASON_LAGGING -> "lagging";
                     case NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL -> "follower.check.fail";
                     case NODE_LEFT_REASON_HEALTHCHECK_FAIL -> "health.check.fail";
                     default -> reason;
