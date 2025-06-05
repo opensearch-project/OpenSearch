@@ -247,17 +247,16 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 assert pointTree.moveToParent() == false;
             }
 
+            // custom intersect visitor to walk the left of the tree
             public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
                 if (docCount[0] >= size) {
                     return;
                 }
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
-
                 if (r == PointValues.Relation.CELL_OUTSIDE_QUERY) {
                     return;
                 }
-
                 // Handle leaf nodes
                 if (pointTree.moveToChild() == false) {
                     if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
@@ -268,7 +267,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     }
                     return;
                 }
-
                 // For CELL_INSIDE_QUERY, check if we can skip right child
                 if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
                     long leftSize = pointTree.size();
@@ -281,7 +279,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                         return;
                     }
                 }
-
                 // We need both children - now clone right
                 PointValues.PointTree rightChild = null;
                 if (pointTree.moveToSibling()) {
@@ -289,7 +286,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     pointTree.moveToParent();
                     pointTree.moveToChild();
                 }
-
                 // Process both children: left first, then right if needed
                 intersectLeft(visitor, pointTree, docCount);
                 if (docCount[0] < size && rightChild != null) {
@@ -320,14 +316,12 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 }
                 // Internal node - get left child reference (we're at left child initially)
                 PointValues.PointTree leftChild = pointTree.clone();
-
                 // Move to right child if it exists
                 boolean hasRightChild = pointTree.moveToSibling();
                 // For CELL_INSIDE_QUERY, check if we can skip left child
                 if (r == PointValues.Relation.CELL_INSIDE_QUERY && hasRightChild) {
                     long rightSize = pointTree.size();
                     long needed = size - docCount[0];
-
                     if (rightSize >= needed) {
                         // Right child has all we need - only process right
                         intersectRight(visitor, pointTree, docCount);
