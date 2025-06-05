@@ -703,4 +703,69 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         // then
         assertEquals(maxSafeArraySize, expectedThreshold);
     }
+
+    public void testRepositoryVersionOperations() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+
+        BlobContainer container = repository.blobContainer();
+
+        assertNotNull("Repository should provide blob container", container);
+
+        try {
+            Map<String, BlobMetadata> versions = container.listBlobVersions("test-metadata");
+            assertNotNull("Version listing should not return null", versions);
+
+            List<BlobMetadata> sortedVersions = container.listBlobVersionsSorted("test-metadata");
+            assertNotNull("Sorted version listing should not return null", sortedVersions);
+
+            if (sortedVersions.size() > 1) {
+                for (int i = 0; i < sortedVersions.size() - 1; i++) {
+                    assertTrue(
+                        "Versions should be sorted newest first",
+                        sortedVersions.get(i).lastModified() >= sortedVersions.get(i + 1).lastModified()
+                    );
+                }
+            }
+        } catch (UnsupportedOperationException e) {
+            assertTrue(
+                "Unsupported operation should have clear message",
+                e.getMessage().contains("version") || e.getMessage().contains("not supported")
+            );
+        }
+    }
+
+    public void testVersionParameterValidation() {
+        final BlobStoreRepository repository = setupRepo();
+        BlobContainer container = repository.blobContainer();
+
+        IllegalArgumentException exception1 = assertThrows(IllegalArgumentException.class, () -> container.readBlobVersion("test", null));
+        assertTrue(
+            "Exception should mention null version ID",
+            exception1.getMessage().contains("versionId") && exception1.getMessage().contains("null")
+        );
+
+        IllegalArgumentException exception2 = assertThrows(IllegalArgumentException.class, () -> container.headBlobVersion("test", null));
+        assertTrue(
+            "Exception should mention null version ID",
+            exception2.getMessage().contains("versionId") && exception2.getMessage().contains("null")
+        );
+
+        IllegalArgumentException exception3 = assertThrows(
+            IllegalArgumentException.class,
+            () -> container.readBlobVersion("test", "v1", -1, 100)
+        );
+        assertTrue(
+            "Exception should mention negative position",
+            exception3.getMessage().contains("position") && exception3.getMessage().contains("negative")
+        );
+
+        IllegalArgumentException exception4 = assertThrows(
+            IllegalArgumentException.class,
+            () -> container.readBlobVersion("test", "v1", 0, -1)
+        );
+        assertTrue(
+            "Exception should mention negative length",
+            exception4.getMessage().contains("length") && exception4.getMessage().contains("negative")
+        );
+    }
 }

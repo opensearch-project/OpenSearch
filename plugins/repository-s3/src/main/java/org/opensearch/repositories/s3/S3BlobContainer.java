@@ -48,11 +48,16 @@ import software.amazon.awssdk.services.s3.model.GetObjectAttributesResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectAttributes;
+import software.amazon.awssdk.services.s3.model.ObjectVersion;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
@@ -94,7 +99,9 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -409,6 +416,190 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 throw (IOException) e.getCause();
             }
             throw new RuntimeException(e.getCause());
+        }
+    }
+
+    @Override
+    public Map<String, BlobMetadata> listBlobVersions(String blobName) throws IOException {
+        final String key = buildKey(blobName);
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            ListObjectVersionsRequest request = ListObjectVersionsRequest.builder()
+                .bucket(blobStore.bucket())
+                .prefix(key)
+                .delimiter("/")
+                .expectedBucketOwner(blobStore.expectedBucketOwner())
+                .build();
+
+            Map<String, BlobMetadata> versions = new HashMap<>();
+            for (ListObjectVersionsResponse response : executeVersionListing(clientReference, request)) {
+                for (ObjectVersion version : response.versions()) {
+                    if (version.key().equals(key)) {
+                        BlobMetadata metadata = new PlainBlobMetadata(blobName, version.size()) {
+                            @Override
+                            public String versionId() {
+                                return version.versionId();
+                            }
+
+                            @Override
+                            public String eTag() {
+                                return version.eTag() == null ? "" : version.eTag().replaceAll("\"", "");
+                            }
+
+                            @Override
+                            public long lastModified() {
+                                return version.lastModified() == null ? 0L : version.lastModified().toEpochMilli();
+                            }
+                        };
+
+                        versions.put(version.versionId(), metadata);
+                    }
+                }
+            }
+
+            return versions;
+        } catch (S3Exception e) {
+            if ("NoSuchBucket".equals(e.awsErrorDetails().errorCode())) {
+                throw new NoSuchFileException("Bucket not found");
+            }
+            if (e.statusCode() == 400
+                && "InvalidArgument".equals(e.awsErrorDetails().errorCode())
+                && e.awsErrorDetails().errorMessage() != null
+                && e.awsErrorDetails().errorMessage().contains("versioning")) {
+                throw new BlobStoreException("S3 bucket versioning is not enabled", e);
+            }
+            throw new IOException("Failed to list versions of blob [" + blobName + "]", e);
+        } catch (SdkException e) {
+            throw new IOException("Failed to list versions of blob [" + blobName + "]", e);
+        }
+    }
+
+    private List<ListObjectVersionsResponse> executeVersionListing(AmazonS3Reference clientReference, ListObjectVersionsRequest request) {
+        return SocketAccess.doPrivileged(() -> {
+            final List<ListObjectVersionsResponse> results = new ArrayList<>();
+            String keyMarker = null;
+            String versionIdMarker = null;
+            boolean isTruncated;
+
+            do {
+                final ListObjectVersionsRequest paginatedRequest;
+                if (keyMarker != null) {
+                    paginatedRequest = request.toBuilder().keyMarker(keyMarker).versionIdMarker(versionIdMarker).build();
+                } else {
+                    paginatedRequest = request;
+                }
+
+                final ListObjectVersionsResponse response = clientReference.get().listObjectVersions(paginatedRequest);
+                results.add(response);
+
+                keyMarker = response.nextKeyMarker();
+                versionIdMarker = response.nextVersionIdMarker();
+                isTruncated = response.isTruncated();
+            } while (isTruncated);
+
+            return results;
+        });
+    }
+
+    @Override
+    public InputStream readBlobVersion(String blobName, String versionId) throws IOException {
+        if (versionId == null) {
+            throw new IllegalArgumentException("versionId must not be null");
+        }
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            GetObjectRequest getRequest = GetObjectRequest.builder()
+                .bucket(blobStore.bucket())
+                .key(buildKey(blobName))
+                .versionId(versionId)
+                .expectedBucketOwner(blobStore.expectedBucketOwner())
+                .build();
+
+            return SocketAccess.doPrivileged(() -> clientReference.get().getObject(getRequest));
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                throw new NoSuchFileException("Blob [" + blobName + "] version [" + versionId + "] not found");
+            }
+            throw new IOException("Failed to read versioned blob [" + blobName + "]", e);
+        }
+    }
+
+    @Override
+    public InputStream readBlobVersion(String blobName, String versionId, long position, long length) throws IOException {
+        if (versionId == null) {
+            throw new IllegalArgumentException("versionId must not be null");
+        }
+        if (position < 0L) {
+            throw new IllegalArgumentException("position must be non-negative");
+        }
+        if (length < 0) {
+            throw new IllegalArgumentException("length must be non-negative");
+        }
+        if (length == 0) {
+            return new ByteArrayInputStream(new byte[0]);
+        }
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            long rangeEnd = Math.addExact(position, length - 1);
+            GetObjectRequest getRequest = GetObjectRequest.builder()
+                .bucket(blobStore.bucket())
+                .key(buildKey(blobName))
+                .versionId(versionId)
+                .range("bytes=" + position + "-" + rangeEnd)
+                .expectedBucketOwner(blobStore.expectedBucketOwner())
+                .build();
+
+            return SocketAccess.doPrivileged(() -> clientReference.get().getObject(getRequest));
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                throw new NoSuchFileException("Blob [" + blobName + "] version [" + versionId + "] not found");
+            }
+            throw new IOException("Failed to read versioned blob [" + blobName + "] with range", e);
+        }
+    }
+
+    @Override
+    public BlobMetadata headBlobVersion(String blobName, String versionId) throws IOException {
+        if (versionId == null) {
+            throw new IllegalArgumentException("versionId must not be null");
+        }
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            HeadObjectResponse response = SocketAccess.doPrivileged(
+                () -> clientReference.get()
+                    .headObject(
+                        HeadObjectRequest.builder()
+                            .bucket(blobStore.bucket())
+                            .key(buildKey(blobName))
+                            .versionId(versionId)
+                            .expectedBucketOwner(blobStore.expectedBucketOwner())
+                            .build()
+                    )
+            );
+
+            return new PlainBlobMetadata(blobName, response.contentLength()) {
+                @Override
+                public String versionId() {
+                    return versionId;
+                }
+
+                @Override
+                public String eTag() {
+                    return response.eTag() == null ? "" : response.eTag().replaceAll("\"", "");
+                }
+
+                @Override
+                public long lastModified() {
+                    return response.lastModified() == null ? 0L : response.lastModified().toEpochMilli();
+                }
+            };
+        } catch (NoSuchKeyException e) {
+            throw new NoSuchFileException("Blob [" + blobName + "] version [" + versionId + "] not found");
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) {
+                throw new NoSuchFileException("Blob [" + blobName + "] version [" + versionId + "] not found");
+            }
+            throw new IOException("Failed to get metadata for blob [" + blobName + "] version [" + versionId + "]", e);
+        } catch (SdkException e) {
+            throw new IOException("Failed to get metadata for blob [" + blobName + "] version [" + versionId + "]", e);
         }
     }
 

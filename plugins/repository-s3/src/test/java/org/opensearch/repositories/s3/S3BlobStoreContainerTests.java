@@ -46,6 +46,7 @@ import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
+import software.amazon.awssdk.services.s3.model.DeleteMarkerEntry;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.DeletedObject;
@@ -56,11 +57,14 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
+import software.amazon.awssdk.services.s3.model.ObjectVersion;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Error;
@@ -88,6 +92,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -111,6 +116,7 @@ import java.util.stream.IntStream;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
+import org.mockito.MockedStatic;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -120,6 +126,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -1052,6 +1059,218 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         assertEquals("Expected number of parts [" + expectedParts + "] but got [" + result.v1() + "]", expectedParts, (long) result.v1());
         assertEquals("Expected remaining [" + expectedRemaining + "] but got [" + result.v2() + "]", expectedRemaining, (long) result.v2());
+    }
+
+    public void testListBlobVersionsOnlyProcessesVersionsNotDeleteMarkers() throws IOException {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+
+        final AmazonS3Reference mockClientRef = mock(AmazonS3Reference.class);
+        final S3Client mockS3Client = mock(S3Client.class);
+        when(blobStore.clientReference()).thenReturn(mockClientRef);
+        when(mockClientRef.get()).thenReturn(mockS3Client);
+
+        ObjectVersion liveVersion = ObjectVersion.builder()
+            .key("test-metadata")
+            .versionId("v1")
+            .size(100L)
+            .eTag("\"etag1\"")
+            .lastModified(Instant.now())
+            .build();
+
+        DeleteMarkerEntry deleteMarker = DeleteMarkerEntry.builder()
+            .key("test-metadata")
+            .versionId("v2")
+            .lastModified(Instant.now().minusSeconds(60))
+            .build();
+
+        ListObjectVersionsResponse mockResponse = ListObjectVersionsResponse.builder()
+            .versions(liveVersion)
+            .deleteMarkers(deleteMarker)
+            .isTruncated(false)
+            .build();
+
+        try (MockedStatic<SocketAccess> mockSocketAccess = mockStatic(SocketAccess.class)) {
+            when(mockS3Client.listObjectVersions(any(ListObjectVersionsRequest.class))).thenReturn(mockResponse);
+
+            Map<String, BlobMetadata> result = blobContainer.listBlobVersions("test-metadata");
+            assertEquals(1, result.size());
+            assertTrue("Should contain live version", result.containsKey("v1"));
+            assertFalse("Should not contain delete marker", result.containsKey("v2"));
+
+            BlobMetadata version = result.get("v1");
+            assertEquals("test-metadata", version.name());
+            assertEquals(100L, version.length());
+            assertEquals("etag1", version.eTag());
+        }
+    }
+
+    public void testListBlobVersionsExactKeyMatch() throws IOException {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+
+        final AmazonS3Reference mockClientRef = mock(AmazonS3Reference.class);
+        final S3Client mockS3Client = mock(S3Client.class);
+        when(blobStore.clientReference()).thenReturn(mockClientRef);
+        when(mockClientRef.get()).thenReturn(mockS3Client);
+
+        ObjectVersion exactMatch1 = ObjectVersion.builder()
+            .key("metadata")
+            .versionId("v1")
+            .size(100L)
+            .eTag("\"etag1\"")
+            .lastModified(Instant.now())
+            .build();
+
+        ObjectVersion prefixMatch = ObjectVersion.builder()
+            .key("metadata-backup")
+            .versionId("v2")
+            .size(150L)
+            .eTag("\"etag2\"")
+            .lastModified(Instant.now().minusSeconds(30))
+            .build();
+
+        ObjectVersion suffixMatch = ObjectVersion.builder()
+            .key("metadata2")
+            .versionId("v3")
+            .size(200L)
+            .eTag("\"etag3\"")
+            .lastModified(Instant.now().minusSeconds(60))
+            .build();
+
+        ObjectVersion exactMatch2 = ObjectVersion.builder()
+            .key("metadata")
+            .versionId("v4")
+            .size(250L)
+            .eTag("\"etag4\"")
+            .lastModified(Instant.now().minusSeconds(90))
+            .build();
+
+        ListObjectVersionsResponse mockResponse = ListObjectVersionsResponse.builder()
+            .versions(exactMatch1, prefixMatch, suffixMatch, exactMatch2)
+            .isTruncated(false)
+            .build();
+
+        try (MockedStatic<SocketAccess> mockSocketAccess = mockStatic(SocketAccess.class)) {
+            when(mockS3Client.listObjectVersions(any(ListObjectVersionsRequest.class))).thenReturn(mockResponse);
+
+            Map<String, BlobMetadata> result = blobContainer.listBlobVersions("metadata");
+            assertEquals(2, result.size());
+            assertTrue("Should contain exact match v1", result.containsKey("v1"));
+            assertFalse("Should not contain prefix match v2", result.containsKey("v2"));
+            assertFalse("Should not contain suffix match v3", result.containsKey("v3"));
+            assertTrue("Should contain exact match v4", result.containsKey("v4"));
+
+            BlobMetadata v1 = result.get("v1");
+            assertEquals("metadata", v1.name());
+            assertEquals(100L, v1.length());
+
+            BlobMetadata v4 = result.get("v4");
+            assertEquals("metadata", v4.name());
+            assertEquals(250L, v4.length());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testReadBlobVersionRangeBehavior() throws IOException {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+
+        final AmazonS3Reference mockClientRef = mock(AmazonS3Reference.class);
+        final S3Client mockS3Client = mock(S3Client.class);
+        when(blobStore.clientReference()).thenReturn(mockClientRef);
+        when(mockClientRef.get()).thenReturn(mockS3Client);
+
+        ResponseInputStream<GetObjectResponse> mockStream = (ResponseInputStream<GetObjectResponse>) mock(ResponseInputStream.class);
+        GetObjectResponse mockResponse = mock(GetObjectResponse.class);
+        when(mockStream.response()).thenReturn(mockResponse);
+
+        ArgumentCaptor<GetObjectRequest> requestCaptor = ArgumentCaptor.forClass(GetObjectRequest.class);
+        try (MockedStatic<SocketAccess> mockSocketAccess = mockStatic(SocketAccess.class)) {
+            when(mockS3Client.getObject(requestCaptor.capture())).thenReturn(mockStream);
+
+            InputStream result = blobContainer.readBlobVersion("test-blob", "vA", 100, 50);
+            assertSame("Should return the mock stream", mockStream, result);
+
+            GetObjectRequest capturedRequest = requestCaptor.getValue();
+            assertEquals("vA", capturedRequest.versionId());
+            assertEquals("bytes=100-149", capturedRequest.range());
+            assertTrue("Key should end with test-blob", capturedRequest.key().endsWith("test-blob"));
+        }
+
+        try (MockedStatic<SocketAccess> mockSocketAccess = mockStatic(SocketAccess.class)) {
+            InputStream emptyResult = blobContainer.readBlobVersion("test-blob", "vB", 100, 0);
+            assertTrue("Zero length read should return ByteArrayInputStream", emptyResult instanceof ByteArrayInputStream);
+            assertEquals("Should have no data", -1, emptyResult.read());
+        }
+
+        IllegalArgumentException ex1 = assertThrows(
+            IllegalArgumentException.class,
+            () -> blobContainer.readBlobVersion("test-blob", "vC", -1, 50)
+        );
+        assertTrue(ex1.getMessage().contains("position must be non-negative"));
+
+        IllegalArgumentException ex2 = assertThrows(
+            IllegalArgumentException.class,
+            () -> blobContainer.readBlobVersion("test-blob", "vC", 0, -10)
+        );
+        assertTrue(ex2.getMessage().contains("length must be non-negative"));
+
+        IllegalArgumentException ex3 = assertThrows(
+            IllegalArgumentException.class,
+            () -> blobContainer.readBlobVersion("test-blob", null, 0, 50)
+        );
+        assertTrue(ex3.getMessage().contains("versionId must not be null"));
+    }
+
+    public void testNullSafetyInMetadataCreation() throws IOException {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+
+        final AmazonS3Reference mockClientRef = mock(AmazonS3Reference.class);
+        final S3Client mockS3Client = mock(S3Client.class);
+        when(blobStore.clientReference()).thenReturn(mockClientRef);
+        when(mockClientRef.get()).thenReturn(mockS3Client);
+
+        ObjectVersion versionWithNulls = ObjectVersion.builder()
+            .key("test-blob")
+            .versionId("v1")
+            .size(100L)
+            .eTag(null)
+            .lastModified(null)
+            .build();
+
+        ListObjectVersionsResponse mockResponse = ListObjectVersionsResponse.builder()
+            .versions(versionWithNulls)
+            .isTruncated(false)
+            .build();
+
+        try (MockedStatic<SocketAccess> mockSocketAccess = mockStatic(SocketAccess.class)) {
+            when(mockS3Client.listObjectVersions(any(ListObjectVersionsRequest.class))).thenReturn(mockResponse);
+
+            Map<String, BlobMetadata> result = blobContainer.listBlobVersions("test-blob");
+            assertEquals(1, result.size());
+
+            BlobMetadata metadata = result.get("v1");
+            assertEquals("", metadata.eTag());
+            assertEquals(0L, metadata.lastModified());
+            assertEquals("test-blob", metadata.name());
+            assertEquals(100L, metadata.length());
+            assertEquals("v1", metadata.versionId());
+        }
+
+        HeadObjectResponse responseWithNulls = HeadObjectResponse.builder().contentLength(200L).eTag(null).lastModified(null).build();
+
+        try (MockedStatic<SocketAccess> mockSocketAccess = mockStatic(SocketAccess.class)) {
+            when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenReturn(responseWithNulls);
+
+            BlobMetadata headResult = blobContainer.headBlobVersion("test-blob", "v1");
+            assertEquals("", headResult.eTag());
+            assertEquals(0L, headResult.lastModified());
+            assertEquals("test-blob", headResult.name());
+            assertEquals(200L, headResult.length());
+            assertEquals("v1", headResult.versionId());
+        }
     }
 
     public void testListBlobsByPrefix() throws IOException {
