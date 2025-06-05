@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -459,7 +460,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 batchUploadListener.onFailure(ex);
             });
             statsListener.beforeUpload(src);
-            remoteDirectory.copyFrom(storeDirectory, src, IOContext.DEFAULT, aggregatedListener, isLowPriorityUpload());
+            IOContext ioContext = src.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT;
+            remoteDirectory.copyFrom(storeDirectory, src, ioContext, aggregatedListener, isLowPriorityUpload());
         }
     }
 
