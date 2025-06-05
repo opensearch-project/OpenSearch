@@ -16,8 +16,11 @@ import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
@@ -25,6 +28,8 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
@@ -82,6 +87,58 @@ public class PublishMergedSegmentActionTests extends OpenSearchTestCase {
             terminate(threadPool);
         }
         super.tearDown();
+    }
+
+    public void testPublishMergedSegment() {
+        final IndicesService indicesService = mock(IndicesService.class);
+
+        final Index index = new Index("index", "uuid");
+        final IndexService indexService = mock(IndexService.class);
+        when(indicesService.indexServiceSafe(index)).thenReturn(indexService);
+
+        final int id = randomIntBetween(0, 4);
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexService.getShard(id)).thenReturn(indexShard);
+
+        final ShardId shardId = new ShardId(index, id);
+        when(indexShard.shardId()).thenReturn(shardId);
+
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        AllocationId allocationId = mock(AllocationId.class);
+        RecoveryState recoveryState = mock(RecoveryState.class);
+        RecoverySettings recoverySettings = mock(RecoverySettings.class);
+        when(recoverySettings.getMergedSegmentReplicationTimeout()).thenReturn(new TimeValue(1000));
+        when(shardRouting.allocationId()).thenReturn(allocationId);
+        when(allocationId.getId()).thenReturn("1");
+        when(recoveryState.getTargetNode()).thenReturn(clusterService.localNode());
+        when(indexShard.routingEntry()).thenReturn(shardRouting);
+        when(indexShard.getPendingPrimaryTerm()).thenReturn(1L);
+        when(indexShard.recoveryState()).thenReturn(recoveryState);
+        when(indexShard.getRecoverySettings()).thenReturn(recoverySettings);
+
+        final SegmentReplicationTargetService mockTargetService = mock(SegmentReplicationTargetService.class);
+
+        final PublishMergedSegmentAction action = new PublishMergedSegmentAction(
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            new ActionFilters(Collections.emptySet()),
+            mockTargetService
+        );
+
+        final ReplicationSegmentCheckpoint checkpoint = new ReplicationSegmentCheckpoint(
+            indexShard.shardId(),
+            1,
+            1111,
+            Codec.getDefault().getName(),
+            Collections.emptyMap(),
+            "_1"
+        );
+
+        action.publish(indexShard, checkpoint);
     }
 
     public void testPublishMergedSegmentActionOnPrimary() {
