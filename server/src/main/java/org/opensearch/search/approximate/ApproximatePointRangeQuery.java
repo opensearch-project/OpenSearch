@@ -42,8 +42,11 @@ import java.util.function.Function;
  */
 public class ApproximatePointRangeQuery extends ApproximateQuery {
     public static final Function<byte[], String> LONG_FORMAT = bytes -> Long.toString(LongPoint.decodeDimension(bytes, 0));
+
     public static final Function<byte[], String> INT_FORMAT = bytes -> Integer.toString(IntPoint.decodeDimension(bytes, 0));
+
     public static final Function<byte[], String> HALF_FLOAT_FORMAT = bytes -> Float.toString(HalfFloatPoint.decodeDimension(bytes, 0));
+
     private int size;
 
     private SortOrder sortOrder;
@@ -244,6 +247,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 assert pointTree.moveToParent() == false;
             }
 
+            // custom intersect visitor to walk the left of the tree
             public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
                 if (docCount[0] >= size) {
@@ -291,6 +295,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                 pointTree.moveToParent();
             }
 
+            // custom intersect visitor to walk the right of tree (from rightmost leaf going left)
             public void intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
                 if (docCount[0] >= size) {

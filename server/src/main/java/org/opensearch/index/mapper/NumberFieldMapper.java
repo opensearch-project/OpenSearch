@@ -363,7 +363,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         HalfFloatPoint.halfFloatToSortableShort(l),
                         HalfFloatPoint.halfFloatToSortableShort(u)
                     );
-                    return new IndexOrDocValuesQuery(query, dvQuery);
+                    Query combined = new IndexOrDocValuesQuery(query, dvQuery);
+                    byte[] lowerPoint = new byte[HalfFloatPoint.BYTES];
+                    byte[] upperPoint = new byte[HalfFloatPoint.BYTES];
+                    HalfFloatPoint.encodeDimension(l, lowerPoint, 0);
+                    HalfFloatPoint.encodeDimension(u, upperPoint, 0);
+                    return new ApproximateScoreQuery(
+                        combined,
+                        new ApproximatePointRangeQuery(field, lowerPoint, upperPoint, 1, ApproximatePointRangeQuery.HALF_FLOAT_FORMAT)
+                    );
                 }
                 if (hasDocValues) {
                     return SortedNumericDocValuesField.newSlowRangeQuery(
@@ -988,23 +996,34 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         --u;
                     }
                 }
-                if (isSearchable && hasDocValues) {
-                    Query query = IntPoint.newRangeQuery(field, l, u);
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                    query = new IndexOrDocValuesQuery(query, dvQuery);
-                    if (context.indexSortedOnField(field)) {
-                        query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
+                Query dvQuery = hasDocValues ? SortedNumericDocValuesField.newSlowRangeQuery(field, l, u) : null;
+                if (isSearchable) {
+                    Query pointRangeQuery = IntPoint.newRangeQuery(field, l, u);
+                    Query query;
+                    if (dvQuery != null) {
+                        query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
+                        if (context.indexSortedOnField(field)) {
+                            query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
+                        }
+                    } else {
+                        query = pointRangeQuery;
                     }
-                    return query;
+                    return new ApproximateScoreQuery(
+                        query,
+                        new ApproximatePointRangeQuery(
+                            field,
+                            IntPoint.pack(new int[] { l }).bytes,
+                            IntPoint.pack(new int[] { u }).bytes,
+                            new int[] { l }.length,
+                            ApproximatePointRangeQuery.INT_FORMAT
+                        )
+                    );
+
                 }
-                if (hasDocValues) {
-                    Query query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                    if (context.indexSortedOnField(field)) {
-                        query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
-                    }
-                    return query;
+                if (context.indexSortedOnField(field)) {
+                    dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, dvQuery);
                 }
-                return IntPoint.newRangeQuery(field, l, u);
+                return dvQuery;
             }
 
             @Override
