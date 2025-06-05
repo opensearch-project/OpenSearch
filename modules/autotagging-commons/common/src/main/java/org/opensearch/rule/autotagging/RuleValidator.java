@@ -26,6 +26,7 @@ import static org.opensearch.cluster.metadata.WorkloadGroup.isValid;
  * @opensearch.experimental
  */
 public class RuleValidator {
+    private final String id;
     private final String description;
     private final Map<Attribute, Set<String>> attributeMap;
     private final String featureValue;
@@ -38,6 +39,7 @@ public class RuleValidator {
 
     /**
      * deafult constructor
+     * @param id
      * @param description
      * @param attributeMap
      * @param featureValue
@@ -45,12 +47,14 @@ public class RuleValidator {
      * @param featureType
      */
     public RuleValidator(
+        String id,
         String description,
         Map<Attribute, Set<String>> attributeMap,
         String featureValue,
         String updatedAt,
         FeatureType featureType
     ) {
+        this.id = id;
         this.description = description;
         this.attributeMap = attributeMap;
         this.featureValue = featureValue;
@@ -101,6 +105,9 @@ public class RuleValidator {
 
     private List<String> validateStringFields() {
         List<String> errors = new ArrayList<>();
+        if (isNullOrEmpty(id)) {
+            errors.add("Rule id can't be null or empty");
+        }
         if (isNullOrEmpty(description)) {
             errors.add("Rule description can't be null or empty");
         } else if (description.length() > MAX_DESCRIPTION_LENGTH) {

@@ -14,41 +14,21 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rule.GetRuleResponse;
-import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.Rule;
-import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import static org.opensearch.rule.utils.RuleTestUtils.SEARCH_AFTER;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRules;
 import static org.opensearch.rule.utils.RuleTestUtils.ruleMap;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
 import static org.mockito.Mockito.mock;
 
 public class GetRuleResponseTests extends OpenSearchTestCase {
-    public static final String FEATURE_VALUE_ONE = "feature_value_one";
-    public static final String ATTRIBUTE_VALUE_ONE = "mock_attribute_one";
-    public static final String DESCRIPTION_ONE = "description_1";
-    public static final String TIMESTAMP_ONE = "2024-01-26T08:58:57.558Z";
-    static final Map<Attribute, Set<String>> ATTRIBUTE_MAP = Map.of(
-        RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE,
-        Set.of(ATTRIBUTE_VALUE_ONE)
-    );
-
-    public static final Rule ruleOne = Rule.builder()
-        .id(_ID_ONE)
-        .description(DESCRIPTION_ONE)
-        .featureType(RuleTestUtils.MockRuleFeatureType.INSTANCE)
-        .featureValue(FEATURE_VALUE_ONE)
-        .attributeMap(ATTRIBUTE_MAP)
-        .updatedAt(TIMESTAMP_ONE)
-        .build();
-
     /**
      * Test case to verify the serialization and deserialization of GetRuleResponse
      */

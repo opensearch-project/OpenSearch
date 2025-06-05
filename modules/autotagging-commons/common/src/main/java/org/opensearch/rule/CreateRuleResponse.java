@@ -17,9 +17,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rule.autotagging.Rule;
 
 import java.io.IOException;
-import java.util.Map;
-
-import static org.opensearch.rule.autotagging.Rule._ID_STRING;
 
 /**
  * Response for the create API for Rule
@@ -64,7 +61,7 @@ public class CreateRuleResponse extends ActionResponse implements ToXContent, To
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return rule.toXContent(builder, new MapParams(Map.of(_ID_STRING, _id)));
+        return rule.toXContent(builder, params);
     }
 
     /**

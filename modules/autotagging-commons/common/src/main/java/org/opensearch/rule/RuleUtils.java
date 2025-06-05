@@ -13,11 +13,13 @@ import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Utility class for operations related to {@link Rule} objects.
@@ -30,6 +32,24 @@ public class RuleUtils {
      * constructor for RuleUtils
      */
     public RuleUtils() {}
+
+    /**
+     * Computes a UUID-based hash string for a rule based on its key attributes.
+     * @param description   the rule's description
+     * @param featureType   the rule's feature type
+     * @param attributeMap  the rule's attribute map (will use its toString representation)
+     * @param featureValue  the rule's feature value
+     */
+    public static String computeRuleHash(
+        String description,
+        FeatureType featureType,
+        Map<Attribute, Set<String>> attributeMap,
+        String featureValue
+    ) {
+        String combined = description + "|" + featureType.getName() + "|" + attributeMap.toString() + "|" + featureValue;
+        UUID uuid = UUID.nameUUIDFromBytes(combined.getBytes(StandardCharsets.UTF_8));
+        return uuid.toString();
+    }
 
     /**
      * Checks if a duplicate rule exists and returns its id.
@@ -79,6 +99,7 @@ public class RuleUtils {
         Map<Attribute, Set<String>> requestMap = request.getAttributeMap();
         String requestLabel = request.getFeatureValue();
         return new Rule(
+            originalRule.getId(),
             requestDescription == null ? originalRule.getDescription() : requestDescription,
             requestMap == null || requestMap.isEmpty() ? originalRule.getAttributeMap() : requestMap,
             featureType,

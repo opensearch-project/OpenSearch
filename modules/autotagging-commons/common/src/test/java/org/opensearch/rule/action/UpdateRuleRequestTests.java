@@ -16,11 +16,11 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.rule.action.GetRuleRequestTests.ATTRIBUTE_MAP;
-import static org.opensearch.rule.action.GetRuleRequestTests.DESCRIPTION_ONE;
-import static org.opensearch.rule.action.GetRuleRequestTests.DESCRIPTION_TWO;
-import static org.opensearch.rule.action.GetRuleRequestTests.FEATURE_VALUE_ONE;
-import static org.opensearch.rule.action.GetRuleRequestTests._ID_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_MAP;
+import static org.opensearch.rule.utils.RuleTestUtils.DESCRIPTION_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.DESCRIPTION_TWO;
+import static org.opensearch.rule.utils.RuleTestUtils.FEATURE_VALUE_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 
 public class UpdateRuleRequestTests extends OpenSearchTestCase {
     /**

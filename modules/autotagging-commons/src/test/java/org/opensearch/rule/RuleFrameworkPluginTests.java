@@ -16,7 +16,8 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rule.action.GetRuleAction;
-import org.opensearch.rule.action.UpdateRuleAction;
+import org.opensearch.rule.rest.RestCreateRuleAction;
+import org.opensearch.rule.rest.RestDeleteRuleAction;
 import org.opensearch.rule.rest.RestGetRuleAction;
 import org.opensearch.rule.rest.RestUpdateRuleAction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -32,7 +33,6 @@ public class RuleFrameworkPluginTests extends OpenSearchTestCase {
         List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> handlers = plugin.getActions();
         assertEquals(4, handlers.size());
         assertEquals(GetRuleAction.INSTANCE.name(), handlers.get(0).getAction().name());
-        assertEquals(UpdateRuleAction.INSTANCE.name(), handlers.get(1).getAction().name());
     }
 
     public void testGetRestHandlers() {
@@ -48,6 +48,8 @@ public class RuleFrameworkPluginTests extends OpenSearchTestCase {
         );
 
         assertTrue(handlers.get(0) instanceof RestGetRuleAction);
-        assertTrue(handlers.get(1) instanceof RestUpdateRuleAction);
+        assertTrue(handlers.get(1) instanceof RestDeleteRuleAction);
+        assertTrue(handlers.get(2) instanceof RestCreateRuleAction);
+        assertTrue(handlers.get(3) instanceof RestUpdateRuleAction);
     }
 }

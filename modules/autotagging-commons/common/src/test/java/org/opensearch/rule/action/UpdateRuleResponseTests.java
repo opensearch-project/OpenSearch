@@ -18,9 +18,9 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.rule.action.GetRuleRequestTests._ID_ONE;
-import static org.opensearch.rule.action.GetRuleRequestTests.assertEqualRule;
-import static org.opensearch.rule.action.GetRuleRequestTests.ruleOne;
+import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRule;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
 import static org.mockito.Mockito.mock;
 
 public class UpdateRuleResponseTests extends OpenSearchTestCase {
@@ -44,7 +44,7 @@ public class UpdateRuleResponseTests extends OpenSearchTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
-            + "  \"_id\" : \"id_1\",\n"
+            + "  \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n"
             + "  \"description\" : \"description_1\",\n"
             + "  \"mock_attribute_one\" : [\n"
             + "    \"mock_attribute_one\"\n"

@@ -29,8 +29,6 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.CreateRuleRequest;
 import org.opensearch.rule.CreateRuleResponse;
 import org.opensearch.rule.DeleteRuleRequest;
-
-import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
@@ -46,7 +44,6 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -72,7 +69,6 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     private final RuleQueryMapper<QueryBuilder> queryBuilder;
     private final UpdatedRuleBuilder updatedRuleBuilder;
     private static final Logger logger = LogManager.getLogger(IndexStoredRulePersistenceService.class);
-    private static final Map<String, Object> indexSettings = Map.of("index.number_of_shards", 1, "index.auto_expand_replicas", "0-all");
 
     /**
      * Constructs an instance of {@link IndexStoredRulePersistenceService} with the specified parameters.
@@ -153,9 +149,8 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      */
     private void persistRule(Rule rule, ActionListener<CreateRuleResponse> listener) {
         try {
-            IndexRequest indexRequest = new IndexRequest(indexName).source(
-                rule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
-            );
+            IndexRequest indexRequest = new IndexRequest(indexName).id(rule.getId())
+                .source(rule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
             IndexResponse indexResponse = client.index(indexRequest).get();
             listener.onResponse(new CreateRuleResponse(indexResponse.getId(), rule));
         } catch (Exception e) {
@@ -216,7 +211,7 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      */
     void handleGetRuleResponse(List<SearchHit> hits, ActionListener<GetRuleResponse> listener) {
         Map<String, Rule> ruleMap = hits.stream().collect(Collectors.toMap(SearchHit::getId, hit -> parser.parse(hit.getSourceAsString())));
-        String nextSearchAfter = hits.isEmpty() ? null : hits.get(hits.size() - 1).getId();
+        String nextSearchAfter = hits.isEmpty() || hits.size() < maxRulesPerPage ? null : hits.get(hits.size() - 1).getId();
         listener.onResponse(new GetRuleResponse(ruleMap, nextSearchAfter));
     }
 
@@ -275,32 +270,19 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
     }
 
     /**
-     * indexName getter
-     */
-
-    public String getIndexName() {
-        return indexName;
-    }
-
-    /**
      * Persist the updated rule in index
      * @param ruleId - the rule id to update
      * @param updatedRule - the rule we update to
      * @param listener - ActionListener for UpdateRuleResponse
      */
     private void persistUpdatedRule(String ruleId, Rule updatedRule, ActionListener<UpdateRuleResponse> listener) {
-        try (ThreadContext.StoredContext context = stashContext()) {
+        try {
             UpdateRequest updateRequest = new UpdateRequest(indexName, ruleId).doc(
                 updatedRule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
             );
-            client.update(
-                updateRequest,
-                ActionListener.wrap(updateResponse -> { listener.onResponse(new UpdateRuleResponse(ruleId, updatedRule)); }, e -> {
-                    logger.error("Failed to update Rule object due to error: {}", e.getMessage());
-                    listener.onFailure(e);
-                })
-            );
-        } catch (IOException e) {
+            client.update(updateRequest).get();
+            listener.onResponse(new UpdateRuleResponse(ruleId, updatedRule));
+        } catch (Exception e) {
             logger.error("Error updating rule in index: {}", indexName);
             listener.onFailure(new RuntimeException("Failed to update rule to index."));
         }

@@ -22,4 +22,11 @@ public interface RuleRoutingService {
      * @param listener listener to handle the final response
      */
     void handleCreateRuleRequest(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener);
+
+    /**
+     * Handles a update rule request by routing it to the appropriate node.
+     * @param request the update rule request
+     * @param listener listener to handle the final response
+     */
+    void handleUpdateRuleRequest(UpdateRuleRequest request, ActionListener<UpdateRuleResponse> listener);
 }

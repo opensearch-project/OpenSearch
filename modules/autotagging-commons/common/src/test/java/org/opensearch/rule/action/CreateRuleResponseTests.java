@@ -20,9 +20,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.rule.action.GetRuleResponseTests.ruleOne;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRules;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
 import static org.mockito.Mockito.mock;
 
 public class CreateRuleResponseTests extends OpenSearchTestCase {

@@ -15,6 +15,7 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.rule.RuleUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -81,7 +82,7 @@ public class Rule implements Writeable, ToXContentObject {
         this.attributeMap = attributeMap;
         this.featureValue = featureValue;
         this.updatedAt = updatedAt;
-        this.ruleValidator = new RuleValidator(description, attributeMap, featureValue, updatedAt, featureType);
+        this.ruleValidator = new RuleValidator(id, description, attributeMap, featureValue, updatedAt, featureType);
         this.ruleValidator.validate();
     }
 
@@ -97,7 +98,7 @@ public class Rule implements Writeable, ToXContentObject {
         attributeMap = in.readMap(i -> Attribute.from(i, featureType), i -> new HashSet<>(i.readStringList()));
         featureValue = in.readString();
         updatedAt = in.readString();
-        this.ruleValidator = new RuleValidator(description, attributeMap, featureValue, updatedAt, featureType);
+        this.ruleValidator = new RuleValidator(id, description, attributeMap, featureValue, updatedAt, featureType);
         this.ruleValidator.validate();
     }
 
@@ -173,7 +174,7 @@ public class Rule implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field(_ID_STRING, id);
+        builder.field("id", id);
         builder.field(DESCRIPTION_STRING, description);
         for (Map.Entry<Attribute, Set<String>> entry : attributeMap.entrySet()) {
             builder.array(entry.getKey().getName(), entry.getValue().toArray(new String[0]));
@@ -350,6 +351,7 @@ public class Rule implements Writeable, ToXContentObject {
          * @return
          */
         public Rule build() {
+            id = RuleUtils.computeRuleHash(description, featureType, attributeMap, featureValue);
             return new Rule(id, description, attributeMap, featureType, featureValue, updatedAt);
         }
 

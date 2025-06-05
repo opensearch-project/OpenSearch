@@ -79,7 +79,7 @@ public class UpdateRuleRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        RuleValidator validator = new RuleValidator(description, attributeMap, featureValue, null, featureType);
+        RuleValidator validator = new RuleValidator(_id, description, attributeMap, featureValue, null, featureType);
         List<String> errors = validator.validateUpdatingRuleParams();
         if (!errors.isEmpty()) {
             ActionRequestValidationException validationException = new ActionRequestValidationException();

@@ -20,8 +20,6 @@ import org.opensearch.rule.autotagging.Rule;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.opensearch.rule.autotagging.Rule._ID_STRING;
-
 /**
  * Response for the get API for Rule.
  * Example response:
@@ -74,7 +72,7 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
         builder.startObject();
         builder.startArray("rules");
         for (Map.Entry<String, Rule> entry : rules.entrySet()) {
-            entry.getValue().toXContent(builder, new MapParams(Map.of(_ID_STRING, entry.getKey())));
+            entry.getValue().toXContent(builder, params);
         }
         builder.endArray();
         if (searchAfter != null && !searchAfter.isEmpty()) {

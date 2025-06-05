@@ -56,16 +56,12 @@ import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleRoutingService;
+import org.opensearch.rule.RuleUtils;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
-import org.opensearch.rule.RuleUtils;
-import org.opensearch.rule.autotagging.FeatureType;
-import org.opensearch.rule.autotagging.FeatureValueValidator;
-import org.opensearch.rule.service.IndexStoredRulePersistenceService;
-import org.opensearch.rule.spi.RuleFrameworkExtension;
 import org.opensearch.rule.storage.IndexBasedRuleQueryMapper;
 import org.opensearch.rule.storage.XContentRuleParser;
 import org.opensearch.script.ScriptService;
@@ -125,7 +121,6 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
         );
         InMemoryRuleProcessingService ruleProcessingService = new InMemoryRuleProcessingService(attributeValueStoreFactory);
         rulePersistenceService = new IndexStoredRulePersistenceService(
-        rulePersistenceService = new IndexStoredRulePersistenceService(
             INDEX_NAME,
             client,
             clusterService,
@@ -134,7 +129,6 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             new IndexBasedRuleQueryMapper(),
             (existingRule, request) -> RuleUtils.composeUpdatedRule(existingRule, request, featureType)
         );
-
         ruleRoutingService = new WorkloadGroupRuleRoutingService(client, clusterService);
 
         RefreshBasedSyncMechanism refreshMechanism = new RefreshBasedSyncMechanism(
@@ -212,15 +206,12 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     }
 
     @Override
-    public FeatureType getFeatureType() {
-        return FeatureTypeHolder.featureType;
+    public Supplier<RuleRoutingService> getRuleRoutingServiceSupplier() {
+        return () -> ruleRoutingService;
     }
 
-    static class RulePersistenceServiceHolder {
-        private static RulePersistenceService rulePersistenceService;
-    }
-
-    static class FeatureTypeHolder {
-        private static FeatureType featureType;
+    @Override
+    public Supplier<FeatureType> getFeatureTypeSupplier() {
+        return () -> featureType;
     }
 }
