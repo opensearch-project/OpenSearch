@@ -1,0 +1,18 @@
+ECS_Version,Indexed,Field_Set,Field,Type,Level,Normalization,Example,Description
+8.11.0,true,agent,agent.host.architecture,keyword,core,,x86_64,Operating system architecture.
+8.11.0,true,agent,agent.host.ip,ip,core,array,,Host ip addresses.
+8.11.0,true,agent,agent.id,keyword,core,,8a4f500d,Unique identifier of this agent.
+8.11.0,true,agent,agent.name,keyword,core,,foo,Custom name of the agent.
+8.11.0,true,agent,agent.version,keyword,core,,6.0.0-rc2,Version of the agent.
+8.11.0,true,host,host.cpu,object,custom,,,CPU related data
+8.11.0,true,host,host.cpu.cores,long,custom,,,Number of CPU cores
+8.11.0,true,host,host.cpu.name,keyword,custom,,,CPU Model name
+8.11.0,true,host,host.cpu.speed,long,custom,,,CPU clock speed
+8.11.0,true,host,host.memory,object,custom,,,Memory related data
+8.11.0,true,host,host.memory.free,long,custom,,,Free memory in MB
+8.11.0,true,host,host.memory.total,long,custom,,,Total memory in MB
+8.11.0,true,host,host.memory.used,long,custom,,,Used memory related data
+8.11.0,true,host,host.serial_number,keyword,custom,,,Serial number of the motherboard
+8.11.0,true,wazuh,wazuh.cluster.name,keyword,custom,,,Wazuh cluster name.
+8.11.0,true,wazuh,wazuh.cluster.node,keyword,custom,,,Wazuh cluster node name.
+8.11.0,true,wazuh,wazuh.schema.version,keyword,custom,,,Wazuh schema version.

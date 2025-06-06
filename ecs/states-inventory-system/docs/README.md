@@ -1,3 +1,19 @@
+## `wazuh-states-inventory-system` index data model
+
+### Fields summary
+
+The fields are based on https://github.com/wazuh/wazuh/issues/27898
+
+Based on ECS:
+
+- [Agent Fields](https://www.elastic.co/guide/en/ecs/current/ecs-agent.html).
+- [Host Fields](https://www.elastic.co/guide/en/ecs/current/ecs-host.html).
+- [Operating System Fields](https://www.elastic.co/guide/en/ecs/current/ecs-os.html).
+
+The detail of the fields can be found in csv file [States inventory system Fields](fields.csv).
+
+### Transition table
+
 | Field Name         | Type   | Description                                                                       | Destination Field            | Custom |
 | ------------------ | ------ | --------------------------------------------------------------------------------- | ---------------------------- | ------ |
 | agent_id           | string | Unique ID of the agent.                                                           | agent.id                     | FALSE  |

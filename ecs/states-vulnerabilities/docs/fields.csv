@@ -1,0 +1,51 @@
+ECS_Version,Indexed,Field_Set,Field,Type,Level,Normalization,Example,Description
+8.11.0,true,agent,agent.build.original,keyword,core,,"metricbeat version 7.6.0 (amd64), libbeat 7.6.0 [6a23e8f8f30f5001ba344e4e54d8d9cb82cb107c built 2020-02-05 23:10:10 +0000 UTC]",Extended build information for the agent.
+8.11.0,true,agent,agent.ephemeral_id,keyword,extended,,8a4f500f,Ephemeral identifier of this agent.
+8.11.0,true,agent,agent.id,keyword,core,,8a4f500d,Unique identifier of this agent.
+8.11.0,true,agent,agent.name,keyword,core,,foo,Custom name of the agent.
+8.11.0,true,agent,agent.type,keyword,core,,filebeat,Type of the agent.
+8.11.0,true,agent,agent.version,keyword,core,,6.0.0-rc2,Version of the agent.
+8.11.0,true,host,host.os.full,keyword,extended,,Mac OS Mojave,"Operating system name, including the version or code name."
+8.11.0,true,host,host.os.full.text,keyword,extended,,Mac OS Mojave,"Operating system name, including the version or code name."
+8.11.0,true,host,host.os.kernel,keyword,extended,,4.4.0-112-generic,Operating system kernel version as a raw string.
+8.11.0,true,host,host.os.name,keyword,extended,,Mac OS X,"Operating system name, without the version."
+8.11.0,true,host,host.os.name.text,keyword,extended,,Mac OS X,"Operating system name, without the version."
+8.11.0,true,host,host.os.platform,keyword,extended,,darwin,"Operating system platform (such centos, ubuntu, windows)."
+8.11.0,true,host,host.os.type,keyword,extended,,macos,"Which commercial OS family (one of: linux, macos, unix, windows, ios or android)."
+8.11.0,true,host,host.os.version,keyword,extended,,10.14.1,Operating system version as a raw string.
+8.11.0,true,package,package.architecture,keyword,extended,,x86_64,Package architecture.
+8.11.0,true,package,package.build_version,keyword,extended,,36f4f7e89dd61b0988b12ee000b98966867710cd,Build version information
+8.11.0,true,package,package.checksum,keyword,extended,,68b329da9893e34099c7d8ad5cb9c940,Checksum of the installed package for verification.
+8.11.0,true,package,package.description,keyword,extended,,Open source programming language to build simple/reliable/efficient software.,Description of the package.
+8.11.0,true,package,package.install_scope,keyword,extended,,global,"Indicating how the package was installed, e.g. user-local, global."
+8.11.0,true,package,package.installed,date,extended,,,Time when package was installed.
+8.11.0,true,package,package.license,keyword,extended,,Apache License 2.0,Package license
+8.11.0,true,package,package.name,keyword,extended,,go,Package name
+8.11.0,true,package,package.path,keyword,extended,,/usr/local/Cellar/go/1.12.9/,Path where the package is installed.
+8.11.0,true,package,package.reference,keyword,extended,,https://golang.org,Package home page or reference URL
+8.11.0,true,package,package.size,long,extended,,62231,Package size in bytes.
+8.11.0,true,package,package.type,keyword,extended,,rpm,Package type
+8.11.0,true,package,package.version,keyword,extended,,1.12.9,Package version
+8.11.0,true,vulnerability,vulnerability.category,keyword,extended,array,"[""Firewall""]",Category of a vulnerability.
+8.11.0,true,vulnerability,vulnerability.classification,keyword,extended,,CVSS,Classification of the vulnerability.
+8.11.0,true,vulnerability,vulnerability.description,keyword,extended,,"In macOS before 2.12.6, there is a vulnerability in the RPC...",Description of the vulnerability.
+8.11.0,true,vulnerability,vulnerability.description.text,keyword,extended,,"In macOS before 2.12.6, there is a vulnerability in the RPC...",Description of the vulnerability.
+8.11.0,true,vulnerability,vulnerability.detected_at,date,custom,,,Vulnerability's detection date.
+8.11.0,true,vulnerability,vulnerability.enumeration,keyword,extended,,CVE,Identifier of the vulnerability.
+8.11.0,true,vulnerability,vulnerability.id,keyword,extended,,CVE-2019-00001,ID of the vulnerability.
+8.11.0,true,vulnerability,vulnerability.published_at,date,custom,,,Vulnerability's publication date.
+8.11.0,true,vulnerability,vulnerability.reference,keyword,extended,,https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2019-6111,Reference of the vulnerability.
+8.11.0,true,vulnerability,vulnerability.report_id,keyword,extended,,20191018.0001,Scan identification number.
+8.11.0,true,vulnerability,vulnerability.scanner.condition,keyword,custom,,,The condition matched by the package that led the scanner to consider it vulnerable.
+8.11.0,true,vulnerability,vulnerability.scanner.reference,keyword,custom,,,"Scanner's resource that provides additional information, context, and mitigations for the identified vulnerability."
+8.11.0,true,vulnerability,vulnerability.scanner.source,keyword,custom,,,The origin of the decision of the scanner (AKA feed used to detect the vulnerability).
+8.11.0,true,vulnerability,vulnerability.scanner.vendor,keyword,extended,,Tenable,Name of the scanner vendor.
+8.11.0,true,vulnerability,vulnerability.score.base,float,extended,,5.5,Vulnerability Base score.
+8.11.0,true,vulnerability,vulnerability.score.environmental,float,extended,,5.5,Vulnerability Environmental score.
+8.11.0,true,vulnerability,vulnerability.score.temporal,float,extended,,,Vulnerability Temporal score.
+8.11.0,true,vulnerability,vulnerability.score.version,keyword,extended,,2.0,CVSS version.
+8.11.0,true,vulnerability,vulnerability.severity,keyword,extended,,Critical,Severity of the vulnerability.
+8.11.0,true,vulnerability,vulnerability.under_evaluation,boolean,custom,,,Indicates if the vulnerability is awaiting analysis by the NVD.
+8.11.0,true,wazuh,wazuh.cluster.name,keyword,custom,,,Wazuh cluster name.
+8.11.0,true,wazuh,wazuh.cluster.node,keyword,custom,,,Wazuh cluster node name.
+8.11.0,true,wazuh,wazuh.schema.version,keyword,custom,,,Wazuh schema version.

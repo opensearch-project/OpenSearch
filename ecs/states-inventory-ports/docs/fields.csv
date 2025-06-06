@@ -1,0 +1,21 @@
+ECS_Version,Indexed,Field_Set,Field,Type,Level,Normalization,Example,Description
+8.11.0,true,agent,agent.host.architecture,keyword,core,,x86_64,Operating system architecture.
+8.11.0,true,agent,agent.host.ip,ip,core,array,,Host ip addresses.
+8.11.0,true,agent,agent.id,keyword,core,,8a4f500d,Unique identifier of this agent.
+8.11.0,true,agent,agent.name,keyword,core,,foo,Custom name of the agent.
+8.11.0,true,agent,agent.version,keyword,core,,6.0.0-rc2,Version of the agent.
+8.11.0,true,destination,destination.ip,ip,core,,,IP address of the destination.
+8.11.0,true,destination,destination.port,long,core,,,Port of the destination.
+8.11.0,true,file,file.inode,keyword,extended,,256383,Inode representing the file in the filesystem.
+8.11.0,true,host,host.network.egress.queue,long,custom,,,Transmit queue length.---
+8.11.0,true,host,host.network.ingress.queue,long,custom,,,Receive queue length.
+8.11.0,true,interface,interface.state,keyword,custom,,,State of the network interface.
+8.11.0,true,network,network.transport,keyword,core,,tcp,Protocol Name corresponding to the field `iana_number`.
+8.11.0,true,process,process.name,keyword,extended,,ssh,Process name.
+8.11.0,true,process,process.name.text,keyword,extended,,ssh,Process name.
+8.11.0,true,process,process.pid,long,core,,4242,Process id.
+8.11.0,true,source,source.ip,ip,core,,,IP address of the source.
+8.11.0,true,source,source.port,long,core,,,Port of the source.
+8.11.0,true,wazuh,wazuh.cluster.name,keyword,custom,,,Wazuh cluster name.
+8.11.0,true,wazuh,wazuh.cluster.node,keyword,custom,,,Wazuh cluster node name.
+8.11.0,true,wazuh,wazuh.schema.version,keyword,custom,,,Wazuh schema version.

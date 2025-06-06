@@ -1,0 +1,26 @@
+ECS_Version,Indexed,Field_Set,Field,Type,Level,Normalization,Example,Description
+8.11.0,true,agent,agent.host.architecture,keyword,core,,x86_64,Operating system architecture.
+8.11.0,true,agent,agent.host.ip,ip,core,array,,Host ip addresses.
+8.11.0,true,agent,agent.id,keyword,core,,8a4f500d,Unique identifier of this agent.
+8.11.0,true,agent,agent.name,keyword,core,,foo,Custom name of the agent.
+8.11.0,true,agent,agent.version,keyword,core,,6.0.0-rc2,Version of the agent.
+8.11.0,true,event,event.action,keyword,core,,user-password-change,The action captured by the event.
+8.11.0,true,event,event.category,keyword,core,array,authentication,Event category. The second categorization field in the hierarchy.
+8.11.0,true,registry,registry.architecture,keyword,custom,,,Architecture associated with the entity
+8.11.0,true,registry,registry.data.hash.md5,keyword,custom,,,MD5 hash of the file or registry value content
+8.11.0,true,registry,registry.data.hash.sha1,keyword,custom,,,SHA-1 hash of the file or registry value content
+8.11.0,true,registry,registry.data.hash.sha256,keyword,custom,,,SHA-256 hash of the file or registry value content
+8.11.0,true,registry,registry.data.type,keyword,core,,REG_SZ,Standard registry type for encoding contents
+8.11.0,true,registry,registry.gid,keyword,custom,,,Group ID associated with the entity
+8.11.0,true,registry,registry.group,keyword,custom,,,Name of the group that owns the entity
+8.11.0,true,registry,registry.hive,keyword,core,,HKLM,Abbreviated name for the hive.
+8.11.0,true,registry,registry.key,keyword,core,,SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\winword.exe,Hive-relative path of keys.
+8.11.0,true,registry,registry.mtime,date,custom,,,Last modified timestamp of the entity
+8.11.0,true,registry,registry.owner,keyword,custom,,,Name of the owner of the entity (user)
+8.11.0,true,registry,registry.path,keyword,core,,HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\winword.exe\Debugger,"Full path, including hive, key and value"
+8.11.0,true,registry,registry.size,long,custom,,,Size of the file or registry value (in bytes)
+8.11.0,true,registry,registry.uid,keyword,custom,,,User ID associated with the entity
+8.11.0,true,registry,registry.value,keyword,core,,Debugger,Name of the value written.
+8.11.0,true,wazuh,wazuh.cluster.name,keyword,custom,,,Wazuh cluster name.
+8.11.0,true,wazuh,wazuh.cluster.node,keyword,custom,,,Wazuh cluster node name.
+8.11.0,true,wazuh,wazuh.schema.version,keyword,custom,,,Wazuh schema version.

@@ -321,10 +321,6 @@ exit 0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-14-0.html
 * Wed Jul 16 2025 support <info@wazuh.com> - 4.13.0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-13-0.html
-* Thu Jun 05 2025 support <info@wazuh.com> - 4.12.2
-- More info: https://documentation.wazuh.com/current/release-notes/release-4-12-2.html
-* Thu Jun 05 2025 support <info@wazuh.com> - 4.12.1
-- More info: https://documentation.wazuh.com/current/release-notes/release-4-12-1.html
 * Wed May 07 2025 support <info@wazuh.com> - 4.12.0
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-12-0.html
 * Tue Apr 01 2025 support <info@wazuh.com> - 4.11.2

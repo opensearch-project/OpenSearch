@@ -1,3 +1,17 @@
+## `wazuh-states-inventory-hotfixes` index data model
+
+### Fields summary
+
+The fields are based on https://github.com/wazuh/wazuh/issues/27898
+
+Based on ECS:
+
+- [Agent Fields](https://www.elastic.co/guide/en/ecs/current/ecs-agent.html).
+
+The detail of the fields can be found in csv file [States inventory hotfixes Fields](fields.csv).
+
+### Transition table
+
 | Field Name     | Type   | Description                                         | Destination Field       | Custom |
 |----------------|--------|-----------------------------------------------------|-------------------------|--------|
 | agent_id       | string | Unique ID of the agent.                             | agent.id                | FALSE  |

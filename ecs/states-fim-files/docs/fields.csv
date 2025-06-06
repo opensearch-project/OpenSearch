@@ -1,0 +1,21 @@
+ECS_Version,Indexed,Field_Set,Field,Type,Level,Normalization,Example,Description
+8.11.0,true,agent,agent.host.architecture,keyword,core,,x86_64,Operating system architecture.
+8.11.0,true,agent,agent.host.ip,ip,core,array,,Host ip addresses.
+8.11.0,true,agent,agent.id,keyword,core,,8a4f500d,Unique identifier of this agent.
+8.11.0,true,agent,agent.name,keyword,core,,foo,Custom name of the agent.
+8.11.0,true,agent,agent.version,keyword,core,,6.0.0-rc2,Version of the agent.
+8.11.0,true,file,file.gid,keyword,extended,,1001,Primary group ID (GID) of the file.
+8.11.0,true,file,file.group,keyword,extended,,alice,Primary group name of the file.
+8.11.0,true,file,file.hash.md5,keyword,extended,,,MD5 hash.
+8.11.0,true,file,file.hash.sha1,keyword,extended,,,SHA1 hash.
+8.11.0,true,file,file.hash.sha256,keyword,extended,,,SHA256 hash.
+8.11.0,true,file,file.inode,keyword,extended,,256383,Inode representing the file in the filesystem.
+8.11.0,true,file,file.mtime,date,extended,,,Last time the file content was modified.
+8.11.0,true,file,file.owner,keyword,extended,,alice,File owner's username.
+8.11.0,true,file,file.path,keyword,extended,,/home/alice/example.png,"Full path to the file, including the file name."
+8.11.0,true,file,file.path.text,keyword,extended,,/home/alice/example.png,"Full path to the file, including the file name."
+8.11.0,true,file,file.size,long,extended,,16384,File size in bytes.
+8.11.0,true,file,file.uid,keyword,extended,,1001,The user ID (UID) or security identifier (SID) of the file owner.
+8.11.0,true,wazuh,wazuh.cluster.name,keyword,custom,,,Wazuh cluster name.
+8.11.0,true,wazuh,wazuh.cluster.node,keyword,custom,,,Wazuh cluster node name.
+8.11.0,true,wazuh,wazuh.schema.version,keyword,custom,,,Wazuh schema version.
