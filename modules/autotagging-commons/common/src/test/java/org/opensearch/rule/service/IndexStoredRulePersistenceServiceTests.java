@@ -17,6 +17,8 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -36,6 +38,9 @@ import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleQueryMapper;
+import org.opensearch.rule.UpdateRuleRequest;
+import org.opensearch.rule.UpdateRuleResponse;
+import org.opensearch.rule.UpdatedRuleBuilder;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.search.SearchHit;
@@ -55,7 +60,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.mockito.ArgumentCaptor;
 
@@ -63,10 +70,10 @@ import static org.opensearch.rule.XContentRuleParserTests.VALID_JSON;
 import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_MAP;
 import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE;
-import static org.opensearch.rule.utils.RuleTestUtils.MockRuleFeatureType;
 import static org.opensearch.rule.utils.RuleTestUtils.TEST_INDEX_NAME;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
-import static org.mockito.ArgumentMatchers.any;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleTwo;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.any;
@@ -84,6 +91,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
     private ClusterService clusterService;
     private RuleQueryMapper<QueryBuilder> ruleQueryMapper;
     private RuleEntityParser ruleEntityParser;
+    private UpdatedRuleBuilder updatedRuleBuilder;
     private SearchRequestBuilder searchRequestBuilder;
     private RulePersistenceService rulePersistenceService;
     private QueryBuilder queryBuilder;
@@ -93,22 +101,20 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         super.setUp();
         searchRequestBuilder = mock(SearchRequestBuilder.class);
         client = setUpMockClient(searchRequestBuilder);
-
         rule = mock(Rule.class);
-
         clusterService = mock(ClusterService.class);
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.hasIndex(TEST_INDEX_NAME)).thenReturn(true);
-
         ruleQueryMapper = mock(RuleQueryMapper.class);
         ruleEntityParser = mock(RuleEntityParser.class);
         queryBuilder = mock(QueryBuilder.class);
         when(queryBuilder.filter(any())).thenReturn(queryBuilder);
         when(ruleQueryMapper.from(any(GetRuleRequest.class))).thenReturn(queryBuilder);
         when(ruleEntityParser.parse(anyString())).thenReturn(rule);
+        updatedRuleBuilder = mock(UpdatedRuleBuilder.class);
 
         rulePersistenceService = new IndexStoredRulePersistenceService(
             TEST_INDEX_NAME,
@@ -116,7 +122,8 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
             clusterService,
             MAX_VALUES_PER_PAGE,
             ruleEntityParser,
-            ruleQueryMapper
+            ruleQueryMapper,
+            updatedRuleBuilder
         );
     }
 
@@ -151,7 +158,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
 
         CreateRuleRequest createRuleRequest = mock(CreateRuleRequest.class);
         when(rule.getAttributeMap()).thenReturn(ATTRIBUTE_MAP);
-        when(rule.getFeatureType()).thenReturn(MockRuleFeatureType.INSTANCE);
+        when(rule.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
         when(createRuleRequest.getRule()).thenReturn(rule);
 
         RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
@@ -160,7 +167,8 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
             clusterService,
             MAX_VALUES_PER_PAGE,
             ruleEntityParser,
-            ruleQueryMapper
+            ruleQueryMapper,
+            updatedRuleBuilder
         ) {
             @Override
             public void createRule(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener) {
@@ -355,5 +363,96 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         listenerCaptor.getValue().onFailure(new DocumentMissingException(new ShardId(TEST_INDEX_NAME, "_na_", 0), ruleId));
 
         verify(listener).onFailure(any(ResourceNotFoundException.class));
+    }
+
+    public void testUpdateRule_SuccessfulUpdate() throws Exception {
+        UpdateRuleRequest request = mock(UpdateRuleRequest.class);
+        when(request.get_id()).thenReturn(_ID_ONE);
+        when(updatedRuleBuilder.apply(ruleOne, request)).thenReturn(ruleTwo);
+
+        SearchHit searchHit = new SearchHit(1, _ID_ONE, null, null);
+        searchHit.sourceRef(new BytesArray(VALID_JSON));
+        SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        when(searchRequestBuilder.get()).thenReturn(searchResponse);
+        when(ruleEntityParser.parse(anyString())).thenReturn(ruleOne);
+
+        UpdateResponse updateResponse = mock(UpdateResponse.class);
+        ActionFuture<UpdateResponse> future = mock(ActionFuture.class);
+        when(future.get()).thenReturn(updateResponse);
+        when(client.update(any(UpdateRequest.class))).thenReturn(future);
+
+        AtomicBoolean onResponseCalled = new AtomicBoolean(false);
+        rulePersistenceService.updateRule(request, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateRuleResponse updateRuleResponse) {
+                assertEquals(_ID_ONE, updateRuleResponse.get_id());
+                assertEquals(ruleTwo, updateRuleResponse.getRule());
+                onResponseCalled.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail();
+            }
+        });
+
+        assertTrue(onResponseCalled.get());
+    }
+
+    public void testUpdateRule_RuleNotFound() {
+        UpdateRuleRequest request = mock(UpdateRuleRequest.class);
+        when(request.get_id()).thenReturn(_ID_ONE);
+
+        SearchHits emptyHits = new SearchHits(new SearchHit[] {}, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(emptyHits);
+        when(searchRequestBuilder.get()).thenReturn(searchResponse);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        rulePersistenceService.updateRule(request, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateRuleResponse updateRuleResponse) {
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+            }
+        });
+
+        assertTrue(failure.get() instanceof ResourceNotFoundException);
+        assertTrue(failure.get().getMessage().contains(_ID_ONE));
+    }
+
+    public void testUpdateRule_ParseFailure() {
+        UpdateRuleRequest request = mock(UpdateRuleRequest.class);
+        when(request.get_id()).thenReturn(_ID_ONE);
+
+        SearchHit searchHit = new SearchHit(1, _ID_ONE, null, null);
+        searchHit.sourceRef(new BytesArray(VALID_JSON));
+        SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        when(searchRequestBuilder.get()).thenReturn(searchResponse);
+        when(ruleEntityParser.parse(anyString())).thenThrow(new RuntimeException("Invalid JSON"));
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        rulePersistenceService.updateRule(request, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateRuleResponse updateRuleResponse) {
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+            }
+        });
+
+        assertNotNull(failure.get());
+        assertTrue(failure.get().getMessage().contains("Invalid JSON"));
     }
 }

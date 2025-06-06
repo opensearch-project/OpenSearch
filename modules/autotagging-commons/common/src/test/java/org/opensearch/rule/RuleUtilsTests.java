@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.opensearch.rule.action.GetRuleResponseTests.ruleOne;
 import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_TWO;
 import static org.opensearch.rule.utils.RuleTestUtils.DESCRIPTION_ONE;
@@ -25,6 +24,7 @@ import static org.opensearch.rule.utils.RuleTestUtils.FEATURE_VALUE_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils.TIMESTAMP_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_TWO;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
 import static org.opensearch.rule.utils.RuleTestUtils.ruleTwo;
 
 public class RuleUtilsTests extends OpenSearchTestCase {

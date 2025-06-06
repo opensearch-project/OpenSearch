@@ -13,40 +13,35 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.rule.CreateRuleResponse;
-import org.opensearch.rule.autotagging.Rule;
+import org.opensearch.rule.UpdateRuleResponse;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
-import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRules;
+import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRule;
 import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
 import static org.mockito.Mockito.mock;
 
-public class CreateRuleResponseTests extends OpenSearchTestCase {
-
+public class UpdateRuleResponseTests extends OpenSearchTestCase {
     /**
-     * Test case to verify serialization and deserialization of CreateRuleResponse
+     * Test case to verify the serialization and deserialization of UpdateRuleResponse
      */
     public void testSerialization() throws IOException {
-        CreateRuleResponse response = new CreateRuleResponse(_ID_ONE, ruleOne);
+        UpdateRuleResponse response = new UpdateRuleResponse(_ID_ONE, ruleOne);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        CreateRuleResponse otherResponse = new CreateRuleResponse(streamInput);
-        Rule responseRule = response.getRule();
-        Rule otherResponseRule = otherResponse.getRule();
-        assertEqualRules(Map.of(_ID_ONE, responseRule), Map.of(_ID_ONE, otherResponseRule), false);
+        UpdateRuleResponse otherResponse = new UpdateRuleResponse(streamInput);
+        assertEqualRule(response.getRule(), otherResponse.getRule(), false);
     }
 
     /**
-     * Test case to validate the toXContent method of CreateRuleResponse
+     * Test case to verify the toXContent of GetRuleResponse
      */
-    public void testToXContentCreateRule() throws IOException {
+    public void testToXContent() throws IOException {
+        UpdateRuleResponse response = new UpdateRuleResponse(_ID_ONE, ruleOne);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        CreateRuleResponse response = new CreateRuleResponse(_ID_ONE, ruleOne);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
             + "  \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n"

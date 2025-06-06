@@ -12,7 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListenerResponseHandler;
+import org.opensearch.action.ActionRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.cluster.ClusterState;
@@ -22,11 +24,16 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
 import org.opensearch.rule.CreateRuleRequest;
 import org.opensearch.rule.CreateRuleResponse;
 import org.opensearch.rule.RuleRoutingService;
+import org.opensearch.rule.UpdateRuleRequest;
+import org.opensearch.rule.UpdateRuleResponse;
 import org.opensearch.rule.action.CreateRuleAction;
+import org.opensearch.rule.action.UpdateRuleAction;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 
@@ -67,8 +74,8 @@ public class WorkloadGroupRuleRoutingService implements RuleRoutingService {
         String indexName = WorkloadManagementPlugin.INDEX_NAME;
 
         try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashContext()) {
-            if (clusterService.state().metadata().hasIndex(indexName)) {
-                routeRequest(request, listener, indexName);
+            if (hasIndex(indexName)) {
+                routeRequest(CreateRuleAction.NAME, indexName, request, CreateRuleResponse::new, listener);
                 return;
             }
             createIndex(indexName, new ActionListener<>() {
@@ -78,7 +85,7 @@ public class WorkloadGroupRuleRoutingService implements RuleRoutingService {
                         logger.error("Failed to create index " + indexName);
                         listener.onFailure(new IllegalStateException(indexName + " index creation not acknowledged"));
                     } else {
-                        routeRequest(request, listener, indexName);
+                        routeRequest(CreateRuleAction.NAME, indexName, request, CreateRuleResponse::new, listener);
                     }
                 }
 
@@ -86,13 +93,26 @@ public class WorkloadGroupRuleRoutingService implements RuleRoutingService {
                 public void onFailure(Exception e) {
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
                     if (cause instanceof ResourceAlreadyExistsException) {
-                        routeRequest(request, listener, indexName);
+                        routeRequest(CreateRuleAction.NAME, indexName, request, CreateRuleResponse::new, listener);
                     } else {
                         logger.error("Failed to create index {}: {}", indexName, e.getMessage());
                         listener.onFailure(e);
                     }
                 }
             });
+        }
+    }
+
+    @Override
+    public void handleUpdateRuleRequest(UpdateRuleRequest request, ActionListener<UpdateRuleResponse> listener) {
+        String indexName = WorkloadManagementPlugin.INDEX_NAME;
+        try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashContext()) {
+            if (!hasIndex(indexName)) {
+                logger.error("Index {} not found", indexName);
+                listener.onFailure(new ResourceNotFoundException("Index " + indexName + "does not exist."));
+            } else {
+                routeRequest(UpdateRuleAction.NAME, indexName, request, UpdateRuleResponse::new, listener);
+            }
         }
     }
 
@@ -107,24 +127,31 @@ public class WorkloadGroupRuleRoutingService implements RuleRoutingService {
     }
 
     /**
-     * Routes the CreateRuleRequest to the primary shard node for the given index.
+     * Routes the request to the primary shard node for the given index.
      * Executes locally if the current node is the primary.
-     * @param request the CreateRuleRequest
-     * @param listener listener to handle response or failure
-     * @param indexName the index name used to find the primary shard node
+     * @param actionName
+     * @param indexName
+     * @param request
+     * @param responseReader
+     * @param listener
      */
-    private void routeRequest(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener, String indexName) {
-        Optional<DiscoveryNode> optionalPrimaryNode = getPrimaryShardNode(indexName);
-        if (optionalPrimaryNode.isEmpty()) {
+    private <Request extends ActionRequest, Response extends ActionResponse> void routeRequest(
+        String actionName,
+        String indexName,
+        Request request,
+        Writeable.Reader<Response> responseReader,
+        ActionListener<Response> listener
+    ) {
+        Optional<DiscoveryNode> primaryNodeOpt = getPrimaryShardNode(indexName);
+        if (primaryNodeOpt.isEmpty()) {
             listener.onFailure(new IllegalStateException("Primary node for index [" + indexName + "] not found"));
             return;
         }
-        DiscoveryNode primaryNode = optionalPrimaryNode.get();
         transportService.sendRequest(
-            primaryNode,
-            CreateRuleAction.NAME,
+            primaryNodeOpt.get(),
+            actionName,
             request,
-            new ActionListenerResponseHandler<>(listener, CreateRuleResponse::new)
+            new ActionListenerResponseHandler<>(listener, responseReader)
         );
     }
 
@@ -139,5 +166,13 @@ public class WorkloadGroupRuleRoutingService implements RuleRoutingService {
             .map(IndexShardRoutingTable::primaryShard)
             .filter(ShardRouting::assignedToNode)
             .map(shard -> state.nodes().get(shard.currentNodeId()));
+    }
+
+    /**
+     * Checks whether the index is present
+     * @param indexName - the index name to check
+     */
+    private boolean hasIndex(String indexName) {
+        return clusterService.state().metadata().hasIndex(indexName);
     }
 }

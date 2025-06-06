@@ -8,6 +8,7 @@
 
 package org.opensearch.rule;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -19,38 +20,38 @@ import org.opensearch.rule.autotagging.Rule;
 import java.io.IOException;
 
 /**
- * Response for the create API for Rule
+ * Response for the update API for Rule
  * Example response:
  * {
- *    "_id":"wi6VApYBoX5wstmtU_8l",
- *    "description":"description1",
- *    "index_pattern":["log*", "uvent*"],
- *    "workload_group":"poOiU851RwyLYvV5lbvv5w",
- *    "updated_at":"2025-04-04T20:54:22.406Z"
+ *     _id": "z1MJApUB0zgMcDmz-UQq",
+ *     "description": "Rule for tagging workload_group_id to index123"
+ *     "index_pattern": ["index123"],
+ *     "workload_group": "workload_group_id",
+ *     "updated_at": "2025-02-14T01:19:22.589Z"
  * }
  * @opensearch.experimental
  */
-public class CreateRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
+@ExperimentalApi
+public class UpdateRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final String _id;
     private final Rule rule;
 
     /**
-     * contructor for CreateRuleResponse
-     * @param id - the id for the rule created
-     * @param rule - the rule created
+     * constructor for UpdateRuleResponse
+     * @param _id - rule id updated
+     * @param rule - the updated rule
      */
-    public CreateRuleResponse(String id, final Rule rule) {
-        this._id = id;
+    public UpdateRuleResponse(String _id, final Rule rule) {
+        this._id = _id;
         this.rule = rule;
     }
 
     /**
-     * Constructs a CreateRuleResponse from a StreamInput for deserialization
+     * Constructs a UpdateRuleResponse from a StreamInput for deserialization
      * @param in - The {@link StreamInput} instance to read from.
      */
-    public CreateRuleResponse(StreamInput in) throws IOException {
-        _id = in.readString();
-        rule = new Rule(in);
+    public UpdateRuleResponse(StreamInput in) throws IOException {
+        this(in.readString(), new Rule(in));
     }
 
     @Override
@@ -62,6 +63,13 @@ public class CreateRuleResponse extends ActionResponse implements ToXContent, To
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return rule.toXContent(builder, params);
+    }
+
+    /**
+     * id getter
+     */
+    public String get_id() {
+        return _id;
     }
 
     /**
