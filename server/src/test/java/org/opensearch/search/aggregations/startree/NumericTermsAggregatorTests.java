@@ -40,6 +40,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.bucket.terms.InternalTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -61,6 +62,8 @@ import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.min;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
+import static org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode.BREADTH_FIRST;
+import static org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode.DEPTH_FIRST;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 public class NumericTermsAggregatorTests extends AggregatorTestCase {
@@ -205,42 +208,45 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         CompositeIndexFieldInfo starTree,
         LinkedHashMap<Dimension, MappedFieldType> supportedDimensions
     ) throws IOException {
-        InternalTerms starTreeAggregation = searchAndReduceStarTree(
-            createIndexSettings(),
-            indexSearcher,
-            query,
-            queryBuilder,
-            termsAggregationBuilder,
-            starTree,
-            supportedDimensions,
-            null,
-            DEFAULT_MAX_BUCKETS,
-            false,
-            null,
-            true,
-            STATUS_FIELD_TYPE,
-            SIZE_FIELD_NAME
-        );
+        for (Aggregator.SubAggCollectionMode collectionMode : List.of(DEPTH_FIRST, BREADTH_FIRST)) {
+            termsAggregationBuilder.collectMode(collectionMode);
+            InternalTerms starTreeAggregation = searchAndReduceStarTree(
+                createIndexSettings(),
+                indexSearcher,
+                query,
+                queryBuilder,
+                termsAggregationBuilder,
+                starTree,
+                supportedDimensions,
+                null,
+                DEFAULT_MAX_BUCKETS,
+                false,
+                null,
+                true,
+                STATUS_FIELD_TYPE,
+                SIZE_FIELD_NAME
+            );
 
-        InternalTerms defaultAggregation = searchAndReduceStarTree(
-            createIndexSettings(),
-            indexSearcher,
-            query,
-            queryBuilder,
-            termsAggregationBuilder,
-            null,
-            null,
-            null,
-            DEFAULT_MAX_BUCKETS,
-            false,
-            null,
-            false,
-            STATUS_FIELD_TYPE,
-            SIZE_FIELD_NAME
-        );
+            InternalTerms defaultAggregation = searchAndReduceStarTree(
+                createIndexSettings(),
+                indexSearcher,
+                query,
+                queryBuilder,
+                termsAggregationBuilder,
+                null,
+                null,
+                null,
+                DEFAULT_MAX_BUCKETS,
+                false,
+                null,
+                false,
+                STATUS_FIELD_TYPE,
+                SIZE_FIELD_NAME
+            );
 
-        assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());
-        assertEquals(defaultAggregation.getBuckets(), starTreeAggregation.getBuckets());
+            assertEquals(defaultAggregation.getBuckets().size(), starTreeAggregation.getBuckets().size());
+            assertEquals(defaultAggregation.getBuckets(), starTreeAggregation.getBuckets());
+        }
     }
 
     public static XContentBuilder getExpandedMapping(int maxLeafDocs, boolean skipStarNodeCreationForStatusDimension) throws IOException {
