@@ -48,8 +48,10 @@ import static org.mockito.Mockito.when;
 public class DimensionFilterAndMapperTests extends OpenSearchTestCase {
 
     public void testKeywordOrdinalMapping() throws IOException {
+        SearchContext searchContext = mock(SearchContext.class);
         DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-            new KeywordFieldMapper.KeywordFieldType("keyword")
+            new KeywordFieldMapper.KeywordFieldType("keyword"),
+            searchContext
         );
         StarTreeValues starTreeValues = mock(StarTreeValues.class);
         SortedSetStarTreeValuesIterator sortedSetStarTreeValuesIterator = mock(SortedSetStarTreeValuesIterator.class);
@@ -149,10 +151,10 @@ public class DimensionFilterAndMapperTests extends OpenSearchTestCase {
         when(searchContext.mapperService()).thenReturn(mapperService);
 
         // Null returned when mapper doesn't exist
-        assertNull(DimensionFilterMapper.Factory.fromMappedFieldType(new WildcardFieldMapper.WildcardFieldType("field")));
+        assertNull(DimensionFilterMapper.Factory.fromMappedFieldType(new WildcardFieldMapper.WildcardFieldType("field"), searchContext));
 
         // Null returned for no mapped field type
-        assertNull(DimensionFilterMapper.Factory.fromMappedFieldType(null));
+        assertNull(DimensionFilterMapper.Factory.fromMappedFieldType(null, searchContext));
 
         // Provider for null Query builder
         assertEquals(StarTreeFilterProvider.MATCH_ALL_PROVIDER, StarTreeFilterProvider.SingletonFactory.getProvider(null));
