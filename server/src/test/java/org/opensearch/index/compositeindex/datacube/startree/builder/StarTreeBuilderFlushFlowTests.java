@@ -35,6 +35,7 @@ import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.St
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
+import org.opensearch.search.aggregations.metrics.CompensatedSum;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -121,11 +122,12 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
                     starTreeDocument.dimensions[0] == null
                         ? starTreeDocument.dimensions[1] * 1 * 10.0
                         : starTreeDocument.dimensions[0] * 10,
-                    starTreeDocument.metrics[0]
+                    ((CompensatedSum) starTreeDocument.metrics[0]).value(),
+                    0
                 );
                 assertEquals(1L, starTreeDocument.metrics[1]);
             } else {
-                assertEquals(150D, starTreeDocument.metrics[0]);
+                assertEquals(150D, ((CompensatedSum) starTreeDocument.metrics[0]).value(), 0);
                 assertEquals(6L, starTreeDocument.metrics[1]);
             }
         }
@@ -226,7 +228,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
                 if (starTreeDocument.dimensions[0] != null) {
                     assertEquals(count, (long) starTreeDocument.dimensions[0]);
                 }
-                assertEquals(starTreeDocument.dimensions[1] * 10.0, starTreeDocument.metrics[0]);
+                assertEquals(starTreeDocument.dimensions[1] * 10.0, ((CompensatedSum) starTreeDocument.metrics[0]).value(), 0);
                 assertEquals(1L, starTreeDocument.metrics[1]);
             }
         }
@@ -333,7 +335,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         int count = 0;
         for (StarTreeDocument starTreeDocument : starTreeDocuments) {
             if (count < 6) {
-                assertEquals(expectedSumMetrics[count], starTreeDocument.metrics[0]);
+                assertEquals(expectedSumMetrics[count], ((CompensatedSum) starTreeDocument.metrics[0]).value(), 0);
                 assertEquals(expectedCountMetric, starTreeDocument.metrics[1]);
 
                 Long dim1 = starTreeDocument.dimensions[0];
@@ -446,7 +448,8 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         for (StarTreeDocument starTreeDocument : starTreeDocuments) {
             assertEquals(
                 starTreeDocument.dimensions[1] != null ? starTreeDocument.dimensions[1] * 10.0 : 49500.0,
-                starTreeDocument.metrics[0]
+                ((CompensatedSum) starTreeDocument.metrics[0]).value(),
+                0
             );
         }
         validateStarTree(builder.getRootNode(), 2, 1, builder.getStarTreeDocuments());
@@ -525,7 +528,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         while (starTreeDocumentIterator.hasNext()) {
             count++;
             StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
-            assertEquals(starTreeDocument.dimensions[3] * 1 * 10.0, starTreeDocument.metrics[1]);
+            assertEquals(starTreeDocument.dimensions[3] * 1 * 10.0, ((CompensatedSum) starTreeDocument.metrics[1]).value(), 0);
             assertEquals(1L, starTreeDocument.metrics[0]);
         }
         assertEquals(6, count);
@@ -600,11 +603,12 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
                     starTreeDocument.dimensions[0] == null
                         ? starTreeDocument.dimensions[1] * 1 * 10.0
                         : starTreeDocument.dimensions[0] * 10,
-                    starTreeDocument.metrics[0]
+                    ((CompensatedSum) starTreeDocument.metrics[0]).value(),
+                    0
                 );
                 assertEquals(1L, starTreeDocument.metrics[1]);
             } else {
-                assertEquals(150D, starTreeDocument.metrics[0]);
+                assertEquals(150D, ((CompensatedSum) starTreeDocument.metrics[0]).value(), 0);
                 assertEquals(6L, starTreeDocument.metrics[1]);
             }
         }
