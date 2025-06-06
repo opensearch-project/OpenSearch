@@ -133,6 +133,19 @@ public class IndexStats implements Iterable<IndexShardStats> {
     }
 
     /**
+     * Returns the latest lastIndexRequestTimestamp among all shards for this index.
+     */
+    public long getLastIndexRequestTimestamp() {
+        long max = -1L;
+        for (ShardStats shard : shards) {
+            if (shard.getLastIndexRequestTimestamp() > max) {
+                max = shard.getLastIndexRequestTimestamp();
+            }
+        }
+        return max;
+    }
+
+    /**
      * Builder for Index Stats
      *
      * @opensearch.internal
