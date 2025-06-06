@@ -46,6 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Create generic DocRequest to better categorize ActionRequests ([#18269](https://github.com/opensearch-project/OpenSearch/pull/18269)))
 - Change implementation for `percentiles` aggregation for latency improvement ([#18124](https://github.com/opensearch-project/OpenSearch/pull/18124))
 - Update FipsMode check to catch NoSuchMethodError ([#18427](https://github.com/opensearch-project/OpenSearch/pull/18427))
+- Change default `percentiles` aggregation compression to 200 for accuracy improvement ([#18459](https://github.com/opensearch-project/OpenSearch/pull/18459))
 
 
 ### Dependencies
