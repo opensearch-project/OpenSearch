@@ -482,31 +482,33 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return false;
         }
 
+        QueryShardContext shardContext = getQueryShardContext(queryRewriteContext);
+
         boolean changed = false;
         // For now, only handle the case where there's exactly 1 range query for this field.
         Map<String, Integer> fieldCounts = new HashMap<>();
-        Set<RangeQueryBuilder> rangeQueries = new HashSet<>();
+        Set<ComplementAwareQueryBuilder> complementAwareQueries = new HashSet<>();
         for (QueryBuilder clause : mustNotClauses) {
-            if (clause instanceof RangeQueryBuilder rq) {
-                fieldCounts.merge(rq.fieldName(), 1, Integer::sum);
-                rangeQueries.add(rq);
+            if (clause instanceof ComplementAwareQueryBuilder caq) {
+                fieldCounts.merge(caq.fieldName(), 1, Integer::sum);
+                complementAwareQueries.add(caq);
             }
         }
 
-        for (RangeQueryBuilder rq : rangeQueries) {
-            String fieldName = rq.fieldName();
+        for (ComplementAwareQueryBuilder caq : complementAwareQueries) {
+            String fieldName = caq.fieldName();
             if (fieldCounts.getOrDefault(fieldName, 0) == 1) {
                 // Check that all docs on this field have exactly 1 value, otherwise we can't perform this rewrite
                 if (checkAllDocsHaveOneValue(leafReaderContexts, fieldName)) {
-                    List<RangeQueryBuilder> complement = rq.getComplement();
+                    List<QueryBuilder> complement = caq.getComplement(shardContext);
                     if (complement != null) {
                         BoolQueryBuilder nestedBoolQuery = new BoolQueryBuilder();
                         nestedBoolQuery.minimumShouldMatch(1);
-                        for (RangeQueryBuilder complementComponent : complement) {
+                        for (QueryBuilder complementComponent : complement) {
                             nestedBoolQuery.should(complementComponent);
                         }
                         newBuilder.must(nestedBoolQuery);
-                        newBuilder.mustNotClauses.remove(rq);
+                        newBuilder.mustNotClauses.remove(caq);
                         changed = true;
                     }
                 }
@@ -532,6 +534,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         IndexSearcher indexSearcher = shardContext.searcher();
         if (indexSearcher == null) return null;
         return indexSearcher.getIndexReader().leaves();
+    }
+
+    private QueryShardContext getQueryShardContext(QueryRewriteContext queryRewriteContext) {
+        return queryRewriteContext == null ? null : queryRewriteContext.convertToShardContext(); // Note this can still be null
     }
 
     private boolean checkAllDocsHaveOneValue(List<LeafReaderContext> contexts, String fieldName) {
