@@ -15,9 +15,11 @@ import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Map;
 
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -227,6 +229,31 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             expectedHitCount
         );
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), numDocs);
+    }
+
+    public void testMustNotNumericMatchQueryRewrite() throws Exception {
+        Map<Integer, Integer> statusToDocCountMap = Map.of(200, 1000, 404, 30, 500, 1);
+        String statusField = "status";
+        createIndex("test");
+        int totalDocs = 0;
+        for (Map.Entry<Integer, Integer> entry : statusToDocCountMap.entrySet()) {
+            for (int i = 0; i < entry.getValue(); i++) {
+                client().prepareIndex("test").setSource(statusField, entry.getKey()).get();
+            }
+            totalDocs += entry.getValue();
+        }
+        ensureGreen();
+        waitForRelocation();
+        forceMerge();
+        refresh();
+
+        int excludedValue = randomFrom(statusToDocCountMap.keySet());
+        int expectedHitCount = totalDocs - statusToDocCountMap.get(excludedValue);
+
+        assertHitCount(
+            client().prepareSearch("test").setQuery(boolQuery().mustNot(matchQuery(statusField, excludedValue))).get(),
+            expectedHitCount
+        );
     }
 
     private String padZeros(int value, int length) {

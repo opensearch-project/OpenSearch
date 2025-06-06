@@ -60,7 +60,10 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder, ComplementAwareQueryBuilder {
+public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder>
+    implements
+        MultiTermQueryBuilder,
+        ComplementAwareQueryBuilder {
     public static final String NAME = "range";
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
