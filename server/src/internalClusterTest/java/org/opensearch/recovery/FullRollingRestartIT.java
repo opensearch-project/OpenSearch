@@ -86,10 +86,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
 
     public void testFullRollingRestart() throws Exception {
         internalCluster().startNode();
-        prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
-        ).get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)).get();
 
         final String healthTimeout = "1m";
 

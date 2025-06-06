@@ -2732,7 +2732,10 @@ public class InternalEngine extends Engine {
         try {
             final Engine.Searcher newSearcher = IndexShard.wrapSearcher(
                 searcher,
-                reader -> DerivedSourceDirectoryReader.wrap(reader, config().getDocumentMapperForTypeSupplier().get().getDocumentMapper().root()::deriveSource)
+                reader -> DerivedSourceDirectoryReader.wrap(
+                    reader,
+                    config().getDocumentMapperForTypeSupplier().get().getDocumentMapper().root()::deriveSource
+                )
             );
             success = true;
             return newSearcher;
