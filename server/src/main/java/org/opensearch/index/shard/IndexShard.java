@@ -41,6 +41,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -56,6 +57,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
+import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRunnable;
@@ -198,7 +200,9 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.ReplicationSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.repositories.RepositoriesService;
@@ -377,6 +381,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
     private final ClusterApplierService clusterApplierService;
+    private final MergedSegmentPublisher mergedSegmentPublisher;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -414,7 +419,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         final Supplier<TimeValue> refreshInterval,
         final Object refreshMutex,
-        final ClusterApplierService clusterApplierService
+        final ClusterApplierService clusterApplierService,
+        @Nullable final MergedSegmentPublisher mergedSegmentPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -522,6 +528,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshInterval = refreshInterval;
         this.refreshMutex = Objects.requireNonNull(refreshMutex);
         this.clusterApplierService = clusterApplierService;
+        this.mergedSegmentPublisher = mergedSegmentPublisher;
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
@@ -1849,6 +1856,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return checkpoint;
     }
 
+    public void publishMergedSegment(SegmentCommitInfo segmentCommitInfo) throws IOException {
+        assert mergedSegmentPublisher != null;
+        mergedSegmentPublisher.publish(this, computeReplicationSegmentCheckpoint(segmentCommitInfo));
+    }
+
+    /**
+     * Compute {@link ReplicationSegmentCheckpoint} from a SegmentCommitInfo.
+     * This function fetches a metadata snapshot from the store that comes with an IO cost.
+     *
+     * @param segmentCommitInfo {@link SegmentCommitInfo} segmentCommitInfo to use to compute.
+     * @return {@link ReplicationSegmentCheckpoint} Checkpoint computed from the segmentCommitInfo.
+     * @throws IOException When there is an error computing segment metadata from the store.
+     */
+    public ReplicationSegmentCheckpoint computeReplicationSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
+        // Only need to get the file metadata information in segmentCommitInfo and reuse Store#getSegmentMetadataMap.
+        SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
+        segmentInfos.add(segmentCommitInfo);
+        Map<String, StoreFileMetadata> segmentMetadataMap = store.getSegmentMetadataMap(segmentInfos);
+        return new ReplicationSegmentCheckpoint(
+            shardId,
+            getOperationPrimaryTerm(),
+            segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
+            getEngine().config().getCodec().getName(),
+            segmentMetadataMap,
+            segmentCommitInfo.info.name
+        );
+    }
+
     /**
      * Checks if this target shard should start a round of segment replication.
      * @return - True if the shard is able to perform segment replication.
@@ -1911,6 +1946,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return false;
         }
         return true;
+    }
+
+    /**
+     * Checks if segment checkpoint should be processed
+     *
+     * @param requestCheckpoint       received segment checkpoint that is checked for processing
+     * @return true if segment checkpoint should be processed
+     */
+    public final boolean shouldProcessMergedSegmentCheckpoint(ReplicationCheckpoint requestCheckpoint) {
+        return isSegmentReplicationAllowed() && requestCheckpoint.getPrimaryTerm() >= getOperationPrimaryTerm();
     }
 
     /**

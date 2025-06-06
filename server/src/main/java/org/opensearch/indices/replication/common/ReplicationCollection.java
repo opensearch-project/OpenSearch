@@ -286,6 +286,16 @@ public class ReplicationCollection<T extends ReplicationTarget> {
     }
 
     /**
+     * Get targets for shard
+     *
+     * @param shardId      shardId
+     * @return ReplicationTarget list for input shardId
+     */
+    public List<T> getOngoingReplicationTargetList(ShardId shardId) {
+        return onGoingTargetEvents.values().stream().filter(t -> t.indexShard.shardId().equals(shardId)).collect(Collectors.toList());
+    }
+
+    /**
      * a reference to {@link ReplicationTarget}, which implements {@link AutoCloseable}. closing the reference
      * causes {@link ReplicationTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link ReplicationRef#close()} is called.
