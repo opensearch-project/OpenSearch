@@ -212,18 +212,37 @@ public class StarTreeQueryHelper {
 
     public static StarTreeFilter mergeDimensionFilterIfNotExists(
         StarTreeFilter baseStarTreeFilter,
-        String dimensionToMerge,
+        List<String> dimensionsToMerge,
         List<DimensionFilter> dimensionFiltersToMerge
     ) {
         Map<String, List<DimensionFilter>> dimensionFilterMap = new HashMap<>(baseStarTreeFilter.getDimensions().size());
         for (String baseDimension : baseStarTreeFilter.getDimensions()) {
             dimensionFilterMap.put(baseDimension, baseStarTreeFilter.getFiltersForDimension(baseDimension));
         }
-        // Don't add groupBy when already present in base filter.
-        if (!dimensionFilterMap.containsKey(dimensionToMerge)) {
-            dimensionFilterMap.put(dimensionToMerge, dimensionFiltersToMerge);
+
+        for (String dimension : dimensionsToMerge) {
+            dimensionFilterMap.putIfAbsent(dimension, dimensionFiltersToMerge);
         }
         return new StarTreeFilter(dimensionFilterMap);
+    }
+
+    public static FixedBitSet getStarTreeResult(
+        StarTreeValues starTreeValues,
+        StarTreeBucketCollector parent,
+        SearchContext context,
+        List<String> dimensionsToMerge
+    ) throws IOException {
+        return parent == null
+            ? StarTreeTraversalUtil.getStarTreeResult(
+                starTreeValues,
+                StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+                    context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
+                    dimensionsToMerge,
+                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
+                ),
+                context
+            )
+            : null;
     }
 
 }

@@ -776,6 +776,40 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         boolean assertCollectorEarlyTermination,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        return searchAndReduceStarTree(
+            indexSettings,
+            searcher,
+            query,
+            queryBuilder,
+            builder,
+            compositeIndexFieldInfo,
+            supportedDimensions,
+            supportedMetrics,
+            maxBucket,
+            hasNested,
+            aggregatorFactory,
+            assertCollectorEarlyTermination,
+            false,
+            fieldTypes
+        );
+    }
+
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceStarTree(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        Query query,
+        QueryBuilder queryBuilder,
+        AggregationBuilder builder,
+        CompositeIndexFieldInfo compositeIndexFieldInfo,
+        LinkedHashMap<Dimension, MappedFieldType> supportedDimensions,
+        List<Metric> supportedMetrics,
+        int maxBucket,
+        boolean hasNested,
+        AggregatorFactory aggregatorFactory,
+        boolean assertCollectorEarlyTermination,
+        boolean skipReducedMultiBucketConsumerAssertion,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
         query = query.rewrite(searcher);
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
@@ -823,7 +857,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
         @SuppressWarnings("unchecked")
         A internalAgg = (A) aggs.get(0).reduce(aggs, context);
-        doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+        if (skipReducedMultiBucketConsumerAssertion == false) doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
         return internalAgg;
     }
 
