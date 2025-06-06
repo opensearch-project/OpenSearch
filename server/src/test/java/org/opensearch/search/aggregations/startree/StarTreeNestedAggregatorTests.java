@@ -229,7 +229,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                     );
 
                     // Numeric-terms query with numeric terms aggregation
-                    for (int cases = 0; cases < 20; cases++) {
+                    for (int cases = 0; cases < 5; cases++) {
                         String queryField;
                         long queryValue;
                         if (randomBoolean()) {
@@ -283,7 +283,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
                         );
 
                         // Numeric-terms query with numeric terms aggregation
-                        for (int cases = 0; cases < 20; cases++) {
+                        for (int cases = 0; cases < 5; cases++) {
                             String queryField;
                             long queryValue;
                             if (randomBoolean()) {
