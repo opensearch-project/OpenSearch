@@ -278,6 +278,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shardCount)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), replicaCount)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
                     .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                     .put(
                         EngineConfig.INDEX_CODEC_SETTING.getKey(),
@@ -360,6 +361,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shardCount)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), replicaCount)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
                     .put(
                         EngineConfig.INDEX_CODEC_SETTING.getKey(),
                         randomFrom(new ArrayList<>(CODECS) {
@@ -439,7 +441,8 @@ public class IndexingIT extends AbstractRollingTestCase {
             case OLD:
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true);
                 createIndex(indexName, settings.build());
                 break;
             case MIXED:

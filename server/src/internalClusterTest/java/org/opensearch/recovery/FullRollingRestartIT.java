@@ -48,6 +48,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
@@ -85,7 +86,10 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
 
     public void testFullRollingRestart() throws Exception {
         internalCluster().startNode();
-        createIndex("test");
+        prepareCreate("test").setSettings(
+            Settings.builder()
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+        ).get();
 
         final String healthTimeout = "1m";
 
@@ -225,6 +229,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "6")
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))
         ).get();
 

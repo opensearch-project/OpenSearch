@@ -114,6 +114,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
                 Settings.builder()
                     .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
                     .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             )
         );
@@ -178,6 +179,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
                 Settings.builder()
                     .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
                     .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             )
         );
@@ -239,6 +241,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
                 Settings.builder()
                     .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
                     .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             )
         );
@@ -355,6 +358,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
                 Settings.builder()
                     .put(SETTING_NUMBER_OF_SHARDS, numShards)
                     .put(SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), randomFrom("100ms", "1s", "5s", "30s", "60s"))
             )

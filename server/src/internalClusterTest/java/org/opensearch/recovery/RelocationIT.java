@@ -156,7 +156,7 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         final String node_1 = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        prepareCreate("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get();
+        prepareCreate("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)).get();
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
@@ -219,7 +219,7 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         nodes[0] = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        prepareCreate("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", numberOfReplicas)).get();
+        prepareCreate("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", numberOfReplicas).put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)).get();
 
         for (int i = 2; i <= numberOfNodes; i++) {
             logger.info("--> starting [node{}] ...", i);
@@ -336,6 +336,7 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", numberOfReplicas)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
                 // we want to control refreshes
                 .put("index.refresh_interval", -1)
         ).get();
@@ -443,6 +444,7 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         prepareCreate(
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
         ).get();
 
         internalCluster().startNode();
@@ -547,7 +549,8 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         final Settings.Builder settings = Settings.builder()
             .put("index.routing.allocation.exclude.color", "blue")
             .put(indexSettings())
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1));
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))
+            .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true);
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), randomIntBetween(1, 10) + "s");
         }
@@ -618,6 +621,7 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
+                .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
                 // we want to control refreshes
                 .put("index.refresh_interval", -1)
         ).get();
@@ -673,7 +677,7 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         logger.info("--> creating test index ...");
         prepareCreate(
             "test",
-            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1) // we
+            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1).put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true) // we
                                                                                                                                      // want
                                                                                                                                      // to
                                                                                                                                      // control
