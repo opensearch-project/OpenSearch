@@ -53,11 +53,6 @@ public class FlightService extends NetworkPlugin.AuxTransport {
      */
     public FlightService(Settings settings) {
         Objects.requireNonNull(settings, "Settings cannot be null");
-        try {
-            ServerConfig.init(settings);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize Arrow Flight server", e);
-        }
         this.serverComponents = new ServerComponents(settings);
         this.streamManager = new FlightStreamManager();
     }
