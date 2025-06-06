@@ -72,6 +72,14 @@ public class ArrowStreamSerializationTests extends OpenSearchTestCase {
             }
         }
     }
+    //
+    // public InternalAggregations serializeAndDeserializeOriginal() throws IOException {
+    // StringTerms original = createTestStringTerms();
+    // try (BytesStreamOutput buffer = new BytesStreamOutput()) {
+    // original.writeTo(buffer);
+    // StringTerms deser InternalAggregations.readFrom(buffer.bytes().streamInput());
+    // }
+    // }
 
     public void testQuerySearchResult() throws IOException {
         QuerySearchResult original = createQuerySearchResult();

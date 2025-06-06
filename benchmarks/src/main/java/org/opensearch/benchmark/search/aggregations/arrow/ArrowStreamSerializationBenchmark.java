@@ -13,6 +13,7 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.arrow.flight.stream.ArrowStreamInput;
 import org.opensearch.arrow.flight.stream.ArrowStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.NodeNamePatternConverter;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.search.DocValueFormat;
@@ -53,8 +54,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Fork(2)
-@Warmup(iterations = 10)
-@Measurement(iterations = 5)
+@Warmup(iterations = 2)
+@Measurement(iterations = 3)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
@@ -310,10 +311,24 @@ public class ArrowStreamSerializationBenchmark {
     }
 
     @Benchmark
-    public VectorSchemaRoot serializeOnly() throws IOException {
+    public void serializeOnly() throws IOException {
         try (ArrowStreamOutput output = new ArrowStreamOutput(allocator)) {
             testAggregations.writeTo(output);
-            return output.getUnifiedRoot();
+        }
+    }
+
+    @Benchmark
+    public InternalAggregations serializeAndDeserializeOriginal() throws IOException {
+        try (BytesStreamOutput buffer = new BytesStreamOutput()) {
+            testAggregations.writeTo(buffer);
+            return InternalAggregations.readFrom(buffer.bytes().streamInput());
+        }
+    }
+
+    @Benchmark
+    public void serializeOnlyOriginal() throws IOException {
+        try (BytesStreamOutput buffer = new BytesStreamOutput()) {
+            testAggregations.writeTo(buffer);
         }
     }
 }
