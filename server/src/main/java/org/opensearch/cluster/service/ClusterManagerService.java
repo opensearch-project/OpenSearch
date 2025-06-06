@@ -609,7 +609,8 @@ public class ClusterManagerService extends AbstractLifecycleComponent {
                 pending.priority,
                 new Text(task.source()),
                 task.getAgeInMillis(),
-                pending.executing
+                pending.executing,
+                pending.executionTimeInMillis
             );
         }).collect(Collectors.toList());
     }

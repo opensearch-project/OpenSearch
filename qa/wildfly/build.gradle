@@ -30,6 +30,7 @@
 
 import org.opensearch.gradle.Architecture
 import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.test.TestTask
 
 apply plugin: 'war'
@@ -86,6 +87,9 @@ preProcessFixture {
 
 dockerCompose {
   useComposeFiles = ['docker-compose.yml']
+  if (BuildParams.inFipsJvm) {
+    environment.put("KEYSTORE_PASSWORD", "notarealpasswordphrase")
+  }
 }
 
 tasks.register("integTest", TestTask) {

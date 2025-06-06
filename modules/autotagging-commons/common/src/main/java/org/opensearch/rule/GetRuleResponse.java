@@ -29,9 +29,9 @@ import static org.opensearch.rule.autotagging.Rule._ID_STRING;
  *     "rules": [
  *         {
  *             "_id": "z1MJApUB0zgMcDmz-UQq",
- *             "description": "Rule for tagging query_group_id to index123"
+ *             "description": "Rule for tagging workload_group_id to index123"
  *             "index_pattern": ["index123"],
- *             "query_group": "query_group_id",
+ *             "workload_group": "workload_group_id",
  *             "updated_at": "2025-02-14T01:19:22.589Z"
  *         },
  *         ...

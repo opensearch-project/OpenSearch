@@ -51,6 +51,8 @@ import org.opensearch.index.mapper.MappedFieldType;
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -541,5 +543,43 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             && Objects.equals(includeLower, other.includeLower)
             && Objects.equals(includeUpper, other.includeUpper)
             && Objects.equals(format, other.format);
+    }
+
+    /**
+     * Returns a list of RangeQueryBuilder whose elements, when combined, form the complement of this range query.
+     * May be null.
+     * @return the complement
+     */
+    public List<RangeQueryBuilder> getComplement() {
+        if (relation != null && relation != ShapeRelation.INTERSECTS) {
+            return null;
+        }
+        List<RangeQueryBuilder> complement = new ArrayList<>();
+        if (from != null) {
+            RangeQueryBuilder belowRange = new RangeQueryBuilder(fieldName);
+            belowRange.to(from);
+            belowRange.includeUpper(!includeLower);
+            complement.add(belowRange);
+        }
+
+        if (to != null) {
+            RangeQueryBuilder aboveRange = new RangeQueryBuilder(fieldName);
+            aboveRange.from(to);
+            aboveRange.includeLower(!includeUpper);
+            complement.add(aboveRange);
+        }
+
+        if (format != null) {
+            for (RangeQueryBuilder rq : complement) {
+                rq.format(format);
+            }
+        }
+        if (timeZone != null) {
+            for (RangeQueryBuilder rq : complement) {
+                rq.timeZone = timeZone;
+            }
+        }
+
+        return complement;
     }
 }
