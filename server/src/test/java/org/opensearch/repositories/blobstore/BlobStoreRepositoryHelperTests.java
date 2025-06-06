@@ -144,7 +144,7 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
         return snapshotInfo;
     }
 
-    protected void indexDocuments(Client client, String indexName) {
+    protected void indexDocuments(Client client, String indexName) throws IOException {
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
