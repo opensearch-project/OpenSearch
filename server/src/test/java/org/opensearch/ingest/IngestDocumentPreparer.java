@@ -30,7 +30,7 @@ public class IngestDocumentPreparer {
         return createIngestDocumentWrapper(slot, 0, shouldFail);
     }
 
-    public static IngestDocumentWrapper createIngestDocumentWrapper(int slot, int innerSlot, boolean shouldFail) {
-        return new IngestDocumentWrapper(slot, innerSlot, createIngestDocument(shouldFail), null);
+    public static IngestDocumentWrapper createIngestDocumentWrapper(int slot, int childSlot, boolean shouldFail) {
+        return new IngestDocumentWrapper(slot, childSlot, createIngestDocument(shouldFail), null);
     }
 }

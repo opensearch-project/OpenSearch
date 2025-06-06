@@ -2154,7 +2154,7 @@ public class IngestServiceTests extends OpenSearchSingleNodeTestCase {
         verify(mockCompoundProcessor, never()).execute(any(), any());
     }
 
-    public void testExecuteBulkRequestInBatchWithExceptionAndDropInCallback_requestsWithMatchingInnerSlots() {
+    public void testExecuteBulkRequestInBatchWithExceptionAndDropInCallback_requestsWithMatchingChildSlots() {
         CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
         IngestService ingestService = createIngestServiceWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
@@ -2169,35 +2169,35 @@ public class IngestServiceTests extends OpenSearchSingleNodeTestCase {
             .setSystemIngestPipeline("_none");
         bulkRequest.add(indexRequest1);
 
-        IndexRequest indexRequest2InnerSlot0 = new IndexRequest("_index").id("_id2")
+        IndexRequest indexRequest2ChildSlot0 = new IndexRequest("_index").id("_id2")
             .source(emptyMap())
             .setPipeline("_id")
             .setFinalPipeline("_none")
             .setSystemIngestPipeline("_none");
-        bulkRequest.add(indexRequest2InnerSlot0);
-        IndexRequest indexRequest2InnerSlot1 = new IndexRequest("_index").id("_id2")
+        bulkRequest.add(indexRequest2ChildSlot0);
+        IndexRequest indexRequest2ChildSlot1 = new IndexRequest("_index").id("_id2")
             .source(emptyMap())
             .setPipeline("_id")
             .setFinalPipeline("_none")
             .setSystemIngestPipeline("_none");
-        bulkRequest.add(indexRequest2InnerSlot1);
+        bulkRequest.add(indexRequest2ChildSlot1);
 
-        IndexRequest indexRequest3InnerSlot0 = new IndexRequest("_index").id("_id3")
+        IndexRequest indexRequest3ChildSlot0 = new IndexRequest("_index").id("_id3")
             .source(emptyMap())
             .setPipeline("_id")
             .setFinalPipeline("_none")
             .setSystemIngestPipeline("_none");
-        bulkRequest.add(indexRequest3InnerSlot0);
-        IndexRequest indexRequest3InnerSlot1 = new IndexRequest("_index").id("_id3")
+        bulkRequest.add(indexRequest3ChildSlot0);
+        IndexRequest indexRequest3ChildSlot1 = new IndexRequest("_index").id("_id3")
             .source(emptyMap())
             .setPipeline("_id")
             .setFinalPipeline("_none")
             .setSystemIngestPipeline("_none");
-        bulkRequest.add(indexRequest3InnerSlot1);
+        bulkRequest.add(indexRequest3ChildSlot1);
 
         List<IngestDocumentWrapper> results = Arrays.asList(
             new IngestDocumentWrapper(0, 0, IngestService.toIngestDocument(indexRequest1), null),
-            new IngestDocumentWrapper(1, 0, IngestService.toIngestDocument(indexRequest2InnerSlot0), null),
+            new IngestDocumentWrapper(1, 0, IngestService.toIngestDocument(indexRequest2ChildSlot0), null),
             new IngestDocumentWrapper(1, 1, null, new RuntimeException()),
             new IngestDocumentWrapper(2, 0, null, new RuntimeException()),
             new IngestDocumentWrapper(2, 1, null, new RuntimeException())

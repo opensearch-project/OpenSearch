@@ -827,19 +827,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         int slot = 0;
         List<IndexRequestWrapper> indexRequestWrappers = new ArrayList<>();
 
-        // Walk through slot by slot. For each slot, go through inner slots (child index requests) and determine
+        // Walk through slot by slot. For each slot, go through childslots (child index requests) and determine
         // which pipelines to execute for each index request based on previously resolved pipelines.
         // Inner/outer slots are used to map index requests to their position in the original bulk request list.
         for (DocWriteRequest<?> actionRequest : actionRequests) {
-            List<IndexRequest> childIndexRequests = new ArrayList<>();
-            if (actionRequest instanceof UpdateRequest updateRequest) {
-                childIndexRequests.addAll(updateRequest.getChildIndexRequests());
-            } else {
-                IndexRequest childIndexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
-                if (childIndexRequest != null) {
-                    childIndexRequests.add(childIndexRequest);
-                }
-            }
+            List<IndexRequest> childIndexRequests = getChildIndexRequests(actionRequest);
 
             if (childIndexRequests.isEmpty()) {
                 slot++;
@@ -847,8 +839,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
 
             // Determine pipelines to execute for all child index requests based on previously resolved pipelines
-            for (int innerSlot = 0; innerSlot < childIndexRequests.size(); innerSlot++) {
-                IndexRequest indexRequest = childIndexRequests.get(innerSlot);
+            for (int childSlot = 0; childSlot < childIndexRequests.size(); childSlot++) {
+                IndexRequest indexRequest = childIndexRequests.get(childSlot);
                 // need to set pipeline of the request as NOOP_PIPELINE_NAME so that when we switch back to the write thread
                 // and invoke doInternalExecute of the TransportBulkAction we will not execute the pipeline again.
                 final String pipelineId = indexRequest.getPipeline();
@@ -872,7 +864,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
                 // Create index request wrappers for all index requests with pipelines that will be executed
                 if (pipelinesInfoList.isEmpty() == false) {
-                    indexRequestWrappers.add(new IndexRequestWrapper(slot, innerSlot, indexRequest, actionRequest, pipelinesInfoList));
+                    indexRequestWrappers.add(new IndexRequestWrapper(slot, childSlot, indexRequest, actionRequest, pipelinesInfoList));
                 }
             }
 
@@ -896,7 +888,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         for (List<IndexRequestWrapper> batch : batches) {
             executePipelinesInBatchRequests(
                 batch.stream().map(IndexRequestWrapper::getSlot).collect(Collectors.toList()),
-                batch.stream().map(IndexRequestWrapper::getInnerSlot).collect(Collectors.toList()),
+                batch.stream().map(IndexRequestWrapper::getChildSlot).collect(Collectors.toList()),
                 batch.get(0).getIngestPipelineInfoList().iterator(),
                 batch.stream().map(IndexRequestWrapper::getIndexRequest).collect(Collectors.toList()),
                 batch.stream().map(IndexRequestWrapper::getActionRequest).collect(Collectors.toList()),
@@ -954,7 +946,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private void executePipelinesInBatchRequests(
         final List<Integer> slots,
-        final List<Integer> innerSlots,
+        final List<Integer> childSlot,
         final Iterator<IngestPipelineInfo> pipelineInfoIterator,
         final List<IndexRequest> indexRequests,
         final List<DocWriteRequest<?>> actionRequests,
@@ -965,7 +957,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Thread originalThread
     ) {
         if (indexRequests.size() == 1) {
-            // We don't pass in innerslot to single index request pipeline executions since we have
+            // We don't pass in child slot to single index request pipeline executions since we have
             // direct access to the original index request already.
             executePipelines(
                 slots.get(0),
@@ -1007,11 +999,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             String originalIndex = indexRequests.get(0).indices()[0];
             // slot/innerSlot combination used to map ingest pipeline results back to their original index requests
-            Map<SlotKey, IndexRequest> slotIndexRequestMap = createSlotIndexRequestMap(slots, innerSlots, indexRequests);
-            innerBatchExecute(slots, innerSlots, indexRequests, pipeline, onDropped, results -> {
+            Map<SlotKey, IndexRequest> slotIndexRequestMap = createSlotIndexRequestMap(slots, childSlot, indexRequests);
+            innerBatchExecute(slots, childSlot, indexRequests, pipeline, onDropped, results -> {
                 for (int i = 0; i < results.size(); ++i) {
                     if (results.get(i).getException() != null) {
-                        SlotKey slotKey = new SlotKey(results.get(i).getSlot(), results.get(i).getInnerSlot());
+                        SlotKey slotKey = new SlotKey(results.get(i).getSlot(), results.get(i).getChildSlot());
                         IndexRequest indexRequest = slotIndexRequestMap.get(slotKey);
                         logger.debug(
                             () -> new ParameterizedMessage(
@@ -1081,7 +1073,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (pipelineInfoIterator.hasNext()) {
                     executePipelinesInBatchRequests(
                         slots,
-                        innerSlots,
+                        childSlot,
                         pipelineInfoIterator,
                         indexRequestsTargetIndexUnchanged,
                         actionRequestsTargetIndexUnchanged,
@@ -1118,6 +1110,24 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             completeExecution(totalIndexRequestCounter, onCompletion, originalThread, indexRequests.size());
         }
 
+    }
+
+    /**
+     * Gets the child index requests associated with an action request
+     * @param actionRequest the action request
+     * @return the underlying child index requests
+     */
+    private List<IndexRequest> getChildIndexRequests(DocWriteRequest<?> actionRequest) {
+        if (actionRequest instanceof UpdateRequest updateRequest) {
+            return updateRequest.getChildIndexRequests();
+        } else {
+            IndexRequest childIndexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
+            if (childIndexRequest != null) {
+                return List.of(childIndexRequest);
+            } else {
+                return Collections.emptyList();
+            }
+        }
     }
 
     private void executePipelines(
@@ -1366,14 +1376,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private void innerBatchExecute(
         List<Integer> slots,
-        List<Integer> innerSlots,
+        List<Integer> childSlots,
         List<IndexRequest> indexRequests,
         Pipeline pipeline,
         IntConsumer itemDroppedHandler,
         Consumer<List<IngestDocumentWrapper>> handler
     ) {
         if (pipeline.getProcessors().isEmpty()) {
-            handler.accept(toIngestDocumentWrappers(slots, innerSlots, indexRequests));
+            handler.accept(toIngestDocumentWrappers(slots, childSlots, indexRequests));
             return;
         }
 
@@ -1385,8 +1395,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestDocumentWrapper> ingestDocumentWrappers = new ArrayList<>();
         Map<SlotKey, IndexRequest> slotToindexRequestMap = new HashMap<>();
         for (int i = 0; i < slots.size(); ++i) {
-            slotToindexRequestMap.put(new SlotKey(slots.get(i), innerSlots.get(i)), indexRequests.get(i));
-            ingestDocumentWrappers.add(toIngestDocumentWrapper(slots.get(i), innerSlots.get(i), indexRequests.get(i)));
+            slotToindexRequestMap.put(new SlotKey(slots.get(i), childSlots.get(i)), indexRequests.get(i));
+            ingestDocumentWrappers.add(toIngestDocumentWrapper(slots.get(i), childSlots.get(i), indexRequests.get(i)));
         }
         AtomicInteger counter = new AtomicInteger(size);
         List<IngestDocumentWrapper> allResults = Collections.synchronizedList(new ArrayList<>());
@@ -1415,7 +1425,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     dropped.forEach(t -> itemDroppedHandler.accept(t.getSlot()));
                 }
                 for (IngestDocumentWrapper ingestDocumentWrapper : succeeded) {
-                    SlotKey slotKey = new SlotKey(ingestDocumentWrapper.getSlot(), ingestDocumentWrapper.getInnerSlot());
+                    SlotKey slotKey = new SlotKey(ingestDocumentWrapper.getSlot(), ingestDocumentWrapper.getChildSlot());
                     updateIndexRequestWithIngestDocument(slotToindexRequestMap.get(slotKey), ingestDocumentWrapper.getIngestDocument());
                 }
                 handler.accept(allResults);
@@ -1659,40 +1669,40 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
     }
 
-    private static IngestDocumentWrapper toIngestDocumentWrapper(int slot, int innerSlot, IndexRequest indexRequest) {
-        return new IngestDocumentWrapper(slot, innerSlot, toIngestDocument(indexRequest), null);
+    private static IngestDocumentWrapper toIngestDocumentWrapper(int slot, int childSlot, IndexRequest indexRequest) {
+        return new IngestDocumentWrapper(slot, childSlot, toIngestDocument(indexRequest), null);
     }
 
     private static List<IngestDocumentWrapper> toIngestDocumentWrappers(
         List<Integer> slots,
-        List<Integer> innerSlots,
+        List<Integer> childSlots,
         List<IndexRequest> indexRequests
     ) {
         List<IngestDocumentWrapper> ingestDocumentWrappers = new ArrayList<>();
         for (int i = 0; i < slots.size(); ++i) {
-            ingestDocumentWrappers.add(toIngestDocumentWrapper(slots.get(i), innerSlots.get(i), indexRequests.get(i)));
+            ingestDocumentWrappers.add(toIngestDocumentWrapper(slots.get(i), childSlots.get(i), indexRequests.get(i)));
         }
         return ingestDocumentWrappers;
     }
 
     private static Map<SlotKey, IndexRequest> createSlotIndexRequestMap(
         List<Integer> slots,
-        List<Integer> innerSlots,
+        List<Integer> childSlots,
         List<IndexRequest> indexRequests
     ) {
         Map<SlotKey, IndexRequest> slotIndexRequestMap = new HashMap<>();
         for (int i = 0; i < slots.size(); ++i) {
-            slotIndexRequestMap.put(new SlotKey(slots.get(i), innerSlots.get(i)), indexRequests.get(i));
+            slotIndexRequestMap.put(new SlotKey(slots.get(i), childSlots.get(i)), indexRequests.get(i));
         }
         return slotIndexRequestMap;
     }
 
     /**
-     * Record object to lookup bulk request items by their slot/inner key.
+     * Record object to lookup bulk request items by their slot/child slot key.
      * Used to match success/exceptions to their original requests post batch splitting
-     * @param slot
-     * @param innerSlot
+     * @param slot the slot in the original bulk request
+     * @param childSlot the child slot in the action request
      */
-    private record SlotKey(int slot, int innerSlot) {
+    private record SlotKey(int slot, int childSlot) {
     }
 }
