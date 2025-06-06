@@ -31,14 +31,20 @@
 
 package org.opensearch.cluster;
 
+import java.util.Collections;
+import java.util.Map;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.TriFunction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.node.IoUsageStats;
+import org.opensearch.node.NodeResourceUsageStats;
+import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.node.NodeClient;
@@ -60,12 +66,20 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     @Nullable // if no fakery should take place
     private volatile BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction;
 
+    @Nullable // if no fakery should take place
+    private volatile Function<String,NodeResourceUsageStats> resourceUsageFunction;
+
     public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
         super(settings, clusterService, threadPool, client);
     }
 
     public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction) {
         this.diskUsageFunction = diskUsageFunction;
+        refresh();
+    }
+
+    public void setNodeResourceUsageFunctionAndRefresh( Function<String,NodeResourceUsageStats> resourceUsageFunction) {
+        this.resourceUsageFunction = resourceUsageFunction;
         refresh();
     }
 
@@ -83,13 +97,12 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     @Override
     List<NodeStats> adjustNodesStats(List<NodeStats> nodesStats) {
         final BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction = this.diskUsageFunction;
-        if (diskUsageFunction == null) {
-            return nodesStats;
-        }
 
         return nodesStats.stream().map(nodeStats -> {
             final DiscoveryNode discoveryNode = nodeStats.getNode();
             final FsInfo oldFsInfo = nodeStats.getFs();
+            final NodesResourceUsageStats oldNodesResourceUsageStats = nodeStats.getResourceUsageStats();
+
             return new NodeStats(
                 discoveryNode,
                 nodeStats.getTimestamp(),
@@ -98,13 +111,13 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getProcess(),
                 nodeStats.getJvm(),
                 nodeStats.getThreadPool(),
-                new FsInfo(
+                this.diskUsageFunction != null? new FsInfo(
                     oldFsInfo.getTimestamp(),
                     oldFsInfo.getIoStats(),
                     StreamSupport.stream(oldFsInfo.spliterator(), false)
                         .map(fsInfoPath -> diskUsageFunction.apply(discoveryNode, fsInfoPath))
                         .toArray(FsInfo.Path[]::new)
-                ),
+                ) : nodeStats.getFs(),
                 nodeStats.getTransport(),
                 nodeStats.getHttp(),
                 nodeStats.getBreaker(),
@@ -112,7 +125,12 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getDiscoveryStats(),
                 nodeStats.getIngestStats(),
                 nodeStats.getAdaptiveSelectionStats(),
-                nodeStats.getResourceUsageStats(),
+                this.resourceUsageFunction != null ? new NodesResourceUsageStats(
+                    Collections.singletonMap(
+                        discoveryNode.getId(),
+                        resourceUsageFunction.apply(discoveryNode.getId())
+                    )
+                ): nodeStats.getResourceUsageStats(),
                 nodeStats.getScriptCacheStats(),
                 nodeStats.getIndexingPressureStats(),
                 nodeStats.getShardIndexingPressureStats(),
@@ -136,6 +154,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             super(
                 delegate.getNodeLeastAvailableDiskUsages(),
                 delegate.getNodeMostAvailableDiskUsages(),
+                delegate.getNodeResourceUsageStats(),
                 delegate.shardSizes,
                 delegate.routingToDataPath,
                 delegate.reservedSpace,
