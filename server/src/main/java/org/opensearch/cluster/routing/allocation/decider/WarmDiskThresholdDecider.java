@@ -123,8 +123,8 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
 
         final long totalAddressableSpace = calculateTotalAddressableSpace(node, allocation);
         final long currentNodeRemoteShardSize = calculateCurrentNodeRemoteShardSize(node, allocation, false);
-        final long freeSpace = totalAddressableSpace > currentNodeRemoteShardSize ? totalAddressableSpace - currentNodeRemoteShardSize : 0;
-        final long freeSpaceAfterAllocation = freeSpace > shardSize ? freeSpace - shardSize : 0;
+        final long freeSpace = Math.max(totalAddressableSpace - currentNodeRemoteShardSize, 0);
+        final long freeSpaceAfterAllocation = Math.max(freeSpace - shardSize, 0);
         final long freeSpaceLowThreshold = calculateFreeSpaceLowThreshold(diskThresholdSettings, totalAddressableSpace);
 
         final ByteSizeValue freeSpaceLowThresholdInByteSize = new ByteSizeValue(freeSpaceLowThreshold);
@@ -183,7 +183,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
 
         final long totalAddressableSpace = calculateTotalAddressableSpace(node, allocation);
         final long currentNodeRemoteShardSize = calculateCurrentNodeRemoteShardSize(node, allocation, true);
-        final long freeSpace = totalAddressableSpace > currentNodeRemoteShardSize ? totalAddressableSpace - currentNodeRemoteShardSize : 0;
+        final long freeSpace = Math.max(totalAddressableSpace - currentNodeRemoteShardSize, 0);
 
         final long freeSpaceHighThreshold = calculateFreeSpaceHighThreshold(diskThresholdSettings, totalAddressableSpace);
 
