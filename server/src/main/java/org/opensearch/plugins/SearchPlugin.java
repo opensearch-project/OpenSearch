@@ -412,6 +412,10 @@ public interface SearchPlugin {
         }
     }
 
+    /**
+     * FactorSpect class
+      * @param <T>
+     */
     class FactorySpec<T extends QueryBuilder> {
         public String getName() {
             return name;

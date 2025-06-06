@@ -14,6 +14,9 @@ import org.opensearch.plugins.SearchPlugin;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * QueryCollectorContextFactoryRegistery
+ */
 public class QueryCollectorContextFactoryRegistery {
     private static final Map<Class<?>, QueryCollectorContextFactory> registry = new ConcurrentHashMap<>();
 

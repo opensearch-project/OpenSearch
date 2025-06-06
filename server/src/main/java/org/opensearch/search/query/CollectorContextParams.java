@@ -13,12 +13,18 @@ import org.opensearch.search.internal.SearchContext;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * CollectorContextParams
+ */
 public class CollectorContextParams {
     private SearchContext searchContext;
     private boolean hasFilterCollector;
     // Add any additional parameters here
     private Map<String, Object> additionalParams;
 
+    /**
+     * Builder
+     */
     public static class Builder {
         private CollectorContextParams params;
 

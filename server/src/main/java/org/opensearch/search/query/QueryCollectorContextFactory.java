@@ -10,6 +10,9 @@ package org.opensearch.search.query;
 
 import java.io.IOException;
 
+/**
+ *  QueryCollectorContextFactory
+ */
 public interface QueryCollectorContextFactory {
     QueryCollectorContext createCollectorContext(CollectorContextParams params) throws IOException;
 }

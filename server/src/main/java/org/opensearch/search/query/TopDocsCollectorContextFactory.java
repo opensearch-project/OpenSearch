@@ -10,6 +10,9 @@ package org.opensearch.search.query;
 
 import java.io.IOException;
 
+/**
+ * TopDOcsCollectorContextFactory
+ */
 public class TopDocsCollectorContextFactory implements QueryCollectorContextFactory {
 
     @Override
