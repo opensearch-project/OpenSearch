@@ -33,8 +33,6 @@
 package org.opensearch.index.reindex.remote;
 
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -294,21 +292,20 @@ final class RemoteResponseParsers {
     }
 
     /**
-     * Parses the main action to return just the {@linkplain Version} that it returns. We throw everything else out.
+     * Parses the main action to return just the {@linkplain RemoteVersion} that it returns. We throw everything else out.
      */
-    public static final ConstructingObjectParser<Version, MediaType> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<RemoteVersion, MediaType> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
         "/",
         true,
-        a -> (Version) a[0]
+        a -> (RemoteVersion) a[0]
     );
     static {
-        ConstructingObjectParser<Version, MediaType> versionParser = new ConstructingObjectParser<>(
-            "version",
-            true,
-            a -> a[0] == null
-                ? LegacyESVersion.fromString(((String) a[1]).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", ""))
-                : Version.fromString(((String) a[1]).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", ""))
-        );
+        ConstructingObjectParser<RemoteVersion, MediaType> versionParser = new ConstructingObjectParser<>("version", true, a -> {
+            String distribution = (String) a[0];
+            String number = (String) a[1];
+            String cleanNumber = number.replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "");
+            return RemoteVersion.fromString(cleanNumber, distribution);
+        });
         versionParser.declareStringOrNull(optionalConstructorArg(), new ParseField("distribution"));
         versionParser.declareString(constructorArg(), new ParseField("number"));
         MAIN_ACTION_PARSER.declareObject(constructorArg(), versionParser, new ParseField("version"));
