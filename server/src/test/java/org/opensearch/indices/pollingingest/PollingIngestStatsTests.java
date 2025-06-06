@@ -47,6 +47,8 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
             + stats.getConsumerStats().totalPollerMessageFailureCount()
             + ",\"total_poller_message_dropped_count\":"
             + stats.getConsumerStats().totalPollerMessageDroppedCount()
+            + ",\"total_duplicate_message_skipped_count\":"
+            + stats.getConsumerStats().totalDuplicateMessageSkippedCount()
             + ",\"lag_in_millis\":"
             + stats.getConsumerStats().lagInMillis()
             + "}}}";

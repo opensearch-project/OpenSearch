@@ -1,0 +1,143 @@
+---
+"Processor injects a field on indexing a doc to existing index":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              system_ingest_processor_trigger_field:
+                type: keyword
+  - do:
+      index:
+        index: test-index
+        id: 1
+        body:
+          system_ingest_processor_trigger_field: "dummy value"
+        refresh: true
+  - do:
+      get:
+        index: test-index
+        id: 1
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+
+---
+"Processor should not inject a field on indexing a doc to existing index when trigger field is not defined in the index mapping":
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              dummy_field:
+                type: keyword
+  - do:
+      index:
+        index: test-index
+        id: 1
+        body:
+          dummy_field: "dummy value"
+        refresh: true
+  - do:
+      get:
+        index: test-index
+        id: 1
+  - is_false: _source.field_auto_added_by_system_ingest_processor
+---
+"Processor injects field when index is created from matching template":
+  - do:
+      indices.put_template:
+        name: example-template
+        body:
+          index_patterns: ["template-*"]
+          mappings:
+            properties:
+              system_ingest_processor_trigger_field:
+                type: keyword
+  - do:
+      index:
+        index: template-index-1
+        id: 1
+        body:
+          system_ingest_processor_trigger_field: "dummy value"
+        refresh: true
+  - do:
+      get:
+        index: template-index-1
+        id: 1
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+
+---
+"Processor injects field on bulk indexing to existing index":
+  - do:
+      indices.create:
+        index: bulk-index
+        body:
+          mappings:
+            properties:
+              system_ingest_processor_trigger_field:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: bulk-index
+              _id: "1"
+          - system_ingest_processor_trigger_field: "bulk1"
+          - index:
+              _index: bulk-index
+              _id: "2"
+          - system_ingest_processor_trigger_field: "bulk2"
+  - do:
+      get:
+        index: bulk-index
+        id: 1
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+  - do:
+      get:
+        index: bulk-index
+        id: 2
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+
+---
+"Processor injects field on bulk index to non-existent index matching template":
+  - do:
+      indices.put_template:
+        name: bulk-template
+        body:
+          index_patterns: ["bulk-template-*"]
+          mappings:
+            properties:
+              system_ingest_processor_trigger_field:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: bulk-template-index-1
+              _id: "1"
+          - system_ingest_processor_trigger_field: "bulk-template-value-1"
+          - index:
+              _index: bulk-template-index-1
+              _id: "2"
+          - system_ingest_processor_trigger_field: "bulk-template-value-2"
+
+  - do:
+      get:
+        index: bulk-template-index-1
+        id: 1
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+
+  - do:
+      get:
+        index: bulk-template-index-1
+        id: 2
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
