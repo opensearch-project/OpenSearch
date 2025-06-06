@@ -476,8 +476,19 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             .stream()
             .map(ProcessorInfo::new)
             .collect(Collectors.toList());
+        List<ProcessorInfo> phaseProcessorInfoList = phaseInjectorProcessorFactories.keySet()
+            .stream()
+            .map(ProcessorInfo::new)
+            .collect(Collectors.toList());
         return new SearchPipelineInfo(
-            Map.of(Pipeline.REQUEST_PROCESSORS_KEY, requestProcessorInfoList, Pipeline.RESPONSE_PROCESSORS_KEY, responseProcessorInfoList)
+            Map.of(
+                Pipeline.REQUEST_PROCESSORS_KEY,
+                requestProcessorInfoList,
+                Pipeline.RESPONSE_PROCESSORS_KEY,
+                responseProcessorInfoList,
+                Pipeline.PHASE_PROCESSORS_KEY,
+                phaseProcessorInfoList
+            )
         );
     }
 

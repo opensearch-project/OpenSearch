@@ -38,6 +38,7 @@ import java.util.Set;
  * @opensearch.experimental
  */
 public class Rule implements Writeable, ToXContentObject {
+    private final String id;
     private final String description;
     private final FeatureType featureType;
     private final Map<Attribute, Set<String>> attributeMap;
@@ -59,6 +60,7 @@ public class Rule implements Writeable, ToXContentObject {
 
     /**
      * Main constructor
+     * @param id
      * @param description
      * @param attributeMap
      * @param featureType
@@ -66,12 +68,14 @@ public class Rule implements Writeable, ToXContentObject {
      * @param updatedAt
      */
     public Rule(
+        String id,
         String description,
         Map<Attribute, Set<String>> attributeMap,
         FeatureType featureType,
         String featureValue,
         String updatedAt
     ) {
+        this.id = id;
         this.description = description;
         this.featureType = featureType;
         this.attributeMap = attributeMap;
@@ -87,6 +91,7 @@ public class Rule implements Writeable, ToXContentObject {
      * @throws IOException
      */
     public Rule(StreamInput in) throws IOException {
+        id = in.readString();
         description = in.readString();
         featureType = FeatureType.from(in);
         attributeMap = in.readMap(i -> Attribute.from(i, featureType), i -> new HashSet<>(i.readStringList()));
@@ -98,6 +103,7 @@ public class Rule implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(id);
         out.writeString(description);
         featureType.writeTo(out);
         out.writeMap(attributeMap, (output, attribute) -> attribute.writeTo(output), StreamOutput::writeStringCollection);
@@ -114,6 +120,14 @@ public class Rule implements Writeable, ToXContentObject {
      */
     public static Rule fromXContent(final XContentParser parser, FeatureType featureType) throws IOException {
         return Builder.fromXContent(parser, featureType).build();
+    }
+
+    /**
+     * id getter
+     * @return
+     */
+    public String getId() {
+        return id;
     }
 
     /**
@@ -159,10 +173,7 @@ public class Rule implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        String id = params.param(_ID_STRING);
-        if (id != null) {
-            builder.field(_ID_STRING, id);
-        }
+        builder.field(_ID_STRING, id);
         builder.field(DESCRIPTION_STRING, description);
         for (Map.Entry<Attribute, Set<String>> entry : attributeMap.entrySet()) {
             builder.array(entry.getKey().getName(), entry.getValue().toArray(new String[0]));
@@ -204,6 +215,7 @@ public class Rule implements Writeable, ToXContentObject {
      * @opensearch.experimental
      */
     public static class Builder {
+        private String id;
         private String description;
         private Map<Attribute, Set<String>> attributeMap;
         private FeatureType featureType;
@@ -235,7 +247,9 @@ public class Rule implements Writeable, ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     fieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (fieldName.equals(DESCRIPTION_STRING)) {
+                    if (fieldName.equals(_ID_STRING)) {
+                        builder.id(parser.text());
+                    } else if (fieldName.equals(DESCRIPTION_STRING)) {
                         builder.description(parser.text());
                     } else if (fieldName.equals(UPDATED_AT_STRING)) {
                         builder.updatedAt(parser.text());
@@ -269,6 +283,16 @@ public class Rule implements Writeable, ToXContentObject {
                 }
             }
             attributeMap.put(attribute, attributeValueSet);
+        }
+
+        /**
+         * Sets the id
+         * @param id
+         * @return
+         */
+        public Builder id(String id) {
+            this.id = id;
+            return this;
         }
 
         /**
@@ -326,7 +350,7 @@ public class Rule implements Writeable, ToXContentObject {
          * @return
          */
         public Rule build() {
-            return new Rule(description, attributeMap, featureType, featureValue, updatedAt);
+            return new Rule(id, description, attributeMap, featureType, featureValue, updatedAt);
         }
 
         /**
