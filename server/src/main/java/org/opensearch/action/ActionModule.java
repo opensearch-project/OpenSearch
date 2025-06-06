@@ -67,6 +67,8 @@ import org.opensearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.opensearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
 import org.opensearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.opensearch.action.admin.cluster.remote.TransportRemoteInfoAction;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataAction;
+import org.opensearch.action.admin.cluster.remotestore.metadata.TransportRemoteStoreMetadataAction;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreAction;
 import org.opensearch.action.admin.cluster.remotestore.restore.TransportRestoreRemoteStoreAction;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsAction;
@@ -378,6 +380,7 @@ import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
+import org.opensearch.rest.action.admin.cluster.RestRemoteStoreMetadataAction;
 import org.opensearch.rest.action.admin.cluster.RestRemoteStoreStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreRemoteStoreAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
@@ -638,6 +641,7 @@ public class ActionModule extends AbstractModule {
         actions.register(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         actions.register(WlmStatsAction.INSTANCE, TransportWlmStatsAction.class);
         actions.register(RemoteStoreStatsAction.INSTANCE, TransportRemoteStoreStatsAction.class);
+        actions.register(RemoteStoreMetadataAction.INSTANCE, TransportRemoteStoreMetadataAction.class);
         actions.register(NodesUsageAction.INSTANCE, TransportNodesUsageAction.class);
         actions.register(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
         actions.register(ListTasksAction.INSTANCE, TransportListTasksAction.class);
@@ -1053,6 +1057,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetDecommissionStateAction());
         registerHandler.accept(new RestRemoteStoreStatsAction());
         registerHandler.accept(new RestRestoreRemoteStoreAction());
+        registerHandler.accept(new RestRemoteStoreMetadataAction());
 
         // pull-based ingestion API
         registerHandler.accept(new RestPauseIngestionAction());
