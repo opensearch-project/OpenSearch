@@ -502,7 +502,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.isDerivedSourceEnabled()) {
             readerWrapper = reader -> {
                 final DirectoryReader wrappedReader = indexReaderWrapper == null ? reader : indexReaderWrapper.apply(reader);
-                return DerivedSourceDirectoryReader.wrap(wrappedReader, mapperService.documentMapper().root()::deriveSource);
+                return DerivedSourceDirectoryReader.wrap(wrappedReader, getEngine().config().getDocumentMapperForTypeSupplier().get().getDocumentMapper().root()::deriveSource);
             };
         } else {
             readerWrapper = indexReaderWrapper;

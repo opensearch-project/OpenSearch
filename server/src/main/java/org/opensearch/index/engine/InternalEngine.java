@@ -2758,7 +2758,7 @@ public class InternalEngine extends Engine {
     ) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
-        Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
+        Searcher searcher = null;
         try {
             if (config().getIndexSettings().isDerivedSourceEnabled()) {
                 searcher = acquireSearcher(source, SearcherScope.INTERNAL, this::wrapSearcher);
