@@ -42,7 +42,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
-import org.opensearch.Version;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.Request;
@@ -81,7 +80,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     private final RestClient client;
     private final BytesReference query;
     private final SearchRequest searchRequest;
-    Version remoteVersion;
+    RemoteVersion remoteVersion;
 
     public RemoteScrollableHitSource(
         Logger logger,
@@ -116,7 +115,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         }, searchListener::onFailure, searchListener::onFailure));
     }
 
-    void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {
+    void lookupRemoteVersion(RejectAwareActionListener<RemoteVersion> listener) {
         logger.trace("Checking version for remote domain");
         // We're skipping retries for the first call to remote cluster so that we fail fast & respond back immediately
         // instead of retrying for longer duration.
@@ -159,7 +158,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             private void logFailure(Exception e) {
                 if (e instanceof ResponseException) {
                     ResponseException re = (ResponseException) e;
-                    if (remoteVersion.before(Version.fromId(2000099)) && re.getResponse().getStatusLine().getStatusCode() == 404) {
+                    if (remoteVersion.before(RemoteVersion.V_2_0_0) && re.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.debug(
                             (Supplier<?>) () -> new ParameterizedMessage(
                                 "Failed to clear scroll [{}] from pre-2.0 OpenSearch. This is normal if the request terminated "
