@@ -86,6 +86,7 @@ public class FollowersChecker {
     private static final Logger logger = LogManager.getLogger(FollowersChecker.class);
 
     public static final String FOLLOWER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/follower_check";
+    public static final String NODE_LEFT_REASON_LAGGING = "lagging";
     public static final String NODE_LEFT_REASON_DISCONNECTED = "disconnected";
     public static final String NODE_LEFT_REASON_HEALTHCHECK_FAIL = "health check failed";
     public static final String NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL = "followers check retry count exceeded";
