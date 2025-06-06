@@ -146,10 +146,10 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         ProfileResult reducedResult = new ProfileResult(
             type,
             description,
-            importantMetrics,
             breakdown,
             debug,
-            reducedChildrenTree
+            reducedChildrenTree,
+            importantMetrics
         );
         return List.of(reducedResult);
     }

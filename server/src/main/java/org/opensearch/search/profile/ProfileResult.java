@@ -81,10 +81,10 @@ public class ProfileResult implements Writeable, ToXContentObject {
     public ProfileResult(
         String type,
         String description,
-        Map<String, Long> importantMetrics,
         Map<String, Long> breakdown,
         Map<String, Object> debug,
-        List<ProfileResult> children
+        List<ProfileResult> children,
+        Map<String, Long> importantMetrics
     ) {
         this.type = type;
         this.description = description;
