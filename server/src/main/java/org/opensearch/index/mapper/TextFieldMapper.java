@@ -129,7 +129,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         static {
             FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setStored(true);
             FIELD_TYPE.setStoreTermVectors(false);
             FIELD_TYPE.setOmitNorms(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
@@ -281,7 +281,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         private final Version indexCreatedVersion;
 
         protected final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).mappedFieldType.isSearchable(), true);
-        protected final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
+        protected final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).fieldType.stored(), true);
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
 
