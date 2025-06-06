@@ -153,7 +153,7 @@ public class ArrowStreamOutput extends StreamOutput {
         roots.put(rootPath, new VectorSchemaRoot(newFields, fieldVectors));
     }
 
-    public PathManager getPathManager() {
+    PathManager getPathManager() {
         return pathManager;
     }
 
@@ -281,8 +281,7 @@ public class ArrowStreamOutput extends StreamOutput {
     /**
      * All elements of the list should be of same type with same structure and order of inner values even when of complex type
      * otherwise columns will mismatch across rows resulting in error. If that's the case, then loop yourself and write individual elements, that's inefficient but will work.
-     * @param list
-     * @throws IOException
+     * @param list of elements
      */
     @Override
     public void writeList(List<? extends Writeable> list) throws IOException {

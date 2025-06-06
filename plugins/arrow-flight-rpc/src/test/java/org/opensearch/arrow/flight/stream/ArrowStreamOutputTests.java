@@ -745,6 +745,7 @@ public class ArrowStreamOutputTests extends OpenSearchTestCase {
     // public void testComplexListStructures() throws IOException {
     // List<TestComplexWriteable> complexList = Arrays.asList(
     // new TestComplexWriteable("item1", Arrays.asList("a", "b", "c"), Map.of("key1", 100, "key2", 200)),
+    // new TestComplexWriteable("item2", Arrays.asList("x", "y", "z"), Map.of("key3", 300)),
     // new TestComplexWriteable("item2", Arrays.asList("x", "y"), Map.of("key3", 300))
     // );
     //
