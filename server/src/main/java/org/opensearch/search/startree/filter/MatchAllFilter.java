@@ -17,6 +17,9 @@ import org.opensearch.search.startree.StarTreeNodeCollector;
 import java.io.IOException;
 import java.util.Iterator;
 
+/**
+ * A {@link DimensionFilter} implementation that matches all dimension values.
+ */
 public class MatchAllFilter implements DimensionFilter {
     @Override
     public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException {
