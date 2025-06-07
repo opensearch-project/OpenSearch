@@ -53,6 +53,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.transport.client.Client;
 
 import java.util.ArrayList;
@@ -68,6 +70,10 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.opensearch.cluster.routing.RoutingPool.REMOTE_CAPABLE;
+import static org.opensearch.cluster.routing.RoutingPool.getIndexPool;
+import static org.opensearch.cluster.routing.RoutingPool.getNodePool;
+
 /**
  * Listens for a node to go over the high watermark and kicks off an empty
  * reroute if it does. Also responsible for logging about nodes that have
@@ -81,6 +87,7 @@ public class DiskThresholdMonitor {
     private final DiskThresholdSettings diskThresholdSettings;
     private final Client client;
     private final Supplier<ClusterState> clusterStateSupplier;
+    private final Supplier<Double> dataToFileCacheSizeRatioSupplier;
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
@@ -110,13 +117,15 @@ public class DiskThresholdMonitor {
         ClusterSettings clusterSettings,
         Client client,
         LongSupplier currentTimeMillisSupplier,
-        RerouteService rerouteService
+        RerouteService rerouteService,
+        Supplier<Double> dataToFileCacheSizeRatioSupplier
     ) {
         this.clusterStateSupplier = clusterStateSupplier;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
+        this.dataToFileCacheSizeRatioSupplier = dataToFileCacheSizeRatioSupplier;
     }
 
     private void checkFinished() {
@@ -162,11 +171,19 @@ public class DiskThresholdMonitor {
 
         for (final Map.Entry<String, DiskUsage> entry : usages.entrySet()) {
             final String node = entry.getKey();
-            final DiskUsage usage = entry.getValue();
+            // Create DiskUsage for Warm Nodes based on total Addressable Space
+            DiskUsage usage = entry.getValue();
             final RoutingNode routingNode = routingNodes.node(node);
+            if (routingNode == null) {
+                continue;
+            }
 
-            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes()
-                || usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
+            final boolean isWarmNode = REMOTE_CAPABLE.equals(getNodePool(routingNode));
+            if (isWarmNode) {
+                usage = getWarmDiskUsage(usage, info, routingNode, state);
+            }
+
+            if (isNodeExceedingFloodStageWatermark(usage, isWarmNode)) {
 
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
@@ -189,8 +206,7 @@ public class DiskThresholdMonitor {
                 continue;
             }
 
-            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()
-                || usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
+            if (isNodeExceedingHighWatermark(usage, isWarmNode)) {
 
                 if (routingNode != null) { // might be temporarily null if the ClusterInfoService and the ClusterService are out of step
                     for (ShardRouting routing : routingNode) {
@@ -200,6 +216,7 @@ public class DiskThresholdMonitor {
                 }
             }
 
+            // Check if for warm node if reserved space comes out to be zero, if not make it 0
             final long reservedSpace = info.getReservedSpace(usage.getNodeId(), usage.getPath()).getTotal();
             final DiskUsage usageWithReservedSpace = new DiskUsage(
                 usage.getNodeId(),
@@ -209,8 +226,8 @@ public class DiskThresholdMonitor {
                 Math.max(0L, usage.getFreeBytes() - reservedSpace)
             );
 
-            if (usageWithReservedSpace.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()
-                || usageWithReservedSpace.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
+            // Check if node exceeds high watermark with reserved space factored in
+            if (isNodeExceedingHighWatermark(usageWithReservedSpace, isWarmNode)) {
 
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
@@ -228,61 +245,60 @@ public class DiskThresholdMonitor {
                     );
                 }
 
-            } else if (usageWithReservedSpace.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdLow().getBytes()
-                || usageWithReservedSpace.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdLow()) {
+            } else if (isNodeExceedingLowWatermark(usage, isWarmNode)) {
 
-                    nodesOverHighThresholdAndRelocating.remove(node);
+                nodesOverHighThresholdAndRelocating.remove(node);
 
-                    final boolean wasUnderLowThreshold = nodesOverLowThreshold.add(node);
-                    final boolean wasOverHighThreshold = nodesOverHighThreshold.remove(node);
-                    assert (wasUnderLowThreshold && wasOverHighThreshold) == false;
+                final boolean wasUnderLowThreshold = nodesOverLowThreshold.add(node);
+                final boolean wasOverHighThreshold = nodesOverHighThreshold.remove(node);
+                assert (wasUnderLowThreshold && wasOverHighThreshold) == false;
 
-                    if (wasUnderLowThreshold) {
+                if (wasUnderLowThreshold) {
+                    logger.info(
+                        "low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
+                        diskThresholdSettings.describeLowThreshold(),
+                        usage
+                    );
+                } else if (wasOverHighThreshold) {
+                    logger.info(
+                        "high disk watermark [{}] no longer exceeded on {}, but low disk watermark [{}] is still exceeded",
+                        diskThresholdSettings.describeHighThreshold(),
+                        usage,
+                        diskThresholdSettings.describeLowThreshold()
+                    );
+                }
+
+            } else {
+
+                nodesOverHighThresholdAndRelocating.remove(node);
+
+                if (nodesOverLowThreshold.contains(node)) {
+                    // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more
+                    // shards
+                    // if we reroute now.
+                    if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
+                        reroute = true;
+                        explanation = "one or more nodes has gone under the high or low watermark";
+                        nodesOverLowThreshold.remove(node);
+                        nodesOverHighThreshold.remove(node);
+
                         logger.info(
-                            "low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
+                            "low disk watermark [{}] no longer exceeded on {}",
                             diskThresholdSettings.describeLowThreshold(),
                             usage
                         );
-                    } else if (wasOverHighThreshold) {
-                        logger.info(
-                            "high disk watermark [{}] no longer exceeded on {}, but low disk watermark [{}] is still exceeded",
-                            diskThresholdSettings.describeHighThreshold(),
-                            usage,
-                            diskThresholdSettings.describeLowThreshold()
+
+                    } else {
+                        logger.debug(
+                            "{} has gone below a disk threshold, but an automatic reroute has occurred "
+                                + "in the last [{}], skipping reroute",
+                            node,
+                            diskThresholdSettings.getRerouteInterval()
                         );
                     }
-
-                } else {
-
-                    nodesOverHighThresholdAndRelocating.remove(node);
-
-                    if (nodesOverLowThreshold.contains(node)) {
-                        // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more
-                        // shards
-                        // if we reroute now.
-                        if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
-                            reroute = true;
-                            explanation = "one or more nodes has gone under the high or low watermark";
-                            nodesOverLowThreshold.remove(node);
-                            nodesOverHighThreshold.remove(node);
-
-                            logger.info(
-                                "low disk watermark [{}] no longer exceeded on {}",
-                                diskThresholdSettings.describeLowThreshold(),
-                                usage
-                            );
-
-                        } else {
-                            logger.debug(
-                                "{} has gone below a disk threshold, but an automatic reroute has occurred "
-                                    + "in the last [{}], skipping reroute",
-                                node,
-                                diskThresholdSettings.getRerouteInterval()
-                            );
-                        }
-                    }
-
                 }
+
+            }
         }
 
         final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 4);
@@ -309,8 +325,8 @@ public class DiskThresholdMonitor {
                         relocatingShardsSize = 0L;
                     }
 
-                    if (usageIncludingRelocations.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()
-                        || usageIncludingRelocations.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
+                    boolean isNodeWarm = REMOTE_CAPABLE.equals(getNodePool(routingNode));
+                    if (isNodeExceedingHighWatermark(usageIncludingRelocations, isNodeWarm)) {
 
                         nodesOverHighThresholdAndRelocating.remove(diskUsage.getNodeId());
                         logger.warn(
@@ -411,6 +427,131 @@ public class DiskThresholdMonitor {
             reroutedClusterState.metadata(),
             reroutedClusterState.routingTable()
         );
+    }
+
+    private boolean isNodeExceedingFloodStageWatermark(DiskUsage diskUsage, boolean isWarmNode) {
+        if (!isWarmNode) {
+            return diskUsage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes()
+                || diskUsage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage();
+        } else {
+            if (dataToFileCacheSizeRatioSupplier.get() <= 0) {
+                return false;
+            }
+            long totalBytes = diskUsage.getTotalBytes();
+            long freeSpace = diskUsage.getFreeBytes();
+            long freeSpaceFloodStageThreshold = calculateFreeSpaceFloodStageThreshold(totalBytes);
+
+            return freeSpace < freeSpaceFloodStageThreshold;
+        }
+    }
+
+    private boolean isNodeExceedingHighWatermark(DiskUsage diskUsage, boolean isWarmNode) {
+        if (!isWarmNode) {
+            return diskUsage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()
+                || diskUsage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh();
+        } else {
+            if (dataToFileCacheSizeRatioSupplier.get() <= 0) {
+                return false;
+            }
+            long totalBytes = diskUsage.getTotalBytes();
+            long freeSpace = diskUsage.getFreeBytes();
+            long freeSpaceHighThreshold = calculateFreeSpaceHighThreshold(totalBytes);
+
+            return freeSpace < freeSpaceHighThreshold;
+        }
+    }
+
+    private boolean isNodeExceedingLowWatermark(DiskUsage diskUsage, boolean isWarmNode) {
+        if (!isWarmNode) {
+            return diskUsage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdLow().getBytes()
+                || diskUsage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdLow();
+        } else {
+            if (dataToFileCacheSizeRatioSupplier.get() <= 0) {
+                return false;
+            }
+            long totalBytes = diskUsage.getTotalBytes();
+            long freeSpace = diskUsage.getFreeBytes();
+            long freeSpaceHighThreshold = calculateFreeSpaceLowThreshold(totalBytes);
+
+            return freeSpace < freeSpaceHighThreshold;
+        }
+    }
+
+    private DiskUsage getWarmDiskUsage(DiskUsage diskUsage, ClusterInfo info, RoutingNode node, ClusterState state) {
+        double dataToFileCacheSizeRatio = dataToFileCacheSizeRatioSupplier.get();
+        FileCacheStats fileCacheStats = info.getNodeFileCacheStats().getOrDefault(diskUsage.getNodeId(), null);
+        final long nodeCacheSize = fileCacheStats != null ? fileCacheStats.getTotal().getBytes() : 0;
+        long totalAddressableSpace = (long) dataToFileCacheSizeRatio * nodeCacheSize;
+        final List<ShardRouting> remoteShardsOnNode = StreamSupport.stream(node.spliterator(), false)
+            .filter(shard -> shard.primary() && REMOTE_CAPABLE.equals(getIndexPool(state.metadata().getIndexSafe(shard.index()))))
+            .collect(Collectors.toList());
+
+        var remoteShardSize = 0L;
+        for (ShardRouting shard : remoteShardsOnNode) {
+            remoteShardSize += DiskThresholdDecider.getExpectedShardSize(shard, 0L, info, null, state.metadata(), state.getRoutingTable());
+        }
+        final DiskUsage warmDiskUsage = new DiskUsage(
+            diskUsage.getNodeId(),
+            diskUsage.getNodeName(),
+            diskUsage.getPath(),
+            totalAddressableSpace,
+            totalAddressableSpace - remoteShardSize
+        );
+        return warmDiskUsage;
+    }
+
+    private long calculateFreeSpaceLowThreshold(long totalAddressableSpace) {
+        // Check for percentage-based threshold
+        double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdLow();
+        if (percentageThreshold > 0) {
+            return (long) (totalAddressableSpace * percentageThreshold / 100.0);
+        }
+
+        // Check for absolute bytes threshold
+        final double dataToFileCacheSizeRatio = dataToFileCacheSizeRatioSupplier.get();
+        ByteSizeValue bytesThreshold = diskThresholdSettings.getFreeBytesThresholdLow();
+        if (bytesThreshold != null && bytesThreshold.getBytes() > 0) {
+            return bytesThreshold.getBytes() * (long) dataToFileCacheSizeRatio;
+        }
+
+        // Default fallback
+        return 0;
+    }
+
+    private long calculateFreeSpaceHighThreshold(long totalAddressableSpace) {
+        // Check for percentage-based threshold
+        double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdHigh();
+        if (percentageThreshold > 0) {
+            return (long) (totalAddressableSpace * percentageThreshold / 100.0);
+        }
+
+        // Check for absolute bytes threshold
+        final double dataToFileCacheSizeRatio = dataToFileCacheSizeRatioSupplier.get();
+        ByteSizeValue bytesThreshold = diskThresholdSettings.getFreeBytesThresholdHigh();
+        if (bytesThreshold != null && bytesThreshold.getBytes() > 0) {
+            return bytesThreshold.getBytes() * (long) dataToFileCacheSizeRatio;
+        }
+
+        // Default fallback
+        return 0;
+    }
+
+    private long calculateFreeSpaceFloodStageThreshold(long totalAddressableSpace) {
+        // Check for percentage-based threshold
+        double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdFloodStage();
+        if (percentageThreshold > 0) {
+            return (long) (totalAddressableSpace * percentageThreshold / 100.0);
+        }
+
+        // Check for absolute bytes threshold
+        final double dataToFileCacheSizeRatio = dataToFileCacheSizeRatioSupplier.get();
+        ByteSizeValue bytesThreshold = diskThresholdSettings.getFreeBytesThresholdFloodStage();
+        if (bytesThreshold != null && bytesThreshold.getBytes() > 0) {
+            return bytesThreshold.getBytes() * (long) dataToFileCacheSizeRatio;
+        }
+
+        // Default fallback
+        return 0;
     }
 
     private void markNodesMissingUsageIneligibleForRelease(
