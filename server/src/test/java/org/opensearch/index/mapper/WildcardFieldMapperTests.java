@@ -26,9 +26,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.Version;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
@@ -44,12 +41,10 @@ import org.opensearch.index.analysis.TokenizerFactory;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static org.opensearch.index.mapper.FieldTypeTestCase.fetchSourceValue;
 import static org.opensearch.index.mapper.KeywordFieldMapper.normalizeValue;
 
 public class WildcardFieldMapperTests extends MapperTestCase {
@@ -120,20 +115,20 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         );
     }
 
-//    public void testEnableDocValues() throws IOException {
-//        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard").field("doc_values", true)));
-//        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-//        IndexableField[] fields = doc.rootDoc().getFields("field");
-//        assertEquals(2, fields.length);
-//        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
-//        assertEquals(DocValuesType.SORTED_SET, fields[1].fieldType().docValuesType());
-//
-//        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard")));
-//        doc = mapper.parse(source(b -> b.field("field", "1234")));
-//        fields = doc.rootDoc().getFields("field");
-//        assertEquals(1, fields.length);
-//        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
-//    }
+    // public void testEnableDocValues() throws IOException {
+    // DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard").field("doc_values", true)));
+    // ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+    // IndexableField[] fields = doc.rootDoc().getFields("field");
+    // assertEquals(2, fields.length);
+    // assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+    // assertEquals(DocValuesType.SORTED_SET, fields[1].fieldType().docValuesType());
+    //
+    // mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard")));
+    // doc = mapper.parse(source(b -> b.field("field", "1234")));
+    // fields = doc.rootDoc().getFields("field");
+    // assertEquals(1, fields.length);
+    // assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+    // }
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
@@ -296,33 +291,33 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
     }
 
-//    public void testFetchSourceValue() throws IOException {
-//        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-//        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-//
-//        MappedFieldType mapper = new WildcardFieldMapper.Builder("field").build(context).fieldType();
-//        assertEquals(Collections.singletonList("value"), fetchSourceValue(mapper, "value"));
-//        assertEquals(Collections.singletonList("42"), fetchSourceValue(mapper, 42L));
-//        assertEquals(Collections.singletonList("true"), fetchSourceValue(mapper, true));
-//
-//        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
-//        assertEquals("Field [field] of type [wildcard] doesn't support formats.", e.getMessage());
-//
-//        MappedFieldType ignoreAboveMapper = new WildcardFieldMapper.Builder("field").ignoreAbove(4).build(context).fieldType();
-//        assertEquals(Collections.emptyList(), fetchSourceValue(ignoreAboveMapper, "value"));
-//        assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper, 42L));
-//        assertEquals(Collections.singletonList("true"), fetchSourceValue(ignoreAboveMapper, true));
-//
-//        MappedFieldType normalizerMapper = new WildcardFieldMapper.Builder("field", createIndexAnalyzers(null)).normalizer("lowercase")
-//            .build(context)
-//            .fieldType();
-//        assertEquals(Collections.singletonList("value"), fetchSourceValue(normalizerMapper, "VALUE"));
-//        assertEquals(Collections.singletonList("42"), fetchSourceValue(normalizerMapper, 42L));
-//        assertEquals(Collections.singletonList("value"), fetchSourceValue(normalizerMapper, "value"));
-//
-//        MappedFieldType nullValueMapper = new WildcardFieldMapper.Builder("field").nullValue("NULL").build(context).fieldType();
-//        assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper, null));
-//    }
+    // public void testFetchSourceValue() throws IOException {
+    // Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+    // Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+    //
+    // MappedFieldType mapper = new WildcardFieldMapper.Builder("field").build(context).fieldType();
+    // assertEquals(Collections.singletonList("value"), fetchSourceValue(mapper, "value"));
+    // assertEquals(Collections.singletonList("42"), fetchSourceValue(mapper, 42L));
+    // assertEquals(Collections.singletonList("true"), fetchSourceValue(mapper, true));
+    //
+    // IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
+    // assertEquals("Field [field] of type [wildcard] doesn't support formats.", e.getMessage());
+    //
+    // MappedFieldType ignoreAboveMapper = new WildcardFieldMapper.Builder("field").ignoreAbove(4).build(context).fieldType();
+    // assertEquals(Collections.emptyList(), fetchSourceValue(ignoreAboveMapper, "value"));
+    // assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper, 42L));
+    // assertEquals(Collections.singletonList("true"), fetchSourceValue(ignoreAboveMapper, true));
+    //
+    // MappedFieldType normalizerMapper = new WildcardFieldMapper.Builder("field", createIndexAnalyzers(null)).normalizer("lowercase")
+    // .build(context)
+    // .fieldType();
+    // assertEquals(Collections.singletonList("value"), fetchSourceValue(normalizerMapper, "VALUE"));
+    // assertEquals(Collections.singletonList("42"), fetchSourceValue(normalizerMapper, 42L));
+    // assertEquals(Collections.singletonList("value"), fetchSourceValue(normalizerMapper, "value"));
+    //
+    // MappedFieldType nullValueMapper = new WildcardFieldMapper.Builder("field").nullValue("NULL").build(context).fieldType();
+    // assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper, null));
+    // }
 
     public void testPossibleToDeriveSource_WhenCopyToPresent() throws IOException {
         FieldMapper.CopyTo copyTo = new FieldMapper.CopyTo.Builder().add("copy_to_field").build();

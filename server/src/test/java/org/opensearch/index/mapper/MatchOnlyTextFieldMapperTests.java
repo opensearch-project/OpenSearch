@@ -8,10 +8,8 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -50,26 +48,26 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
         textFieldName = "match_only_text";
     }
 
-//    @Override
-//    public void testDefaults() throws IOException {
-//        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-//        assertEquals(fieldMapping(this::minimalMapping).toString(), mapper.mappingSource().toString());
-//
-//        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-//        IndexableField[] fields = doc.rootDoc().getFields("field");
-//        assertEquals(1, fields.length);
-//        assertEquals("1234", fields[0].stringValue());
-//        IndexableFieldType fieldType = fields[0].fieldType();
-//        assertThat(fieldType.omitNorms(), equalTo(true));
-//        assertTrue(fieldType.tokenized());
-//        assertFalse(fieldType.stored());
-//        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
-//        assertThat(fieldType.storeTermVectors(), equalTo(false));
-//        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
-//        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
-//        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
-//        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
-//    }
+    // @Override
+    // public void testDefaults() throws IOException {
+    // DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+    // assertEquals(fieldMapping(this::minimalMapping).toString(), mapper.mappingSource().toString());
+    //
+    // ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+    // IndexableField[] fields = doc.rootDoc().getFields("field");
+    // assertEquals(1, fields.length);
+    // assertEquals("1234", fields[0].stringValue());
+    // IndexableFieldType fieldType = fields[0].fieldType();
+    // assertThat(fieldType.omitNorms(), equalTo(true));
+    // assertTrue(fieldType.tokenized());
+    // assertFalse(fieldType.stored());
+    // assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
+    // assertThat(fieldType.storeTermVectors(), equalTo(false));
+    // assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+    // assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+    // assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+    // assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+    // }
 
     @Override
     public void testEnableStore() throws IOException {
@@ -136,8 +134,8 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
         }
     }
 
-//    @Override
-//    public void testBWCSerialization() throws IOException {}
+    // @Override
+    // public void testBWCSerialization() throws IOException {}
 
     @Override
     public void testPositionIncrementGap() throws IOException {}
