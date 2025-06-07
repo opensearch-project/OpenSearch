@@ -83,7 +83,6 @@ public final class ClusterManagerMetrics {
             "Counter for number of successful async fetches",
             COUNTER_METRICS_UNIT
         );
-
     }
 
     public void recordLatency(Histogram histogram, Double value) {
