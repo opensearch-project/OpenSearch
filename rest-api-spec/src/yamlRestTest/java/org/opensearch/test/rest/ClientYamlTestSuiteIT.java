@@ -39,7 +39,7 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
 
-/** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
+/// ** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
 
 // The default 20 minutes timeout isn't always enough, but Darwin CI hosts are incredibly slow...
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)

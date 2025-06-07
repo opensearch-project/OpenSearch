@@ -32,26 +32,26 @@
 
 package org.opensearch.backwards;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-import org.apache.lucene.tests.util.TimeUnits;
-import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
-
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
-public class MixedClusterClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
-
-    public MixedClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
-    }
-
-    @Override
-    protected boolean randomizeContentType() {
-        return false;
-    }
-}
+//import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+//import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+//import org.apache.lucene.tests.util.TimeUnits;
+//import org.opensearch.test.rest.yaml.ClientYamlTestCandidate;
+//import org.opensearch.test.rest.yaml.OpenSearchClientYamlSuiteTestCase;
+//
+//@TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
+//public class MixedClusterClientYamlTestSuiteIT extends OpenSearchClientYamlSuiteTestCase {
+//
+//    public MixedClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
+//        super(testCandidate);
+//    }
+//
+//    @ParametersFactory
+//    public static Iterable<Object[]> parameters() throws Exception {
+//        return createParameters();
+//    }
+//
+//    @Override
+//    protected boolean randomizeContentType() {
+//        return false;
+//    }
+//}

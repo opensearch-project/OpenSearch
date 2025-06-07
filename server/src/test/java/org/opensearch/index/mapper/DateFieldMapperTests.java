@@ -437,7 +437,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(
             fieldMapping(
                 b -> b.field("type", "date_nanos")
-                    .field("format", "strict_date_time_no_millis")
+                    .field("format", "strict_date_optional_time_nanos")
                     .field("doc_values", false)
                     .field("store", true)
             )
@@ -472,14 +472,14 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         doAnswer(invocation -> {
             SingleFieldsVisitor visitor = invocation.getArgument(1);
-            visitor.longField(mockFieldInfo, TEST_TIMESTAMP * 1000000L);
+            visitor.longField(mockFieldInfo, TEST_TIMESTAMP * 1000000L + 111111111L);
             return null;
         }).when(storedFields).document(anyInt(), any(StoredFieldVisitor.class));
 
         dateFieldMapper.deriveSource(builder, leafReader, 0);
         builder.endObject();
         String source = builder.toString();
-        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00Z\""));
+        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00.111111111Z\""));
     }
 
     public void testDeriveSource_WhenStoredFieldEnabledWithMultiValue() throws IOException {
@@ -553,7 +553,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(
             fieldMapping(
                 b -> b.field("type", "date_nanos")
-                    .field("format", "strict_date_time_no_millis")
+                    .field("format", "strict_date_optional_time_nanos")
                     .field("store", false)
                     .field("doc_values", true)
             )
@@ -566,12 +566,12 @@ public class DateFieldMapperTests extends MapperTestCase {
         when(leafReader.getSortedNumericDocValues("field")).thenReturn(docValues);
         when(docValues.advanceExact(0)).thenReturn(true);
         when(docValues.docValueCount()).thenReturn(1);
-        when(docValues.nextValue()).thenReturn(TEST_TIMESTAMP * 1000000L);
+        when(docValues.nextValue()).thenReturn(TEST_TIMESTAMP * 1000000L + 222222222L);
 
         dateFieldMapper.deriveSource(builder, leafReader, 0);
         builder.endObject();
         String source = builder.toString();
-        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00Z\""));
+        assertTrue(source.contains("\"field\":\"2025-02-18T06:00:00.222222222Z\""));
     }
 
     public void testDeriveSource_WhenDocValuesEnabledWithMultiValue() throws IOException {
