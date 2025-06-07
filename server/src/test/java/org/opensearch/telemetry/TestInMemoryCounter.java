@@ -13,7 +13,7 @@ import org.opensearch.telemetry.metrics.tags.Tags;
 
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This is a simple implementation of Counter which is utilized by TestInMemoryMetricsRegistry for
@@ -23,10 +23,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class TestInMemoryCounter implements Counter {
 
-    private AtomicInteger counterValue = new AtomicInteger(0);
+    private AtomicReference<Double> counterValue = new AtomicReference<Double>(0.0);
     private ConcurrentHashMap<HashMap<String, ?>, Double> counterValueForTags = new ConcurrentHashMap<>();
 
-    public Integer getCounterValue() {
+    public Double getCounterValue() {
         return this.counterValue.get();
     }
 
@@ -36,7 +36,8 @@ public class TestInMemoryCounter implements Counter {
 
     @Override
     public void add(double value) {
-        counterValue.addAndGet((int) value);
+        double oldValue = counterValue.get();
+        counterValue.set(oldValue + value);
     }
 
     @Override

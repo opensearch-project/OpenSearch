@@ -742,7 +742,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(),
                 threadPool,
                 nodeEnvironment,
-                clusterManagerMetrics
+                metricsRegistry
             );
             final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
             final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(

@@ -35,7 +35,6 @@ package org.opensearch.monitor.fs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -47,7 +46,8 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
-import org.opensearch.telemetry.metrics.tags.Tags;
+import org.opensearch.telemetry.metrics.Counter;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -57,7 +57,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -77,7 +76,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
     private final ThreadPool threadPool;
-    private final ClusterManagerMetrics clusterManagerMetrics;
+    private final MetricsRegistry metricsRegistry;
     private volatile boolean enabled;
     private volatile boolean brokenLock;
     private final TimeValue refreshInterval;
@@ -88,6 +87,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private volatile TimeValue healthyTimeoutThreshold;
     private final AtomicLong lastRunStartTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
+    public Counter fsHealthFailCounter;
+    private static final String COUNTER_METRICS_UNIT = "1";
 
     @Nullable
     private volatile Set<Path> unhealthyPaths;
@@ -124,7 +125,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
         NodeEnvironment nodeEnv,
-        ClusterManagerMetrics clusterManagerMetrics
+        MetricsRegistry metricsRegistry
     ) {
         this.threadPool = threadPool;
         this.enabled = ENABLED_SETTING.get(settings);
@@ -133,7 +134,12 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
         this.healthyTimeoutThreshold = HEALTHY_TIMEOUT_SETTING.get(settings);
         this.nodeEnv = nodeEnv;
-        this.clusterManagerMetrics = clusterManagerMetrics;
+        this.metricsRegistry = metricsRegistry;
+        fsHealthFailCounter = metricsRegistry.createCounter(
+            "fsHealth.failure.count",
+            "Counter for number of times FS health check has failed",
+            COUNTER_METRICS_UNIT
+        );
         clusterSettings.addSettingsUpdateConsumer(SLOW_PATH_LOGGING_THRESHOLD_SETTING, this::setSlowPathLoggingThreshold);
         clusterSettings.addSettingsUpdateConsumer(HEALTHY_TIMEOUT_SETTING, this::setHealthyTimeoutThreshold);
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
@@ -220,12 +226,12 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         private void emitMetric() {
             StatusInfo healthStatus = getHealth();
             if (healthStatus.getStatus() == UNHEALTHY) {
-                clusterManagerMetrics.incrementCounter(
-                    clusterManagerMetrics.fsHealthFailCounter,
-                    1.0,
-                    Optional.ofNullable(Tags.create().addTag("node_id", nodeEnv.nodeId()))
-                );
+                incrementCounter(fsHealthFailCounter, 1.0);
             }
+        }
+
+        public void incrementCounter(Counter counter, Double value) {
+            counter.add(value);
         }
 
         private void monitorFSHealth() {
