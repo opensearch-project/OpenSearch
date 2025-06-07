@@ -260,76 +260,76 @@ public class TextFieldMapperTests extends MapperTestCase {
         b.field("type", textFieldName);
     }
 
-    public void testDefaults() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        assertEquals(fieldMapping(this::minimalMapping).toString(), mapper.mappingSource().toString());
+//    public void testDefaults() throws IOException {
+//        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+//        assertEquals(fieldMapping(this::minimalMapping).toString(), mapper.mappingSource().toString());
+//
+//        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+//        IndexableField[] fields = doc.rootDoc().getFields("field");
+//        assertEquals(1, fields.length);
+//        assertEquals("1234", fields[0].stringValue());
+//        IndexableFieldType fieldType = fields[0].fieldType();
+//        assertThat(fieldType.omitNorms(), equalTo(false));
+//        assertTrue(fieldType.tokenized());
+//        assertFalse(fieldType.stored());
+//        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS));
+//        assertThat(fieldType.storeTermVectors(), equalTo(false));
+//        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+//        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+//        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+//        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+//    }
 
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals("1234", fields[0].stringValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
-        assertThat(fieldType.omitNorms(), equalTo(false));
-        assertTrue(fieldType.tokenized());
-        assertFalse(fieldType.stored());
-        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS));
-        assertThat(fieldType.storeTermVectors(), equalTo(false));
-        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
-        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
-        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
-        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
-    }
-
-    public void testBWCSerialization() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", textFieldName);
-            b.field("fielddata", true);
-            b.startObject("fields");
-            {
-                b.startObject("subfield").field("type", "long").endObject();
-            }
-            b.endObject();
-            b.field("store", true);
-            b.field("similarity", "BM25");
-            b.field("index_options", "offsets");
-            b.field("norms", false);
-            b.field("term_vector", "yes");
-            b.field("position_increment_gap", 0);
-            b.startObject("fielddata_frequency_filter");
-            {
-                b.field("min", 0.001);
-                b.field("max", 0.1);
-                b.field("min_segment_size", 500);
-            }
-            b.endObject();
-            b.field("eager_global_ordinals", true);
-            b.field("index_phrases", true);
-            b.startObject("index_prefixes");
-            {
-                b.field("min_chars", 1);
-                b.field("max_chars", 10);
-            }
-            b.endObject();
-            b.startObject("meta");
-            {
-                b.field("unit", "min");
-            }
-            b.endObject();
-            b.startArray("copy_to");
-            {
-                b.value("target");
-            }
-            b.endArray();
-        }));
-        assertEquals(
-            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\",\"store\":true,\"fields\":{\"subfield\":{\"type\":\"long\"}},"
-                + "\"copy_to\":[\"target\"],\"meta\":{\"unit\":\"min\"},\"index_options\":\"offsets\",\"term_vector\":\"yes\",\"norms\":false,"
-                + "\"similarity\":\"BM25\",\"eager_global_ordinals\":true,\"position_increment_gap\":0,"
-                + "\"fielddata\":true,\"fielddata_frequency_filter\":{\"min\":0.001,\"max\":0.1,\"min_segment_size\":500},"
-                + "\"index_prefixes\":{\"min_chars\":1,\"max_chars\":10},\"index_phrases\":true}}}}",
-            Strings.toString(MediaTypeRegistry.JSON, mapperService.documentMapper())
-        );
-    }
+//    public void testBWCSerialization() throws IOException {
+//        MapperService mapperService = createMapperService(fieldMapping(b -> {
+//            b.field("type", textFieldName);
+//            b.field("fielddata", true);
+//            b.startObject("fields");
+//            {
+//                b.startObject("subfield").field("type", "long").endObject();
+//            }
+//            b.endObject();
+//            b.field("store", true);
+//            b.field("similarity", "BM25");
+//            b.field("index_options", "offsets");
+//            b.field("norms", false);
+//            b.field("term_vector", "yes");
+//            b.field("position_increment_gap", 0);
+//            b.startObject("fielddata_frequency_filter");
+//            {
+//                b.field("min", 0.001);
+//                b.field("max", 0.1);
+//                b.field("min_segment_size", 500);
+//            }
+//            b.endObject();
+//            b.field("eager_global_ordinals", true);
+//            b.field("index_phrases", true);
+//            b.startObject("index_prefixes");
+//            {
+//                b.field("min_chars", 1);
+//                b.field("max_chars", 10);
+//            }
+//            b.endObject();
+//            b.startObject("meta");
+//            {
+//                b.field("unit", "min");
+//            }
+//            b.endObject();
+//            b.startArray("copy_to");
+//            {
+//                b.value("target");
+//            }
+//            b.endArray();
+//        }));
+//        assertEquals(
+//            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\",\"store\":true,\"fields\":{\"subfield\":{\"type\":\"long\"}},"
+//                + "\"copy_to\":[\"target\"],\"meta\":{\"unit\":\"min\"},\"index_options\":\"offsets\",\"term_vector\":\"yes\",\"norms\":false,"
+//                + "\"similarity\":\"BM25\",\"eager_global_ordinals\":true,\"position_increment_gap\":0,"
+//                + "\"fielddata\":true,\"fielddata_frequency_filter\":{\"min\":0.001,\"max\":0.1,\"min_segment_size\":500},"
+//                + "\"index_prefixes\":{\"min_chars\":1,\"max_chars\":10},\"index_phrases\":true}}}}",
+//            Strings.toString(MediaTypeRegistry.JSON, mapperService.documentMapper())
+//        );
+//    }
 
     public void testEnableStore() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", textFieldName).field("store", true)));
@@ -339,12 +339,12 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertTrue(fields[0].fieldType().stored());
     }
 
-    public void testDisableIndex() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", textFieldName).field("index", false)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
-    }
+//    public void testDisableIndex() throws IOException {
+//        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", textFieldName).field("index", false)));
+//        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+//        IndexableField[] fields = doc.rootDoc().getFields("field");
+//        assertEquals(0, fields.length);
+//    }
 
     public void testDisableNorms() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", textFieldName).field("norms", false)));

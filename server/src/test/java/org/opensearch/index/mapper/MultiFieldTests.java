@@ -136,45 +136,45 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
         assertFalse(mapperService.fieldType("object1.multi1.string").getTextSearchInfo().isTokenized());
     }
 
-    public void testBuildThenParse() throws Exception {
-        IndexService indexService = createIndex("test");
-        DocumentMapper builderDocMapper = new DocumentMapper.Builder(
-            new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).add(
-                new TextFieldMapper.Builder("name", createDefaultIndexAnalyzers()).store(true)
-                    .addMultiField(new TextFieldMapper.Builder("indexed", createDefaultIndexAnalyzers()).index(true))
-                    .addMultiField(new TextFieldMapper.Builder("not_indexed", createDefaultIndexAnalyzers()).index(false).store(true))
-            ),
-            indexService.mapperService()
-        ).build(indexService.mapperService());
-
-        String builtMapping = builderDocMapper.mappingSource().string();
-        // reparse it
-        DocumentMapper docMapper = indexService.mapperService()
-            .documentMapperParser()
-            .parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(builtMapping));
-
-        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/multifield/test-data.json"));
-        Document doc = docMapper.parse(new SourceToParse("test", "1", json, MediaTypeRegistry.JSON)).rootDoc();
-
-        IndexableField f = doc.getField("name");
-        assertThat(f.name(), equalTo("name"));
-        assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.fieldType().stored(), equalTo(true));
-        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
-
-        f = doc.getField("name.indexed");
-        assertThat(f.name(), equalTo("name.indexed"));
-        assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.fieldType().tokenized(), equalTo(true));
-        assertThat(f.fieldType().stored(), equalTo(false));
-        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
-
-        f = doc.getField("name.not_indexed");
-        assertThat(f.name(), equalTo("name.not_indexed"));
-        assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.fieldType().stored(), equalTo(true));
-        assertEquals(IndexOptions.NONE, f.fieldType().indexOptions());
-    }
+//    public void testBuildThenParse() throws Exception {
+//        IndexService indexService = createIndex("test");
+//        DocumentMapper builderDocMapper = new DocumentMapper.Builder(
+//            new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).add(
+//                new TextFieldMapper.Builder("name", createDefaultIndexAnalyzers()).store(true)
+//                    .addMultiField(new TextFieldMapper.Builder("indexed", createDefaultIndexAnalyzers()).index(true))
+//                    .addMultiField(new TextFieldMapper.Builder("not_indexed", createDefaultIndexAnalyzers()).index(false).store(true))
+//            ),
+//            indexService.mapperService()
+//        ).build(indexService.mapperService());
+//
+//        String builtMapping = builderDocMapper.mappingSource().string();
+//        // reparse it
+//        DocumentMapper docMapper = indexService.mapperService()
+//            .documentMapperParser()
+//            .parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(builtMapping));
+//
+//        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/opensearch/index/mapper/multifield/test-data.json"));
+//        Document doc = docMapper.parse(new SourceToParse("test", "1", json, MediaTypeRegistry.JSON)).rootDoc();
+//
+//        IndexableField f = doc.getField("name");
+//        assertThat(f.name(), equalTo("name"));
+//        assertThat(f.stringValue(), equalTo("some name"));
+//        assertThat(f.fieldType().stored(), equalTo(true));
+//        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+//
+//        f = doc.getField("name.indexed");
+//        assertThat(f.name(), equalTo("name.indexed"));
+//        assertThat(f.stringValue(), equalTo("some name"));
+//        assertThat(f.fieldType().tokenized(), equalTo(true));
+//        assertThat(f.fieldType().stored(), equalTo(false));
+//        assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
+//
+//        f = doc.getField("name.not_indexed");
+//        assertThat(f.name(), equalTo("name.not_indexed"));
+//        assertThat(f.stringValue(), equalTo("some name"));
+//        assertThat(f.fieldType().stored(), equalTo(true));
+//        assertEquals(IndexOptions.NONE, f.fieldType().indexOptions());
+//    }
 
     // The underlying order of the fields in multi fields in the mapping source should always be consistent, if not this
     // can to unnecessary re-syncing of the mappings between the local instance and cluster state

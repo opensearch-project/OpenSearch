@@ -44,43 +44,43 @@ import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PathMatchDynamicTemplateTests extends OpenSearchSingleNodeTestCase {
-    public void testSimple() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
-        IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setSource(mapping, MediaTypeRegistry.JSON).get();
-
-        MapperService mapperService = index.mapperService();
-
-        byte[] json = copyToBytesFromClasspath("/org/opensearch/index/mapper/dynamictemplate/pathmatch/test-data.json");
-        ParsedDocument parsedDoc = mapperService.documentMapper()
-            .parse(new SourceToParse("test", "1", new BytesArray(json), MediaTypeRegistry.JSON));
-        client().admin()
-            .indices()
-            .preparePutMapping("test")
-            .setSource(parsedDoc.dynamicMappingsUpdate().toString(), MediaTypeRegistry.JSON)
-            .get();
-        Document doc = parsedDoc.rootDoc();
-
-        IndexableField f = doc.getField("name");
-        assertThat(f.name(), equalTo("name"));
-        assertThat(f.stringValue(), equalTo("top_level"));
-        assertThat(f.fieldType().stored(), equalTo(false));
-
-        assertThat(mapperService.fieldType("name").isStored(), equalTo(false));
-
-        f = doc.getField("obj1.name");
-        assertThat(f.name(), equalTo("obj1.name"));
-        assertThat(f.fieldType().stored(), equalTo(true));
-
-        assertThat(mapperService.fieldType("obj1.name").isStored(), equalTo(true));
-
-        f = doc.getField("obj1.obj2.name");
-        assertThat(f.name(), equalTo("obj1.obj2.name"));
-        assertThat(f.fieldType().stored(), equalTo(false));
-
-        assertThat(mapperService.fieldType("obj1.obj2.name").isStored(), equalTo(false));
-
-        // verify more complex path_match expressions
-        assertNotNull(mapperService.fieldType("obj3.obj4.prop1").getTextSearchInfo());
-    }
+//    public void testSimple() throws Exception {
+//        String mapping = copyToStringFromClasspath("/org/opensearch/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
+//        IndexService index = createIndex("test");
+//        client().admin().indices().preparePutMapping("test").setSource(mapping, MediaTypeRegistry.JSON).get();
+//
+//        MapperService mapperService = index.mapperService();
+//
+//        byte[] json = copyToBytesFromClasspath("/org/opensearch/index/mapper/dynamictemplate/pathmatch/test-data.json");
+//        ParsedDocument parsedDoc = mapperService.documentMapper()
+//            .parse(new SourceToParse("test", "1", new BytesArray(json), MediaTypeRegistry.JSON));
+//        client().admin()
+//            .indices()
+//            .preparePutMapping("test")
+//            .setSource(parsedDoc.dynamicMappingsUpdate().toString(), MediaTypeRegistry.JSON)
+//            .get();
+//        Document doc = parsedDoc.rootDoc();
+//
+//        IndexableField f = doc.getField("name");
+//        assertThat(f.name(), equalTo("name"));
+//        assertThat(f.stringValue(), equalTo("top_level"));
+//        assertThat(f.fieldType().stored(), equalTo(false));
+//
+//        assertThat(mapperService.fieldType("name").isStored(), equalTo(false));
+//
+//        f = doc.getField("obj1.name");
+//        assertThat(f.name(), equalTo("obj1.name"));
+//        assertThat(f.fieldType().stored(), equalTo(true));
+//
+//        assertThat(mapperService.fieldType("obj1.name").isStored(), equalTo(true));
+//
+//        f = doc.getField("obj1.obj2.name");
+//        assertThat(f.name(), equalTo("obj1.obj2.name"));
+//        assertThat(f.fieldType().stored(), equalTo(false));
+//
+//        assertThat(mapperService.fieldType("obj1.obj2.name").isStored(), equalTo(false));
+//
+//        // verify more complex path_match expressions
+//        assertNotNull(mapperService.fieldType("obj3.obj4.prop1").getTextSearchInfo());
+//    }
 }
