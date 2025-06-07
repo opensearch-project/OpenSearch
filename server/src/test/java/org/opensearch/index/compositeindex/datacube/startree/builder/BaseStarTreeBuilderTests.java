@@ -43,6 +43,7 @@ import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.aggregations.metrics.CompensatedSum;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.BeforeClass;
 
@@ -236,11 +237,24 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
         assertEquals(metricAggregatorInfos, expectedMetricAggregatorInfos);
     }
 
-    public void test_reduceStarTreeDocuments() {
-        StarTreeDocument starTreeDocument1 = new StarTreeDocument(new Long[] { 1L, 3L, 5L, 8L }, new Double[] { 4.0, 8.0 });
-        StarTreeDocument starTreeDocument2 = new StarTreeDocument(new Long[] { 1L, 3L, 5L, 8L }, new Double[] { 10.0, 6.0 });
+    private CompensatedSum compensatedSum(Double val) {
+        return new CompensatedSum(val, 0);
+    }
 
-        StarTreeDocument expectedeMergedStarTreeDocument = new StarTreeDocument(new Long[] { 1L, 3L, 5L, 8L }, new Double[] { 14.0, 14.0 });
+    public void test_reduceStarTreeDocuments() {
+        StarTreeDocument starTreeDocument1 = new StarTreeDocument(
+            new Long[] { 1L, 3L, 5L, 8L },
+            new Object[] { compensatedSum(4.0), compensatedSum(8.0) }
+        );
+        StarTreeDocument starTreeDocument2 = new StarTreeDocument(
+            new Long[] { 1L, 3L, 5L, 8L },
+            new Object[] { compensatedSum(10.0), compensatedSum(6.0) }
+        );
+
+        StarTreeDocument expectedeMergedStarTreeDocument = new StarTreeDocument(
+            new Long[] { 1L, 3L, 5L, 8L },
+            new Object[] { compensatedSum(14.0), compensatedSum(14.0) }
+        );
         StarTreeDocument mergedStarTreeDocument = builder.reduceStarTreeDocuments(null, starTreeDocument1);
         StarTreeDocument resultStarTreeDocument = builder.reduceStarTreeDocuments(mergedStarTreeDocument, starTreeDocument2);
 
