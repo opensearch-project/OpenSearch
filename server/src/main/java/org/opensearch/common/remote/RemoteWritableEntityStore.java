@@ -27,4 +27,6 @@ public interface RemoteWritableEntityStore<T, U extends RemoteWriteableEntity<T>
     public T read(U entity) throws IOException;
 
     public void readAsync(U entity, ActionListener<T> listener);
+
+    public void readAsyncWithMetrics(U entity, ActionListener<ReadBlobWithMetrics<T>> listener);
 }
