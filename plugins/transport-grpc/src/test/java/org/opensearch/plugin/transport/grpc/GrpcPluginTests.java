@@ -14,10 +14,10 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
-import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
 import org.junit.Before;
 
@@ -116,7 +116,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
     public void testGetAuxTransports() {
         Settings settings = Settings.builder().put(SETTING_GRPC_PORT.getKey(), "9200-9300").build();
 
-        Map<String, Supplier<NetworkPlugin.AuxTransport>> transports = plugin.getAuxTransports(
+        Map<String, Supplier<AuxTransport>> transports = plugin.getAuxTransports(
             settings,
             threadPool,
             circuitBreakerService,
@@ -129,14 +129,14 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         assertTrue("Should contain GRPC_TRANSPORT_SETTING_KEY", transports.containsKey(GRPC_TRANSPORT_SETTING_KEY));
 
         // Verify that the supplier returns a Netty4GrpcServerTransport instance
-        NetworkPlugin.AuxTransport transport = transports.get(GRPC_TRANSPORT_SETTING_KEY).get();
+        AuxTransport transport = transports.get(GRPC_TRANSPORT_SETTING_KEY).get();
         assertTrue("Should return a Netty4GrpcServerTransport instance", transport instanceof Netty4GrpcServerTransport);
     }
 
     public void testGetSecureAuxTransports() {
         Settings settings = Settings.builder().put(SETTING_GRPC_SECURE_PORT.getKey(), "9200-9300").build();
 
-        Map<String, Supplier<NetworkPlugin.AuxTransport>> transports = plugin.getSecureAuxTransports(
+        Map<String, Supplier<AuxTransport>> transports = plugin.getSecureAuxTransports(
             settings,
             threadPool,
             circuitBreakerService,
@@ -150,7 +150,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         assertTrue("Should contain GRPC_SECURE_TRANSPORT_SETTING_KEY", transports.containsKey(GRPC_SECURE_TRANSPORT_SETTING_KEY));
 
         // Verify that the supplier returns a Netty4GrpcServerTransport instance
-        NetworkPlugin.AuxTransport transport = transports.get(GRPC_SECURE_TRANSPORT_SETTING_KEY).get();
+        AuxTransport transport = transports.get(GRPC_SECURE_TRANSPORT_SETTING_KEY).get();
         assertTrue("Should return a SecureNetty4GrpcServerTransport instance", transport instanceof SecureNetty4GrpcServerTransport);
     }
 }

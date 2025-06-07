@@ -21,7 +21,7 @@ import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.BindTransportException;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ import static org.opensearch.transport.Transport.resolveTransportPublishPort;
  * Netty4 gRPC server implemented as a LifecycleComponent.
  * Services injected through BindableService list.
  */
-public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
+public class Netty4GrpcServerTransport extends AuxTransport {
     private static final Logger logger = LogManager.getLogger(Netty4GrpcServerTransport.class);
 
     /**
@@ -230,6 +230,11 @@ public class Netty4GrpcServerTransport extends NetworkPlugin.AuxTransport {
         this.maxConnectionIdle = SETTING_GRPC_MAX_CONNECTION_IDLE.get(settings);
         this.keepAliveTimeout = SETTING_GRPC_KEEPALIVE_TIMEOUT.get(settings);
         this.portSettingKey = SETTING_GRPC_PORT.getKey();
+    }
+
+    @Override
+    public String settingKey() {
+        return GRPC_TRANSPORT_SETTING_KEY;
     }
 
     // public for tests

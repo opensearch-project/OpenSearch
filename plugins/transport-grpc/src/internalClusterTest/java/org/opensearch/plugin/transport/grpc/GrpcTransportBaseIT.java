@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 import io.grpc.health.v1.HealthCheckResponse;
 
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 
 /**
  * Base test class for gRPC transport integration tests.

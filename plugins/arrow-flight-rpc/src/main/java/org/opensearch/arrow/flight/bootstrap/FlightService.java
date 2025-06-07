@@ -23,9 +23,9 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.BoundTransportAddress;
-import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
 
 import java.security.AccessController;
@@ -37,7 +37,13 @@ import java.util.Objects;
  * It handles the initialization, startup, and shutdown of the Flight server and client,
  * as well as managing the stream operations through a FlightStreamManager.
  */
-public class FlightService extends NetworkPlugin.AuxTransport {
+public class FlightService extends AuxTransport {
+    /**
+     * Setting identifier for this transport.
+     * Public for testing.
+     */
+    public static final String ARROW_FLIGHT_TRANSPORT_SETTING_KEY = "experimental-transport-arrow-flight-rpc";
+
     private static final Logger logger = LogManager.getLogger(FlightService.class);
     private final ServerComponents serverComponents;
     private FlightStreamManager streamManager;
@@ -60,6 +66,14 @@ public class FlightService extends NetworkPlugin.AuxTransport {
         }
         this.serverComponents = new ServerComponents(settings);
         this.streamManager = new FlightStreamManager();
+    }
+
+    /**
+     * Identifier for enabling and configuring this transport in settings.
+     */
+    @Override
+    public String settingKey() {
+        return ARROW_FLIGHT_TRANSPORT_SETTING_KEY;
     }
 
     void setClusterService(ClusterService clusterService) {
