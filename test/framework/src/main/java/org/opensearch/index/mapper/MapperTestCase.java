@@ -65,7 +65,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -396,36 +395,36 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
-//    public void testUpdates() throws IOException {
-//        ParameterChecker checker = new ParameterChecker();
-//        registerParameters(checker);
-//        for (UpdateCheck updateCheck : checker.updateChecks) {
-//            MapperService mapperService = createMapperService(updateCheck.init);
-//            merge(mapperService, updateCheck.update);
-//            FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-//            updateCheck.check.accept(mapper);
-//            // do it again to ensure that we don't get conflicts the second time
-//            merge(mapperService, updateCheck.update);
-//            mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-//            updateCheck.check.accept(mapper);
-//
-//        }
-//        for (String param : checker.conflictChecks.keySet()) {
-//            MapperService mapperService = createMapperService(checker.conflictChecks.get(param).init);
-//            // merging the same change is fine
-//            merge(mapperService, checker.conflictChecks.get(param).init);
-//            // merging the conflicting update should throw an exception
-//            Exception e = expectThrows(
-//                IllegalArgumentException.class,
-//                "No conflict when updating parameter [" + param + "]",
-//                () -> merge(mapperService, checker.conflictChecks.get(param).update)
-//            );
-//            assertThat(
-//                e.getMessage(),
-//                anyOf(containsString("Cannot update parameter [" + param + "]"), containsString("different [" + param + "]"))
-//            );
-//        }
-//        assertParseMaximalWarnings();
-//    }
+    // public void testUpdates() throws IOException {
+    // ParameterChecker checker = new ParameterChecker();
+    // registerParameters(checker);
+    // for (UpdateCheck updateCheck : checker.updateChecks) {
+    // MapperService mapperService = createMapperService(updateCheck.init);
+    // merge(mapperService, updateCheck.update);
+    // FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+    // updateCheck.check.accept(mapper);
+    // // do it again to ensure that we don't get conflicts the second time
+    // merge(mapperService, updateCheck.update);
+    // mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+    // updateCheck.check.accept(mapper);
+    //
+    // }
+    // for (String param : checker.conflictChecks.keySet()) {
+    // MapperService mapperService = createMapperService(checker.conflictChecks.get(param).init);
+    // // merging the same change is fine
+    // merge(mapperService, checker.conflictChecks.get(param).init);
+    // // merging the conflicting update should throw an exception
+    // Exception e = expectThrows(
+    // IllegalArgumentException.class,
+    // "No conflict when updating parameter [" + param + "]",
+    // () -> merge(mapperService, checker.conflictChecks.get(param).update)
+    // );
+    // assertThat(
+    // e.getMessage(),
+    // anyOf(containsString("Cannot update parameter [" + param + "]"), containsString("different [" + param + "]"))
+    // );
+    // }
+    // assertParseMaximalWarnings();
+    // }
 
 }
