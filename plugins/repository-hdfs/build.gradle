@@ -47,10 +47,6 @@ opensearchplugin {
   classname = 'org.opensearch.repositories.hdfs.HdfsPlugin'
 }
 
-versions << [
-  'hadoop3': '3.3.6'
-]
-
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
 
 configurations {
@@ -371,7 +367,6 @@ thirdPartyAudit {
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$1',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$Cell',
@@ -383,6 +378,9 @@ thirdPartyAudit {
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$1',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
 
     'org.apache.hadoop.shaded.com.google.common.cache.Striped64',
     'org.apache.hadoop.shaded.com.google.common.cache.Striped64$1',
