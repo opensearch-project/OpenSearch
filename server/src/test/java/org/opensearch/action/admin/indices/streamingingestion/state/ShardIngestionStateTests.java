@@ -19,7 +19,7 @@ import java.util.Map;
 public class ShardIngestionStateTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
-        ShardIngestionState state = new ShardIngestionState("index1", 0, "POLLING", "DROP", false, false);
+        ShardIngestionState state = new ShardIngestionState("index1", 0, "POLLING", "DROP", false, false, "");
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             state.writeTo(out);
@@ -36,7 +36,7 @@ public class ShardIngestionStateTests extends OpenSearchTestCase {
     }
 
     public void testSerializationWithNullValues() throws IOException {
-        ShardIngestionState state = new ShardIngestionState("index1", 0, null, null, false, false);
+        ShardIngestionState state = new ShardIngestionState("index1", 0, null, null, false, false, "");
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             state.writeTo(out);
@@ -53,9 +53,9 @@ public class ShardIngestionStateTests extends OpenSearchTestCase {
 
     public void testGroupShardStateByIndex() {
         ShardIngestionState[] states = new ShardIngestionState[] {
-            new ShardIngestionState("index1", 0, "POLLING", "DROP", true, false),
-            new ShardIngestionState("index1", 1, "PAUSED", "DROP", false, false),
-            new ShardIngestionState("index2", 0, "POLLING", "DROP", true, false) };
+            new ShardIngestionState("index1", 0, "POLLING", "DROP", true, false, ""),
+            new ShardIngestionState("index1", 1, "PAUSED", "DROP", false, false, ""),
+            new ShardIngestionState("index2", 0, "POLLING", "DROP", true, false, "") };
 
         Map<String, List<ShardIngestionState>> groupedStates = ShardIngestionState.groupShardStateByIndex(states);
 
