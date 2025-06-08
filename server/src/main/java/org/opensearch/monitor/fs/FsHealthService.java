@@ -63,8 +63,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
-import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.opensearch.monitor.StatusInfo.Status.*;
 
 /**
  * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the
@@ -226,12 +225,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         private void emitMetric() {
             StatusInfo healthStatus = getHealth();
             if (healthStatus.getStatus() == UNHEALTHY) {
-                incrementCounter(fsHealthFailCounter, 1.0);
+                fsHealthFailCounter.add(1.0);
             }
-        }
-
-        private void incrementCounter(Counter counter, Double value) {
-            counter.add(value);
         }
 
         private void monitorFSHealth() {
