@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.cluster.coordination.ClusterStatePublisher;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -66,6 +67,8 @@ public class ClusterChangedEvent {
 
     private final DiscoveryNodes.Delta nodesDelta;
 
+    private final ClusterStatePublisher.ClusterStateUpdateResult updateResult;
+
     public ClusterChangedEvent(String source, ClusterState state, ClusterState previousState) {
         Objects.requireNonNull(source, "source must not be null");
         Objects.requireNonNull(state, "state must not be null");
@@ -74,6 +77,7 @@ public class ClusterChangedEvent {
         this.state = state;
         this.previousState = previousState;
         this.nodesDelta = state.nodes().delta(previousState.nodes());
+        this.updateResult = null;
     }
 
     /**

@@ -37,6 +37,7 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.metadata.RemoteMetadataRef;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -185,6 +186,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     // built on demand
     private volatile RoutingNodes routingNodes;
 
+    public Map<String, RemoteMetadataRef> getRemoteClusterStateRefs() {
+        return remoteClusterStateRefs;
+    }
+
+    private Map<String, RemoteMetadataRef> remoteClusterStateRefs;
     public ClusterState(long version, String stateUUID, ClusterState state) {
         this(
             state.clusterName,
@@ -196,7 +202,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             state.blocks(),
             state.customs(),
             -1,
-            false
+            false,
+            null
         );
     }
 
@@ -210,7 +217,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         ClusterBlocks blocks,
         final Map<String, Custom> customs,
         int minimumClusterManagerNodesOnPublishingClusterManager,
-        boolean wasReadFromDiff
+        boolean wasReadFromDiff,
+        Map<String, RemoteMetadataRef> remoteRefs
     ) {
         this.version = version;
         this.stateUUID = stateUUID;
@@ -222,6 +230,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.customs = Collections.unmodifiableMap(customs);
         this.minimumClusterManagerNodesOnPublishingClusterManager = minimumClusterManagerNodesOnPublishingClusterManager;
         this.wasReadFromDiff = wasReadFromDiff;
+        this.remoteClusterStateRefs = remoteRefs;
     }
 
     public long term() {
@@ -396,6 +405,15 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
         }
+        if (remoteClusterStateRefs.isEmpty() == false) {
+            sb.append("remoteClusterStateRefs:\n");
+            for (final Map.Entry<String, RemoteMetadataRef> cursor : remoteClusterStateRefs.entrySet()) {
+                final String type = cursor.getKey();
+                final RemoteMetadataRef custom = cursor.getValue();
+                sb.append(TAB).append(type).append(": ").append(custom);
+            }
+        }
+
         return sb.toString();
     }
 
@@ -615,6 +633,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         private boolean fromDiff;
         private int minimumClusterManagerNodesOnPublishingClusterManager = -1;
 
+        private Map<String, RemoteMetadataRef> clusterStateRemoteRefMap;
+
         public Builder(ClusterState state) {
             this.clusterName = state.clusterName;
             this.version = state.version();
@@ -626,6 +646,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             this.customs = new HashMap<>(state.customs());
             this.minimumClusterManagerNodesOnPublishingClusterManager = state.minimumClusterManagerNodesOnPublishingClusterManager;
             this.fromDiff = false;
+            if (state.remoteClusterStateRefs == null) {
+                this.clusterStateRemoteRefMap = new HashMap<>();
+            } else {
+                this.clusterStateRemoteRefMap = new HashMap<>(state.remoteClusterStateRefs);
+            }
         }
 
         public Builder(ClusterName clusterName) {
@@ -695,6 +720,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
+        public Builder putRemoteRef(String remote, RemoteMetadataRef ref) {
+            clusterStateRemoteRefMap.put(remote, ref);
+            return this;
+        }
         public Builder removeCustom(String type) {
             customs.remove(type);
             return this;
@@ -726,7 +755,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 blocks,
                 customs,
                 minimumClusterManagerNodesOnPublishingClusterManager,
-                fromDiff
+                fromDiff,
+                clusterStateRemoteRefMap
             );
         }
 
@@ -771,6 +801,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
         builder.minimumClusterManagerNodesOnPublishingClusterManager = in.readVInt();
+        int refSize = in.readInt();
+        for (int i=0; i< refSize ; i++) {
+            RemoteMetadataRef ref = RemoteMetadataRef.readFrom(in);
+            builder.putRemoteRef(ref.refType, ref);
+        }
         return builder.build();
     }
 
@@ -796,7 +831,16 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 out.writeNamedWriteable(custom);
             }
         }
+        for (final Custom custom : customs.values()) {
+            if (FeatureAware.shouldSerialize(out, custom)) {
+                out.writeNamedWriteable(custom);
+            }
+        }
         out.writeVInt(minimumClusterManagerNodesOnPublishingClusterManager);
+        out.writeLong(remoteClusterStateRefs.size());
+        for (RemoteMetadataRef remoteRef : remoteClusterStateRefs.values()) {
+            remoteRef.writeTo(out);
+        }
     }
 
     /**
@@ -824,6 +868,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         private final Diff<Map<String, Custom>> customs;
 
+        //private final Diff<Map<String, ClusterStateRemoteRef>> remoteRefs;
+
+
         private final int minimumClusterManagerNodesOnPublishingClusterManager;
 
         ClusterStateDiff(ClusterState before, ClusterState after) {
@@ -837,6 +884,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             blocks = after.blocks.diff(before.blocks);
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
             minimumClusterManagerNodesOnPublishingClusterManager = after.minimumClusterManagerNodesOnPublishingClusterManager;
+            //remoteRefs = DiffableUtils.diff(before.remoteClusterStateRefs, after.remoteClusterStateRefs, DiffableUtils.getStringKeySerializer());
         }
 
         @Override

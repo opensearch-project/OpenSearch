@@ -48,6 +48,8 @@ import org.opensearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.coordination.ClusterStatePublisher;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.opensearch.cluster.coordination.IndexMetadataPersistenceService;
+import org.opensearch.cluster.metadata.RemoteMetadataRef;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -56,6 +58,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.annotation.DeprecatedApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -142,6 +145,9 @@ public class MasterService extends AbstractLifecycleComponent {
     private final ClusterManagerThrottlingStats throttlingStats;
     private final ClusterStateStats stateStats;
     private final ClusterManagerMetrics clusterManagerMetrics;
+
+    private final IndexMetadataPersistenceService indexMetadataPersistenceService = new IndexMetadataPersistenceService();
+
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this(settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
@@ -316,8 +322,7 @@ public class MasterService extends AbstractLifecycleComponent {
         } else {
             logger.debug("executing cluster state update for [{}]", summary);
         }
-
-        final ClusterState previousClusterState = state();
+        ClusterState previousClusterState = ClusterApplierService.expandRemoteRefs(state());
 
         if (!previousClusterState.nodes().isLocalNodeElectedClusterManager() && taskInputs.runOnlyWhenClusterManager()) {
             logger.debug("failing [{}]: local node is no longer cluster-manager", summary);
@@ -351,7 +356,7 @@ public class MasterService extends AbstractLifecycleComponent {
             }
             final long publicationStartTime = threadPool.preciseRelativeTimeInNanos();
             try {
-                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(summary, newClusterState, previousClusterState);
+                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(summary, stateWithoutIndexMetadata(newClusterState), previousClusterState);
                 // new cluster state, notify all listeners
                 final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
                 if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
@@ -366,13 +371,29 @@ public class MasterService extends AbstractLifecycleComponent {
                         );
                     }
                 }
+                if (taskInputs.executor.executorType().equals("")) {
+                    publish(clusterChangedEvent, taskOutputs, publicationStartTime);
+                } else if(taskInputs.executor.executorType().equals("blocks")) {
+                    publish(clusterChangedEvent, taskOutputs, publicationStartTime);
+                } else if(taskInputs.executor.executorType().equals("metadata") ||
+                    taskInputs.executor.executorType().equals("routing")) {
+                    ClusterStatePublisher.ClusterStateUpdateResult componentsChanged = taskOutputs.updateResult;
+                    //persist to service before publishing
+                    RemoteMetadataRef indexRemoteRef = indexMetadataPersistenceService.persist(new IndexMetadataPersistenceService.IndexMetadataChangeEvent(summary,
+                            componentsChanged.updatedMetadata, previousClusterState.getRemoteClusterStateRefs().get("index_metadata")));
 
-                logger.debug("publishing cluster state version [{}]", newClusterState.version());
-                publish(clusterChangedEvent, taskOutputs, publicationStartTime);
+                    ClusterState stateWithRemoteRef = ClusterState.builder(clusterChangedEvent.state()).putRemoteRef(indexRemoteRef.refType, indexRemoteRef).build();
+                    ClusterChangedEvent clusterChangedEvent1 = new ClusterChangedEvent(summary, stateWithRemoteRef, previousClusterState);
+                    publish(clusterChangedEvent1, taskOutputs, publicationStartTime);
+                }
             } catch (Exception e) {
                 handleException(summary, publicationStartTime, newClusterState, e);
             }
         }
+    }
+
+    public static ClusterState stateWithoutIndexMetadata(ClusterState newClusterState) {
+        return ClusterState.builder(newClusterState).metadata(Metadata.builder(newClusterState.metadata()).removeAllIndices().build()).build();
     }
 
     private TimeValue getTimeSince(long startTimeNanos) {
@@ -386,6 +407,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 return isClusterManagerUpdateThread() || super.blockingAllowed();
             }
         };
+        logger.info("publishing {}",  clusterChangedEvent.state());
         clusterStatePublisher.publish(clusterChangedEvent, fut, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));
 
         // indefinitely wait for publication to complete
@@ -473,7 +495,8 @@ public class MasterService extends AbstractLifecycleComponent {
             previousClusterState,
             newClusterState,
             getNonFailedTasks(taskInputs, clusterTasksResult),
-            clusterTasksResult.executionResults
+            clusterTasksResult.executionResults,
+            clusterTasksResult.updateResult
         );
     }
 
@@ -548,25 +571,30 @@ public class MasterService extends AbstractLifecycleComponent {
     /**
      * Output created by executing a set of tasks provided as TaskInputs
      */
-    class TaskOutputs {
+    @ExperimentalApi
+    public class TaskOutputs {
         final TaskInputs taskInputs;
         final ClusterState previousClusterState;
         final ClusterState newClusterState;
         final List<Batcher.UpdateTask> nonFailedTasks;
         final Map<Object, ClusterStateTaskExecutor.TaskResult> executionResults;
 
+        final ClusterStatePublisher.ClusterStateUpdateResult updateResult;
+
         TaskOutputs(
             TaskInputs taskInputs,
             ClusterState previousClusterState,
             ClusterState newClusterState,
             List<Batcher.UpdateTask> nonFailedTasks,
-            Map<Object, ClusterStateTaskExecutor.TaskResult> executionResults
+            Map<Object, ClusterStateTaskExecutor.TaskResult> executionResults,
+            ClusterStatePublisher.ClusterStateUpdateResult updateResult
         ) {
             this.taskInputs = taskInputs;
             this.previousClusterState = previousClusterState;
             this.newClusterState = newClusterState;
             this.nonFailedTasks = nonFailedTasks;
             this.executionResults = executionResults;
+            this.updateResult  = updateResult;
         }
 
         void publishingFailed(FailedToCommitClusterStateException t) {

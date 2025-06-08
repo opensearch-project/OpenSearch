@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.cluster.coordination.ClusterStatePublisher;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.annotation.PublicApi;
@@ -65,7 +66,12 @@ public abstract class ClusterStateUpdateTask
     public final ClusterTasksResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks)
         throws Exception {
         ClusterState result = execute(currentState);
-        return ClusterTasksResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
+        ClusterStatePublisher.ClusterStateUpdateResult updateResult = null;
+        if(result == null) {
+            updateResult = executeAndReturnChangeResult(currentState);
+            result = updateResult.getUpdatedState(currentState);
+        }
+        return ClusterTasksResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result,updateResult);
     }
 
     @Override
@@ -79,6 +85,9 @@ public abstract class ClusterStateUpdateTask
      */
     public abstract ClusterState execute(ClusterState currentState) throws Exception;
 
+    public ClusterStatePublisher.ClusterStateUpdateResult executeAndReturnChangeResult(ClusterState state) throws Exception {
+        return null;
+    }
     /**
      * A callback called when execute fails.
      */

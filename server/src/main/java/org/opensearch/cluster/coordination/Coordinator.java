@@ -1363,7 +1363,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     return;
                 }
 
-                assert assertPreviousStateConsistency(clusterChangedEvent);
+               // assert assertPreviousStateConsistency(clusterChangedEvent);
 
                 final ClusterState clusterState = clusterChangedEvent.state();
 

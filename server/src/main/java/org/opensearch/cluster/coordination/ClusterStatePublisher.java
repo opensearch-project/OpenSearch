@@ -31,9 +31,18 @@
 
 package org.opensearch.cluster.coordination;
 
+import java.util.List;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -79,6 +88,55 @@ public interface ClusterStatePublisher {
          * @param e the optional exception
          */
         void onNodeAck(DiscoveryNode node, @Nullable Exception e);
+    }
+
+    @ExperimentalApi
+    public static class ClusterStateUpdateResult {
+
+        public List<IndexMetadata> updatedMetadata;
+
+        public ClusterBlocks blocks;
+
+        public RoutingTable routingTable;
+
+        public List<IndexRoutingTable> updatedRoutingTables;
+
+        public ClusterStateUpdateResult(List<IndexMetadata> updatedMetadata) {
+            this.updatedMetadata = updatedMetadata;
+        }
+        public ClusterStateUpdateResult(ClusterBlocks blocks) {
+            this.blocks = blocks;
+        }
+        public ClusterStateUpdateResult(List<IndexMetadata> updatedMetadata, List<IndexRoutingTable> routingTable) {
+            this.updatedMetadata = updatedMetadata;
+            this.updatedRoutingTables = routingTable;
+        }
+
+        public ClusterState getUpdatedState(ClusterState oldState) {
+            ClusterState.Builder updatedState = ClusterState.builder(oldState);
+
+            if(updatedRoutingTables!=null) {
+                RoutingTable.Builder routingBuild = RoutingTable.builder(oldState.routingTable());
+                for (IndexRoutingTable routingTable : updatedRoutingTables) {
+                    routingBuild.add(routingTable);
+                }
+                updatedState = updatedState.routingTable(routingBuild.build());
+            }
+            if(blocks!=null) {
+                updatedState =  updatedState.blocks(blocks);
+            }
+
+            if (updatedMetadata != null) {
+                Metadata.Builder mb = Metadata.builder(oldState.metadata());
+                for (IndexMetadata indexMetadata : updatedMetadata) {
+                    mb.put(indexMetadata, false);
+                }
+                updatedState =  updatedState.metadata(mb.build());
+            }
+
+            return updatedState.build();
+        }
+
     }
 
 }

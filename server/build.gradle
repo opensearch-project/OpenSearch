@@ -74,7 +74,7 @@ dependencies {
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 
-  api libs.bundles.lucene
+    api libs.bundles.lucene
 
   // utilities
   api project(":libs:opensearch-cli")

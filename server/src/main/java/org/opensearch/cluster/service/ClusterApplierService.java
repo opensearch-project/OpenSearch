@@ -32,6 +32,8 @@
 
 package org.opensearch.cluster.service;
 
+import java.io.IOException;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -46,6 +48,9 @@ import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.TimeoutClusterStateListener;
+import org.opensearch.cluster.coordination.IndexMetadataPersistenceService;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
@@ -377,12 +382,33 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         Function<ClusterState, ClusterState> applyFunction = currentState -> {
             ClusterState nextState = clusterStateSupplier.get();
             if (nextState != null) {
-                return nextState;
+                return expandRemoteRefs(nextState);
             } else {
                 return currentState;
             }
         };
         submitStateUpdateTask(source, ClusterStateTaskConfig.build(Priority.HIGH), applyFunction, listener);
+    }
+
+    public static ClusterState expandRemoteRefs(ClusterState nextState) {
+        if(nextState.getRemoteClusterStateRefs().get("index_metadata") != null) {
+            IndexMetadataPersistenceService remotePersistence = new IndexMetadataPersistenceService();
+            try {
+                List<IndexMetadata> indexList = remotePersistence.load(nextState.getRemoteClusterStateRefs().get("index_metadata"));
+                Metadata.Builder metadata = Metadata.builder(nextState.metadata());
+                for (IndexMetadata index : indexList) {
+                    metadata.put(index, false);
+                    logger.info("updating {}", index);
+                }
+                ClusterState updatedState = ClusterState.builder(nextState).metadata(metadata.build()).build();
+                logger.info("expandRemoteRefs diff {}" , nextState.diff(updatedState) );
+                return updatedState;
+
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return nextState;
     }
 
     private void submitStateUpdateTask(

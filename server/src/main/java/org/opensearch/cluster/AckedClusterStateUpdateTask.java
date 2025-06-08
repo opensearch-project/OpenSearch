@@ -31,7 +31,9 @@
 
 package org.opensearch.cluster;
 
+import java.util.List;
 import org.opensearch.cluster.ack.AckedRequest;
+import org.opensearch.cluster.coordination.ClusterStatePublisher;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -59,6 +61,10 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
         this.request = request;
     }
 
+
+    public ClusterState execute(ClusterState currentState) throws Exception {
+             return null;
+    }
     /**
      * Called to determine which nodes the acknowledgement is expected from
      *
@@ -105,4 +111,5 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
     public TimeValue timeout() {
         return request.masterNodeTimeout();
     }
+
 }

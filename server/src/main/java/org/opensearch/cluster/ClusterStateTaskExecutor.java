@@ -31,7 +31,9 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.cluster.coordination.ClusterStatePublisher;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
+import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 
@@ -69,6 +71,9 @@ public interface ClusterStateTaskExecutor<T> {
         return runOnlyOnClusterManager();
     }
 
+    default ClusterStatePublisher.ClusterStateUpdateResult updateResult() {
+        return null;
+    }
     /**
      * Callback invoked after new cluster state is published. Note that
      * this method is not invoked if the cluster state was not updated.
@@ -101,6 +106,20 @@ public interface ClusterStateTaskExecutor<T> {
         return ClusterManagerTaskThrottler.DEFAULT_THROTTLING_KEY;
     }
 
+    default String executorType() {
+        return "";
+    }
+
+    default<V> V getPreviousState() {
+     return  null;
+    }
+
+    default<V> void publish(V table,  MasterService.TaskOutputs taskOutputs, long startTimeNanos, Runnable defaultPublisher) {
+
+        defaultPublisher.run();
+    }
+
+
     /**
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
@@ -113,6 +132,8 @@ public interface ClusterStateTaskExecutor<T> {
         public final ClusterState resultingState;
         public final Map<T, TaskResult> executionResults;
 
+        public ClusterStatePublisher.ClusterStateUpdateResult updateResult;
+
         /**
          * Construct an execution result instance with a correspondence between the tasks and their execution result
          * @param resultingState the resulting cluster state
@@ -121,6 +142,12 @@ public interface ClusterStateTaskExecutor<T> {
         ClusterTasksResult(ClusterState resultingState, Map<T, TaskResult> executionResults) {
             this.resultingState = resultingState;
             this.executionResults = executionResults;
+        }
+
+        public ClusterTasksResult(ClusterState resultingState, Map<T, TaskResult> executionResults, ClusterStatePublisher.ClusterStateUpdateResult updateResult) {
+            this.resultingState = resultingState;
+            this.executionResults = executionResults;
+            this.updateResult = updateResult;
         }
 
         public static <T> Builder<T> builder() {
@@ -166,6 +193,10 @@ public interface ClusterStateTaskExecutor<T> {
 
             public ClusterTasksResult<T> build(ClusterState resultingState) {
                 return new ClusterTasksResult<>(resultingState, executionResults);
+            }
+
+            public ClusterTasksResult<T> build(ClusterState resultingState, ClusterStatePublisher.ClusterStateUpdateResult updateResult) {
+                return new ClusterTasksResult<>(resultingState, executionResults, updateResult);
             }
 
             ClusterTasksResult<T> build(ClusterTasksResult<T> result, ClusterState previousState) {
