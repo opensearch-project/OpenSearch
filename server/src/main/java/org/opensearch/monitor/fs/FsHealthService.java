@@ -87,7 +87,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private volatile TimeValue healthyTimeoutThreshold;
     private final AtomicLong lastRunStartTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
-    public Counter fsHealthFailCounter;
+    private final Counter fsHealthFailCounter;
     private static final String COUNTER_METRICS_UNIT = "1";
 
     @Nullable
@@ -230,7 +230,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             }
         }
 
-        public void incrementCounter(Counter counter, Double value) {
+        private void incrementCounter(Counter counter, Double value) {
             counter.add(value);
         }
 
