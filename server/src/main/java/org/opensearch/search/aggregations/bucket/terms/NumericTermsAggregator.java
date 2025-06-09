@@ -68,7 +68,7 @@ import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.StarTreeTraversalUtil;
-import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -187,7 +187,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
                     context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
                     fieldName,
-                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
+                    List.of(new MatchAllFilter(fieldName))
                 ),
                 context
             )

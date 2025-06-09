@@ -163,7 +163,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
         supportedDimensions.put(
             new NumericDimension(SIZE),
-            new NumberFieldMapper.NumberFieldType(STATUS, NumberFieldMapper.NumberType.INTEGER)
+            new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.INTEGER)
         );
         supportedDimensions.put(
             new DateDimension(
