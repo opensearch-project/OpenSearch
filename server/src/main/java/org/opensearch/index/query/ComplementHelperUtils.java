@@ -51,6 +51,7 @@ public class ComplementHelperUtils {
      * the complement since no value could match it.
      */
     public static List<QueryBuilder> numberValuesToComplement(String fieldName, List<Number> sortedValues, boolean isWholeNumber) {
+        if (sortedValues.isEmpty()) return null;
         List<QueryBuilder> complement = new ArrayList<>();
         Number lastValue = null;
         for (Number value : sortedValues) {

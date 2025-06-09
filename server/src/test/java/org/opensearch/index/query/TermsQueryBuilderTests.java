@@ -470,6 +470,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = getIndexSearcher(reader);
 
+        // Test multiple values
         List<QueryBuilder> complement = queryBuilder.getComplement(createShardContext(searcher));
         List<QueryBuilder> expectedComplement = List.of(
             new RangeQueryBuilder(INT_FIELD_NAME).to(200).includeLower(true).includeUpper(false),
@@ -479,6 +480,21 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             new RangeQueryBuilder(INT_FIELD_NAME).from(501).includeLower(false).includeUpper(true)
         );
         assertEquals(complement, expectedComplement);
+
+        // Test one value
+        String singleValue = "201";
+        queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, singleValue);
+        expectedComplement = List.of(
+            new RangeQueryBuilder(INT_FIELD_NAME).to(201).includeLower(true).includeUpper(false),
+            new RangeQueryBuilder(INT_FIELD_NAME).from(201).includeLower(false).includeUpper(true)
+        );
+        complement = queryBuilder.getComplement(createShardContext(searcher));
+        assertEquals(complement, expectedComplement);
+
+        // If zero values, we should get null
+        queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, List.of());
+        complement = queryBuilder.getComplement(createShardContext(searcher));
+        assertNull(complement);
         IOUtils.close(w, reader, dir);
     }
 
