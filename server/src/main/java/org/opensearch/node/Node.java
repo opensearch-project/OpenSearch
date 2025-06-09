@@ -526,7 +526,6 @@ public class Node implements Closeable {
             }
 
             // Ensure feature flags from opensearch.yml are valid during plugin initialization.
-            // Bug fix: https://github.com/opensearch-project/OpenSearch/issues/18417
             FeatureFlags.initializeFeatureFlags(tmpSettings);
 
             this.pluginsService = new PluginsService(
@@ -538,9 +537,6 @@ public class Node implements Closeable {
             );
 
             final Settings settings = pluginsService.updatedSettings();
-
-            // Ensure to initialize Feature Flags via the settings from opensearch.yml
-            FeatureFlags.initializeFeatureFlags(settings);
 
             final List<IdentityPlugin> identityPlugins = new ArrayList<>();
             identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
