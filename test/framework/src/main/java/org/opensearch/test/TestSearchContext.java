@@ -715,10 +715,8 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public boolean getStarTreeIndexEnabled() {
-        return indexService != null
-            && indexService.getIndexSettings().getStarTreeIndexEnabled();
+        return indexService != null && indexService.getIndexSettings().getStarTreeIndexEnabled();
     }
-
 
     /**
      * Clean the query results by consuming all of it

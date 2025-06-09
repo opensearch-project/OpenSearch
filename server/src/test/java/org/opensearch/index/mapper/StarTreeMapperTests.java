@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexValidator;
 import org.opensearch.index.compositeindex.datacube.DataCubeDateTimeUnit;
@@ -608,14 +609,67 @@ public class StarTreeMapperTests extends MapperTestCase {
         );
         CompositeIndexValidator.validate(mapperService, enabledCompositeIndexSettings, mapperService.getIndexSettings());
         settings = Settings.builder().put(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), false).build();
-        CompositeIndexSettings compositeIndexSettings = new CompositeIndexSettings(
+        CompositeIndexSettings disabledCompositeIndexSettings = new CompositeIndexSettings(
             settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         MapperService finalMapperService = mapperService;
+
+        // Since the mapper has no specific index setting to enable star tree, throw error
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> CompositeIndexValidator.validate(finalMapperService, compositeIndexSettings, finalMapperService.getIndexSettings())
+            () -> CompositeIndexValidator.validate(
+                finalMapperService,
+                disabledCompositeIndexSettings,
+                finalMapperService.getIndexSettings()
+            )
+        );
+        assertEquals(
+            "star tree index cannot be created, enable it using [indices.composite_index.star_tree.enabled] cluster setting or [index.search.star_tree_index.enabled] index setting",
+            ex.getMessage()
+        );
+
+        IndexSettings enabledIndexSettings = new IndexSettings(
+            IndexMetadata.builder("test")
+                .settings(
+                    Settings.builder()
+                        .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+                        .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+                        .put(StarTreeIndexSettings.IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING.getKey(), true)
+                        .put(SETTINGS)
+                        .build()
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(),
+            Settings.EMPTY
+        );
+
+        // since index setting is enabled, throws no error
+        CompositeIndexValidator.validate(mapperService, disabledCompositeIndexSettings, enabledIndexSettings);
+
+        IndexSettings disabledIndexSettings = new IndexSettings(
+            IndexMetadata.builder("test")
+                .settings(
+                    Settings.builder()
+                        .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+                        .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+                        .put(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
+                        .put(StarTreeIndexSettings.IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING.getKey(), false)
+                        .put(SETTINGS)
+                        .build()
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(),
+            Settings.EMPTY
+        );
+
+        // since index setting is disabled, throw exception
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> CompositeIndexValidator.validate(finalMapperService, enabledCompositeIndexSettings, disabledIndexSettings)
         );
         assertEquals(
             "star tree index cannot be created, enable it using [indices.composite_index.star_tree.enabled] cluster setting or [index.search.star_tree_index.enabled] index setting",
