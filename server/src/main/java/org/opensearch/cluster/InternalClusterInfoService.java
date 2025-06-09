@@ -32,9 +32,6 @@
 
 package org.opensearch.cluster;
 
-import java.util.Arrays;
-import java.util.Objects;
-import java.util.Optional;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -286,7 +283,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 mostAvailableSpaceUsages = Collections.unmodifiableMap(mostAvailableUsagesBuilder);
 
                 final Map<String, NodeResourceUsageStats> nodeResourceUsageStatsBuilder = new HashMap<>();
-                fillNodeResourceUsageStatsPerNode(logger,adjustNodesStats(nodesStatsResponse.getNodes()),nodeResourceUsageStatsBuilder);
+                fillNodeResourceUsageStatsPerNode(logger, adjustNodesStats(nodesStatsResponse.getNodes()), nodeResourceUsageStatsBuilder);
 
                 nodeResourceUsageStats = Collections.unmodifiableMap(nodeResourceUsageStatsBuilder);
 
@@ -510,8 +507,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 String nodeId = nodeStats.getNode().getId();
 
                 nodesResourceUsageStats = nodeStats.getResourceUsageStats();
-                if(nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap() != null) {
-                    newNodeResourceUsageStats.put(nodeId ,nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap().getOrDefault(nodeId,null));
+                if (nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap() != null) {
+                    newNodeResourceUsageStats.put(
+                        nodeId,
+                        nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap().getOrDefault(nodeId, null)
+                    );
                 }
 
             }

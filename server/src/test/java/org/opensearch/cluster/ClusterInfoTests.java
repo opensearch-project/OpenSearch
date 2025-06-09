@@ -95,8 +95,8 @@ public class ClusterInfoTests extends OpenSearchTestCase {
             NodeResourceUsageStats nodeResourceUsageStats = new NodeResourceUsageStats(
                 randomAlphaOfLength(4),
                 randomLong(),
-                randomDoubleBetween(0, 100,false),
-                randomDoubleBetween(0, 100,false),
+                randomDoubleBetween(0, 100, false),
+                randomDoubleBetween(0, 100, false),
                 null
             );
             builder.put(key, nodeResourceUsageStats);

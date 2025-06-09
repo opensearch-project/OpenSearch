@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster;
 
-import java.util.Locale;
 import org.opensearch.Version;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -45,6 +44,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.node.NodeResourceUsageStats;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -52,7 +52,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import org.opensearch.node.NodeResourceUsageStats;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage} and {@link NodeResourceUsageStats}
@@ -111,7 +110,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public ClusterInfo(StreamInput in) throws IOException {
         Map<String, DiskUsage> leastMap = in.readMap(StreamInput::readString, DiskUsage::new);
         Map<String, DiskUsage> mostMap = in.readMap(StreamInput::readString, DiskUsage::new);
-        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
             this.nodeResourceUsageStats = in.readMap(StreamInput::readString, NodeResourceUsageStats::new);
         } else {
             this.nodeResourceUsageStats = Map.of();
@@ -170,7 +169,9 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(this.nodeResourceUsageStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+            out.writeMap(this.nodeResourceUsageStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        }
         out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> out.writeLong(v == null ? -1 : v));
         out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         out.writeMap(this.reservedSpace, (o, v) -> v.writeTo(o), (o, v) -> v.writeTo(o));
@@ -201,18 +202,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
                     builder.endObject(); // end "most_available"
                     builder.startObject("resource_usage_stats");
                     {
-                        NodeResourceUsageStats resourceUsageStats = this.nodeResourceUsageStats.get(c.getKey());
-                        if (resourceUsageStats != null) {
-                            builder.field("timestamp", resourceUsageStats.getTimestamp());
-                            builder.field("cpu_utilization_percent", String.format(Locale.ROOT, "%.1f", resourceUsageStats.getCpuUtilizationPercent()));
-                            builder.field(
-                                "memory_utilization_percent",
-                                String.format(Locale.ROOT, "%.1f", resourceUsageStats.getMemoryUtilizationPercent())
-                            );
-                            if (resourceUsageStats.getIoUsageStats() != null) {
-                                builder.field("io_usage_stats", resourceUsageStats.getIoUsageStats());
-                            }
-                        }
+                        nodeResourceUsageStats.get(c.getKey()).toXContent(builder, params);
                     }
                     builder.endObject(); // end "resource_usage_statse"
                 }
