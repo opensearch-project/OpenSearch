@@ -658,12 +658,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = getIndexSearcher(reader);
 
-        List<QueryBuilder> complement = queryBuilder.getComplement(createShardContext(searcher));
-        RangeQueryBuilder expectedLower = new RangeQueryBuilder(INT_FIELD_NAME).to(value).includeLower(true).includeUpper(false);
-        RangeQueryBuilder expectedUpper = new RangeQueryBuilder(INT_FIELD_NAME).from(value).includeLower(false).includeUpper(true);
-        assertEquals(2, complement.size());
-        assertTrue(complement.contains(expectedLower));
-        assertTrue(complement.contains(expectedUpper));
+        testGetComplementNumericField(queryBuilder, value, INT_FIELD_NAME, searcher);
 
         // should return null if this isn't a numeric field
         String textValue = "some_text";
@@ -678,4 +673,13 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         IOUtils.close(w, reader, dir);
     }
 
+    // pkg-private so it can be reused in TermQueryBuilderTests
+    static void testGetComplementNumericField(ComplementAwareQueryBuilder queryBuilder, int value, String fieldName, IndexSearcher searcher)  {
+        List<QueryBuilder> complement = queryBuilder.getComplement(createShardContext(searcher));
+        RangeQueryBuilder expectedLower = new RangeQueryBuilder(fieldName).to(value).includeLower(true).includeUpper(false);
+        RangeQueryBuilder expectedUpper = new RangeQueryBuilder(fieldName).from(value).includeLower(false).includeUpper(true);
+        assertEquals(2, complement.size());
+        assertTrue(complement.contains(expectedLower));
+        assertTrue(complement.contains(expectedUpper));
+    }
 }

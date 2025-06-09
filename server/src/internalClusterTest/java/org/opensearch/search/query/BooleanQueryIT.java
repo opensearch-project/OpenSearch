@@ -231,7 +231,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), numDocs);
     }
 
-    public void testMustNotNumericMatchQueryRewrite() throws Exception {
+    public void testMustNotNumericMatchOrTermQueryRewrite() throws Exception {
         Map<Integer, Integer> statusToDocCountMap = Map.of(200, 1000, 404, 30, 500, 1);
         String statusField = "status";
         createIndex("test");
@@ -250,8 +250,15 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         int excludedValue = randomFrom(statusToDocCountMap.keySet());
         int expectedHitCount = totalDocs - statusToDocCountMap.get(excludedValue);
 
+        // Check the rewritten match query behaves as expected
         assertHitCount(
             client().prepareSearch("test").setQuery(boolQuery().mustNot(matchQuery(statusField, excludedValue))).get(),
+            expectedHitCount
+        );
+
+        // Check the rewritten term query behaves as expected
+        assertHitCount(
+            client().prepareSearch("test").setQuery(boolQuery().mustNot(termQuery(statusField, excludedValue))).get(),
             expectedHitCount
         );
     }

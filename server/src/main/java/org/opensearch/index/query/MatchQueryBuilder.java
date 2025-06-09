@@ -43,14 +43,12 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.support.QueryParsers;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.index.search.MatchQuery.ZeroTermsQuery;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -596,25 +594,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
     @Override
     public List<QueryBuilder> getComplement(QueryShardContext context) {
         // If this is a match query on a numeric field, we can provide the complement using RangeQueryBuilder.
-        if (context == null) return null;
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (!(fieldType instanceof NumberFieldMapper.NumberFieldType nft)) return null;
-
-        // TODO: Don't think we have to ensure we don't have analyzer, fuzziness, prefixLength, minimumShouldMatch, lenient, etc, as these
-        // don't apply to numeric fields
-
-        List<QueryBuilder> complement = new ArrayList<>();
+        NumberFieldMapper.NumberFieldType nft = ComplementHelperUtils.getNumberFieldType(context, fieldName);
+        if (nft == null) return null;
         Number numberValue = nft.parse(value);
-        RangeQueryBuilder belowRange = new RangeQueryBuilder(fieldName);
-        belowRange.to(numberValue);
-        belowRange.includeUpper(false);
-        complement.add(belowRange);
-
-        RangeQueryBuilder aboveRange = new RangeQueryBuilder(fieldName);
-        aboveRange.from(numberValue);
-        aboveRange.includeLower(false);
-        complement.add(aboveRange);
-
-        return complement;
+        return ComplementHelperUtils.numberValueToComplement(fieldName, numberValue);
     }
 }
