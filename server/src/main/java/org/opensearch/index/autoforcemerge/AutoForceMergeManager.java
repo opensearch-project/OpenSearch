@@ -38,6 +38,8 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -156,22 +158,31 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
     }
 
     private List<IndexShard> getShardsBasedOnSorting(Iterable<IndexService> indicesService) {
+        Map<IndexShard, Long> shardAgeCache = new HashMap<>();
+
         return StreamSupport.stream(indicesService.spliterator(), false)
             .flatMap(indexService -> StreamSupport.stream(indexService.spliterator(), false))
             .filter(shard -> !shard.shardId().getIndexName().startsWith("."))
             .filter(shard -> shard.routingEntry().primary())
             .filter(shard -> !mergingShards.contains(shard.shardId().getId()))
             .filter(shard -> shardValidator.validate(shard).isAllowed())
-            .sorted(new ShardAgeComparator())
+            .peek(shard -> shardAgeCache.computeIfAbsent(shard, this::getEarliestLastModifiedAge))
+            .sorted(new ShardAgeComparator(shardAgeCache))
             .limit(getNodeValidator().getMaxConcurrentForceMerges())
             .collect(Collectors.toList());
     }
 
-    private class ShardAgeComparator implements Comparator<IndexShard> {
+    private static class ShardAgeComparator implements Comparator<IndexShard> {
+        private final Map<IndexShard, Long> shardAgeCache;
+
+        public ShardAgeComparator(Map<IndexShard, Long> shardAgeCache) {
+            this.shardAgeCache = shardAgeCache;
+        }
+
         @Override
         public int compare(IndexShard s1, IndexShard s2) {
-            long age1 = getEarliestLastModifiedAge(s1);
-            long age2 = getEarliestLastModifiedAge(s2);
+            long age1 = shardAgeCache.get(s1);
+            long age2 = shardAgeCache.get(s2);
             return Long.compare(age1, age2);
         }
     }
