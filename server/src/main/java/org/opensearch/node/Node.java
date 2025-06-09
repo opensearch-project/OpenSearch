@@ -2252,7 +2252,7 @@ public class Node implements Closeable {
 
         this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
-        List<Path> fileCacheDataPaths = collectFileCacheDataPath(fileCacheNodePath);
+        List<Path> fileCacheDataPaths = collectFileCacheDataPath(fileCacheNodePath, settings);
         this.fileCache.restoreFromDirectory(fileCacheDataPaths);
     }
 
