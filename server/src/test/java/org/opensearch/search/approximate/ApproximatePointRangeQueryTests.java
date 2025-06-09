@@ -681,6 +681,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     doc.add(new NumericDocValuesField("timestamp", i));
                     iw.addDocument(doc);
                 }
+                iw.flush();
                 iw.forceMerge(1);
                 try (IndexReader reader = iw.getReader()) {
                     IndexSearcher searcher = new IndexSearcher(reader);
@@ -701,32 +702,29 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
                 // Create NYC taxi fare distribution with different ranges
-                // Structure: {count, baseAmount, increment}
-                int[][] fareRanges = { { 100, 250, 2 }, { 5000, 1000, 1 }, { 1000, 3000, 3 }, { 200, 10000, 100 } };
-                for (int[] range : fareRanges) {
-                    int count = range[0];
-                    int base = range[1];
-                    int increment = range[2];
-                    for (int i = 0; i < count; i++) {
-                        long fare = base + (increment == 1 ? (i % 2000) : (i * increment));
+                for (long fare = 250; fare <= 500; fare++) {
+                    iw.addDocument(asList(new LongPoint("fare_amount", fare), new NumericDocValuesField("fare_amount", fare)));
+                }
+                // Typical fares: 1000-3000 (dense, 5 docs per value)
+                for (long fare = 1000; fare <= 3000; fare++) {
+                    for (int dup = 0; dup < 5; dup++) {
                         iw.addDocument(asList(new LongPoint("fare_amount", fare), new NumericDocValuesField("fare_amount", fare)));
                     }
                 }
+                // High fares: 10000-20000 (sparse, 1 doc every 100)
+                for (long fare = 10000; fare <= 20000; fare += 100) {
+                    iw.addDocument(asList(new LongPoint("fare_amount", fare), new NumericDocValuesField("fare_amount", fare)));
+                }
+                iw.flush();
                 iw.forceMerge(1);
                 try (IndexReader reader = iw.getReader()) {
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    // Test 1: Query for fare range 10-30
-                    long typicalFareMin = 1000;
-                    long typicalFareMax = 3000;
-                    testApproximateVsExactQuery(searcher, "fare_amount", typicalFareMin, typicalFareMax, 100, dims);
+                    // Test 1: Query for typical fare range
+                    testApproximateVsExactQuery(searcher, "fare_amount", 1000, 3000, 100, dims);
                     // Test 2: Query for high fare range
-                    long highFareMin = 10000;
-                    long highFareMax = 50000;
-                    testApproximateVsExactQuery(searcher, "fare_amount", highFareMin, highFareMax, 50, dims);
-                    // Test 3: Query for very low fares
-                    long lowFareMin = 250;
-                    long lowFareMax = 500;
-                    testApproximateVsExactQuery(searcher, "fare_amount", lowFareMin, lowFareMax, 50, dims);
+                    testApproximateVsExactQuery(searcher, "fare_amount", 10000, 20000, 50, dims);
+                    // Test 3: Query for low fares
+                    testApproximateVsExactQuery(searcher, "fare_amount", 250, 500, 50, dims);
                 }
             }
         }
