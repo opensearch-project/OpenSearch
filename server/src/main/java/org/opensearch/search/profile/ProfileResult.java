@@ -82,14 +82,14 @@ public class ProfileResult implements Writeable, ToXContentObject {
         String type,
         String description,
         Map<String, Long> breakdown,
+        Map<String, Long> importantMetrics,
         Map<String, Object> debug,
-        List<ProfileResult> children,
-        Map<String, Long> importantMetrics
+        List<ProfileResult> children
     ) {
         this.type = type;
         this.description = description;
-        this.importantMetrics = Objects.requireNonNull(importantMetrics, "required breakdown argument missing");
         this.breakdown = Objects.requireNonNull(breakdown, "required breakdown argument missing");
+        this.importantMetrics = importantMetrics == null ? Map.of() : importantMetrics;
         this.debug = debug == null ? Map.of() : debug;
         this.children = children == null ? List.of() : children;
     }
@@ -100,8 +100,8 @@ public class ProfileResult implements Writeable, ToXContentObject {
     public ProfileResult(StreamInput in) throws IOException {
         this.type = in.readString();
         this.description = in.readString();
-        importantMetrics = in.readMap(StreamInput::readString, StreamInput::readLong);
         breakdown = in.readMap(StreamInput::readString, StreamInput::readLong);
+        importantMetrics = in.readMap(StreamInput::readString, StreamInput::readLong);
         debug = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
         children = in.readList(ProfileResult::new);
     }
@@ -110,8 +110,8 @@ public class ProfileResult implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type);
         out.writeString(description);
-        out.writeMap(importantMetrics, StreamOutput::writeString, StreamOutput::writeLong);
         out.writeMap(breakdown, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(importantMetrics, StreamOutput::writeString, StreamOutput::writeLong);
         out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
         out.writeList(children);
     }
@@ -163,8 +163,10 @@ public class ProfileResult implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(TYPE.getPreferredName(), getQueryName());
         builder.field(DESCRIPTION.getPreferredName(), getLuceneDescription());
-        builder.field(METRICS.getPreferredName(), getImportantMetrics());
         builder.field(BREAKDOWN.getPreferredName(), getBreakdown());
+        if (importantMetrics.isEmpty() == false) {
+            builder.field(METRICS.getPreferredName(), getImportantMetrics());
+        }
         if (false == getDebugInfo().isEmpty()) {
             builder.field(DEBUG.getPreferredName(), getDebugInfo());
         }
@@ -189,8 +191,8 @@ public class ProfileResult implements Writeable, ToXContentObject {
         );
         parser.declareString(constructorArg(), TYPE);
         parser.declareString(constructorArg(), DESCRIPTION);
-        parser.declareObject(constructorArg(), (p, c) -> p.map(), METRICS);
         parser.declareObject(constructorArg(), (p, c) -> p.map(), BREAKDOWN);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), METRICS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), DEBUG);
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> fromXContent(p), CHILDREN);
         PARSER = parser.build();

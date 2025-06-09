@@ -73,10 +73,11 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
-import org.opensearch.search.profile.AbstractProfiler;
-import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.Timer;
-import org.opensearch.search.profile.query.*;
+import org.opensearch.search.profile.query.AbstractQueryTimingProfileBreakdown;
+import org.opensearch.search.profile.query.ProfileWeight;
+import org.opensearch.search.profile.query.QueryProfiler;
+import org.opensearch.search.profile.query.QueryTimingType;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -217,7 +218,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
-            AbstractTimingProfileBreakdown profile = null;
+            AbstractQueryTimingProfileBreakdown profile = null;
             try {
                 profile = profiler.getQueryBreakdown(query);
             } catch (Exception e) {
@@ -232,7 +233,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 timer.stop();
                 profiler.pollLastElement();
             }
-            return new ProfileWeight(query, weight, (TimingProfileContext) profile);
+            return new ProfileWeight(query, weight, profile);
         } else {
             return super.createWeight(query, scoreMode, boost);
         }

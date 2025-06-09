@@ -147,9 +147,9 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
             type,
             description,
             breakdown,
+            importantMetrics,
             debug,
-            reducedChildrenTree,
-            importantMetrics
+            reducedChildrenTree
         );
         return List.of(reducedResult);
     }

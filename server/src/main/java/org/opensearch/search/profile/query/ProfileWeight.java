@@ -54,9 +54,9 @@ import java.io.IOException;
 public final class ProfileWeight extends Weight {
 
     private final Weight subQueryWeight;
-    private final TimingProfileContext profile;
+    private final AbstractQueryTimingProfileBreakdown profile;
 
-    public ProfileWeight(Query query, Weight subQueryWeight, TimingProfileContext profile) throws IOException {
+    public ProfileWeight(Query query, Weight subQueryWeight, AbstractQueryTimingProfileBreakdown profile) throws IOException {
         super(query);
         this.subQueryWeight = subQueryWeight;
         this.profile = profile;

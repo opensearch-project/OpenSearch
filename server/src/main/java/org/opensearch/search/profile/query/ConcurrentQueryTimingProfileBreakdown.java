@@ -8,23 +8,26 @@
 
 package org.opensearch.search.profile.query;
 
-import com.sun.jna.WString;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.ParseField;
-import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
  * A {@link AbstractTimingProfileBreakdown} for concurrent query timings.
  */
-public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown implements TimingProfileContext {
+public class ConcurrentQueryTimingProfileBreakdown extends AbstractQueryTimingProfileBreakdown {
     static final String SLICE_END_TIME_SUFFIX = "_slice_end_time";
     static final String SLICE_START_TIME_SUFFIX = "_slice_start_time";
     static final String MAX_PREFIX = "max_";
@@ -40,7 +43,7 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
     static final ParseField AVG_SLICE_NODE_TIME_RAW = new ParseField("avg_slice_time_in_nanos");
 
     // keep track of all breakdown timings per segment. package-private for testing
-    private final Map<Object, AbstractTimingProfileBreakdown> contexts = new ConcurrentHashMap<>();
+    private final Map<Object, AbstractQueryTimingProfileBreakdown> contexts = new ConcurrentHashMap<>();
 
     // represents slice to leaves mapping as for each slice a unique collector instance is created
     private final Map<Collector, List<LeafReaderContext>> sliceCollectorsToLeaves = new ConcurrentHashMap<>();
@@ -59,9 +62,9 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
     }
 
     @Override
-    public AbstractTimingProfileBreakdown context(Object context) {
+    public AbstractQueryTimingProfileBreakdown context(Object context) {
         // See please https://bugs.openjdk.java.net/browse/JDK-8161372
-        final AbstractTimingProfileBreakdown profile = contexts.get(context);
+        final AbstractQueryTimingProfileBreakdown profile = contexts.get(context);
 
         if (profile != null) {
             return profile;
@@ -121,14 +124,14 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
             minSliceNodeTime = 0L;
             avgSliceNodeTime = 0L;
             Map<String, Long> queryBreakdownMap = new HashMap<>(breakdown.toBreakdownMap());
-            queryBreakdownMap.put(QueryTimingType.CREATE_WEIGHT.toString(), createWeightTime);
+            queryBreakdownMap.put(QueryTimingType.CREATE_WEIGHT + TIMING_TYPE_TIME_SUFFIX, createWeightTime);
             queryBreakdownMap.put(QueryTimingType.CREATE_WEIGHT + TIMING_TYPE_COUNT_SUFFIX, 1L);
             return queryBreakdownMap;
         }
 
         // first create the slice level breakdowns
         final Map<Collector, Map<String, Long>> sliceLevelBreakdowns = buildSliceLevelBreakdown();
-        return filterZeros(buildQueryBreakdownMap(sliceLevelBreakdowns, createWeightTime, createWeightStartTime));
+        return buildQueryBreakdownMap(sliceLevelBreakdowns, createWeightTime, createWeightStartTime);
     }
 
     /**
@@ -140,17 +143,17 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
     private Map<String, Long> buildDefaultQueryBreakdownMap(long createWeightTime) {
         final Map<String, Long> concurrentQueryBreakdownMap = new HashMap<>();
         for (QueryTimingType timingType : QueryTimingType.values()) {
-            final String timingTypeKey = timingType.toString();
-            final String timingTypeCountKey = timingTypeKey + TIMING_TYPE_COUNT_SUFFIX;
+            final String timingTypeKey = timingType + TIMING_TYPE_TIME_SUFFIX;
+            final String timingTypeCountKey = timingType + TIMING_TYPE_COUNT_SUFFIX;
 
             if (timingType.equals(QueryTimingType.CREATE_WEIGHT)) {
                 concurrentQueryBreakdownMap.put(timingTypeKey, createWeightTime);
                 concurrentQueryBreakdownMap.put(timingTypeCountKey, 1L);
                 continue;
             }
-            final String maxBreakdownTypeTime = MAX_PREFIX + timingTypeKey;
-            final String minBreakdownTypeTime = MIN_PREFIX + timingTypeKey;
-            final String avgBreakdownTypeTime = AVG_PREFIX + timingTypeKey;
+            final String maxBreakdownTypeTime = MAX_PREFIX + timingType;
+            final String minBreakdownTypeTime = MIN_PREFIX + timingType;
+            final String avgBreakdownTypeTime = AVG_PREFIX + timingType;
             final String maxBreakdownTypeCount = MAX_PREFIX + timingTypeCountKey;
             final String minBreakdownTypeCount = MIN_PREFIX + timingTypeCountKey;
             final String avgBreakdownTypeCount = AVG_PREFIX + timingTypeCountKey;
@@ -196,6 +199,7 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
 
                 // for each timing type compute maxSliceEndTime and minSliceStartTime. Also add the counts of timing type to
                 // compute total count at slice level
+                final String timingTypeTimeKey = timingType + TIMING_TYPE_TIME_SUFFIX;
                 final String timingTypeCountKey = timingType + TIMING_TYPE_COUNT_SUFFIX;
                 final String timingTypeStartKey = timingType + TIMING_TYPE_START_TIME_SUFFIX;
                 final String timingTypeSliceStartTimeKey = timingType + SLICE_START_TIME_SUFFIX;
@@ -243,7 +247,7 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
 
                     // compute the sliceEndTime for timingType using max of endTime across slice leaves
                     final long sliceLeafTimingTypeEndTime = sliceLeafTimingTypeStartTime + currentSliceLeafBreakdownMap.get(
-                        timingType + TIMING_TYPE_TIME_SUFFIX
+                        timingTypeTimeKey
                     );
                     currentSliceBreakdown.compute(
                         timingTypeSliceEndTimeKey,
@@ -267,7 +271,7 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
                 sliceMinStartTime = Math.min(sliceMinStartTime, currentSliceStartTime);
                 // compute total time for each timing type at slice level using sliceEndTime and sliceStartTime
                 currentSliceBreakdown.put(
-                    timingType,
+                    timingTypeTimeKey,
                     currentSliceBreakdown.getOrDefault(timingTypeSliceEndTimeKey, 0L) - currentSliceBreakdown.getOrDefault(
                         timingTypeSliceStartTimeKey,
                         0L
@@ -333,7 +337,17 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
     ) {
         final Map<String, Long> queryBreakdownMap = new HashMap<>();
         long queryEndTime = Long.MIN_VALUE;
+
+        // the create weight time is computed at the query level and is called only once per query
+        queryBreakdownMap.put(QueryTimingType.CREATE_WEIGHT + TIMING_TYPE_COUNT_SUFFIX, 1L);
+        queryBreakdownMap.put(QueryTimingType.CREATE_WEIGHT + TIMING_TYPE_TIME_SUFFIX, createWeightTime);
+
         for(String metric : timingMetrics) {
+
+            if(metric.equals(QueryTimingType.CREATE_WEIGHT.toString())) {
+                // create weight time is computed at query level and is called only once per query
+                continue;
+            }
 
             final String timingTypeTimeKey = metric + TIMING_TYPE_TIME_SUFFIX;
             final String timingTypeCountKey = metric + TIMING_TYPE_COUNT_SUFFIX;
@@ -351,12 +365,6 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
             long queryTimingTypeStartTime = Long.MAX_VALUE;
             long queryTimingTypeCount = 0L;
 
-            // the create weight time is computed at the query level and is called only once per query
-            if (metric.equals(QueryTimingType.CREATE_WEIGHT.toString())) {
-                queryBreakdownMap.put(timingTypeCountKey, 1L);
-                queryBreakdownMap.put(metric, createWeightTime);
-                continue;
-            }
             // for all other timing types, we will compute min/max/avg/total across slices
             for (Map.Entry<Collector, Map<String, Long>> sliceBreakdown : sliceLevelBreakdowns.entrySet()) {
                 long sliceBreakdownTypeTime = sliceBreakdown.getValue().getOrDefault(timingTypeTimeKey, 0L);
@@ -387,7 +395,7 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
                         + "] computed across slices for profile results"
                 );
             }
-            queryBreakdownMap.put(metric, queryTimingTypeEndTime - queryTimingTypeStartTime);
+            queryBreakdownMap.put(timingTypeTimeKey, queryTimingTypeEndTime - queryTimingTypeStartTime);
             queryBreakdownMap.put(timingTypeCountKey, queryTimingTypeCount);
             queryBreakdownMap.compute(avgBreakdownTypeTime, (key, value) -> (value == null) ? 0L : value / sliceLevelBreakdowns.size());
             queryBreakdownMap.compute(avgBreakdownTypeCount, (key, value) -> (value == null) ? 0L : value / sliceLevelBreakdowns.size());
@@ -474,7 +482,7 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractTimingProfile
     }
 
     // used by tests
-    Map<Object, AbstractTimingProfileBreakdown> getContexts() {
+    Map<Object, AbstractQueryTimingProfileBreakdown> getContexts() {
         return contexts;
     }
 

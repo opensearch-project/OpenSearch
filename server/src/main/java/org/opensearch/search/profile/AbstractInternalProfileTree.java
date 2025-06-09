@@ -77,7 +77,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      * @param query The scoring query we wish to profile
      * @return      A ProfileBreakdown for this query
      */
-    public PB getProfileBreakdown(E query) throws Exception {
+    public PB getProfileBreakdown(E query) {
         int token = currentToken;
 
         boolean stackEmpty = stack.isEmpty();
@@ -120,7 +120,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      *            The assigned token for this element
      * @return A {@link AbstractProfileBreakdown} to profile this element
      */
-    private PB addDependencyNode(E element, int token) throws Exception {
+    private PB addDependencyNode(E element, int token) {
 
         // Add a new slot in the dependency tree
         tree.add(new ArrayList<>(5));
@@ -133,7 +133,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         return breakdown;
     }
 
-    protected abstract PB createProfileBreakdown(E element) throws Exception;
+    protected abstract PB createProfileBreakdown(E element);
 
     /**
      * Removes the last (e.g. most recent) value on the stack
@@ -180,7 +180,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // calculating the same times over and over...but worth the effort?
         String type = getTypeFromElement(element);
         String description = getDescriptionFromElement(element);
-        return new ProfileResult(type, description, breakdown.toBreakdownMap(), breakdown.toDebugMap(), childrenProfileResults, breakdown.toImportantMetricsMap());
+        return new ProfileResult(type, description, breakdown.toBreakdownMap(), breakdown.toImportantMetricsMap(), breakdown.toDebugMap(), childrenProfileResults);
     }
 
     protected abstract String getTypeFromElement(E element);

@@ -237,7 +237,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(0));
-            assertThat(histoAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(histoAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> breakdown = histoAggResult.getBreakdown();
             assertThat(breakdown, notNullValue());
             if (histoAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -291,7 +291,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
-            assertThat(histoAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(histoAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getBreakdown();
             assertThat(histoBreakdown, notNullValue());
             if (histoAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -320,7 +320,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(termsAggResult, notNullValue());
             assertThat(termsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getSimpleName()));
             assertThat(termsAggResult.getLuceneDescription(), equalTo("terms"));
-            assertThat(termsAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(termsAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> termsBreakdown = termsAggResult.getBreakdown();
             assertThat(termsBreakdown, notNullValue());
             if (termsAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -340,7 +340,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(avgAggResult, notNullValue());
             assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
             assertThat(avgAggResult.getLuceneDescription(), equalTo("avg"));
-            assertThat(avgAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(avgAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> avgBreakdown = termsAggResult.getBreakdown();
             assertThat(avgBreakdown, notNullValue());
             if (avgAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -398,7 +398,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
-            assertThat(histoAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(histoAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getBreakdown();
             assertThat(histoBreakdown, notNullValue());
             if (histoAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -427,7 +427,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(termsAggResult, notNullValue());
             assertThat(termsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getSimpleName()));
             assertThat(termsAggResult.getLuceneDescription(), equalTo("terms"));
-            assertThat(termsAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(termsAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> termsBreakdown = termsAggResult.getBreakdown();
             assertThat(termsBreakdown, notNullValue());
             if (termsAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -447,7 +447,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(avgAggResult, notNullValue());
             assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
             assertThat(avgAggResult.getLuceneDescription(), equalTo("avg"));
-            assertThat(avgAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(avgAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> avgBreakdown = avgAggResult.getBreakdown();
             assertThat(avgBreakdown, notNullValue());
             if (avgAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -490,7 +490,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(diversifyAggResult, notNullValue());
             assertThat(diversifyAggResult.getQueryName(), equalTo(DiversifiedOrdinalsSamplerAggregator.class.getSimpleName()));
             assertThat(diversifyAggResult.getLuceneDescription(), equalTo("diversify"));
-            assertThat(diversifyAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(diversifyAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> diversifyBreakdown = diversifyAggResult.getBreakdown();
             assertThat(diversifyBreakdown, notNullValue());
             if (diversifyAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -518,7 +518,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(maxAggResult, notNullValue());
             assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
             assertThat(maxAggResult.getLuceneDescription(), equalTo("max"));
-            assertThat(maxAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(maxAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> maxBreakdown = maxAggResult.getBreakdown();
             assertThat(maxBreakdown, notNullValue());
             if (maxAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -576,7 +576,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
-            assertThat(histoAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(histoAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getBreakdown();
             assertThat(histoBreakdown, notNullValue());
             if (histoAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -610,7 +610,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             ProfileResult tagsAggResult = histoAggResultSubAggregations.get("tags");
             assertThat(tagsAggResult, notNullValue());
             assertThat(tagsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getSimpleName()));
-            assertThat(tagsAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(tagsAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> tagsBreakdown = tagsAggResult.getBreakdown();
             assertThat(tagsBreakdown, notNullValue());
             if (tagsAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -635,7 +635,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             ProfileResult avgAggResult = tagsAggResultSubAggregations.get("avg");
             assertThat(avgAggResult, notNullValue());
             assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
-            assertThat(avgAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(avgAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> avgBreakdown = avgAggResult.getBreakdown();
             assertThat(avgBreakdown, notNullValue());
             if (avgAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -656,7 +656,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             ProfileResult maxAggResult = tagsAggResultSubAggregations.get("max");
             assertThat(maxAggResult, notNullValue());
             assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
-            assertThat(maxAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(maxAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> maxBreakdown = maxAggResult.getBreakdown();
             assertThat(maxBreakdown, notNullValue());
             if (maxAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -677,7 +677,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             ProfileResult stringsAggResult = histoAggResultSubAggregations.get("strings");
             assertThat(stringsAggResult, notNullValue());
             assertThat(stringsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getSimpleName()));
-            assertThat(stringsAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(stringsAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> stringsBreakdown = stringsAggResult.getBreakdown();
             assertThat(stringsBreakdown, notNullValue());
             if (stringsAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -702,7 +702,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             avgAggResult = stringsAggResultSubAggregations.get("avg");
             assertThat(avgAggResult, notNullValue());
             assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
-            assertThat(avgAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(avgAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             avgBreakdown = avgAggResult.getBreakdown();
             assertThat(avgBreakdown, notNullValue());
             if (avgAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -723,7 +723,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             maxAggResult = stringsAggResultSubAggregations.get("max");
             assertThat(maxAggResult, notNullValue());
             assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
-            assertThat(maxAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(maxAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             maxBreakdown = maxAggResult.getBreakdown();
             assertThat(maxBreakdown, notNullValue());
             if (maxAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -745,7 +745,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertThat(tagsAggResult, notNullValue());
             assertThat(tagsAggResult.getQueryName(), equalTo(GlobalOrdinalsStringTermsAggregator.class.getSimpleName()));
             assertThat(tagsAggResult.getLuceneDescription(), equalTo("tags"));
-            assertThat(tagsAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(tagsAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             tagsBreakdown = tagsAggResult.getBreakdown();
             assertThat(tagsBreakdown, notNullValue());
             if (tagsAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -770,7 +770,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             avgAggResult = tagsAggResultSubAggregations.get("avg");
             assertThat(avgAggResult, notNullValue());
             assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
-            assertThat(avgAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(avgAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             avgBreakdown = avgAggResult.getBreakdown();
             assertThat(avgBreakdown, notNullValue());
             if (avgAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -791,7 +791,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             maxAggResult = tagsAggResultSubAggregations.get("max");
             assertThat(maxAggResult, notNullValue());
             assertThat(maxAggResult.getQueryName(), equalTo("MaxAggregator"));
-            assertThat(maxAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(maxAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             maxBreakdown = maxAggResult.getBreakdown();
             assertThat(maxBreakdown, notNullValue());
             if (maxAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -892,7 +892,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
             assertEquals("GlobalAggregator", globalAggResult.getQueryName());
             assertEquals("global", globalAggResult.getLuceneDescription());
             assertEquals(1, globalAggResult.getProfiledChildren().size());
-            assertThat(globalAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+            assertThat(globalAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
             Map<String, Long> breakdown = globalAggResult.getBreakdown();
             assertThat(breakdown, notNullValue());
             if (globalAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {
@@ -946,7 +946,7 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
                 assertThat(histoAggResult.getQueryName(), equalTo("NumericHistogramAggregator"));
                 assertThat(histoAggResult.getLuceneDescription(), containsString("histo_"));
                 assertThat(histoAggResult.getProfiledChildren().size(), equalTo(0));
-                assertThat(histoAggResult.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                assertThat(histoAggResult.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                 Map<String, Long> breakdown = histoAggResult.getBreakdown();
                 assertThat(breakdown, notNullValue());
                 if (histoAggResult.getBreakdown().get("max_slice_time_in_nanos") != null) {

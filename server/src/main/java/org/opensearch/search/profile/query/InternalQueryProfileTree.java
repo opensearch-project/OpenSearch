@@ -36,8 +36,6 @@ import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -54,7 +52,10 @@ public class InternalQueryProfileTree extends AbstractQueryProfileTree {
     }
 
     @Override
-    protected AbstractTimingProfileBreakdown createProfileBreakdown(Query query) throws Exception {
-        return new QueryTimingProfileBreakdown(pluginBreakdownClasses.get(query.getClass()));
+    protected AbstractQueryTimingProfileBreakdown createProfileBreakdown(Query query) {
+        if(pluginBreakdownClasses != null) {
+            return new QueryTimingProfileBreakdown(pluginBreakdownClasses.get(query.getClass()));
+        }
+        return new QueryTimingProfileBreakdown(null);
     }
 }

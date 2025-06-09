@@ -42,7 +42,11 @@ import org.opensearch.search.profile.query.ConcurrentQueryProfiler;
 import org.opensearch.search.profile.query.InternalQueryProfileTree;
 import org.opensearch.search.profile.query.QueryProfiler;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 
 /**
  * Wrapper around all the profilers that makes management easier.

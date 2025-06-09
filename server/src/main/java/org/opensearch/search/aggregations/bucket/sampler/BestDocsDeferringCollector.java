@@ -135,7 +135,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     @Override
-    public void preCollection() throws Exception {
+    public void preCollection() throws IOException {
         deferred.preCollection();
     }
 

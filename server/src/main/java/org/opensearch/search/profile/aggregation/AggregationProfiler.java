@@ -61,7 +61,7 @@ public class AggregationProfiler extends AbstractProfiler<AggregationTimingProfi
      * on the Aggregation collector instances during construction.
      */
     @Override
-    public AggregationTimingProfileBreakdown getQueryBreakdown(Aggregator agg) throws Exception {
+    public AggregationTimingProfileBreakdown getQueryBreakdown(Aggregator agg) {
         AggregationTimingProfileBreakdown aggregationProfileBreakdown = profileBreakdownLookup.get(agg);
         if (aggregationProfileBreakdown == null) {
             aggregationProfileBreakdown = super.getQueryBreakdown(agg);

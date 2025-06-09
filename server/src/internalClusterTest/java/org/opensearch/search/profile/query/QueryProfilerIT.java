@@ -128,7 +128,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                     for (ProfileResult result : searchProfiles.getQueryResults()) {
                         assertNotNull(result.getQueryName());
                         assertNotNull(result.getLuceneDescription());
-                        assertThat(result.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                        assertThat(result.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     }
 
                     CollectorResult result = searchProfiles.getCollectorResult();
@@ -250,7 +250,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertEquals(result.getQueryName(), "TermQuery");
                     assertEquals(result.getLuceneDescription(), "field1:one");
-                    assertThat(result.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                    assertThat(result.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     assertNotNull(result.getBreakdown());
                     assertQueryProfileResult(result);
                 }
@@ -292,7 +292,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertEquals(result.getQueryName(), "BooleanQuery");
                     assertEquals(result.getLuceneDescription(), "+field1:one +field1:two");
-                    assertThat(result.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                    assertThat(result.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     assertNotNull(result.getBreakdown());
                     assertEquals(result.getProfiledChildren().size(), 2);
                     assertQueryProfileResult(result);
@@ -304,7 +304,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                     ProfileResult childProfile = children.get(0);
                     assertEquals(childProfile.getQueryName(), "TermQuery");
                     assertEquals(childProfile.getLuceneDescription(), "field1:one");
-                    assertThat(childProfile.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                    assertThat(childProfile.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     assertNotNull(childProfile.getBreakdown());
                     assertEquals(childProfile.getProfiledChildren().size(), 0);
                     assertQueryProfileResult(childProfile);
@@ -312,7 +312,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                     childProfile = children.get(1);
                     assertEquals(childProfile.getQueryName(), "TermQuery");
                     assertEquals(childProfile.getLuceneDescription(), "field1:two");
-                    assertThat(childProfile.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                    assertThat(childProfile.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     assertNotNull(childProfile.getBreakdown());
                     assertQueryProfileResult(childProfile);
                 }
@@ -355,7 +355,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
-                    assertThat(result.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                    assertThat(result.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     assertNotNull(result.getBreakdown());
                     assertQueryProfileResult(result);
                 }
@@ -401,7 +401,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
-                    assertThat(result.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                    assertThat(result.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     assertNotNull(result.getBreakdown());
                     assertQueryProfileResult(result);
                 }
@@ -442,7 +442,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
-                    assertThat(result.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                    assertThat(result.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     assertNotNull(result.getBreakdown());
                     assertQueryProfileResult(result);
                 }
@@ -494,7 +494,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 for (ProfileResult result : results) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
-                    assertThat(result.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                    assertThat(result.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     Map<String, Long> breakdown = result.getBreakdown();
                     if (concurrentSearchEnabled && results.get(0).equals(result)) {
                         assertThat(breakdown.size(), equalTo(70));
@@ -554,7 +554,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
-                    assertThat(result.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                    assertThat(result.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     assertNotNull(result.getBreakdown());
                     assertQueryProfileResult(result);
                 }
@@ -594,7 +594,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
-                    assertThat(result.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                    assertThat(result.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     assertNotNull(result.getBreakdown());
                     assertQueryProfileResult(result);
                 }
@@ -648,7 +648,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                 for (ProfileResult result : searchProfiles.getQueryResults()) {
                     assertNotNull(result.getQueryName());
                     assertNotNull(result.getLuceneDescription());
-                    assertThat(result.getBreakdown().get("time_in_nanos"), greaterThan(0L));
+                    assertThat(result.getImportantMetrics().get("time_in_nanos"), greaterThan(0L));
                     assertNotNull(result.getBreakdown());
                     assertQueryProfileResult(result);
                 }

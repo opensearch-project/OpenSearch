@@ -48,7 +48,7 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
     }
 
     @Override
-    public AbstractTimingProfileBreakdown getQueryBreakdown(Query query) throws Exception {
+    public AbstractQueryTimingProfileBreakdown getQueryBreakdown(Query query) {
         ConcurrentQueryProfileTree profileTree = threadToProfileTree.computeIfAbsent(
             getCurrentThreadId(),
             k -> new ConcurrentQueryProfileTree(pluginBreakdownClasses)

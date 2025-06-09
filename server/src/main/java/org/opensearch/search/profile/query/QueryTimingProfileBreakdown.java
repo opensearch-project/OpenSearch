@@ -14,6 +14,7 @@ import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -21,7 +22,7 @@ import java.util.function.BiFunction;
 /**
  * A {@link AbstractTimingProfileBreakdown} for query timings.
  */
-public class QueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown implements TimingProfileContext {
+public class QueryTimingProfileBreakdown extends AbstractQueryTimingProfileBreakdown {
 
     private final AbstractTimingProfileBreakdown pluginBreakdown;
 
@@ -45,8 +46,10 @@ public class QueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown 
 
     @Override
     public Map<String, Long> toImportantMetricsMap() {
-        if(pluginBreakdown != null) return pluginBreakdown.toImportantMetricsMap();
-        return Map.of();
+        Map<String, Long> map = new HashMap<>();
+        map.put(NODE_TIME_RAW, toNodeTime());
+        if(pluginBreakdown != null) map.putAll(pluginBreakdown.toImportantMetricsMap());
+        return map;
     }
 
     @Override
@@ -58,7 +61,7 @@ public class QueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown 
     }
 
     @Override
-    public AbstractTimingProfileBreakdown context(Object context) {
+    public AbstractQueryTimingProfileBreakdown context(Object context) {
         return this;
     }
 

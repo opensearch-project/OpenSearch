@@ -156,7 +156,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     }
 
     @Override
-    public void preCollection() throws Exception {
+    public void preCollection() throws IOException {
         collector.preCollection();
     }
 

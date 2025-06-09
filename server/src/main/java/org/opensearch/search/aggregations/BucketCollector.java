@@ -74,7 +74,7 @@ public abstract class BucketCollector implements Collector {
     /**
      * Pre collection callback.
      */
-    public abstract void preCollection() throws Exception;
+    public abstract void preCollection() throws IOException;
 
     /**
      * Post-collection callback.

@@ -128,7 +128,7 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public void preCollection() throws Exception {
+    public void preCollection() throws IOException {
         this.profileBreakdown = profiler.getQueryBreakdown(delegate);
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.INITIALIZE.toString());
         timer.start();

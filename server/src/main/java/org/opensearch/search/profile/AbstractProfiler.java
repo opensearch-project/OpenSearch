@@ -32,11 +32,9 @@
 
 package org.opensearch.search.profile;
 
-import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.PublicApi;
 
 import java.util.List;
-import java.util.function.BiFunction;
 
 /**
  * Base class for a profiler
@@ -56,7 +54,7 @@ public abstract class AbstractProfiler<PB extends AbstractProfileBreakdown, E, S
      * Get the {@link AbstractProfileBreakdown} for the given element in the
      * tree, potentially creating it if it did not exist.
      */
-    public PB getQueryBreakdown(E query) throws Exception {
+    public PB getQueryBreakdown(E query) {
         return profileTree.getProfileBreakdown(query);
     }
 

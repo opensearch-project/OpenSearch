@@ -566,7 +566,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
                 // tag::search-request-profiling-queries-results
                 for (ProfileResult profileResult : queryProfileResult.getQueryResults()) { // <1>
                     String queryName = profileResult.getQueryName(); // <2>
-                    long queryTimeInMillis = profileResult.getBreakdown().get("time_in_nanos"); // <3>
+                    long queryTimeInMillis = profileResult.getImportantMetrics().get("time_in_nanos"); // <3>
                     List<ProfileResult> profiledChildren = profileResult.getProfiledChildren(); // <4>
                 }
                 // end::search-request-profiling-queries-results
@@ -584,7 +584,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
                     profileShardResult.getAggregationProfileResults(); // <1>
             for (ProfileResult profileResult : aggsProfileResults.getProfileResults()) { // <2>
                 String aggName = profileResult.getQueryName(); // <3>
-                long aggTimeInMillis = profileResult.getBreakdown().get("time_in_nanos"); // <4>
+                long aggTimeInMillis = profileResult.getImportantMetrics().get("time_in_nanos"); // <4>
                 List<ProfileResult> profiledChildren = profileResult.getProfiledChildren(); // <5>
             }
             // end::search-request-profiling-aggs

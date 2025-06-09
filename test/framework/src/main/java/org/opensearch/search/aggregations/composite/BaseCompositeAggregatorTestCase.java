@@ -199,9 +199,6 @@ public class BaseCompositeAggregatorTestCase extends AggregatorTestCase {
                     verify.accept((InternalComposite) aggregation);
                 }
             }
-            catch (Exception e) {
-                throw new RuntimeException(e);
-            }
         }
     }
 

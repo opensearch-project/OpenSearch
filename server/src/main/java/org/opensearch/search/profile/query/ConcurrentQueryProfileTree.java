@@ -14,7 +14,6 @@ import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -32,8 +31,11 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
     }
 
     @Override
-    protected AbstractTimingProfileBreakdown createProfileBreakdown(Query query) {
-        return new ConcurrentQueryTimingProfileBreakdown(pluginBreakdownClasses.get(query.getClass()));
+    protected AbstractQueryTimingProfileBreakdown createProfileBreakdown(Query query) {
+        if(pluginBreakdownClasses != null) {
+            return new ConcurrentQueryTimingProfileBreakdown(pluginBreakdownClasses.get(query.getClass()));
+        }
+        return new ConcurrentQueryTimingProfileBreakdown(null);
     }
 
     /**
@@ -68,7 +70,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
         final List<Integer> children = tree.get(parentToken);
         if (children != null) {
             for (Integer currentChild : children) {
-                final TimingProfileContext currentChildBreakdown = (TimingProfileContext) breakdowns.get(currentChild);
+                final AbstractQueryTimingProfileBreakdown currentChildBreakdown = breakdowns.get(currentChild);
                 currentChildBreakdown.associateCollectorsToLeaves(collectorToLeaves);
                 updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves);
             }
