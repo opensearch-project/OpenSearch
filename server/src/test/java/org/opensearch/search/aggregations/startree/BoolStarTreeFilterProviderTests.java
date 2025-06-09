@@ -175,16 +175,16 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertNotNull("Filter should not be null", filter);
         assertEquals("Should have two dimensions", 2, filter.getDimensions().size());
         assertTrue("Should contain method dimension", filter.getDimensions().contains(METHOD));
-        assertTrue("Should contain date-hour dimension", filter.getDimensions().contains("event_date_hour"));
+        assertTrue("Should contain date-hour dimension", filter.getDimensions().contains(EVENT_DATE));
 
         // Verify method filter
         List<DimensionFilter> methodFilters = filter.getFiltersForDimension(METHOD);
         assertExactMatchValue((ExactMatchDimFilter) methodFilters.getFirst(), "GET");
 
         // Verify date range filter
-        List<DimensionFilter> dateFilters = filter.getFiltersForDimension("event_date_hour");
+        List<DimensionFilter> dateFilters = filter.getFiltersForDimension("event_date");
         assertEquals("Should have one filter for date", 1, dateFilters.size());
-        testDateFilters(dateFilters, new long[] { expectedFromMillis }, new long[] { expectedToMillis });
+        testDateFilters(dateFilters, "event_date_hour", new long[] { expectedFromMillis }, new long[] { expectedToMillis });
     }
 
     public void testMustWithMultipleDateFieldRanges() throws IOException {
@@ -213,12 +213,12 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
         assertNotNull("Filter should not be null", filter);
         assertEquals("Should have 1 dimension", 1, filter.getDimensions().size());
-        assertTrue("Should contain date-minute dimension", filter.getDimensions().contains("event_date_minute"));
+        assertTrue("Should contain date-minute dimension", filter.getDimensions().contains(EVENT_DATE));
 
         // Verify date range filter
-        List<DimensionFilter> dateFilters = filter.getFiltersForDimension("event_date_minute");
+        List<DimensionFilter> dateFilters = filter.getFiltersForDimension(EVENT_DATE);
         assertEquals("Should have 1 filter for date", 1, dateFilters.size());
-        testDateFilters(dateFilters, new long[] { expectedFromMillisMin }, new long[] { expectedToMillisHour });
+        testDateFilters(dateFilters, "event_date_minute", new long[] { expectedFromMillisMin }, new long[] { expectedToMillisHour });
 
         // multiple fields, second date clause will lowe minute granularity, overlapping intervals
         boolQuery = new BoolQueryBuilder().must(new TermQueryBuilder(METHOD, "GET"))
@@ -231,12 +231,12 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertNotNull("Filter should not be null", filter);
         assertEquals("Should have 2 dimension", 2, filter.getDimensions().size());
         assertTrue("Should contain method dimension", filter.getDimensions().contains(METHOD));
-        assertTrue("Should contain date-second dimension", filter.getDimensions().contains("event_date_second"));
+        assertTrue("Should contain date-second dimension", filter.getDimensions().contains(EVENT_DATE));
 
         // Verify date range filter
-        dateFilters = filter.getFiltersForDimension("event_date_second");
+        dateFilters = filter.getFiltersForDimension(EVENT_DATE);
         assertEquals("Should have 1 filter for date", 1, dateFilters.size());
-        testDateFilters(dateFilters, new long[] { expectedFromMillisHour }, new long[] { expectedToMillisSec });
+        testDateFilters(dateFilters, "event_date_second", new long[] { expectedFromMillisHour }, new long[] { expectedToMillisSec });
 
         // dis-joint intervals
         boolQuery = new BoolQueryBuilder().must(new RangeQueryBuilder(EVENT_DATE).gte(fromDateStrSec).lt(toDateStrSec).format(DATE_FORMAT))
@@ -273,15 +273,15 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
         assertNotNull("Filter should not be null", filter);
         assertEquals("Should have 1 dimension", 1, filter.getDimensions().size());
-        assertTrue("Should contain date-minute dimension", filter.getDimensions().contains("event_date_minute"));
+        assertTrue("Should contain date-minute dimension", filter.getDimensions().contains(EVENT_DATE));
 
         // Verify date range filter
         long[] expectedLows = new long[] { expectedFromMillisHour, expectedFromMillisMin };
         long[] expectedHighs = new long[] { expectedToMillisHour, expectedToMillisMin };
 
-        List<DimensionFilter> dateFilters = filter.getFiltersForDimension("event_date_minute");
+        List<DimensionFilter> dateFilters = filter.getFiltersForDimension(EVENT_DATE);
         assertEquals("Should have 2 filter for date", 2, dateFilters.size());
-        testDateFilters(dateFilters, expectedLows, expectedHighs);
+        testDateFilters(dateFilters, "event_date_minute", expectedLows, expectedHighs);
 
         // first date clause will use min granularity, second date clause will use hour granularity
         boolQuery = new BoolQueryBuilder().should(
@@ -295,15 +295,15 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
 
         assertNotNull("Filter should not be null", filter);
         assertEquals("Should have 1 dimension", 1, filter.getDimensions().size());
-        assertTrue("Should contain date-second dimension", filter.getDimensions().contains("event_date_second"));
+        assertTrue("Should contain date-second dimension", filter.getDimensions().contains(EVENT_DATE));
 
         // Verify date range filter
-        dateFilters = filter.getFiltersForDimension("event_date_second");
+        dateFilters = filter.getFiltersForDimension(EVENT_DATE);
         expectedLows = new long[] { expectedFromMillisMin, expectedFromMillisHour, expectedFromMillisSec };
         expectedHighs = new long[] { expectedToMillisMin, expectedToMillisHour, expectedToMillisSec };
 
         assertEquals("Should have 3 filters for date", 3, dateFilters.size());
-        testDateFilters(dateFilters, expectedLows, expectedHighs);
+        testDateFilters(dateFilters, "event_date_second", expectedLows, expectedHighs);
 
         // should on different fields
         boolQuery = new BoolQueryBuilder().should(new TermQueryBuilder(METHOD, "GET"))
@@ -316,10 +316,11 @@ public class BoolStarTreeFilterProviderTests extends OpenSearchTestCase {
         assertNull("Filter should be null", filter);
     }
 
-    private void testDateFilters(List<DimensionFilter> dateFilters, long[] expectedLows, long[] expectedHighs) {
+    private void testDateFilters(List<DimensionFilter> dateFilters, String subDimension, long[] expectedLows, long[] expectedHighs) {
         for (int i = 0; i < dateFilters.size(); i++) {
             assertTrue("Date filter should be RangeMatchDimFilter", dateFilters.get(i) instanceof RangeMatchDimFilter);
             RangeMatchDimFilter rf = (RangeMatchDimFilter) dateFilters.get(i);
+            assertEquals("Sub-dimension should match", subDimension, rf.getSubDimensionName());
             assertEquals("Date lower bound should match", expectedLows[i], rf.getLow());
             assertEquals("Date upper bound should match", expectedHighs[i], rf.getHigh());
             assertTrue("Date lower bound should be inclusive", rf.isIncludeLow());

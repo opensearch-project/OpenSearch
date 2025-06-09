@@ -128,8 +128,16 @@ public interface DimensionFilterMapper {
         return DimensionDataType.LONG::compare;
     }
 
-    default Optional<String> getSubDimension() {
-        return Optional.empty();
+    default boolean resolveUsingSubDimension() {
+        return false;
+    }
+
+    default String getSubDimensionFieldEffective(String subDimensionField1, String subDimensionField2) {
+        return null;
+    }
+
+    default List<DimensionFilter> getFinalDimensionFilters(List<DimensionFilter> filters) {
+        return filters;
     }
 
     /**

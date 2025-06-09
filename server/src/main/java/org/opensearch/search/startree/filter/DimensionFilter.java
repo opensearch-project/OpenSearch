@@ -23,32 +23,6 @@ import java.util.Iterator;
  */
 @ExperimentalApi
 public interface DimensionFilter {
-
-    DimensionFilter MATCH_ALL_DEFAULT = new DimensionFilter() {
-        @Override
-        public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException {
-
-        }
-
-        @Override
-        public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
-            throws IOException {
-            if (parentNode != null) {
-                for (Iterator<? extends StarTreeNode> it = parentNode.getChildrenIterator(); it.hasNext();) {
-                    StarTreeNode starTreeNode = it.next();
-                    if (starTreeNode.getStarTreeNodeType() == StarTreeNodeType.DEFAULT.getValue()) {
-                        collector.collectStarTreeNode(starTreeNode);
-                    }
-                }
-            }
-        }
-
-        @Override
-        public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
-            return true;
-        }
-    };
-
     /**
      * Converts parsed user values to ordinals based on segment and other init actions can be performed.
      * @param starTreeValues : Segment specific star tree root node and other metadata
@@ -78,6 +52,14 @@ public interface DimensionFilter {
         return null;
     }
 
+    default String getSubDimensionName() {
+        return null;
+    }
+
+    default String getMatchingDimension() {
+        return getSubDimensionName() == null ? getDimensionName() : getSubDimensionName();
+    }
+
     /**
      * Represents how to match a value when comparing during StarTreeTraversal
      */
@@ -90,4 +72,26 @@ public interface DimensionFilter {
         EXACT
     }
 
+    DimensionFilter MATCH_ALL_DEFAULT = new DimensionFilter() {
+        @Override
+        public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException {}
+
+        @Override
+        public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
+            throws IOException {
+            if (parentNode != null) {
+                for (Iterator<? extends StarTreeNode> it = parentNode.getChildrenIterator(); it.hasNext();) {
+                    StarTreeNode starTreeNode = it.next();
+                    if (starTreeNode.getStarTreeNodeType() == StarTreeNodeType.DEFAULT.getValue()) {
+                        collector.collectStarTreeNode(starTreeNode);
+                    }
+                }
+            }
+        }
+
+        @Override
+        public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
+            return true;
+        }
+    };
 }

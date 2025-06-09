@@ -232,26 +232,17 @@ public class DateRangeQueryTests extends AggregatorTestCase {
             testCase(indexSearcher, query, queryBuilderAbsolute, termAggregationBuilder, starTree, supportedDimensions);
             testCase(indexSearcher, query, queryBuilderRelative, termAggregationBuilder, starTree, supportedDimensions);
 
-            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(STATUS).from(10).includeLower(true).to(30).includeUpper(true);
-            Query rangeQuery = new IndexOrDocValuesQuery(
-                LongPoint.newRangeQuery(STATUS, 10, 30),
-                SortedNumericDocValuesField.newSlowRangeQuery(STATUS, 10, 30)
-            );
-
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
             boolQueryBuilder.must(queryBuilderAbsolute).must(queryBuilderAbsolute);
             BooleanQuery booleanQuery = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
                 .add(query, BooleanClause.Occur.MUST)
                 .build();
-
-            // testCaseForQuery(indexSearcher, booleanQuery, boolQueryBuilder, sumAggregationBuilder, starTree, supportedDimensions);
+            testCaseForQuery(indexSearcher, booleanQuery, boolQueryBuilder, sumAggregationBuilder, starTree, supportedDimensions);
 
             boolQueryBuilder = new BoolQueryBuilder();
             boolQueryBuilder.should(queryBuilderAbsolute).should(queryBuilderAbsolute);
             booleanQuery = new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD).add(query, BooleanClause.Occur.SHOULD).build();
-
             testCaseForQuery(indexSearcher, booleanQuery, boolQueryBuilder, sumAggregationBuilder, starTree, supportedDimensions);
-
         }
         ir.close();
         directory.close();

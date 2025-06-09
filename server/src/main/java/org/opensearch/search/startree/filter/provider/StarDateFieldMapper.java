@@ -18,12 +18,13 @@ import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.RangeMatchDimFilter;
 
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.LongSupplier;
 
@@ -32,6 +33,8 @@ class StarDateFieldMapper implements DimensionFilterMapper {
     CompositeDataCubeFieldType compositeDataCubeFieldType;
     LongSupplier nowSupplier;
     String subDimensionField;
+    DateDimension dateDimension;
+    List<String> sortedSubDimensions;
 
     public StarDateFieldMapper(SearchContext searchContext) {
         this.nowSupplier = () -> searchContext.getQueryShardContext().nowInMillis();
@@ -39,6 +42,13 @@ class StarDateFieldMapper implements DimensionFilterMapper {
             .getCompositeFieldTypes()
             .iterator()
             .next();
+        // Single date-field is used as of now
+        dateDimension = (DateDimension) compositeDataCubeFieldType.getDimensions()
+            .stream()
+            .filter(dim -> dim instanceof DateDimension)
+            .findFirst()
+            .orElse(null);
+        this.sortedSubDimensions = dateDimension != null ? dateDimension.getSubDimensionNames() : null;
     }
 
     @Override
@@ -51,10 +61,7 @@ class StarDateFieldMapper implements DimensionFilterMapper {
     public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, RangeQueryBuilder rangeQueryBuilder) {
         DateFieldType dateFieldType = (DateFieldType) mappedFieldType;
         String field = rangeQueryBuilder.fieldName();
-        DateDimension dateDimension = (DateDimension) StarTreeQueryHelper.getMatchingDimensionOrNull(
-            field,
-            compositeDataCubeFieldType.getDimensions()
-        );
+        assert Objects.equals(dateDimension.getField(), rangeQueryBuilder.fieldName());
 
         // Convert format string to DateMathParser if provided
         DateMathParser forcedDateParser = rangeQueryBuilder.format() != null
@@ -128,12 +135,60 @@ class StarDateFieldMapper implements DimensionFilterMapper {
         subDimensionField = field + "_" + matchingInterval.shortName();
 
         // l & u are inclusive interval boundaries here
-        return new RangeMatchDimFilter(field, l, u, true, true);
+        return new RangeMatchDimFilter(field, l, u, true, true) {
+            @Override
+            public String getSubDimensionName() {
+                return subDimensionField;
+            }
+        };
     }
 
     @Override
-    public Optional<String> getSubDimension() {
-        return Optional.ofNullable(subDimensionField);
+    public boolean resolveUsingSubDimension() {
+        return true;
+    }
+
+    @Override
+    public List<DimensionFilter> getFinalDimensionFilters(List<DimensionFilter> filters) {
+        if (filters == null || filters.size() <= 1) {
+            return filters;
+        }
+
+        boolean needsFinalFilter = false;
+        int lowestDimensionGranularity = sortedSubDimensions.indexOf(filters.getFirst().getSubDimensionName());
+        for (DimensionFilter filter : filters) {
+            int granularity = sortedSubDimensions.indexOf(filter.getSubDimensionName());
+            if (lowestDimensionGranularity > granularity) {
+                needsFinalFilter = true;
+                lowestDimensionGranularity = granularity;
+            }
+        }
+        // return the same filters if all filters have the same granularity
+        if (needsFinalFilter == false) {
+            return filters;
+        }
+
+        String finalSubDimensionField = sortedSubDimensions.get(lowestDimensionGranularity);
+        String dimensionName = filters.getFirst().getDimensionName();
+        List<DimensionFilter> updatedFilters = new ArrayList<>();
+        for (DimensionFilter filter : filters) {
+            RangeMatchDimFilter rangeMatchDimFilter = (RangeMatchDimFilter) filter;
+            updatedFilters.add(
+                new RangeMatchDimFilter(
+                    dimensionName,
+                    rangeMatchDimFilter.getLow(),
+                    rangeMatchDimFilter.getHigh(),
+                    rangeMatchDimFilter.isIncludeLow(),
+                    rangeMatchDimFilter.isIncludeHigh()
+                ) {
+                    @Override
+                    public String getSubDimensionName() {
+                        return finalSubDimensionField;
+                    }
+                }
+            );
+        }
+        return updatedFilters;
     }
 
     @Override
@@ -153,5 +208,11 @@ class StarDateFieldMapper implements DimensionFilterMapper {
             throw new IllegalArgumentException("Expected Long values for date comparison");
         }
         return Long.compare((Long) v1, (Long) v2);
+    }
+
+    public String getSubDimensionFieldEffective(String subDimensionField1, String subDimensionField2) {
+        return sortedSubDimensions.indexOf(subDimensionField1) < sortedSubDimensions.indexOf(subDimensionField2)
+            ? subDimensionField1
+            : subDimensionField2;
     }
 }

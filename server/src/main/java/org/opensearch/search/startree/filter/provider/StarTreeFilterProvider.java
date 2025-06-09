@@ -141,8 +141,8 @@ public interface StarTreeFilterProvider {
             if (dimensionFilter == null) {
                 return null;
             }
-            String dimensionField = dimensionFilterMapper.getSubDimension().orElse(field);
-            return new StarTreeFilter(Map.of(dimensionField, List.of(dimensionFilter)));
+            // String dimensionField = dimensionFilterMapper.getSubDimension().orElse(field);
+            return new StarTreeFilter(Map.of(field, List.of(dimensionFilter)));
         }
     }
 }
