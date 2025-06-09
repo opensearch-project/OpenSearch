@@ -66,7 +66,7 @@ public class ForceMergeManagerSettingsTests extends OpenSearchTestCase {
         assertEquals(2, (int) forceMergeManagerSettings.getConcurrencyMultiplier());
         assertEquals(1, (int) forceMergeManagerSettings.getSegmentCount());
         assertEquals(80.0, forceMergeManagerSettings.getCpuThreshold(), 0.0);
-        assertEquals(90.0, forceMergeManagerSettings.getJvmThreshold(), 0.0);
+        assertEquals(75.0, forceMergeManagerSettings.getJvmThreshold(), 0.0);
     }
 
     public void testDynamicSettingsUpdate() {

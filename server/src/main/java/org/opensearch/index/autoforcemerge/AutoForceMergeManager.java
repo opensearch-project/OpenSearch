@@ -34,9 +34,10 @@ import org.opensearch.monitor.os.OsService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
 
-import java.io.IOException;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -59,12 +60,14 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
     private final JvmService jvmService;
     private final IndicesService indicesService;
     private final ClusterService clusterService;
-    private AsyncForceMergeTask task;
+    private final AsyncForceMergeTask task;
     private ConfigurationValidator configurationValidator;
     private NodeValidator nodeValidator;
     private ShardValidator shardValidator;
     private final ForceMergeManagerSettings forceMergeManagerSettings;
     private final CommonStatsFlags flags = new CommonStatsFlags(CommonStatsFlags.Flag.Segments, CommonStatsFlags.Flag.Translog);
+    private final Set<Integer> mergingShards;
+    private Integer allocatedProcessors;
 
     private static final Logger logger = LogManager.getLogger(AutoForceMergeManager.class);
 
@@ -81,6 +84,8 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.forceMergeManagerSettings = new ForceMergeManagerSettings(clusterService, this::modifySchedulerInterval);
+        this.task = new AsyncForceMergeTask();
+        this.mergingShards = new HashSet<>();
     }
 
     @Override
@@ -88,7 +93,7 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         this.configurationValidator = new ConfigurationValidator();
         this.nodeValidator = new NodeValidator();
         this.shardValidator = new ShardValidator();
-        this.task = new AsyncForceMergeTask();
+        this.allocatedProcessors = OpenSearchExecutors.allocatedProcessors(clusterService.getSettings());
     }
 
     @Override
@@ -120,17 +125,23 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         }
         int iteration = nodeValidator.getMaxConcurrentForceMerges();
         for (IndexShard shard : getShardsBasedOnSorting(indicesService)) {
-            if (iteration == 0 || nodeValidator.validate().isAllowed() == false) {
+            if (iteration == 0) {
+                break;
+            }
+            if (nodeValidator.validate().isAllowed() == false) {
                 logger.debug("Node conditions no longer suitable for force merge.");
                 break;
             }
             iteration--;
             CompletableFuture.runAsync(() -> {
                 try {
+                    mergingShards.add(shard.shardId().getId());
                     shard.forceMerge(new ForceMergeRequest().maxNumSegments(forceMergeManagerSettings.getSegmentCount()));
                     logger.debug("Merging is completed successfully for the shard {}", shard.shardId());
-                } catch (IOException e) {
+                } catch (Exception e) {
                     logger.error("Error during force merge for shard {}\nException: {}", shard.shardId(), e);
+                } finally {
+                    mergingShards.remove(shard.shardId().getId());
                 }
             }, threadPool.executor(ThreadPool.Names.FORCE_MERGE));
             logger.info("Successfully triggered force merge for shard {}", shard.shardId());
@@ -147,9 +158,12 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
     private List<IndexShard> getShardsBasedOnSorting(Iterable<IndexService> indicesService) {
         return StreamSupport.stream(indicesService.spliterator(), false)
             .flatMap(indexService -> StreamSupport.stream(indexService.spliterator(), false))
+            .filter(shard -> !shard.shardId().getIndexName().startsWith("."))
             .filter(shard -> shard.routingEntry().primary())
+            .filter(shard -> !mergingShards.contains(shard.shardId().getId()))
             .filter(shard -> shardValidator.validate(shard).isAllowed())
             .sorted(new ShardAgeComparator())
+            .limit(getNodeValidator().getMaxConcurrentForceMerges())
             .collect(Collectors.toList());
     }
 
@@ -239,16 +253,10 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
 
         @Override
         public ValidationResult validate() {
-            double cpuPercent = osService.stats().getCpu().getPercent();
-            if (cpuPercent >= forceMergeManagerSettings.getCpuThreshold()) {
-                logger.debug("CPU usage: {} breached the threshold: {}", cpuPercent, forceMergeManagerSettings.getCpuThreshold());
+            if (isCpuUsageOverThreshold()) {
                 return new ValidationResult(false);
             }
-            long total = fsService.stats().getTotal().getTotal().getBytes();
-            long available = fsService.stats().getTotal().getAvailable().getBytes();
-            double diskPercent = ((double) available / total) * 100;
-            if (diskPercent >= forceMergeManagerSettings.getDiskThreshold()) {
-                logger.debug("Disk usage: {} breached the threshold: {}", diskPercent, forceMergeManagerSettings.getDiskThreshold());
+            if (isDiskUsageOverThreshold()) {
                 return new ValidationResult(false);
             }
             double jvmUsedPercent = jvmService.stats().getMem().getHeapUsedPercent();
@@ -272,9 +280,47 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
             return false;
         }
 
+        private boolean isCpuUsageOverThreshold() {
+            double[] loadAverage = osService.stats().getCpu().getLoadAverage();
+            double loadAverage5m = (loadAverage[1] / (double) allocatedProcessors) * 100;
+            if (loadAverage5m >= forceMergeManagerSettings.getCpuThreshold()) {
+                logger.debug(
+                    "Load Average: 5m({}%) breached the threshold: {}",
+                    loadAverage5m,
+                    forceMergeManagerSettings.getCpuThreshold()
+                );
+                return true;
+            }
+            double loadAverage1m = (loadAverage[0] / (double) allocatedProcessors) * 100;
+            if (loadAverage1m >= forceMergeManagerSettings.getCpuThreshold()) {
+                logger.debug(
+                    "Load Average: 1m({}%) breached the threshold: {}",
+                    loadAverage1m,
+                    forceMergeManagerSettings.getCpuThreshold()
+                );
+                return true;
+            }
+            double cpuPercent = osService.stats().getCpu().getPercent();
+            if (cpuPercent >= forceMergeManagerSettings.getCpuThreshold()) {
+                logger.debug("CPU usage: {} breached the threshold: {}", cpuPercent, forceMergeManagerSettings.getCpuThreshold());
+                return true;
+            }
+            return false;
+        }
+
+        private boolean isDiskUsageOverThreshold() {
+            long total = fsService.stats().getTotal().getTotal().getBytes();
+            long available = fsService.stats().getTotal().getAvailable().getBytes();
+            double diskPercent = ((double) (total - available) / total) * 100;
+            if (diskPercent >= forceMergeManagerSettings.getDiskThreshold()) {
+                logger.debug("Disk usage: {}% breached the threshold: {}", diskPercent, forceMergeManagerSettings.getDiskThreshold());
+                return true;
+            }
+            return false;
+        }
+
         public Integer getMaxConcurrentForceMerges() {
-            return Math.max(1, (OpenSearchExecutors.allocatedProcessors(clusterService.getSettings()) / 8)) * forceMergeManagerSettings
-                .getConcurrencyMultiplier();
+            return Math.max(1, (allocatedProcessors / 8)) * forceMergeManagerSettings.getConcurrencyMultiplier();
         }
     }
 
@@ -296,23 +342,23 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
                 return new ValidationResult(false);
             }
             CommonStats stats = new CommonStats(indicesService.getIndicesQueryCache(), shard, flags);
-            SegmentsStats segmentsStats = stats.getSegments();
             TranslogStats translogStats = stats.getTranslog();
-            if (segmentsStats != null && segmentsStats.getCount() <= forceMergeManagerSettings.getSegmentCount()) {
-                logger.debug(
-                    "Shard({}) skipped: Shard has {} segments, not exceeding threshold of {}",
-                    shard.shardId(),
-                    segmentsStats.getCount(),
-                    forceMergeManagerSettings.getSegmentCount()
-                );
-                return new ValidationResult(false);
-            }
             if (translogStats != null
                 && translogStats.getEarliestLastModifiedAge() < forceMergeManagerSettings.getTranslogAge().getMillis()) {
                 logger.debug(
                     "Shard({}) skipped: Translog is too recent. Age({}ms)",
                     shard.shardId(),
                     translogStats.getEarliestLastModifiedAge()
+                );
+                return new ValidationResult(false);
+            }
+            SegmentsStats segmentsStats = stats.getSegments();
+            if (segmentsStats != null && segmentsStats.getCount() <= forceMergeManagerSettings.getSegmentCount()) {
+                logger.debug(
+                    "Shard({}) skipped: Shard has {} segments, not exceeding threshold of {}",
+                    shard.shardId(),
+                    segmentsStats.getCount(),
+                    forceMergeManagerSettings.getSegmentCount()
                 );
                 return new ValidationResult(false);
             }

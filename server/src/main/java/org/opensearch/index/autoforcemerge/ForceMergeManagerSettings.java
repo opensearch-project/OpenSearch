@@ -116,11 +116,11 @@ public class ForceMergeManagerSettings {
     );
 
     /**
-     * Setting for jvm threshold. (default: 70)
+     * Setting for jvm threshold. (default: 75)
      */
     public static final Setting<Double> JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE = Setting.doubleSetting(
         "node.auto_force_merge.jvm.threshold",
-        90.0,
+        75.0,
         10,
         100,
         Setting.Property.Dynamic,
