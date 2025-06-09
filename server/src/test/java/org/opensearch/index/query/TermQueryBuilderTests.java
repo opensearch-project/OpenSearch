@@ -237,7 +237,6 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     }
 
     public void testGetComplement() throws Exception {
-        // TODO: This still has a lot of duplicated code, see if I can reuse more of it
         // getComplement() should return null if QueryShardContext is null
         int value = 200;
         TermQueryBuilder queryBuilder = new TermQueryBuilder(INT_FIELD_NAME, value);
@@ -246,20 +245,13 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         // getComplement() should return 2 range queries if this is a numeric field
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
-        addDocument(w, INT_FIELD_NAME, 1);
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = getIndexSearcher(reader);
 
         testGetComplementNumericField(queryBuilder, value, INT_FIELD_NAME, searcher);
 
         // should return null if this isn't a numeric field
-        String textValue = "some_text";
-        Document d = new Document();
-        d.add(new TextField(TEXT_FIELD_NAME, textValue, Field.Store.NO));
-        w.addDocument(d);
-        w.commit();
-
-        queryBuilder = new TermQueryBuilder(TEXT_FIELD_NAME, textValue);
+        queryBuilder = new TermQueryBuilder(TEXT_FIELD_NAME, "some_text");
         assertNull(queryBuilder.getComplement(createShardContext(searcher)));
 
         IOUtils.close(w, reader, dir);
