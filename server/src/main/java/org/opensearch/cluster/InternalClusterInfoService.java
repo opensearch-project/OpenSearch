@@ -60,6 +60,8 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.node.NodeResourceUsageStats;
+import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ReceiveTimeoutTransportException;
 import org.opensearch.transport.client.Client;
@@ -83,7 +85,7 @@ import java.util.stream.Collectors;
  * Listens for changes in the number of data nodes and immediately submits a
  * ClusterInfoUpdateJob if a node has been added.
  * <p>
- * Every time the timer runs, gathers information about the disk usage and
+ * Every time the timer runs, gathers information about the disk usage, resource usage(jvm,cpu,i/o stats) and
  * shard sizes across the cluster.
  *
  * @opensearch.internal
@@ -113,6 +115,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
     private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile Map<String, AggregateFileCacheStats> nodeFileCacheStats;
+    private volatile Map<String, NodeResourceUsageStats> nodeResourceUsageStats;
     private volatile IndicesStatsSummary indicesStatsSummary;
     // null if this node is not currently the cluster-manager
     private final AtomicReference<RefreshAndRescheduleRunnable> refreshAndRescheduleRunnable = new AtomicReference<>();
@@ -126,6 +129,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();
         this.nodeFileCacheStats = Map.of();
+        this.nodeResourceUsageStats = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
@@ -193,6 +197,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     newMinUsages.remove(removedNode.getId());
                     mostAvailableSpaceUsages = Collections.unmodifiableMap(newMinUsages);
                 }
+                if (nodeResourceUsageStats.containsKey(removedNode.getId())) {
+                    Map<String, NodeResourceUsageStats> newNodeResourceUsageStats = new HashMap<>(nodeResourceUsageStats);
+                    newNodeResourceUsageStats.remove(removedNode.getId());
+                    nodeResourceUsageStats = Collections.unmodifiableMap(newNodeResourceUsageStats);
+                }
             }
         }
     }
@@ -210,6 +219,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         return new ClusterInfo(
             leastAvailableSpaceUsages,
             mostAvailableSpaceUsages,
+            nodeResourceUsageStats,
             indicesStatsSummary.shardSizes,
             indicesStatsSummary.shardRoutingToDataPath,
             indicesStatsSummary.reservedSpace,
@@ -227,6 +237,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         nodesStatsRequest.clear();
         nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
         nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FILE_CACHE_STATS.metricName());
+        nodesStatsRequest.addMetric(NodesStatsRequest.Metric.RESOURCE_USAGE_STATS.metricName());
         nodesStatsRequest.timeout(fetchTimeout);
         client.admin().cluster().nodesStats(nodesStatsRequest, new LatchedActionListener<>(listener, latch));
         return latch;
@@ -270,6 +281,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 );
                 leastAvailableSpaceUsages = Collections.unmodifiableMap(leastAvailableUsagesBuilder);
                 mostAvailableSpaceUsages = Collections.unmodifiableMap(mostAvailableUsagesBuilder);
+
+                final Map<String, NodeResourceUsageStats> nodeResourceUsageStatsBuilder = new HashMap<>();
+                fillNodeResourceUsageStatsPerNode(logger, adjustNodesStats(nodesStatsResponse.getNodes()), nodeResourceUsageStatsBuilder);
+
+                nodeResourceUsageStats = Collections.unmodifiableMap(nodeResourceUsageStatsBuilder);
 
                 nodeFileCacheStats = Collections.unmodifiableMap(
                     nodesStatsResponse.getNodes()
@@ -471,6 +487,30 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                             mostAvailablePath.getTotal().getBytes(),
                             mostAvailablePath.getAvailable().getBytes()
                         )
+                    );
+                }
+
+            }
+        }
+    }
+
+    static void fillNodeResourceUsageStatsPerNode(
+        Logger logger,
+        List<NodeStats> nodeStatsArray,
+        final Map<String, NodeResourceUsageStats> newNodeResourceUsageStats
+    ) {
+        for (NodeStats nodeStats : nodeStatsArray) {
+            if (nodeStats.getResourceUsageStats() == null) {
+                logger.warn("Unable to retrieve node Resource Usage stats for {}", nodeStats.getNode().getName());
+            } else {
+                NodesResourceUsageStats nodesResourceUsageStats = null;
+                String nodeId = nodeStats.getNode().getId();
+
+                nodesResourceUsageStats = nodeStats.getResourceUsageStats();
+                if (nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap() != null) {
+                    newNodeResourceUsageStats.put(
+                        nodeId,
+                        nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap().getOrDefault(nodeId, null)
                     );
                 }
 
