@@ -128,10 +128,14 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Engine.IndexResult;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
+import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.Uid;
@@ -8223,5 +8227,113 @@ public class InternalEngineTests extends EngineTestCase {
 
         store.close();
         engine.close();
+    }
+
+    public void testNewChangesSnapshotWithDerivedSource() throws IOException {
+        // Setup with derived source enabled
+        Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+            .build();
+
+        // Create test documents
+        List<Engine.Operation> operations = new ArrayList<>();
+        final int numDocs = randomIntBetween(1, 100);
+
+        try (Store store = createStore()) {
+            EngineConfig engineConfig = createEngineConfigWithMapperSupplier(settings, store);
+            try (InternalEngine engine = createEngine(engineConfig)) {
+                // Index documents
+                for (int i = 0; i < numDocs; i++) {
+                    ParsedDocument doc = testParsedDocument(
+                        Integer.toString(i),
+                        null,
+                        testDocumentWithTextField(),
+                        new BytesArray("{}"),
+                        null
+                    );
+                    Engine.Index index = new Engine.Index(
+                        newUid(doc),
+                        doc,
+                        UNASSIGNED_SEQ_NO,
+                        primaryTerm.get(),
+                        i,
+                        VersionType.EXTERNAL,
+                        Engine.Operation.Origin.PRIMARY,
+                        System.nanoTime(),
+                        -1,
+                        false,
+                        UNASSIGNED_SEQ_NO,
+                        0
+                    );
+                    operations.add(index);
+                    engine.index(index);
+                }
+
+                engine.refresh("test");
+
+                // Test newChangesSnapshot with derived source
+                try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, numDocs - 1, true, false)) {
+                    int count = 0;
+                    Translog.Operation operation;
+                    while ((operation = snapshot.next()) != null) {
+                        // Verify operation type
+                        assertThat(operation, instanceOf(Translog.Index.class));
+
+                        // Verify sequence numbers are in order
+                        assertThat(operation.seqNo(), equalTo((long) count));
+
+                        // Verify source is derived correctly
+                        Translog.Index indexOp = (Translog.Index) operation;
+                        assertNotNull("Source should not be null", indexOp.source());
+
+                        // Additional derived source specific checks can be added here
+
+                        count++;
+                    }
+
+                    // Verify we got all documents
+                    assertThat(count, equalTo(numDocs));
+                }
+            }
+        }
+    }
+
+    private EngineConfig createEngineConfigWithMapperSupplier(Settings settings, Store store) throws IOException {
+        IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+        final RootObjectMapper.Builder rootObjectMapperBuilder = new RootObjectMapper.Builder("_doc");
+
+        final MapperService mapperService = createMapperService();
+        final DocumentMapper documentMapper = new DocumentMapper.Builder(rootObjectMapperBuilder, mapperService).build(mapperService);
+
+        DocumentMapperForType documentMapperForType = new DocumentMapperForType(documentMapper, null);
+
+        // Create engine config with document mapper supplier
+        EngineConfig config = engine.config();
+        EngineConfig engineConfig = new EngineConfig.Builder().shardId(config.getShardId())
+            .threadPool(config.getThreadPool())
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(config.getMergePolicy())
+            .analyzer(config.getAnalyzer())
+            .similarity(config.getSimilarity())
+            .eventListener(config.getEventListener())
+            .queryCache(config.getQueryCache())
+            .queryCachingPolicy(config.getQueryCachingPolicy())
+            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .translogConfig(config.getTranslogConfig())
+            .flushMergesAfter(config.getFlushMergesAfter())
+            .externalRefreshListener(config.getExternalRefreshListener())
+            .internalRefreshListener(config.getInternalRefreshListener())
+            .indexSort(config.getIndexSort())
+            .circuitBreakerService(config.getCircuitBreakerService())
+            .globalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .retentionLeasesSupplier(config.retentionLeasesSupplier())
+            .primaryTermSupplier(config.getPrimaryTermSupplier())
+            .documentMapperForTypeSupplier(() -> documentMapperForType)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .build();
+        return engineConfig;
     }
 }
