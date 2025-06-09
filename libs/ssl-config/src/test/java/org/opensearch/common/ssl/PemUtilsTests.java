@@ -44,15 +44,16 @@ import java.security.AlgorithmParameters;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.interfaces.DSAParams;
+import java.security.interfaces.DSAPrivateKey;
 import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.util.Locale;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.StringContains.containsString;
 
 public class PemUtilsTests extends OpenSearchTestCase {
@@ -62,45 +63,45 @@ public class PemUtilsTests extends OpenSearchTestCase {
     private static final Supplier<char[]> STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/="::toCharArray;
 
     public void testReadPKCS8RsaKey() throws Exception {
-        Key key = getKeyFromKeystore("RSA");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/rsa_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        var key = (RSAPrivateCrtKey) getKeyFromKeystore("RSA");
+        var privateKey = (RSAPrivateCrtKey) PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/rsa_key_pkcs8_plain.pem"),
+            EMPTY_PASSWORD
+        );
+
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadPKCS8RsaKeyWithBagAttrs() throws Exception {
-        Key key = getKeyFromKeystore("RSA");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode_with_bagattrs.pem"), EMPTY_PASSWORD);
-        assertThat(privateKey, equalTo(key));
+        var key = (RSAPrivateCrtKey) getKeyFromKeystore("RSA");
+        var privateKey = (RSAPrivateCrtKey) PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/testnode_with_bagattrs.pem"),
+            EMPTY_PASSWORD
+        );
+
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadPKCS8DsaKey() throws Exception {
-        Key key = getKeyFromKeystore("DSA");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        var key = (DSAPrivateKey) getKeyFromKeystore("DSA");
+        var privateKey = (DSAPrivateKey) PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
+
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadEncryptedPKCS8DsaKey() throws Exception {
-        Key key = getKeyFromKeystore("DSA");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_pkcs8_encrypted.pem"), TESTNODE_PASSWORD);
+        var key = (DSAPrivateKey) getKeyFromKeystore("DSA");
+        var privateKey = (DSAPrivateKey) PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/dsa_key_pkcs8_encrypted.pem"),
+            STRONG_PRIVATE_SECRET
+        );
 
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadEcKeyCurves() throws Exception {
         String curve = randomFrom("secp256r1", "secp384r1", "secp521r1");
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/private_" + curve + ".pem"), ""::toCharArray);
-        assertThat(privateKey, instanceOf(ECPrivateKey.class));
+        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/private_" + curve + ".pem"), EMPTY_PASSWORD);
         ECParameterSpec parameterSpec = ((ECPrivateKey) privateKey).getParams();
         ECGenParameterSpec algorithmParameterSpec = new ECGenParameterSpec(curve);
         AlgorithmParameters algoParameters = AlgorithmParameters.getInstance("EC");
@@ -109,152 +110,144 @@ public class PemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testReadPKCS8EcKey() throws Exception {
-        Key key = getKeyFromKeystore("EC");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        var key = (ECPrivateKey) getKeyFromKeystore("EC");
+        var privateKey = (ECPrivateKey) PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_pkcs8_plain.pem"), EMPTY_PASSWORD);
+
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadEncryptedPKCS8EcKey() throws Exception {
-        var key = getKeyFromKeystore("EC");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        var privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_pkcs8_encrypted.pem"), TESTNODE_PASSWORD);
+        var key = (ECPrivateKey) getKeyFromKeystore("EC");
+        var privateKey = (ECPrivateKey) PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/ec_key_pkcs8_encrypted.pem"),
+            STRONG_PRIVATE_SECRET
+        );
 
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadEncryptedPKCS8Key() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
-        Key key = getKeyFromKeystore("RSA");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/key_pkcs8_encrypted.pem"), TESTNODE_PASSWORD);
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        var key = (RSAPrivateCrtKey) getKeyFromKeystore("RSA");
+        var privateKey = (RSAPrivateCrtKey) PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/key_pkcs8_encrypted.pem"),
+            TESTNODE_PASSWORD
+        );
+
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadDESEncryptedPKCS1Key() throws Exception {
-        Key key = getKeyFromKeystore("RSA");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode.pem"), TESTNODE_PASSWORD);
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
+        var key = (RSAPrivateCrtKey) getKeyFromKeystore("RSA");
+        var privateKey = (RSAPrivateCrtKey) PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode.pem"), TESTNODE_PASSWORD);
+
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadAESEncryptedPKCS1Key() throws Exception {
-        Key key = getKeyFromKeystore("RSA");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
+        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
+        var key = (RSAPrivateCrtKey) getKeyFromKeystore("RSA");
         String bits = randomFrom("128", "192", "256");
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode-aes" + bits + ".pem"), TESTNODE_PASSWORD);
+        var privateKey = (RSAPrivateCrtKey) PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/testnode-aes" + bits + ".pem"),
+            TESTNODE_PASSWORD
+        );
 
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadPKCS1RsaKey() throws Exception {
-        Key key = getKeyFromKeystore("RSA");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/testnode-unprotected.pem"), TESTNODE_PASSWORD);
+        var key = (RSAPrivateCrtKey) getKeyFromKeystore("RSA");
+        var privateKey = (RSAPrivateCrtKey) PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/testnode-unprotected.pem"),
+            TESTNODE_PASSWORD
+        );
 
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadOpenSslDsaKey() throws Exception {
-        Key key = getKeyFromKeystore("DSA");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_plain.pem"), EMPTY_PASSWORD);
+        var key = (DSAPrivateKey) getKeyFromKeystore("DSA");
+        var privateKey = (DSAPrivateKey) PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_plain.pem"), EMPTY_PASSWORD);
 
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadOpenSslDsaKeyWithParams() throws Exception {
-        Key key = getKeyFromKeystore("DSA");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(
+        var key = (DSAPrivateKey) getKeyFromKeystore("DSA");
+        var privateKey = (DSAPrivateKey) PemUtils.readPrivateKey(
             getDataPath("/certs/pem-utils/dsa_key_openssl_plain_with_params.pem"),
             EMPTY_PASSWORD
         );
 
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadEncryptedOpenSslDsaKey() throws Exception {
-        Key key = getKeyFromKeystore("DSA");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_encrypted.pem"), TESTNODE_PASSWORD);
+        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
+        var key = (DSAPrivateKey) getKeyFromKeystore("DSA");
+        var privateKey = (DSAPrivateKey) PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/dsa_key_openssl_encrypted.pem"),
+            TESTNODE_PASSWORD
+        );
 
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadOpenSslEcKey() throws Exception {
-        var key = getKeyFromKeystore("EC");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        var privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_plain.pem"), EMPTY_PASSWORD);
+        var key = (ECPrivateKey) getKeyFromKeystore("EC");
+        var privateKey = (ECPrivateKey) PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_plain.pem"), EMPTY_PASSWORD);
 
-        assertTrue(isCryptographicallyEqual((ECPrivateKey) key, (ECPrivateKey) privateKey));
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadOpenSslEcKeyWithParams() throws Exception {
-        Key key = getKeyFromKeystore("EC");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(
+        var key = (ECPrivateKey) getKeyFromKeystore("EC");
+        var privateKey = (ECPrivateKey) PemUtils.readPrivateKey(
             getDataPath("/certs/pem-utils/ec_key_openssl_plain_with_params.pem"),
             EMPTY_PASSWORD
         );
 
-        assertTrue(isCryptographicallyEqual((ECPrivateKey) key, (ECPrivateKey) privateKey));
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadEncryptedOpenSslEcKey() throws Exception {
-        var key = getKeyFromKeystore("EC");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        var privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_encrypted.pem"), TESTNODE_PASSWORD);
+        assumeFalse("Can't run in a FIPS JVM, PBKDF-OPENSSL KeySpec is not available", inFipsJvm());
+        var key = (ECPrivateKey) getKeyFromKeystore("EC");
+        var privateKey = (ECPrivateKey) PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/ec_key_openssl_encrypted.pem"),
+            TESTNODE_PASSWORD
+        );
 
-        assertTrue(isCryptographicallyEqual((ECPrivateKey) key, (ECPrivateKey) privateKey));
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadEncryptedPKCS8KeyWithPBKDF2() throws Exception {
-        Key key = getKeyFromKeystore("PKCS8_PBKDF2");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/key_PKCS8_enc_pbkdf2.pem"), STRONG_PRIVATE_SECRET);
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        var key = (RSAPrivateCrtKey) getKeyFromKeystore("PKCS8_PBKDF2");
+        var privateKey = (RSAPrivateCrtKey) PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/key_PKCS8_enc_pbkdf2.pem"),
+            STRONG_PRIVATE_SECRET
+        );
+
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadEncryptedDsaKeyWithPBKDF2() throws Exception {
-        Key key = getKeyFromKeystore("DSA_PBKDF2");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/key_DSA_enc_pbkdf2.pem"), STRONG_PRIVATE_SECRET);
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        var key = (DSAPrivateKey) getKeyFromKeystore("DSA_PBKDF2");
+        var privateKey = (DSAPrivateKey) PemUtils.readPrivateKey(
+            getDataPath("/certs/pem-utils/key_DSA_enc_pbkdf2.pem"),
+            STRONG_PRIVATE_SECRET
+        );
+
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadEncryptedEcKeyWithPBKDF2() throws Exception {
-        Key key = getKeyFromKeystore("EC_PBKDF2");
-        assertThat(key, notNullValue());
-        assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/key_EC_enc_pbkdf2.pem"), EMPTY_PASSWORD);
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey, equalTo(key));
+        var key = (ECPrivateKey) getKeyFromKeystore("EC_PBKDF2");
+        var privateKey = (ECPrivateKey) PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/key_EC_enc_pbkdf2.pem"), EMPTY_PASSWORD);
+
+        assertTrue(isCryptographicallyEqual(key, privateKey));
     }
 
     public void testReadUnsupportedKey() {
@@ -309,6 +302,28 @@ public class PemUtilsTests extends OpenSearchTestCase {
         var oid2 = ASN1ObjectIdentifier.getInstance(pki2.getPrivateKeyAlgorithm().getParameters());
 
         return privateKey1.equals(privateKey2) && oid1.equals(oid2);
+    }
+
+    private boolean isCryptographicallyEqual(RSAPrivateCrtKey key1, RSAPrivateCrtKey key2) {
+        return key1.getModulus().equals(key2.getModulus())
+            && key1.getPrivateExponent().equals(key2.getPrivateExponent())
+            && key1.getPublicExponent().equals(key2.getPublicExponent())
+            && key1.getPrimeP().equals(key2.getPrimeP())
+            && key1.getPrimeQ().equals(key2.getPrimeQ())
+            && key1.getPrimeExponentP().equals(key2.getPrimeExponentP())
+            && key1.getPrimeExponentQ().equals(key2.getPrimeExponentQ())
+            && key1.getCrtCoefficient().equals(key2.getCrtCoefficient());
+    }
+
+    private boolean isCryptographicallyEqual(DSAPrivateKey key1, DSAPrivateKey key2) {
+        if (!key1.getX().equals(key2.getX())) {
+            return false;
+        }
+
+        DSAParams params1 = key1.getParams();
+        DSAParams params2 = key2.getParams();
+
+        return params1.getP().equals(params2.getP()) && params1.getQ().equals(params2.getQ()) && params1.getG().equals(params2.getG());
     }
 
 }
