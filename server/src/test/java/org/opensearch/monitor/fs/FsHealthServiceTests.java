@@ -43,7 +43,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.monitor.StatusInfo;
-import org.opensearch.telemetry.TestInMemoryMetricsRegistry;
+import org.opensearch.test.telemetry.TestInMemoryMetricsRegistry;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
@@ -136,7 +136,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             disruptFileSystemProvider.injectIOException.set(true);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
-            assertEquals(Double.valueOf(1), metricsRegistry.getCounterStore().get("fsHealth.failure.count").getCounterValue());
+            assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("fsHealth.failure.count").getCounterValue());
             for (Path path : env.nodeDataPaths()) {
                 assertTrue(fsHealthService.getHealth().getInfo().contains(path.toString()));
             }
@@ -273,7 +273,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             disruptFsyncFileSystemProvider.restrictPathPrefix(disruptedPath);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
-            assertEquals(Double.valueOf(1), metricsRegistry.getCounterStore().get("fsHealth.failure.count").getCounterValue());
+            assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("fsHealth.failure.count").getCounterValue());
             assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on [" + disruptedPath + "]"));
             assertEquals(1, disruptFsyncFileSystemProvider.getInjectedPathCount());
         } finally {
@@ -304,7 +304,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
             disruptWritesFileSystemProvider.injectIOException.set(true);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
-            assertEquals(Double.valueOf(1), metricsRegistry.getCounterStore().get("fsHealth.failure.count").getCounterValue());
+            assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("fsHealth.failure.count").getCounterValue());
             assertThat(fsHealthService.getHealth().getInfo(), is("health check failed on [" + disruptedPath + "]"));
             assertEquals(1, disruptWritesFileSystemProvider.getInjectedPathCount());
         } finally {
@@ -337,7 +337,7 @@ public class FsHealthServiceTests extends OpenSearchTestCase {
 
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
-            assertEquals(Double.valueOf(1), metricsRegistry.getCounterStore().get("fsHealth.failure.count").getCounterValue());
+            assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("fsHealth.failure.count").getCounterValue());
             assertThat(fsHealthService.getHealth().getInfo(), is("health check failed due to broken node lock"));
             assertEquals(1, unexpectedLockFileSizeFileSystemProvider.getInjectedPathCount());
         } finally {
