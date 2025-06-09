@@ -27,7 +27,7 @@ public class IngestDocumentWrapperTests extends OpenSearchTestCase {
     private static final String DOCUMENT_KEY = "foo";
     private static final String DOCUMENT_VALUE = "bar";
     private static final int SLOT = 12;
-    private static final int INNER_SLOT = 0;
+    private static final int CHILD_SLOT = 0;
 
     @Before
     public void setup() throws Exception {
@@ -39,7 +39,7 @@ public class IngestDocumentWrapperTests extends OpenSearchTestCase {
 
     public void testIngestDocumentWrapper() {
         Exception ex = new RuntimeException("runtime exception");
-        IngestDocumentWrapper wrapper = new IngestDocumentWrapper(SLOT, INNER_SLOT, ingestDocument, ex);
+        IngestDocumentWrapper wrapper = new IngestDocumentWrapper(SLOT, CHILD_SLOT, ingestDocument, ex);
         assertEquals(wrapper.getSlot(), SLOT);
         assertEquals(wrapper.getException(), ex);
         assertEquals(wrapper.getIngestDocument(), ingestDocument);

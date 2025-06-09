@@ -1,3 +1,10 @@
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.ingest.system_pipeline_enabled: "true"
+
 ---
 "Processor injects a field on indexing a doc to existing index":
   - do:
@@ -141,3 +148,135 @@
         id: 2
   - match:
       _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+
+---
+"Processor injects field on bulk update, upsert on existing/new documents":
+  # Temporarily disable system ingest pipelines to insert without triggering the system ingest field
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.ingest.system_pipeline_enabled: "false"
+
+  - do:
+      indices.create:
+        index: bulk-index
+        body:
+          mappings:
+            properties:
+              system_ingest_processor_trigger_field:
+                type: keyword
+
+# Index documents to be updated on later step
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: bulk-index
+              _id: "1"
+          - system_ingest_processor_trigger_field: "bulk1"
+          - index:
+              _index: bulk-index
+              _id: "2"
+          - system_ingest_processor_trigger_field: "bulk2"
+          - index:
+              _index: bulk-index
+              _id: "3"
+          - system_ingest_processor_trigger_field: "bulk3"
+
+# Verify system ingest pipelines weren't triggered on regular index operations
+  - do:
+      get:
+        index: bulk-index
+        id: 1
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: null
+
+  - do:
+      get:
+        index: bulk-index
+        id: 2
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: null
+
+  - do:
+      get:
+        index: bulk-index
+        id: 2
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: null
+
+# Reenable system ingest pipeline
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.ingest.system_pipeline_enabled: "true"
+
+# Bulk update, bulk upsert existing, and bulk upsert new should all trigger ingest pipelines
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - update:
+              _index: bulk-index
+              _id: "1"
+          - doc:
+              system_ingest_processor_trigger_field: "update bulk1"
+          - update:
+              _index: bulk-index
+              _id: "2"
+          - doc:
+              system_ingest_processor_trigger_field: "update bulk2"
+            upsert:
+              system_ingest_processor_trigger_field: "new upsert bulk2"
+          - update:
+              _index: bulk-index
+              _id: "3"
+          - doc:
+              system_ingest_processor_trigger_field: "doc as upsert bulk3"
+            doc_as_upsert: true
+          - update:
+              _index: bulk-index
+              _id: "4"
+          - doc:
+              system_ingest_processor_trigger_field: "update bulk4"
+            upsert:
+              system_ingest_processor_trigger_field: "new upsert bulk4"
+
+  - do:
+      get:
+        index: bulk-index
+        id: 1
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+  - match:
+      _source.system_ingest_processor_trigger_field: "update bulk1"
+
+  - do:
+      get:
+        index: bulk-index
+        id: 2
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+  - match:
+      _source.system_ingest_processor_trigger_field: "update bulk2"
+
+  - do:
+      get:
+        index: bulk-index
+        id: 3
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+  - match:
+      _source.system_ingest_processor_trigger_field: "doc as upsert bulk3"
+
+  - do:
+      get:
+        index: bulk-index
+        id: 4
+  - match:
+      _source.field_auto_added_by_system_ingest_processor: "This field is auto added by the example system ingest processor."
+  - match:
+      _source.system_ingest_processor_trigger_field: "new upsert bulk4"
