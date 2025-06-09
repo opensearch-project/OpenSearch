@@ -115,6 +115,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -8286,9 +8287,6 @@ public class InternalEngineTests extends EngineTestCase {
                         // Verify source is derived correctly
                         Translog.Index indexOp = (Translog.Index) operation;
                         assertNotNull("Source should not be null", indexOp.source());
-
-                        // Additional derived source specific checks can be added here
-
                         count++;
                     }
 
@@ -8296,6 +8294,158 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(count, equalTo(numDocs));
                 }
             }
+        }
+    }
+
+    public void testNewChangesSnapshotWithDeleteAndUpdate() throws IOException {
+        final List<Engine.Operation> operations = new ArrayList<>();
+        int numDocs = randomIntBetween(10, 100);
+        int numDocsToDelete = randomIntBetween(1, numDocs / 2);
+        Set<String> deletedDocs = new HashSet<>();
+
+        // First index documents
+        for (int i = 0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(
+                Integer.toString(i),
+                null,
+                testDocumentWithTextField(),
+                new BytesArray("{\"value\":\"test\"}".getBytes(Charset.defaultCharset())),
+                null
+            );
+            Engine.Index index = new Engine.Index(
+                newUid(doc),
+                doc,
+                UNASSIGNED_SEQ_NO,
+                primaryTerm.get(),
+                i,
+                VersionType.EXTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                System.nanoTime(),
+                -1,
+                false,
+                UNASSIGNED_SEQ_NO,
+                0
+            );
+            operations.add(index);
+            engine.index(index);
+        }
+
+        // Delete some documents
+        for (int i = 0; i < numDocsToDelete; i++) {
+            String idToDelete = Integer.toString(randomInt(numDocs - 1));
+            if (!deletedDocs.contains(idToDelete)) {
+                final Engine.Delete delete = new Engine.Delete(
+                    idToDelete,
+                    newUid(idToDelete),
+                    UNASSIGNED_SEQ_NO,
+                    primaryTerm.get(),
+                    i + numDocs,
+                    VersionType.EXTERNAL,
+                    Engine.Operation.Origin.PRIMARY,
+                    System.nanoTime(),
+                    UNASSIGNED_SEQ_NO,
+                    0
+                );
+                operations.add(delete);
+                engine.delete(delete);
+                deletedDocs.add(idToDelete);
+            }
+        }
+
+        // Update some remaining documents
+        int numDocsToUpdate = randomIntBetween(1, numDocs - deletedDocs.size());
+        Set<String> updatedDocs = new HashSet<>();
+        for (int i = 0; i < numDocsToUpdate; i++) {
+            String idToUpdate;
+            do {
+                idToUpdate = Integer.toString(randomInt(numDocs - 1));
+            } while (deletedDocs.contains(idToUpdate) || updatedDocs.contains(idToUpdate));
+
+            Document document = testDocument();
+            document.add(new TextField("value", "updated", Field.Store.YES));
+            ParsedDocument doc = testParsedDocument(
+                idToUpdate,
+                null,
+                document,
+                new BytesArray("{\"value\":\"updated\"}".getBytes(Charset.defaultCharset())),
+                null
+            );
+            Engine.Index update = new Engine.Index(
+                newUid(doc),
+                doc,
+                UNASSIGNED_SEQ_NO,
+                primaryTerm.get(),
+                numDocs + numDocsToDelete + i,
+                VersionType.EXTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                System.nanoTime(),
+                -1,
+                false,
+                UNASSIGNED_SEQ_NO,
+                0
+            );
+            operations.add(update);
+            engine.index(update);
+            updatedDocs.add(idToUpdate);
+        }
+
+        engine.refresh("test");
+        final BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory = engine::acquireSearcher;
+
+        // Test snapshot with all operations
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, operations.size() - 1, true, true)) {
+            int count = 0;
+            Translog.Operation operation;
+            while ((operation = snapshot.next()) != null) {
+                if (operation instanceof Translog.Index) {
+                    Translog.Index indexOp = (Translog.Index) operation;
+                    String docId = indexOp.id();
+                    if (updatedDocs.contains(docId)) {
+                        // Verify updated content using get
+                        try (
+                            Engine.GetResult get = engine.get(new Engine.Get(true, false, docId, newUid(docId)), engine::acquireSearcher)
+                        ) {
+                            assertTrue("Document " + docId + " should exist", get.exists());
+                            org.apache.lucene.document.Document doc = get.docIdAndVersion().reader.storedFields()
+                                .document(get.docIdAndVersion().docId, Sets.newHashSet(SourceFieldMapper.NAME));
+                            final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);
+                            assertEquals(
+                                "Document " + docId + " should have updated value",
+                                "{\"value\":\"updated\"}",
+                                source.utf8ToString()
+                            );
+                        }
+                    }
+                } else if (operation instanceof Translog.Delete) {
+                    String docId = ((Translog.Delete) operation).id();
+                    assertTrue("Document " + docId + " should be in deleted set", deletedDocs.contains(docId));
+
+                    // Verify document is actually deleted
+                    try (Engine.GetResult get = engine.get(new Engine.Get(true, false, docId, newUid(docId)), engine::acquireSearcher)) {
+                        assertFalse("Document " + docId + " should not exist", get.exists());
+                    }
+                }
+                count++;
+            }
+
+            // Verify we got all operations
+            assertEquals("Expected number of operations", operations.size(), count);
+        }
+
+        // Test snapshot with accurate count
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, operations.size() - 1, true, true)) {
+            assertEquals("Total number of operations", operations.size(), snapshot.totalOperations());
+        }
+
+        // Test snapshot with specific range
+        int from = randomIntBetween(0, operations.size() / 2);
+        int to = randomIntBetween(from, operations.size() - 1);
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", from, to, false, true)) {
+            int count = 0;
+            while (snapshot.next() != null) {
+                count++;
+            }
+            assertEquals("Expected number of operations in range", to - from + 1, count);
         }
     }
 
