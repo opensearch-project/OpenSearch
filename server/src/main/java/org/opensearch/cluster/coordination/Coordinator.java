@@ -378,7 +378,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 clusterManagerMetrics.incrementCounter(
                     clusterManagerMetrics.nodeLeftCounter,
                     1.0,
-                    Optional.ofNullable(Tags.create().addTag(FOLLOWER_NODE_ID_TAG, discoveryNode.getId()).addTag(REASON_TAG, reasonToPublish))
+                    Optional.ofNullable(
+                        Tags.create().addTag(FOLLOWER_NODE_ID_TAG, discoveryNode.getId()).addTag(REASON_TAG, reasonToPublish)
+                    )
                 );
             }
         }

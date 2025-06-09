@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry;
+package org.opensearch.test.telemetry;
 
 import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.Histogram;
@@ -29,10 +29,23 @@ public class TestInMemoryMetricsRegistry implements MetricsRegistry {
     private ConcurrentHashMap<String, TestInMemoryCounter> counterStore = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, TestInMemoryHistogram> histogramStore = new ConcurrentHashMap<>();
 
+    /**
+     * Constructor.
+     */
+    public TestInMemoryMetricsRegistry() {}
+
+    /**
+     * Returns counterStore
+     * @return
+     */
     public ConcurrentHashMap<String, TestInMemoryCounter> getCounterStore() {
         return this.counterStore;
     }
 
+    /**
+     * Returns the histogramStore.
+     * @return
+     */
     public ConcurrentHashMap<String, TestInMemoryHistogram> getHistogramStore() {
         return this.histogramStore;
     }
