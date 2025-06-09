@@ -27,13 +27,13 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
-import org.opensearch.rule.CreateRuleRequest;
-import org.opensearch.rule.CreateRuleResponse;
 import org.opensearch.rule.RuleRoutingService;
-import org.opensearch.rule.UpdateRuleRequest;
-import org.opensearch.rule.UpdateRuleResponse;
 import org.opensearch.rule.action.CreateRuleAction;
+import org.opensearch.rule.action.CreateRuleRequest;
+import org.opensearch.rule.action.CreateRuleResponse;
 import org.opensearch.rule.action.UpdateRuleAction;
+import org.opensearch.rule.action.UpdateRuleRequest;
+import org.opensearch.rule.action.UpdateRuleResponse;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 
@@ -109,7 +109,7 @@ public class WorkloadGroupRuleRoutingService implements RuleRoutingService {
         try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashContext()) {
             if (!hasIndex(indexName)) {
                 logger.error("Index {} not found", indexName);
-                listener.onFailure(new ResourceNotFoundException("Index " + indexName + "does not exist."));
+                listener.onFailure(new ResourceNotFoundException("Index " + indexName + " does not exist."));
             } else {
                 routeRequest(UpdateRuleAction.NAME, indexName, request, UpdateRuleResponse::new, listener);
             }

@@ -9,6 +9,7 @@
 package org.opensearch.rule;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.rule.action.UpdateRuleRequest;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
@@ -16,6 +17,7 @@ import org.opensearch.rule.autotagging.Rule;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -60,12 +62,11 @@ public class RuleUtils {
      *  between the current rule and the one being checked.
      *
      * @param rule The rule to be validated against ruleMap.
-     * @param ruleMap This map contains existing rules to be checked
+     * @param ruleList This list contains existing rules to be checked
      */
-    public static Optional<String> getDuplicateRuleId(Rule rule, Map<String, Rule> ruleMap) {
+    public static Optional<String> getDuplicateRuleId(Rule rule, List<Rule> ruleList) {
         Map<Attribute, Set<String>> targetAttributeMap = rule.getAttributeMap();
-        for (Map.Entry<String, Rule> entry : ruleMap.entrySet()) {
-            Rule currRule = entry.getValue();
+        for (Rule currRule : ruleList) {
             Map<Attribute, Set<String>> existingAttributeMap = currRule.getAttributeMap();
 
             if (rule.getFeatureType() != currRule.getFeatureType() || targetAttributeMap.size() != existingAttributeMap.size()) {
@@ -81,7 +82,7 @@ public class RuleUtils {
                 }
             }
             if (allAttributesIntersect) {
-                return Optional.of(entry.getKey());
+                return Optional.of(currRule.getId());
             }
         }
         return Optional.empty();

@@ -9,7 +9,6 @@
 package org.opensearch.rule.action;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.rule.UpdateRuleResponse;
 
 /**
  * Action type for updating Rules

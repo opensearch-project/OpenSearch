@@ -13,12 +13,10 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.rule.UpdateRuleResponse;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRule;
 import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
 import static org.mockito.Mockito.mock;
@@ -28,7 +26,7 @@ public class UpdateRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of UpdateRuleResponse
      */
     public void testSerialization() throws IOException {
-        UpdateRuleResponse response = new UpdateRuleResponse(_ID_ONE, ruleOne);
+        UpdateRuleResponse response = new UpdateRuleResponse(ruleOne);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
@@ -40,11 +38,11 @@ public class UpdateRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the toXContent of GetRuleResponse
      */
     public void testToXContent() throws IOException {
-        UpdateRuleResponse response = new UpdateRuleResponse(_ID_ONE, ruleOne);
+        UpdateRuleResponse response = new UpdateRuleResponse(ruleOne);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
-            + "  \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n"
+            + "  \"id\" : \"e9f35a73-ece2-3fa7-857e-7c1af877fc75\",\n"
             + "  \"description\" : \"description_1\",\n"
             + "  \"mock_attribute_one\" : [\n"
             + "    \"mock_attribute_one\"\n"

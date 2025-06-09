@@ -19,9 +19,9 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
-import org.opensearch.rule.UpdateRuleRequest;
-import org.opensearch.rule.UpdateRuleResponse;
 import org.opensearch.rule.action.UpdateRuleAction;
+import org.opensearch.rule.action.UpdateRuleRequest;
+import org.opensearch.rule.action.UpdateRuleResponse;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule.Builder;
 import org.opensearch.transport.client.node.NodeClient;
@@ -29,9 +29,8 @@ import org.opensearch.transport.client.node.NodeClient;
 import java.io.IOException;
 import java.util.List;
 
-import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
-import static org.opensearch.rule.autotagging.Rule._ID_STRING;
+import static org.opensearch.rule.autotagging.Rule.ID_STRING;
 import static org.opensearch.rule.rest.RestGetRuleAction.FEATURE_TYPE;
 
 /**
@@ -52,7 +51,7 @@ public class RestUpdateRuleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new RestHandler.Route(PUT, "_rules/{featureType}/{_id}"), new RestHandler.Route(POST, "_rules/{featureType}/{_id}"));
+        return List.of(new RestHandler.Route(PUT, "_rules/{featureType}/{id}"));
     }
 
     @Override
@@ -61,7 +60,7 @@ public class RestUpdateRuleAction extends BaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             Builder builder = Builder.fromXContent(parser, featureType);
             UpdateRuleRequest updateRuleRequest = new UpdateRuleRequest(
-                request.param(_ID_STRING),
+                request.param(ID_STRING),
                 builder.getDescription(),
                 builder.getAttributeMap(),
                 builder.getFeatureValue(),

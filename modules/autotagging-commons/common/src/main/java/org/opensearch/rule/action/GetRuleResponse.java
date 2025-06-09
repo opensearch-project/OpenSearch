@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule;
+package org.opensearch.rule.action;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionResponse;
@@ -18,7 +18,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rule.autotagging.Rule;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.List;
 
 /**
  * Response for the get API for Rule.
@@ -26,7 +26,7 @@ import java.util.Map;
  * {
  *     "rules": [
  *         {
- *             "_id": "z1MJApUB0zgMcDmz-UQq",
+ *             "id": "z1MJApUB0zgMcDmz-UQq",
  *             "description": "Rule for tagging workload_group_id to index123"
  *             "index_pattern": ["index123"],
  *             "workload_group": "workload_group_id",
@@ -40,7 +40,7 @@ import java.util.Map;
  */
 @ExperimentalApi
 public class GetRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
-    private final Map<String, Rule> rules;
+    private final List<Rule> rules;
     private final String searchAfter;
 
     /**
@@ -48,7 +48,7 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
      * @param rules - Rules get from the request
      * @param searchAfter - The sort value used for pagination.
      */
-    public GetRuleResponse(final Map<String, Rule> rules, String searchAfter) {
+    public GetRuleResponse(final List<Rule> rules, String searchAfter) {
         this.rules = rules;
         this.searchAfter = searchAfter;
     }
@@ -58,12 +58,12 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
      * @param in - The {@link StreamInput} instance to read from.
      */
     public GetRuleResponse(StreamInput in) throws IOException {
-        this(in.readMap(StreamInput::readString, Rule::new), in.readOptionalString());
+        this(in.readList(Rule::new), in.readOptionalString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(rules, StreamOutput::writeString, (outStream, rule) -> rule.writeTo(outStream));
+        out.writeList(rules);
         out.writeOptionalString(searchAfter);
     }
 
@@ -71,8 +71,8 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray("rules");
-        for (Map.Entry<String, Rule> entry : rules.entrySet()) {
-            entry.getValue().toXContent(builder, params);
+        for (Rule rule : rules) {
+            rule.toXContent(builder, params);
         }
         builder.endArray();
         if (searchAfter != null && !searchAfter.isEmpty()) {
@@ -85,7 +85,7 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
     /**
      * rules getter
      */
-    public Map<String, Rule> getRules() {
+    public List<Rule> getRules() {
         return rules;
     }
 }

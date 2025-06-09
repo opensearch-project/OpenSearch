@@ -18,15 +18,15 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
-import org.opensearch.rule.DeleteRuleRequest;
 import org.opensearch.rule.action.DeleteRuleAction;
+import org.opensearch.rule.action.DeleteRuleRequest;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.List;
 
 import static org.opensearch.rest.RestRequest.Method.DELETE;
-import static org.opensearch.rule.autotagging.Rule._ID_STRING;
+import static org.opensearch.rule.autotagging.Rule.ID_STRING;
 import static org.opensearch.rule.rest.RestGetRuleAction.FEATURE_TYPE;
 
 /**
@@ -47,12 +47,12 @@ public class RestDeleteRuleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new RestHandler.Route(DELETE, "_rules/{featureType}/{_id}"));
+        return List.of(new RestHandler.Route(DELETE, "_rules/{featureType}/{id}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        final String ruleId = request.param(_ID_STRING);
+        final String ruleId = request.param(ID_STRING);
         FeatureType featureType = FeatureType.from(request.param(FEATURE_TYPE));
         DeleteRuleRequest deleteRuleRequest = new DeleteRuleRequest(ruleId, featureType);
         return channel -> client.execute(DeleteRuleAction.INSTANCE, deleteRuleRequest, deleteRuleResponse(channel));

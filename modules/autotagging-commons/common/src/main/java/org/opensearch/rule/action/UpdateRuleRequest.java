@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule;
+package org.opensearch.rule.action;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -15,11 +15,9 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
-import org.opensearch.rule.autotagging.RuleValidator;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -36,7 +34,7 @@ import java.util.Set;
  */
 @ExperimentalApi
 public class UpdateRuleRequest extends ActionRequest {
-    private final String _id;
+    private final String id;
     private final String description;
     private final Map<Attribute, Set<String>> attributeMap;
     private final String featureValue;
@@ -44,20 +42,20 @@ public class UpdateRuleRequest extends ActionRequest {
 
     /**
      * constructor for UpdateRuleRequest
-     * @param _id - the rule id to update
+     * @param id - the rule id to update
      * @param description - the description to update
      * @param attributeMap - the attribute values to update
      * @param featureValue - the feature value to update
      * @param featureType - the feature type for the rule
      */
     public UpdateRuleRequest(
-        String _id,
+        String id,
         String description,
         Map<Attribute, Set<String>> attributeMap,
         String featureValue,
         FeatureType featureType
     ) {
-        this._id = _id;
+        this.id = id;
         this.description = description;
         this.attributeMap = attributeMap;
         this.featureValue = featureValue;
@@ -70,7 +68,7 @@ public class UpdateRuleRequest extends ActionRequest {
      */
     public UpdateRuleRequest(StreamInput in) throws IOException {
         super(in);
-        _id = in.readString();
+        id = in.readString();
         description = in.readOptionalString();
         featureType = FeatureType.from(in);
         attributeMap = in.readMap(i -> Attribute.from(i, featureType), i -> new HashSet<>(i.readStringList()));
@@ -79,20 +77,13 @@ public class UpdateRuleRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        RuleValidator validator = new RuleValidator(_id, description, attributeMap, featureValue, null, featureType);
-        List<String> errors = validator.validateUpdatingRuleParams();
-        if (!errors.isEmpty()) {
-            ActionRequestValidationException validationException = new ActionRequestValidationException();
-            validationException.addValidationErrors(errors);
-            return validationException;
-        }
         return null;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(_id);
+        out.writeString(id);
         out.writeOptionalString(description);
         featureType.writeTo(out);
         out.writeMap(attributeMap, (o, a) -> a.writeTo(o), StreamOutput::writeStringCollection);
@@ -102,8 +93,8 @@ public class UpdateRuleRequest extends ActionRequest {
     /**
      * id getter
      */
-    public String get_id() {
-        return _id;
+    public String getId() {
+        return id;
     }
 
     /**

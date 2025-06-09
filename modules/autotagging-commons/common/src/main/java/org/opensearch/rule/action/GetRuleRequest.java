@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule;
+package org.opensearch.rule.action;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -67,7 +67,7 @@ public class GetRuleRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         if (RuleValidator.isEmpty(id)) {
-            throw new IllegalArgumentException(Rule._ID_STRING + " cannot be empty.");
+            throw new IllegalArgumentException(Rule.ID_STRING + " cannot be empty.");
         }
         if (RuleValidator.isEmpty(searchAfter)) {
             throw new IllegalArgumentException("search_after cannot be empty.");

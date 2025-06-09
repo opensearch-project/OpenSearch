@@ -56,7 +56,6 @@ import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleRoutingService;
-import org.opensearch.rule.RuleUtils;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
@@ -126,8 +125,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             clusterService,
             MAX_RULES_PER_PAGE,
             parser,
-            new IndexBasedRuleQueryMapper(),
-            (existingRule, request) -> RuleUtils.composeUpdatedRule(existingRule, request, featureType)
+            new IndexBasedRuleQueryMapper()
         );
         ruleRoutingService = new WorkloadGroupRuleRoutingService(client, clusterService);
 

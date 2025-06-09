@@ -9,6 +9,10 @@
 package org.opensearch.rule;
 
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.rule.action.CreateRuleRequest;
+import org.opensearch.rule.action.CreateRuleResponse;
+import org.opensearch.rule.action.UpdateRuleRequest;
+import org.opensearch.rule.action.UpdateRuleResponse;
 
 /**
  * Interface that handles rule routing logic

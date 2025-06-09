@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule;
+package org.opensearch.rule.action;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionResponse;
@@ -23,7 +23,7 @@ import java.io.IOException;
  * Response for the update API for Rule
  * Example response:
  * {
- *     _id": "z1MJApUB0zgMcDmz-UQq",
+ *     id": "z1MJApUB0zgMcDmz-UQq",
  *     "description": "Rule for tagging workload_group_id to index123"
  *     "index_pattern": ["index123"],
  *     "workload_group": "workload_group_id",
@@ -33,16 +33,13 @@ import java.io.IOException;
  */
 @ExperimentalApi
 public class UpdateRuleResponse extends ActionResponse implements ToXContent, ToXContentObject {
-    private final String _id;
     private final Rule rule;
 
     /**
      * constructor for UpdateRuleResponse
-     * @param _id - rule id updated
      * @param rule - the updated rule
      */
-    public UpdateRuleResponse(String _id, final Rule rule) {
-        this._id = _id;
+    public UpdateRuleResponse(final Rule rule) {
         this.rule = rule;
     }
 
@@ -51,12 +48,11 @@ public class UpdateRuleResponse extends ActionResponse implements ToXContent, To
      * @param in - The {@link StreamInput} instance to read from.
      */
     public UpdateRuleResponse(StreamInput in) throws IOException {
-        this(in.readString(), new Rule(in));
+        this(new Rule(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(_id);
         rule.writeTo(out);
     }
 
@@ -66,16 +62,9 @@ public class UpdateRuleResponse extends ActionResponse implements ToXContent, To
     }
 
     /**
-     * id getter
-     */
-    public String get_id() {
-        return _id;
-    }
-
-    /**
      * rule getter
      */
-    public Rule getRule() {
+    Rule getRule() {
         return rule;
     }
 }

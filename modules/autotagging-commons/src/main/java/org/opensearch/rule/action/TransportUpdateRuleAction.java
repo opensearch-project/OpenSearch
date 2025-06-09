@@ -15,8 +15,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RulePersistenceServiceRegistry;
 import org.opensearch.rule.RuleRoutingServiceRegistry;
-import org.opensearch.rule.UpdateRuleRequest;
-import org.opensearch.rule.UpdateRuleResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;

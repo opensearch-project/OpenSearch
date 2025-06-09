@@ -78,31 +78,6 @@ public class RuleValidator {
         }
     }
 
-    /**
-     * validates the updated rule object fields
-     */
-    public List<String> validateUpdatingRuleParams() {
-        List<String> errorMessages = new ArrayList<>();
-        if (isEmpty(description)) {
-            errorMessages.add("Rule description can't be empty");
-        }
-        if (isEmpty(featureValue)) {
-            errorMessages.add("Rule featureValue can't be empty");
-        }
-        FeatureValueValidator featureValueValidator = featureType.getFeatureValueValidator();
-        if (featureValue != null && !featureValue.isEmpty() && featureValueValidator != null) {
-            try {
-                featureValueValidator.validate(featureValue);
-            } catch (Exception e) {
-                errorMessages.add(e.getMessage());
-            }
-        }
-        if (attributeMap != null && !attributeMap.isEmpty()) {
-            errorMessages.addAll(validateAttributeMap());
-        }
-        return errorMessages;
-    }
-
     private List<String> validateStringFields() {
         List<String> errors = new ArrayList<>();
         if (isNullOrEmpty(id)) {
@@ -161,14 +136,14 @@ public class RuleValidator {
                 Set<String> attributeValues = entry.getValue();
                 errors.addAll(validateAttributeExistence(attribute));
                 errors.addAll(validateMaxAttributeValues(attribute, attributeValues));
-                errors.addAll(validateAttributeValuesLength(attributeValues));
+                errors.addAll(validateAttributeValuesList(attributeValues));
             }
         }
         return errors;
     }
 
     private List<String> validateAttributeExistence(Attribute attribute) {
-        if (featureType.getAttributeFromName(attribute.getName()) == null) {
+        if (!featureType.isValidAttribute(attribute)) {
             return List.of(attribute.getName() + " is not a valid attribute within the " + featureType.getName() + " feature.");
         }
         return new ArrayList<>();
@@ -196,14 +171,19 @@ public class RuleValidator {
         return errors;
     }
 
-    private List<String> validateAttributeValuesLength(Set<String> attributeValues) {
+    private List<String> validateAttributeValuesList(Set<String> attributeValues) {
         int maxValueLength = featureType.getMaxCharLengthPerAttributeValue();
+        List<String> errors = new ArrayList<>();
         for (String attributeValue : attributeValues) {
             if (attributeValue.isEmpty() || attributeValue.length() > maxValueLength) {
-                return List.of("Attribute value [" + attributeValue + "] is invalid (empty or exceeds " + maxValueLength + " characters)");
+                errors.add("Attribute value [" + attributeValue + "] is invalid (empty or exceeds " + maxValueLength + " characters)");
+            }
+            int asteriskCount = (int) attributeValue.chars().filter(c -> c == '*').count();
+            if (asteriskCount > 1 || (asteriskCount == 1 && !attributeValue.endsWith("*"))) {
+                errors.add("Attribute value [" + attributeValue + "] is invalid (only one '*' is allowed and it must appear at the end)");
             }
         }
-        return new ArrayList<>();
+        return errors;
     }
 
     @Override

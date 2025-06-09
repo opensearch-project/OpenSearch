@@ -9,7 +9,6 @@
 package org.opensearch.rule.action;
 
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RulePersistenceServiceRegistry;
 import org.opensearch.test.OpenSearchTestCase;
@@ -45,5 +44,6 @@ public class TransportGetRuleActionTests extends OpenSearchTestCase {
         sut = new TransportGetRuleAction(transportService, threadPool, actionFilters, rulePersistenceServiceRegistry);
         sut.doExecute(null, getRuleRequest, null);
         verify(rulePersistenceService, times(1)).getRule(any(), any());
+        mockExecutor.shutdownNow();
     }
 }

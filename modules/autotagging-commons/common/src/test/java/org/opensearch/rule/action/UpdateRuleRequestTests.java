@@ -10,7 +10,6 @@ package org.opensearch.rule.action;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.rule.UpdateRuleRequest;
 import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -34,14 +33,14 @@ public class UpdateRuleRequestTests extends OpenSearchTestCase {
             FEATURE_VALUE_ONE,
             RuleTestUtils.MockRuleFeatureType.INSTANCE
         );
-        assertEquals(_ID_ONE, request.get_id());
+        assertEquals(_ID_ONE, request.getId());
         assertNull(request.validate());
         assertEquals(RuleTestUtils.MockRuleFeatureType.INSTANCE, request.getFeatureType());
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
         UpdateRuleRequest otherRequest = new UpdateRuleRequest(streamInput);
-        assertEquals(request.get_id(), otherRequest.get_id());
+        assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeMap(), otherRequest.getAttributeMap());
         assertEquals(request.getDescription(), otherRequest.getDescription());
         assertEquals(request.getFeatureValue(), otherRequest.getFeatureValue());
@@ -58,7 +57,7 @@ public class UpdateRuleRequestTests extends OpenSearchTestCase {
         request.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
         UpdateRuleRequest otherRequest = new UpdateRuleRequest(streamInput);
-        assertEquals(request.get_id(), otherRequest.get_id());
+        assertEquals(request.getId(), otherRequest.getId());
         assertEquals(request.getAttributeMap(), otherRequest.getAttributeMap());
         assertEquals(request.getDescription(), otherRequest.getDescription());
         assertEquals(request.getFeatureValue(), otherRequest.getFeatureValue());
@@ -72,8 +71,8 @@ public class UpdateRuleRequestTests extends OpenSearchTestCase {
             FEATURE_VALUE_ONE,
             RuleTestUtils.MockRuleFeatureType.INSTANCE
         );
-        assertNotNull(request.validate());
+        assertNull(request.validate());
         request = new UpdateRuleRequest(_ID_ONE, DESCRIPTION_ONE, ATTRIBUTE_MAP, "", RuleTestUtils.MockRuleFeatureType.INSTANCE);
-        assertNotNull(request.validate());
+        assertNull(request.validate());
     }
 }

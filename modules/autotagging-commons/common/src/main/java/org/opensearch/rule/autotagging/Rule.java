@@ -30,7 +30,7 @@ import java.util.Set;
  * tags to queries based on matching attribute patterns. This class provides an in-memory representation
  * of a rule. The indexed view may differ in representation.
  * {
- *     "_id": "fwehf8302582mglfio349==",
+ *     "id": "fwehf8302582mglfio349==",
  *     "description": "Assign Query Group for Index Logs123"
  *     "index_pattern": ["logs123"],
  *     "workload_group": "dev_workload_group_id",
@@ -49,7 +49,7 @@ public class Rule implements Writeable, ToXContentObject {
     /**
      * id field
      */
-    public static final String _ID_STRING = "_id";
+    public static final String ID_STRING = "id";
     /**
      * description field
      */
@@ -174,7 +174,7 @@ public class Rule implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field("id", id);
+        builder.field(ID_STRING, id);
         builder.field(DESCRIPTION_STRING, description);
         for (Map.Entry<Attribute, Set<String>> entry : attributeMap.entrySet()) {
             builder.array(entry.getKey().getName(), entry.getValue().toArray(new String[0]));
@@ -248,7 +248,7 @@ public class Rule implements Writeable, ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     fieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (fieldName.equals(_ID_STRING)) {
+                    if (fieldName.equals(ID_STRING)) {
                         builder.id(parser.text());
                     } else if (fieldName.equals(DESCRIPTION_STRING)) {
                         builder.description(parser.text());
@@ -293,6 +293,18 @@ public class Rule implements Writeable, ToXContentObject {
          */
         public Builder id(String id) {
             this.id = id;
+            return this;
+        }
+
+        /**
+         * sets the id based on description, featureType, attributeMap, and featureValue
+         * @return
+         */
+        public Builder id() {
+            if (description == null || featureType == null || attributeMap == null || featureValue == null) {
+                throw new IllegalStateException("Cannot compute ID: required fields are missing.");
+            }
+            this.id = RuleUtils.computeRuleHash(description, featureType, attributeMap, featureValue);
             return this;
         }
 
@@ -351,7 +363,6 @@ public class Rule implements Writeable, ToXContentObject {
          * @return
          */
         public Rule build() {
-            id = RuleUtils.computeRuleHash(description, featureType, attributeMap, featureValue);
             return new Rule(id, description, attributeMap, featureType, featureValue, updatedAt);
         }
 

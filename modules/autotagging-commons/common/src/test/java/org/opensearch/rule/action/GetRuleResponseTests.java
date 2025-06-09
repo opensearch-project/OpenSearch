@@ -13,19 +13,17 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.opensearch.rule.utils.RuleTestUtils.SEARCH_AFTER;
-import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils.assertEqualRules;
-import static org.opensearch.rule.utils.RuleTestUtils.ruleMap;
 import static org.opensearch.rule.utils.RuleTestUtils.ruleOne;
+import static org.opensearch.rule.utils.RuleTestUtils.ruleTwo;
 import static org.mockito.Mockito.mock;
 
 public class GetRuleResponseTests extends OpenSearchTestCase {
@@ -33,10 +31,10 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleResponse
      */
     public void testSerializationSingleRule() throws IOException {
-        Map<String, Rule> map = new HashMap<>();
-        map.put(_ID_ONE, ruleOne);
-        GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), null);
-        assertEquals(response.getRules(), map);
+        List<Rule> list = new ArrayList<>();
+        list.add(ruleOne);
+        GetRuleResponse response = new GetRuleResponse(list, null);
+        assertEquals(response.getRules(), list);
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
@@ -50,8 +48,10 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleResponse when the result contains multiple rules
      */
     public void testSerializationMultipleRule() throws IOException {
-        GetRuleResponse response = new GetRuleResponse(ruleMap(), SEARCH_AFTER);
-        assertEquals(response.getRules(), ruleMap());
+        List<Rule> list = new ArrayList<>();
+        list.add(ruleOne);
+        list.add(ruleTwo);
+        GetRuleResponse response = new GetRuleResponse(list, SEARCH_AFTER);
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
@@ -66,9 +66,9 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the serialization and deserialization of GetRuleResponse when the result is empty
      */
     public void testSerializationNull() throws IOException {
-        Map<String, Rule> map = new HashMap<>();
-        GetRuleResponse response = new GetRuleResponse(map, SEARCH_AFTER);
-        assertEquals(response.getRules(), map);
+        List<Rule> list = new ArrayList<>();
+        GetRuleResponse response = new GetRuleResponse(list, SEARCH_AFTER);
+        assertEquals(response.getRules(), list);
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
@@ -82,15 +82,13 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      * Test case to verify the toXContent of GetRuleResponse
      */
     public void testToXContentGetSingleRule() throws IOException {
-        Map<String, Rule> map = new HashMap<>();
-        map.put(_ID_ONE, ruleOne);
-        GetRuleResponse response = new GetRuleResponse(Map.of(_ID_ONE, ruleOne), SEARCH_AFTER);
+        GetRuleResponse response = new GetRuleResponse(List.of(ruleOne), SEARCH_AFTER);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
             + "  \"rules\" : [\n"
             + "    {\n"
-            + "      \"_id\" : \"AgfUO5Ja9yfvhdONlYi3TQ==\",\n"
+            + "      \"id\" : \"e9f35a73-ece2-3fa7-857e-7c1af877fc75\",\n"
             + "      \"description\" : \"description_1\",\n"
             + "      \"mock_attribute_one\" : [\n"
             + "        \"mock_attribute_one\"\n"
@@ -111,7 +109,7 @@ public class GetRuleResponseTests extends OpenSearchTestCase {
      */
     public void testToXContentGetZeroRule() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        GetRuleResponse otherResponse = new GetRuleResponse(new HashMap<>(), null);
+        GetRuleResponse otherResponse = new GetRuleResponse(new ArrayList<>(), null);
         String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n" + "  \"rules\" : [ ]\n" + "}";
         assertEquals(expected, actual);
