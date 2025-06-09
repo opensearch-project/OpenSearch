@@ -75,7 +75,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.medianAbsoluteDeviation;
@@ -537,7 +536,6 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for bucket aggregations, with/without numeric term query
      */
-    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testQueryParsingForBucketAggregations() throws IOException {
         setStarTreeIndexSetting("true");
 
@@ -678,7 +676,6 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test query parsing for range aggregations, with/without numeric term query
      */
-    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testQueryParsingForRangeAggregations() throws IOException {
         setStarTreeIndexSetting("true");
 

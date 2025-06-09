@@ -10,7 +10,6 @@ package org.opensearch.search.startree;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
@@ -118,10 +117,6 @@ public class StarTreeQueryContext {
                 continue;
             }
 
-            // Queries added after 2.19 are feature flag protected
-            if (!FeatureFlags.isEnabled(FeatureFlags.STAR_TREE_INDEX_SETTING)) {
-                return false;
-            }
             // validation for terms aggregation
             if (validateKeywordTermsAggregationSupport(compositeMappedFieldType, aggregatorFactory)) {
                 continue;
