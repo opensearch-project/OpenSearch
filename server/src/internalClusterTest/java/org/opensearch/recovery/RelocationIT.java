@@ -55,6 +55,8 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.NodeEnvironment;
@@ -966,6 +968,95 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         });
     }
 
+    public void testRelocationWithDerivedSourceWithUpdates() throws Exception {
+        logger.info("--> creating test index with derived source enabled");
+        String mapping = """
+            {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "value": {
+                  "type": "integer"
+                }
+              }
+            }""";
+
+        String node1 = internalCluster().startNode();
+        assertAcked(
+            prepareCreate(
+                "test",
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+            ).setMapping(mapping)
+        );
+
+        // Index some documents
+        int numDocs = randomIntBetween(100, 200);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(String.valueOf(i)).setSource("name", "test" + i, "value", i).get();
+        }
+
+        // Start relocation
+        String node2 = internalCluster().startNode();
+        ensureGreen();
+
+        logger.info("--> relocate the shard from node1 to node2");
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
+
+        AtomicBoolean stop = new AtomicBoolean(false);
+        final Set<Integer> updatedDocs = ConcurrentCollections.newConcurrentSet();
+
+        // Start doc update thread
+        Thread updateThread = new Thread(() -> {
+            while (stop.get() == false) {
+                try {
+                    int docId = randomIntBetween(0, numDocs - 1);
+                    client().prepareUpdate("test", String.valueOf(docId))
+                        .setRetryOnConflict(3)
+                        .setDoc("value", docId * 2)
+                        .execute()
+                        .actionGet();
+                    updatedDocs.add(docId);
+                    Thread.sleep(10);
+                } catch (Exception e) {
+                    if (e instanceof InterruptedException) {
+                        break;
+                    }
+                    logger.warn("Error in update thread", e);
+                }
+            }
+        });
+        updateThread.start();
+
+        // Wait for some updates to occur
+        Thread.sleep(2000);
+
+        stop.set(true);
+        updateThread.join();
+
+        refresh("test");
+        ensureGreen(TimeValue.timeValueMinutes(2));
+
+        // Verify all documents after relocation
+        assertBusy(() -> {
+            SearchResponse response = client().prepareSearch("test").setQuery(matchAllQuery()).setSize(numDocs).get();
+            assertHitCount(response, numDocs);
+            for (SearchHit hit : response.getHits()) {
+                String id = hit.getId();
+                Map<String, Object> source = hit.getSourceAsMap();
+                assertEquals("test" + id, source.get("name"));
+                if (updatedDocs.contains(Integer.parseInt(id))) {
+                    assertEquals(Integer.parseInt(id) * 2, source.get("value")); // Verify updated value
+                } else {
+                    assertEquals(Integer.parseInt(id), source.get("value"));
+                }
+            }
+        });
+    }
+
     public void testRelocationWithDerivedSourceAndTranslog() throws Exception {
         String mapping = """
             {
@@ -1061,17 +1152,19 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             client().prepareIndex("test").setId(String.valueOf(i)).setSource("name", "test" + i, "value", i).get();
         }
 
-        // Start second node but block recovery
-        String node2 = internalCluster().startNode();
-        ensureGreen();
-
+        AtomicBoolean peerRecoveryFailed = new AtomicBoolean(false);
         MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node1);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                peerRecoveryFailed.set(true);
                 throw new IOException("Simulated recovery failure");
             }
             connection.sendRequest(requestId, action, request, options);
         });
+
+        // Start second node but block recovery
+        String node2 = internalCluster().startNode();
+        ensureGreen();
 
         logger.info("--> attempt relocation with simulated failure");
         try {
@@ -1080,10 +1173,16 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         } catch (Exception e) {
             // Expected failure
         }
+        assertTrue(peerRecoveryFailed.get()); // verify that peer recovery is getting blocked
 
         // Verify documents are still accessible on original node
         transportService.clearAllRules();
         refresh();
+
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        Index idx = state.metadata().index("test").getIndex();
+        String nodeId = state.routingTable().index(idx).shard(0).primaryShard().currentNodeId();
+        assertEquals(node1, state.getRoutingNodes().node(nodeId).node().getName()); // Verify the allocated node of the shard
         SearchResponse response = client().prepareSearch("test").setQuery(matchAllQuery()).setSize(numDocs).get();
         assertHitCount(response, numDocs);
 

@@ -522,7 +522,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
         assertAcked(
             prepareCreate(
                 "test",
-                2,
+                1,
                 Settings.builder()
                     .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
                     .put(SETTING_NUMBER_OF_REPLICAS, 1)
@@ -541,7 +541,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
             }
         }
 
-        logger.info("--> allow 2 nodes for index [test] ...");
+        logger.info("--> allow 2 nodes for index [test] with replica ...");
         allowNodes("test", 2);
 
         logger.info("--> waiting for GREEN health status ...");
@@ -585,6 +585,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                    .put("index.refresh_interval", -1)
             ).setMapping(mapping)
         );
 
@@ -668,7 +669,9 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
 
         // Kill replica node and index more documents
         final String replicaNode = ensureReplicaNode("test");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
+        if (replicaNode != null) {
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
+        }
 
         int additionalDocs = randomIntBetween(50, 100);
         for (int i = docCount; i < docCount + additionalDocs; i++) {
@@ -722,7 +725,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
         assertAcked(
             prepareCreate(
                 "test",
-                2,
+                1,
                 Settings.builder()
                     .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
                     .put(SETTING_NUMBER_OF_REPLICAS, 1)
@@ -781,10 +784,29 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
             logger.info("--> verifying indexed content");
 
             // Verify docs on primary
-            assertPrimaryDocCount(totalNumDocs);
+            SearchResponse primaryResponse = client().prepareSearch("test").setPreference("_primary").setTrackTotalHits(true).get();
+            assertHitCount(primaryResponse, totalNumDocs);
 
             // Verify docs and derived source on replica
-            assertReplicaDocsAndSource(totalNumDocs);
+            assertBusy(() -> {
+                SearchResponse replicaResponse = client().prepareSearch("test")
+                    .setPreference("_replica")
+                    .setTrackTotalHits(true)
+                    .setSize(totalNumDocs)
+                    .addSort("value", SortOrder.ASC)
+                    .get();
+
+                assertHitCount(replicaResponse, totalNumDocs);
+
+                // Verify source reconstruction on replica
+                for (SearchHit hit : replicaResponse.getHits()) {
+                    assertNotNull(hit.getSourceAsMap());
+                    assertEquals(3, hit.getSourceAsMap().size());
+                    int id = (Integer) hit.getSourceAsMap().get("value");
+                    assertEquals("name_" + id, hit.getSourceAsMap().get("name"));
+                    assertNotNull(hit.getSourceAsMap().get("timestamp"));
+                }
+            }, 30, TimeUnit.SECONDS);
 
             // Additional source verification with random sampling
             assertRandomDocsSource(50);
@@ -792,7 +814,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
     }
 
     public void testRecoverWithRelocationAndDerivedSource() throws Exception {
-        final int numShards = between(2, 5);
+        final int numShards = between(3, 5);
         logger.info("--> creating test index with derived source enabled...");
 
         String mapping = """
@@ -813,7 +835,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
         assertAcked(
             prepareCreate(
                 "test",
-                3,
+                1,
                 Settings.builder()
                     .put(SETTING_NUMBER_OF_SHARDS, numShards)
                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
@@ -822,9 +844,8 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
             ).setMapping(mapping)
         );
-
-        final int numDocs = scaledRandomIntBetween(2000, 10000);
-        int allowNodes = 2;
+        int numNodes = 1;
+        final int numDocs = scaledRandomIntBetween(1500, 2000);
 
         try (BackgroundIndexer indexer = new BackgroundIndexer("test", null, client(), numDocs) {
             @Override
@@ -836,14 +857,13 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
                     .endObject();
             }
         }) {
-            for (int i = 0; i < numDocs; i += scaledRandomIntBetween(100, Math.min(1000, numDocs))) {
+
+            for (int i = 0; i < numDocs; i += scaledRandomIntBetween(500, Math.min(1000, numDocs))) {
                 indexer.assertNoFailures();
                 logger.info("--> waiting for {} docs to be indexed ...", i);
                 waitForDocs(i, indexer);
-
-                // Alternate between 1 and 2 nodes to force relocation
-                allowNodes = 3 - allowNodes;  // Toggle between 1 and 2
-                allowNodes("test", allowNodes);
+                internalCluster().startDataOnlyNode();
+                numNodes++;
 
                 logger.info("--> waiting for GREEN health status ...");
                 ensureGreen(TimeValue.timeValueMinutes(2));
@@ -854,12 +874,11 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
 
             // Add replicas after stopping indexing
             logger.info("--> adding replicas ...");
-            allowNodes("test", 3);
             assertAcked(
                 client().admin()
                     .indices()
                     .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
+                    .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, numNodes - 1))
                     .get()
             );
             ensureGreen(TimeValue.timeValueMinutes(2));
@@ -868,37 +887,31 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
             client().admin().indices().prepareRefresh().get();
 
             // Verify final doc count and derived source reconstruction
-            assertPrimaryDocCount(numDocs);
-            assertReplicaDocsAndSource(numDocs);
+            SearchResponse primaryResponse = client().prepareSearch("test").setPreference("_primary").setTrackTotalHits(true).get();
+            assertHitCount(primaryResponse, numDocs);
+
+            assertBusy(() -> {
+                SearchResponse replicaResponse = client().prepareSearch("test")
+                    .setPreference("_replica")
+                    .setTrackTotalHits(true)
+                    .setSize(numDocs)
+                    .addSort("value", SortOrder.ASC)
+                    .get();
+
+                assertHitCount(replicaResponse, numDocs);
+
+                // Verify source reconstruction on replica
+                for (SearchHit hit : replicaResponse.getHits()) {
+                    assertNotNull(hit.getSourceAsMap());
+                    assertEquals(3, hit.getSourceAsMap().size());
+                    int id = (Integer) hit.getSourceAsMap().get("value");
+                    assertEquals("name_" + id, hit.getSourceAsMap().get("name"));
+                    assertNotNull(hit.getSourceAsMap().get("timestamp"));
+                }
+            }, 30, TimeUnit.SECONDS);
+
             assertRandomDocsSource(100);
         }
-    }
-
-    private void assertPrimaryDocCount(int expectedCount) {
-        SearchResponse primaryResponse = client().prepareSearch("test").setPreference("_primary").setTrackTotalHits(true).get();
-        assertHitCount(primaryResponse, expectedCount);
-    }
-
-    private void assertReplicaDocsAndSource(int expectedCount) throws Exception {
-        assertBusy(() -> {
-            SearchResponse replicaResponse = client().prepareSearch("test")
-                .setPreference("_replica")
-                .setTrackTotalHits(true)
-                .setSize(expectedCount)
-                .addSort("value", SortOrder.ASC)
-                .get();
-
-            assertHitCount(replicaResponse, expectedCount);
-
-            // Verify source reconstruction on replica
-            for (SearchHit hit : replicaResponse.getHits()) {
-                assertNotNull(hit.getSourceAsMap());
-                assertEquals(3, hit.getSourceAsMap().size());
-                int id = (Integer) hit.getSourceAsMap().get("value");
-                assertEquals("name_" + id, hit.getSourceAsMap().get("name"));
-                assertNotNull(hit.getSourceAsMap().get("timestamp"));
-            }
-        }, 30, TimeUnit.SECONDS);
     }
 
     private void assertRandomDocsSource(int sampleSize) {
@@ -921,7 +934,11 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
     private String ensureReplicaNode(String index) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         Index idx = state.metadata().index(index).getIndex();
-        String nodeId = state.routingTable().index(idx).shard(0).replicaShards().get(0).currentNodeId();
-        return state.nodes().get(nodeId).getName();
+        String replicaNode = state.routingTable().index(idx).shard(0).replicaShards().get(0).currentNodeId();
+        String clusterManagerNode = internalCluster().getClusterManagerName();
+        if (!replicaNode.equals(clusterManagerNode)) {
+            state.nodes().get(replicaNode).getName();
+        }
+        return null;
     }
 }

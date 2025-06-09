@@ -573,21 +573,6 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
 
         // Initial indexing
         int docCount = randomIntBetween(100, 200); // Reduced count for stability
-        bulkIndexDocumentsWithVersion(docCount);
-
-        refresh("test");
-        flush("test");
-        ensureGreen();
-
-        // Verify initial document count
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), docCount);
-
-        // Start concurrent updates during rolling restart
-        logger.info("--> starting rolling restart with concurrent updates");
-        concurrentUpdatesRollingRestartWithVerification(docCount);
-    }
-
-    private void bulkIndexDocumentsWithVersion(int docCount) {
         BulkRequestBuilder bulkRequest = client().prepareBulk();
         for (int i = 0; i < docCount; i++) {
             bulkRequest.add(
@@ -606,6 +591,17 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
             BulkResponse response = bulkRequest.execute().actionGet();
             assertFalse(response.hasFailures());
         }
+
+        refresh("test");
+        flush("test");
+        ensureGreen();
+
+        // Verify initial document count
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), docCount);
+
+        // Start concurrent updates during rolling restart
+        logger.info("--> starting rolling restart with concurrent updates");
+        concurrentUpdatesRollingRestartWithVerification(docCount);
     }
 
     private void concurrentUpdatesRollingRestartWithVerification(int initialDocCount) throws Exception {
@@ -622,14 +618,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
                         int docId = randomIntBetween(0, initialDocCount - 1);
                         client().prepareUpdate("test", String.valueOf(docId))
                             .setRetryOnConflict(3)
-                            .setDoc(
-                                "counter",
-                                randomIntBetween(0, 1000),
-                                "last_updated",
-                                System.currentTimeMillis(),
-                                "version",
-                                System.currentTimeMillis()
-                            )
+                            .setDoc("counter", randomIntBetween(0, 1000), "last_updated", System.currentTimeMillis(), "version", 1)
                             .execute()
                             .actionGet();
                         totalUpdates.incrementAndGet();
@@ -686,7 +675,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
         assertBusy(() -> {
             SearchResponse response = client().prepareSearch("test")
                 .setSize(expectedDocs)
-                .addSort("version", SortOrder.DESC) // Sort by version to ensure we see latest updates
+                .addSort("last_updated", SortOrder.DESC) // Sort by version to ensure we see latest updates
                 .get();
             assertHitCount(response, expectedDocs);
 
@@ -695,10 +684,10 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
                 String id = hit.getId();
 
                 // Verify all required fields are present
-                assertNotNull("text_field missing for doc " + id, source.get("text_field"));
+                assertEquals("text value " + id, source.get("text_field"));
                 assertNotNull("counter missing for doc " + id, source.get("counter"));
-                assertNotNull("last_updated missing for doc " + id, source.get("last_updated"));
-                assertNotNull("version missing for doc " + id, source.get("version"));
+                assertFalse(((String) source.get("last_updated")).isEmpty());
+                assertEquals(1, source.get("version"));
 
                 // Verify text_field maintains original value
                 assertEquals("text value " + id, source.get("text_field"));
