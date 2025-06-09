@@ -63,7 +63,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.monitor.StatusInfo.Status.*;
+import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
  * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the
