@@ -66,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -79,7 +80,7 @@ import java.util.stream.IntStream;
  *
  * @opensearch.internal
  */
-public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> implements WithFieldName {
+public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> implements ComplementAwareQueryBuilder {
     public static final String NAME = "terms";
 
     private final String fieldName;
@@ -638,5 +639,24 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
 
         return this;
+    }
+
+    @Override
+    public List<QueryBuilder> getComplement(QueryShardContext context) {
+        // If this is a terms query on a numeric field, we can provide the complement using RangeQueryBuilder.
+        NumberFieldMapper.NumberFieldType nft = ComplementHelperUtils.getNumberFieldType(context, fieldName);
+        if (nft == null) return null;
+        List<Number> numberValues = new ArrayList<>();
+        for (Object value : values) {
+            numberValues.add(nft.parse(value));
+        }
+        numberValues.sort(Comparator.comparingDouble(Number::doubleValue)); // For sorting purposes, use double value.
+        NumberFieldMapper.NumberType numberType = nft.numberType();
+        // If there is some other field type that's a whole number, this will still be correct, the complement may just have some
+        // unnecessary components like "x < value < x + 1"
+        boolean isWholeNumber = numberType.equals(NumberFieldMapper.NumberType.INTEGER)
+            || numberType.equals(NumberFieldMapper.NumberType.LONG)
+            || numberType.equals(NumberFieldMapper.NumberType.SHORT);
+        return ComplementHelperUtils.numberValuesToComplement(fieldName, numberValues, isWholeNumber);
     }
 }

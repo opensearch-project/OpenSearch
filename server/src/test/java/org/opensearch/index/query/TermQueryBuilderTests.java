@@ -35,9 +35,6 @@ package org.opensearch.index.query;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
@@ -54,14 +51,12 @@ import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
-import java.util.List;
 
+import static org.opensearch.index.query.BoolQueryBuilderTests.getIndexSearcher;
+import static org.opensearch.index.query.MatchQueryBuilderTests.testGetComplementNumericField;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
-import static org.opensearch.index.query.BoolQueryBuilderTests.addDocument;
-import static org.opensearch.index.query.BoolQueryBuilderTests.getIndexSearcher;
-import static org.opensearch.index.query.MatchQueryBuilderTests.testGetComplementNumericField;
 
 public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBuilder> {
 

@@ -44,4 +44,37 @@ public class ComplementHelperUtils {
         complement.add(aboveRange);
         return complement;
     }
+
+    /**
+     * Returns a list of RangeQueryBuilders matching everything except the provided sorted values.
+     * if isWholeNumber == true, and two sorted values are off by 1, the range between the two of them won't appear in
+     * the complement since no value could match it.
+     */
+    public static List<QueryBuilder> numberValuesToComplement(String fieldName, List<Number> sortedValues, boolean isWholeNumber) {
+        List<QueryBuilder> complement = new ArrayList<>();
+        Number lastValue = null;
+        for (Number value : sortedValues) {
+            RangeQueryBuilder range = new RangeQueryBuilder(fieldName);
+            range.includeUpper(false);
+            range.to(value);
+            if (lastValue != null) {
+                // If this is a whole number field and the last value is 1 less than the current value, we can skip this part of the
+                // complement
+                if (isWholeNumber && value.longValue() - lastValue.longValue() == 1) {
+                    continue;
+                }
+                range.includeLower(false);
+                range.from(lastValue);
+            }
+            complement.add(range);
+            lastValue = value;
+        }
+        // Finally add the last range query
+        RangeQueryBuilder lastRange = new RangeQueryBuilder(fieldName);
+        lastRange.from(sortedValues.get(sortedValues.size() - 1));
+        lastRange.includeLower(false);
+        lastRange.includeUpper(true);
+        complement.add(lastRange);
+        return complement;
+    }
 }

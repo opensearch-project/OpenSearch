@@ -35,9 +35,6 @@ package org.opensearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
@@ -84,7 +81,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.opensearch.index.query.BoolQueryBuilderTests.addDocument;
 import static org.opensearch.index.query.BoolQueryBuilderTests.getIndexSearcher;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -667,7 +663,12 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     // pkg-private so it can be reused in TermQueryBuilderTests
-    static void testGetComplementNumericField(ComplementAwareQueryBuilder queryBuilder, int value, String fieldName, IndexSearcher searcher)  {
+    static void testGetComplementNumericField(
+        ComplementAwareQueryBuilder queryBuilder,
+        int value,
+        String fieldName,
+        IndexSearcher searcher
+    ) {
         List<QueryBuilder> complement = queryBuilder.getComplement(createShardContext(searcher));
         RangeQueryBuilder expectedLower = new RangeQueryBuilder(fieldName).to(value).includeLower(true).includeUpper(false);
         RangeQueryBuilder expectedUpper = new RangeQueryBuilder(fieldName).from(value).includeLower(false).includeUpper(true);
