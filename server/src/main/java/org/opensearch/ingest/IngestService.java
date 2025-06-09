@@ -829,7 +829,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         // Walk through slot by slot. For each slot, go through childslots (child index requests) and determine
         // which pipelines to execute for each index request based on previously resolved pipelines.
-        // Inner/outer slots are used to map index requests to their position in the original bulk request list.
+        // Parent/child slots are used to map index requests to their position in the original bulk request list.
         for (DocWriteRequest<?> actionRequest : actionRequests) {
             List<IndexRequest> childIndexRequests = getChildIndexRequests(actionRequest);
 
@@ -998,7 +998,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
 
             String originalIndex = indexRequests.get(0).indices()[0];
-            // slot/innerSlot combination used to map ingest pipeline results back to their original index requests
+            // slot/childSlot combination used to map ingest pipeline results back to their original index requests
             Map<SlotKey, IndexRequest> slotIndexRequestMap = createSlotIndexRequestMap(slots, childSlot, indexRequests);
             innerBatchExecute(slots, childSlot, indexRequests, pipeline, onDropped, results -> {
                 for (int i = 0; i < results.size(); ++i) {
