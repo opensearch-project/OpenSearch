@@ -1982,6 +1982,12 @@ public final class InternalTestCluster extends TestCluster {
         assert Thread.holdsLock(this);
         logger.info("Restarting node [{}] ", nodeAndClient.name);
 
+        FileCache fileCache = nodeAndClient.node().fileCache();
+        // Close IndexInput reference file to avoid file leaks during node restart
+        if (fileCache != null && WARM_NODE_PREDICATE.test(nodeAndClient)) {
+            fileCache.closeIndexInputReferences();
+        }
+
         if (activeDisruptionScheme != null) {
             activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
         }

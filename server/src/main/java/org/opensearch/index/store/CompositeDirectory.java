@@ -30,6 +30,7 @@ import org.opensearch.index.store.remote.utils.TransferManager;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -285,34 +286,61 @@ public class CompositeDirectory extends FilterDirectory {
         }
         // Return directly from the FileCache (via TransferManager) if complete file is present
         Path key = getFilePath(name);
-        CachedIndexInput indexInput = fileCache.get(key);
-        if (indexInput != null) {
-            logger.trace("Composite Directory[{}]: Complete file {} found in FileCache", this::toString, () -> name);
-            try {
-                return indexInput.getIndexInput().clone();
-            } finally {
-                fileCache.decRef(key);
+
+        try {
+            CachedIndexInput indexInput = fileCache.compute(key, (path, cachedIndexInput) -> {
+                // If entry exists and is not closed, use it
+                if (cachedIndexInput != null && cachedIndexInput.isClosed() == false) {
+                    return cachedIndexInput;
+                }
+
+                // If entry is closed but file exists locally, create new IndexInput from local
+                if (cachedIndexInput != null && cachedIndexInput.isClosed() && Files.exists(key)) {
+                    try {
+                        return new CachedFullFileIndexInput(fileCache, key, localDirectory.openInput(name, IOContext.DEFAULT));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                // Return null to fall back to remote store download
+                return null;
+            });
+
+            if (indexInput != null) {
+                logger.trace("Composite Directory[{}]: Complete file {} found in FileCache", this::toString, () -> name);
+                try {
+                    return indexInput.getIndexInput().clone();
+                } finally {
+                    fileCache.decRef(key);
+                }
             }
-        }
-        // If file has been uploaded to the Remote Store, fetch it from the Remote Store in blocks via OnDemandCompositeBlockIndexInput
-        else {
-            logger.trace(
-                "Composite Directory[{}]: Complete file {} not in FileCache, to be fetched in Blocks from Remote",
-                this::toString,
-                () -> name
-            );
-            RemoteSegmentStoreDirectory.UploadedSegmentMetadata uploadedSegmentMetadata = remoteDirectory.getSegmentsUploadedToRemoteStore()
-                .get(name);
-            if (uploadedSegmentMetadata == null) {
-                throw new NoSuchFileException("File " + name + " not found in directory");
+            // If file has been uploaded to the Remote Store, fetch it from the Remote Store in blocks via OnDemandCompositeBlockIndexInput
+            else {
+                logger.trace(
+                    "Composite Directory[{}]: Complete file {} not in FileCache, to be fetched in Blocks from Remote",
+                    this::toString,
+                    () -> name
+                );
+                RemoteSegmentStoreDirectory.UploadedSegmentMetadata uploadedSegmentMetadata = remoteDirectory
+                    .getSegmentsUploadedToRemoteStore()
+                    .get(name);
+                if (uploadedSegmentMetadata == null) {
+                    throw new NoSuchFileException("File " + name + " not found in directory");
+                }
+                // TODO : Refactor FileInfo and OnDemandBlockSnapshotIndexInput to more generic names as they are not Remote Snapshot
+                // specific
+                BlobStoreIndexShardSnapshot.FileInfo fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
+                    name,
+                    new StoreFileMetadata(name, uploadedSegmentMetadata.getLength(), uploadedSegmentMetadata.getChecksum(), Version.LATEST),
+                    null
+                );
+                return new OnDemandBlockSnapshotIndexInput(fileInfo, localDirectory, transferManager);
             }
-            // TODO : Refactor FileInfo and OnDemandBlockSnapshotIndexInput to more generic names as they are not Remote Snapshot specific
-            BlobStoreIndexShardSnapshot.FileInfo fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
-                name,
-                new StoreFileMetadata(name, uploadedSegmentMetadata.getLength(), uploadedSegmentMetadata.getChecksum(), Version.LATEST),
-                null
-            );
-            return new OnDemandBlockSnapshotIndexInput(fileInfo, localDirectory, transferManager);
+        } catch (NoSuchFileException nsfe) {
+            throw nsfe;
+        } catch (IOException e) {
+            throw new IOException("Failed to open input for file: " + name, e);
         }
     }
 
@@ -332,7 +360,6 @@ public class CompositeDirectory extends FilterDirectory {
                 fileCache.remove(getFilePath(localFile));
             }
         }
-        fileCache.prune();
         localDirectory.close();
     }
 

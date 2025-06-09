@@ -116,6 +116,11 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return overallFileCacheStats.getCacheMisses();
     }
 
+    // visible for testing.
+    public FileCacheStats getBlockFileCacheStats() {
+        return blockFileCacheStats;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.AGGREGATE_FILE_CACHE);

@@ -68,7 +68,11 @@ public class CachedFullFileIndexInput implements CachedIndexInput {
     @Override
     public void close() throws Exception {
         if (!isClosed.getAndSet(true)) {
-            fullFileCachedIndexInput.close();
+            try {
+                fullFileCachedIndexInput.close();
+            } catch (Exception e) {
+                isClosed.set(false);
+            }
         }
     }
 }
