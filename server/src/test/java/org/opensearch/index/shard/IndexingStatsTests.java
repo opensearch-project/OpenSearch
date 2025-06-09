@@ -115,6 +115,47 @@ public class IndexingStatsTests extends OpenSearchTestCase {
         assertEquals(expected, xContentBuilder.toString());
     }
 
+    /**
+     * Tests aggregation logic for maxLastIndexRequestTimestamp in IndexingStats.Stats.
+     * Uses reflection because the field is private and not settable via public API.
+     * This ensures that aggregation (add) always surfaces the maximum value, even across multiple adds and random values.
+     */
+    public void testMaxLastIndexRequestTimestampAggregation() throws Exception {
+        IndexingStats.Stats stats1 = new IndexingStats.Stats();
+        IndexingStats.Stats stats2 = new IndexingStats.Stats();
+        IndexingStats.Stats stats3 = new IndexingStats.Stats();
+        java.lang.reflect.Field tsField = IndexingStats.Stats.class.getDeclaredField("maxLastIndexRequestTimestamp");
+        tsField.setAccessible(true);
+
+        // Use random values for robustness
+        long ts1 = randomLongBetween(0, 1000000);
+        long ts2 = randomLongBetween(0, 1000000);
+        long ts3 = randomLongBetween(0, 1000000);
+
+        tsField.set(stats1, ts1);
+        tsField.set(stats2, ts2);
+        tsField.set(stats3, ts3);
+
+        // Aggregate stats1 + stats2
+        stats1.add(stats2);
+        assertEquals(Math.max(ts1, ts2), stats1.getMaxLastIndexRequestTimestamp());
+
+        // Aggregate stats1 + stats3
+        stats1.add(stats3);
+        assertEquals(Math.max(Math.max(ts1, ts2), ts3), stats1.getMaxLastIndexRequestTimestamp());
+
+        // Test with zero and negative values
+        tsField.set(stats1, 0L);
+        tsField.set(stats2, -100L);
+        stats1.add(stats2);
+        assertEquals(0L, stats1.getMaxLastIndexRequestTimestamp());
+
+        tsField.set(stats1, -50L);
+        tsField.set(stats2, -100L);
+        stats1.add(stats2);
+        assertEquals(-50L, stats1.getMaxLastIndexRequestTimestamp());
+    }
+
     private IndexingStats createTestInstance() {
         IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
         for (int i = 1; i < 6; ++i) {
@@ -132,7 +173,8 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             randomNonNegativeLong(),
             randomBoolean(),
             randomNonNegativeLong(),
-            docStatusStats
+            docStatusStats,
+            randomNonNegativeLong()
         );
 
         return new IndexingStats(stats);
