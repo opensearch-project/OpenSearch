@@ -271,6 +271,7 @@ import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
@@ -526,7 +527,6 @@ public class Node implements Closeable {
             }
 
             // Ensure feature flags from opensearch.yml are valid during plugin initialization.
-            // Bug fix: https://github.com/opensearch-project/OpenSearch/issues/18417
             FeatureFlags.initializeFeatureFlags(tmpSettings);
 
             this.pluginsService = new PluginsService(
@@ -538,9 +538,6 @@ public class Node implements Closeable {
             );
 
             final Settings settings = pluginsService.updatedSettings();
-
-            // Ensure to initialize Feature Flags via the settings from opensearch.yml
-            FeatureFlags.initializeFeatureFlags(settings);
 
             final List<IdentityPlugin> identityPlugins = new ArrayList<>();
             identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
@@ -2179,7 +2176,7 @@ public class Node implements Closeable {
         return networkModule.getHttpServerTransportSupplier().get();
     }
 
-    protected List<NetworkPlugin.AuxTransport> newAuxTransports(NetworkModule networkModule) {
+    protected List<AuxTransport> newAuxTransports(NetworkModule networkModule) {
         return networkModule.getAuxServerTransportList();
     }
 

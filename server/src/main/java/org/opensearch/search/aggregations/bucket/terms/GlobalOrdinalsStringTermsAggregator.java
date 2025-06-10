@@ -76,7 +76,7 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.StarTreeTraversalUtil;
-import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -343,7 +343,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
                     context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
                     fieldName,
-                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
+                    List.of(new MatchAllFilter(fieldName))
                 ),
                 context
             )

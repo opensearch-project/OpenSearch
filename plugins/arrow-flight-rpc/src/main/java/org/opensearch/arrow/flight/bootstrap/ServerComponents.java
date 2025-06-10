@@ -49,7 +49,7 @@ import io.netty.util.concurrent.Future;
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.settings.Setting.intSetting;
 import static org.opensearch.common.settings.Setting.listSetting;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PORT;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_PORT;
 import static org.opensearch.transport.Transport.resolveTransportPublishPort;
 
 @SuppressWarnings("removal")
