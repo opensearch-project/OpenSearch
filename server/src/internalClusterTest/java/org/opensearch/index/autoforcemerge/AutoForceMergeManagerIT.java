@@ -111,6 +111,9 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
+            .put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
             .build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
@@ -139,6 +142,9 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
+            .put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
             .build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
@@ -168,6 +174,9 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
+            .put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
             .build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
