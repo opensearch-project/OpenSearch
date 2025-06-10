@@ -541,7 +541,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
 
         Settings settings = Settings.builder()
             .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
-            .put(StarTreeIndexSettings.IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING.getKey(), false)
+            .put(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING.getKey(), false)
             .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(512, ByteSizeUnit.MB))
             .build();

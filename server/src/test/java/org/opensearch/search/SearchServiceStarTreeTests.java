@@ -809,7 +809,6 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     /**
      * Test different aggregations with different combinations of date range query
      */
-    @LockFeatureFlag(STAR_TREE_INDEX)
     public void testDateRangeQuery() throws IOException {
         setStarTreeIndexSetting("true");
         CreateIndexRequestBuilder builder = client().admin()

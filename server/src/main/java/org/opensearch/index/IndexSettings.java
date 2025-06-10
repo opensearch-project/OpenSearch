@@ -1104,7 +1104,7 @@ public final class IndexSettings {
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
         isCompositeIndex = scopedSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
-        isStarTreeIndexEnabled = scopedSettings.get(StarTreeIndexSettings.IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING);
+        isStarTreeIndexEnabled = scopedSettings.get(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING);
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -1229,10 +1229,7 @@ public final class IndexSettings {
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
             this::setRemoteStoreTranslogRepository
         );
-        scopedSettings.addSettingsUpdateConsumer(
-            StarTreeIndexSettings.IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING,
-            this::setStarTreeIndexEnabled
-        );
+        scopedSettings.addSettingsUpdateConsumer(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING, this::setStarTreeIndexEnabled);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {

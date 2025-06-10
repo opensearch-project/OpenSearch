@@ -47,7 +47,7 @@ public class StarTreeValidator {
 
             if (indexSettings.getSettings()
                 .getAsBoolean(
-                    StarTreeIndexSettings.IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING.getKey(),
+                    StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING.getKey(),
                     compositeIndexSettings.isStarTreeIndexCreationEnabled()
                 ) == false) {
                 throw new IllegalArgumentException(
@@ -55,7 +55,7 @@ public class StarTreeValidator {
                         Locale.ROOT,
                         "star tree index cannot be created, enable it using [%s] cluster setting or [%s] index setting",
                         CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(),
-                        StarTreeIndexSettings.IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING.getKey()
+                        StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING.getKey()
                     )
                 );
             }

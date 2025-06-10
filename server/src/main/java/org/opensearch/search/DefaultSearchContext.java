@@ -1155,7 +1155,7 @@ final class DefaultSearchContext extends SearchContext {
         return indexService.getIndexSettings()
             .getSettings()
             .getAsBoolean(
-                StarTreeIndexSettings.IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING.getKey(),
+                StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING.getKey(),
                 clusterService.getClusterSettings().get(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING)
             );
     }

@@ -135,7 +135,7 @@ public class StarTreeIndexSettings {
         Setting.Property.Final
     );
 
-    public static final Setting<Boolean> IS_STAR_TREE_SEARCH_ENABLED_INDEX_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> STAR_TREE_SEARCH_ENABLED_SETTING = Setting.boolSetting(
         "index.search.star_tree_index.enabled",
         true,
         Setting.Property.IndexScope,
