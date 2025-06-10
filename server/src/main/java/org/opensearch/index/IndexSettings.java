@@ -788,7 +788,8 @@ public final class IndexSettings {
         true,
         Property.Dynamic,
         Property.IndexScope
-      
+    );
+
     public static final Setting<Boolean> INDEX_DERIVED_SOURCE_SETTING = Setting.boolSetting(
         "index.derived_source.enabled",
         false,
