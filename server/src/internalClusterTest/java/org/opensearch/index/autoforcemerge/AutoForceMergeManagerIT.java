@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.opensearch.common.util.concurrent.OpenSearchExecutors.NODE_PROCESSORS_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -57,7 +58,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
-            .put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 32)
+            .put(NODE_PROCESSORS_SETTING.getKey(), 32)
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SCHEDULER_INTERVAL.getKey(), SCHEDULER_INTERVAL)
             .put(ForceMergeManagerSettings.TRANSLOG_AGE_AUTO_FORCE_MERGE.getKey(), TRANSLOG_AGE)
             .put(ForceMergeManagerSettings.SEGMENT_COUNT_FOR_AUTO_FORCE_MERGE.getKey(), SEGMENT_COUNT)
@@ -70,6 +71,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), false)
+            .put(NODE_PROCESSORS_SETTING.getKey(), 8)
             .build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
@@ -111,9 +113,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
-            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
-            .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .put(NODE_PROCESSORS_SETTING.getKey(), 8)
             .build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
@@ -142,9 +142,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
-            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
-            .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .put(NODE_PROCESSORS_SETTING.getKey(), 8)
             .build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
@@ -174,9 +172,7 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         Settings clusterSettings = Settings.builder()
             .put(super.nodeSettings(0))
             .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
-            .put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
-            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
-            .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .put(NODE_PROCESSORS_SETTING.getKey(), 8)
             .build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
