@@ -128,7 +128,7 @@ public class ShardStateAction {
     }
 
     private final TransportService transportService;
-    private final ClusterService clusterService;
+    final ClusterService clusterService;
     private final ThreadPool threadPool;
 
     private volatile Priority followUpRerouteTaskPriority;
