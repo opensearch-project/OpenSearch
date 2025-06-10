@@ -41,17 +41,17 @@ public class LocalClusterService extends ClusterService {
 
     @Override
     protected synchronized void doStart() {
-        getClusterApplierService().doStart();
+        getClusterApplierService().start();
     }
 
     @Override
     protected synchronized void doStop() {
-        getClusterApplierService().doStop();
+        getClusterApplierService().stop();
     }
 
     @Override
     protected synchronized void doClose() {
-        getClusterApplierService().doClose();
+        getClusterApplierService().close();
     }
 
     @Override
