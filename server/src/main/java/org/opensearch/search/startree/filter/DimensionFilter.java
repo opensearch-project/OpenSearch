@@ -21,9 +21,6 @@ import java.io.IOException;
  */
 @ExperimentalApi
 public interface DimensionFilter {
-
-    DimensionFilter MATCH_ALL_DEFAULT = new MatchAllFilter();
-
     /**
      * Converts parsed user values to ordinals based on segment and other init actions can be performed.
      * @param starTreeValues : Segment specific star tree root node and other metadata
@@ -49,8 +46,14 @@ public interface DimensionFilter {
      */
     boolean matchDimValue(long ordinal, StarTreeValues starTreeValues);
 
-    default String getDimensionName() {
+    String getDimensionName();
+
+    default String getSubDimensionName() {
         return null;
+    }
+
+    default String getMatchingDimension() {
+        return getSubDimensionName() == null ? getDimensionName() : getSubDimensionName();
     }
 
     /**
@@ -64,5 +67,4 @@ public interface DimensionFilter {
         LTE,
         EXACT
     }
-
 }

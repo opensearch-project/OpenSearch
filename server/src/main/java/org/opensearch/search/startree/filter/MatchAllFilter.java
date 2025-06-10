@@ -8,6 +8,7 @@
 
 package org.opensearch.search.startree.filter;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
@@ -18,13 +19,26 @@ import java.io.IOException;
 import java.util.Iterator;
 
 /**
- * A {@link DimensionFilter} implementation that matches all dimension values.
+ * Matches all StarTreeNodes
  */
+@ExperimentalApi
 public class MatchAllFilter implements DimensionFilter {
-    @Override
-    public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException {
 
+    public final String dimensionName;
+    public final String subDimensionName;
+
+    public MatchAllFilter(String dimensionName) {
+        this.dimensionName = dimensionName;
+        this.subDimensionName = null;
     }
+
+    public MatchAllFilter(String dimensionName, String subDimensionName) {
+        this.dimensionName = dimensionName;
+        this.subDimensionName = subDimensionName;
+    }
+
+    @Override
+    public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException {}
 
     @Override
     public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
@@ -43,5 +57,14 @@ public class MatchAllFilter implements DimensionFilter {
     @Override
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
         return true;
+    }
+
+    @Override
+    public String getDimensionName() {
+        return dimensionName;
+    }
+
+    public String getSubDimensionName() {
+        return subDimensionName;
     }
 }

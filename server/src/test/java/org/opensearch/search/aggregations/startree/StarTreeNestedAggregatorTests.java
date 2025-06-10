@@ -254,7 +254,7 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
             }
         }
 
-        // // 4-LEVELS [BUCKET -> BUCKET -> BUCKET -> METRIC]
+        // 4-LEVELS [BUCKET -> BUCKET -> BUCKET -> METRIC]
         for (ValuesSourceAggregationBuilder aggregationBuilder : aggBuilders) {
             query = new MatchAllDocsQuery();
             queryBuilder = null;

@@ -75,6 +75,8 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeu
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -322,8 +324,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    public List<String> getDimensionFilters() {
-        return StarTreeQueryHelper.collectDimensionFilters(fieldName, subAggregators);
+    public List<DimensionFilter> getDimensionFilters() {
+        return StarTreeQueryHelper.collectDimensionFilters(new MatchAllFilter(fieldName), subAggregators);
     }
 
     public StarTreeBucketCollector getStarTreeBucketCollector(
@@ -336,7 +338,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             fieldName
         );
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
-        List<String> dimensionsToMerge = getDimensionFilters();
 
         /* For nested aggregations, we require the RemapGlobalOrdsStarTree strategy to properly
         handle global ordinal remapping. This check ensures we don't reinitialize the
@@ -351,7 +352,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         LongUnaryOperator globalOperator = valuesSource.globalOrdinalsMapping(ctx);
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parent, context, dimensionsToMerge)
+            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parent, context, getDimensionFilters())
         ) {
             @Override
             public void setSubCollectors() throws IOException {

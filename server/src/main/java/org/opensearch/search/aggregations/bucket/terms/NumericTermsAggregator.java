@@ -67,6 +67,8 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -167,8 +169,8 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
     }
 
     @Override
-    public List<String> getDimensionFilters() {
-        return StarTreeQueryHelper.collectDimensionFilters(fieldName, subAggregators);
+    public List<DimensionFilter> getDimensionFilters() {
+        return StarTreeQueryHelper.collectDimensionFilters(new MatchAllFilter(fieldName), subAggregators);
     }
 
     public StarTreeBucketCollector getStarTreeBucketCollector(
@@ -180,10 +182,9 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
             .getDimensionValuesIterator(fieldName);
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
-        List<String> dimensionsToMerge = getDimensionFilters();
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parent, context, dimensionsToMerge)
+            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parent, context, getDimensionFilters())
         ) {
             @Override
             public void setSubCollectors() throws IOException {

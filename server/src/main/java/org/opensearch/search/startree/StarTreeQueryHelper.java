@@ -216,16 +216,16 @@ public class StarTreeQueryHelper {
 
     public static StarTreeFilter mergeDimensionFilterIfNotExists(
         StarTreeFilter baseStarTreeFilter,
-        List<String> dimensionsToMerge,
+        String dimensionToMerge,
         List<DimensionFilter> dimensionFiltersToMerge
     ) {
         Map<String, List<DimensionFilter>> dimensionFilterMap = new HashMap<>(baseStarTreeFilter.getDimensions().size());
         for (String baseDimension : baseStarTreeFilter.getDimensions()) {
             dimensionFilterMap.put(baseDimension, baseStarTreeFilter.getFiltersForDimension(baseDimension));
         }
-
-        for (String dimension : dimensionsToMerge) {
-            dimensionFilterMap.putIfAbsent(dimension, dimensionFiltersToMerge);
+        // Don't add groupBy when already present in base filter.
+        if (!dimensionFilterMap.containsKey(dimensionToMerge)) {
+            dimensionFilterMap.put(dimensionToMerge, dimensionFiltersToMerge);
         }
         return new StarTreeFilter(dimensionFilterMap);
     }
@@ -234,33 +234,32 @@ public class StarTreeQueryHelper {
         StarTreeValues starTreeValues,
         StarTreeBucketCollector parent,
         SearchContext context,
-        List<String> dimensionsToMerge
+        List<DimensionFilter> dimensionFiltersToMerge
     ) throws IOException {
-        return parent == null
-            ? StarTreeTraversalUtil.getStarTreeResult(
-                starTreeValues,
-                StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
-                    context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
-                    dimensionsToMerge,
-                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
-                ),
-                context
-            )
-            : null;
+        StarTreeFilter starTreeFilter = context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter();
+        for (DimensionFilter dimensionFilter : dimensionFiltersToMerge) {
+            starTreeFilter = StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
+                starTreeFilter,
+                dimensionFilter.getMatchingDimension(),
+                List.of(dimensionFilter)
+            );
+        }
+
+        return parent == null ? StarTreeTraversalUtil.getStarTreeResult(starTreeValues, starTreeFilter, context) : null;
     }
 
-    public static List<String> collectDimensionFilters(String initialDimension, Aggregator[] subAggregators) {
-        List<String> dimensions = new ArrayList<>();
-        dimensions.add(initialDimension);
+    public static List<DimensionFilter> collectDimensionFilters(DimensionFilter initialDimensionFilter, Aggregator[] subAggregators) {
+        List<DimensionFilter> dimensionFiltersToMerge = new ArrayList<>();
+        dimensionFiltersToMerge.add(initialDimensionFilter);
 
         for (Aggregator subAgg : subAggregators) {
             if (subAgg instanceof StarTreePreComputeCollector collector) {
-                List<String> childFilters = collector.getDimensionFilters();
-                dimensions.addAll(childFilters != null ? childFilters : Collections.emptyList());
+                List<DimensionFilter> childFilters = collector.getDimensionFilters();
+                dimensionFiltersToMerge.addAll(childFilters != null ? childFilters : Collections.emptyList());
             }
         }
 
-        return dimensions;
+        return dimensionFiltersToMerge;
     }
 
 }

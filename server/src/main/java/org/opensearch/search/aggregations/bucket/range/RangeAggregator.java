@@ -70,6 +70,8 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
+import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -379,8 +381,8 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
     }
 
     @Override
-    public List<String> getDimensionFilters() {
-        return StarTreeQueryHelper.collectDimensionFilters(fieldName, subAggregators);
+    public List<DimensionFilter> getDimensionFilters() {
+        return StarTreeQueryHelper.collectDimensionFilters(new MatchAllFilter(fieldName), subAggregators);
     }
 
     @Override
@@ -390,12 +392,11 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
         StarTreeBucketCollector parentCollector
     ) throws IOException {
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
-        List<String> dimensionsToMerge = getDimensionFilters();
 
         // TODO: Evaluate optimizing StarTree traversal filter with specific ranges instead of MATCH_ALL_DEFAULT
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parentCollector, context, dimensionsToMerge)
+            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parentCollector, context, getDimensionFilters())
         ) {
             @Override
             public void setSubCollectors() throws IOException {
