@@ -55,6 +55,8 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.NodeEnvironment;
@@ -71,6 +73,7 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.MockIndexEventListener;
@@ -101,6 +104,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -833,6 +837,360 @@ public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             } else {
                 connection.sendRequest(requestId, action, request, options);
             }
+        }
+    }
+
+    public void testRelocationWithDerivedSourceBasic() throws Exception {
+        logger.info("--> creating test index with derived source enabled");
+        String mapping = """
+            {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "value": {
+                  "type": "integer"
+                }
+              }
+            }""";
+
+        String node1 = internalCluster().startNode();
+        assertAcked(
+            prepareCreate(
+                "test",
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+            ).setMapping(mapping)
+        );
+
+        // Index some documents
+        int numDocs = randomIntBetween(100, 200);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(String.valueOf(i)).setSource("name", "test" + i, "value", i).get();
+        }
+
+        // Start relocation
+        String node2 = internalCluster().startNode();
+        ensureGreen();
+
+        logger.info("--> relocate the shard from node1 to node2");
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
+        ensureGreen(TimeValue.timeValueMinutes(2));
+
+        // Verify all documents after relocation
+        assertBusy(() -> {
+            SearchResponse response = client().prepareSearch("test").setQuery(matchAllQuery()).setSize(numDocs).get();
+            assertHitCount(response, numDocs);
+            for (SearchHit hit : response.getHits()) {
+                String id = hit.getId();
+                Map<String, Object> source = hit.getSourceAsMap();
+                assertEquals("test" + id, source.get("name"));
+                assertEquals(Integer.parseInt(id), source.get("value"));
+            }
+        });
+    }
+
+    public void testRelocationWithDerivedSourceAndConcurrentIndexing() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "value": {
+                  "type": "integer"
+                }
+              }
+            }""";
+
+        String node1 = internalCluster().startNode();
+        assertAcked(
+            prepareCreate(
+                "test",
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+            ).setMapping(mapping)
+        );
+
+        // Start background indexing
+        AtomicBoolean stopIndexing = new AtomicBoolean(false);
+        AtomicInteger docCount = new AtomicInteger(0);
+        Thread indexingThread = new Thread(() -> {
+            while (stopIndexing.get() == false) {
+                try {
+                    int id = docCount.incrementAndGet();
+                    client().prepareIndex("test").setId(String.valueOf(id)).setSource("name", "test" + id, "value", id).get();
+                    Thread.sleep(10); // Small delay to prevent overwhelming
+                } catch (Exception e) {
+                    logger.error("Error in background indexing", e);
+                }
+            }
+        });
+        indexingThread.start();
+
+        // Let it index some documents
+        Thread.sleep(2000);
+
+        // Start relocation
+        String node2 = internalCluster().startNode();
+        ensureGreen();
+
+        logger.info("--> relocate the shard while indexing");
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
+        ensureGreen(TimeValue.timeValueMinutes(2));
+
+        // Stop indexing
+        stopIndexing.set(true);
+        indexingThread.join();
+
+        // Verify all documents
+        int finalDocCount = docCount.get();
+        assertBusy(() -> {
+            refresh();
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(matchAllQuery())
+                .setSize(finalDocCount)
+                .addSort("value", SortOrder.ASC)
+                .get();
+            assertHitCount(response, finalDocCount);
+
+            int expectedId = 1;
+            for (SearchHit hit : response.getHits()) {
+                Map<String, Object> source = hit.getSourceAsMap();
+                assertEquals("test" + expectedId, source.get("name"));
+                assertEquals(expectedId, source.get("value"));
+                expectedId++;
+            }
+        });
+    }
+
+    public void testRelocationWithDerivedSourceWithUpdates() throws Exception {
+        logger.info("--> creating test index with derived source enabled");
+        String mapping = """
+            {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "value": {
+                  "type": "integer"
+                }
+              }
+            }""";
+
+        String node1 = internalCluster().startNode();
+        assertAcked(
+            prepareCreate(
+                "test",
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+            ).setMapping(mapping)
+        );
+
+        // Index some documents
+        int numDocs = randomIntBetween(100, 200);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(String.valueOf(i)).setSource("name", "test" + i, "value", i).get();
+        }
+
+        // Start relocation
+        String node2 = internalCluster().startNode();
+        ensureGreen();
+
+        logger.info("--> relocate the shard from node1 to node2");
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
+
+        AtomicBoolean stop = new AtomicBoolean(false);
+        final Set<Integer> updatedDocs = ConcurrentCollections.newConcurrentSet();
+
+        // Start doc update thread
+        Thread updateThread = new Thread(() -> {
+            while (stop.get() == false) {
+                try {
+                    int docId = randomIntBetween(0, numDocs - 1);
+                    client().prepareUpdate("test", String.valueOf(docId))
+                        .setRetryOnConflict(3)
+                        .setDoc("value", docId * 2)
+                        .execute()
+                        .actionGet();
+                    updatedDocs.add(docId);
+                    Thread.sleep(10);
+                } catch (Exception e) {
+                    if (e instanceof InterruptedException) {
+                        break;
+                    }
+                    logger.warn("Error in update thread", e);
+                }
+            }
+        });
+        updateThread.start();
+
+        // Wait for some updates to occur
+        Thread.sleep(2000);
+
+        stop.set(true);
+        updateThread.join();
+
+        refresh("test");
+        ensureGreen(TimeValue.timeValueMinutes(2));
+
+        // Verify all documents after relocation
+        assertBusy(() -> {
+            SearchResponse response = client().prepareSearch("test").setQuery(matchAllQuery()).setSize(numDocs).get();
+            assertHitCount(response, numDocs);
+            for (SearchHit hit : response.getHits()) {
+                String id = hit.getId();
+                Map<String, Object> source = hit.getSourceAsMap();
+                assertEquals("test" + id, source.get("name"));
+                if (updatedDocs.contains(Integer.parseInt(id))) {
+                    assertEquals(Integer.parseInt(id) * 2, source.get("value")); // Verify updated value
+                } else {
+                    assertEquals(Integer.parseInt(id), source.get("value"));
+                }
+            }
+        });
+    }
+
+    public void testRelocationWithDerivedSourceAndTranslog() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "value": {
+                  "type": "integer"
+                }
+              }
+            }""";
+
+        String node1 = internalCluster().startNode();
+        assertAcked(
+            prepareCreate(
+                "test",
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+                    .put("index.refresh_interval", -1) // Disable automatic refresh
+            ).setMapping(mapping)
+        );
+
+        // Index some documents and flush
+        int numDocs = randomIntBetween(100, 200);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(String.valueOf(i)).setSource("name", "test" + i, "value", i).get();
+        }
+        flush();
+
+        // Index more docs but don't refresh (keep in translog)
+        int numTranslogDocs = randomIntBetween(50, 100);
+        for (int i = numDocs; i < numDocs + numTranslogDocs; i++) {
+            client().prepareIndex("test").setId(String.valueOf(i)).setSource("name", "test" + i, "value", i).get();
+        }
+
+        // Start relocation
+        String node2 = internalCluster().startNode();
+        ensureGreen();
+
+        logger.info("--> relocate the shard with uncommitted translog");
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
+        ensureGreen(TimeValue.timeValueMinutes(2));
+
+        // Verify all documents including those in translog
+        refresh();
+        assertBusy(() -> {
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(matchAllQuery())
+                .setSize(numDocs + numTranslogDocs)
+                .addSort("value", SortOrder.ASC)
+                .get();
+            assertHitCount(response, numDocs + numTranslogDocs);
+
+            for (SearchHit hit : response.getHits()) {
+                String id = hit.getId();
+                Map<String, Object> source = hit.getSourceAsMap();
+                assertEquals("test" + id, source.get("name"));
+                assertEquals(Integer.parseInt(id), source.get("value"));
+            }
+        });
+    }
+
+    public void testRelocationFailureWithDerivedSource() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "value": {
+                  "type": "integer"
+                }
+              }
+            }""";
+
+        String node1 = internalCluster().startNode();
+        assertAcked(
+            prepareCreate(
+                "test",
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+            ).setMapping(mapping)
+        );
+
+        // Index some documents
+        int numDocs = randomIntBetween(100, 200);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test").setId(String.valueOf(i)).setSource("name", "test" + i, "value", i).get();
+        }
+
+        AtomicBoolean peerRecoveryFailed = new AtomicBoolean(false);
+        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node1);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                peerRecoveryFailed.set(true);
+                throw new IOException("Simulated recovery failure");
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Start second node but block recovery
+        String node2 = internalCluster().startNode();
+        ensureGreen();
+
+        logger.info("--> attempt relocation with simulated failure");
+        try {
+            client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
+            ensureGreen(TimeValue.timeValueSeconds(30));
+        } catch (Exception e) {
+            // Expected failure
+        }
+        assertTrue(peerRecoveryFailed.get()); // verify that peer recovery is getting blocked
+
+        // Verify documents are still accessible on original node
+        transportService.clearAllRules();
+        refresh();
+
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        Index idx = state.metadata().index("test").getIndex();
+        String nodeId = state.routingTable().index(idx).shard(0).primaryShard().currentNodeId();
+        assertEquals(node1, state.getRoutingNodes().node(nodeId).node().getName()); // Verify the allocated node of the shard
+        SearchResponse response = client().prepareSearch("test").setQuery(matchAllQuery()).setSize(numDocs).get();
+        assertHitCount(response, numDocs);
+
+        for (SearchHit hit : response.getHits()) {
+            Map<String, Object> source = hit.getSourceAsMap();
+            String id = hit.getId();
+            assertEquals("test" + id, source.get("name"));
+            assertEquals(Integer.parseInt(id), source.get("value"));
         }
     }
 }

@@ -66,6 +66,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
@@ -73,8 +74,10 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.LoggerInfoStream;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.DerivedSourceDirectoryReader;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.uid.Versions;
@@ -105,6 +108,7 @@ import org.opensearch.index.merge.OnGoingMerge;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.OpenSearchMergePolicy;
 import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
@@ -642,7 +646,7 @@ public class InternalEngine extends Engine {
                                 if (operation != null) {
                                     // in the case of a already pruned translog generation we might get null here - yet very unlikely
                                     final Translog.Index index = (Translog.Index) operation;
-                                    TranslogLeafReader reader = new TranslogLeafReader(index);
+                                    TranslogLeafReader reader = new TranslogLeafReader(index, config());
                                     return new GetResult(
                                         new Engine.Searcher(
                                             "realtime_get",
@@ -2725,6 +2729,29 @@ public class InternalEngine extends Engine {
         return numDocUpdates.count();
     }
 
+    private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
+        assert OpenSearchDirectoryReader.unwrap(searcher.getDirectoryReader()) != null
+            : "DirectoryReader must be an instance of OpenSearchDirectoryReader";
+        boolean success = false;
+        try {
+            final Engine.Searcher newSearcher = IndexShard.wrapSearcher(
+                searcher,
+                reader -> DerivedSourceDirectoryReader.wrap(
+                    reader,
+                    config().getDocumentMapperForTypeSupplier().get().getDocumentMapper().root()::deriveSource
+                )
+            );
+            success = true;
+            return newSearcher;
+        } catch (IOException ex) {
+            throw new OpenSearchException("failed to wrap searcher", ex);
+        } finally {
+            if (success == false) {
+                Releasables.close(success, searcher);
+            }
+        }
+    }
+
     @Override
     public Translog.Snapshot newChangesSnapshot(
         String source,
@@ -2735,8 +2762,13 @@ public class InternalEngine extends Engine {
     ) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
-        Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
+        Searcher searcher = null;
         try {
+            if (config().getIndexSettings().isDerivedSourceEnabled()) {
+                searcher = acquireSearcher(source, SearcherScope.INTERNAL, this::wrapSearcher);
+            } else {
+                searcher = acquireSearcher(source, SearcherScope.INTERNAL);
+            }
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
                 searcher,
                 LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
