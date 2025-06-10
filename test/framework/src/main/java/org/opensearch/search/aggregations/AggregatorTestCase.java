@@ -761,6 +761,168 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         return internalAgg;
     }
 
+    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        boolean shardFanOut,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return searchAndReduceCounting(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, shardFanOut, fieldTypes);
+    }
+
+    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return searchAndReduceCounting(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
+    }
+
+    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return searchAndReduceCounting(indexSettings, searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
+    }
+
+    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        int maxBucket,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return searchAndReduceCounting(createIndexSettings(), searcher, query, builder, maxBucket, randomBoolean(), fieldTypes);
+    }
+
+    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        int maxBucket,
+        boolean shardFanOut,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return searchAndReduceCounting(indexSettings, searcher, query, builder, maxBucket, false, shardFanOut, fieldTypes);
+    }
+
+    /**
+     * Collects all documents that match the provided query {@link Query} and
+     * returns the reduced {@link InternalAggregation}.
+     * <p>
+     * Half the time it aggregates each leaf individually and reduces all
+     * results together. The other half the time it aggregates across the entire
+     * index at once and runs a final reduction on the single resulting agg.
+     * A count of the number of collect operations will be returned as well as the
+     * agg.
+     */
+    protected <A extends InternalAggregation, C extends Aggregator> CompositeAggregationAndCount searchAndReduceCounting(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        int maxBucket,
+        boolean hasNested,
+        boolean shardFanOut,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        final IndexReaderContext ctx = searcher.getTopReaderContext();
+        final PipelineTree pipelines = builder.buildPipelineTree();
+        List<InternalAggregation> aggs = new ArrayList<>();
+        if (hasNested) {
+            query = Queries.filtered(query, Queries.newNonNestedFilter());
+        }
+        Query rewritten = searcher.rewrite(query);
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
+            maxBucket,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+        C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
+        CountingAggregator rootCount = new CountingAggregator(new AtomicInteger(), root);
+        int totalCollectCount = 0;
+
+        if (shardFanOut && searcher.getIndexReader().leaves().size() > 0) {
+            assertThat(ctx, instanceOf(CompositeReaderContext.class));
+            final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
+            final int size = compCTX.leaves().size();
+            final ShardSearcher[] subSearchers = new ShardSearcher[size];
+            for (int searcherIDX = 0; searcherIDX < subSearchers.length; searcherIDX++) {
+                final LeafReaderContextPartition partition = LeafReaderContextPartition.createForEntireSegment(
+                    compCTX.leaves().get(searcherIDX)
+                );
+                subSearchers[searcherIDX] = new ShardSearcher(partition, compCTX);
+            }
+
+            for (ShardSearcher subSearcher : subSearchers) {
+                MultiBucketConsumer shardBucketConsumer = new MultiBucketConsumer(
+                    maxBucket,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                );
+                C a = createAggregator(query, builder, subSearcher, indexSettings, shardBucketConsumer, fieldTypes);
+                CountingAggregator aCount = new CountingAggregator(new AtomicInteger(), a);
+                aCount.preCollection();
+                Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
+                subSearcher.search(weight, aCount);
+                aCount.postCollection();
+                aggs.add(aCount.buildTopLevel());
+                totalCollectCount += aCount.getCollectCount().get();
+            }
+        } else {
+            rootCount.preCollection();
+            searcher.search(rewritten, rootCount);
+            rootCount.postCollection();
+            aggs.add(rootCount.buildTopLevel());
+            totalCollectCount = rootCount.getCollectCount().get();
+        }
+
+        if (randomBoolean() && aggs.size() > 1) {
+            // sometimes do an incremental reduce
+            int toReduceSize = aggs.size();
+            Collections.shuffle(aggs, random());
+            int r = randomIntBetween(1, toReduceSize);
+            List<InternalAggregation> toReduce = aggs.subList(0, r);
+            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
+                rootCount.context().bigArrays(),
+                getMockScriptService(),
+                () -> PipelineAggregator.PipelineTree.EMPTY
+            );
+            A reduced = (A) aggs.get(0).reduce(toReduce, context);
+            aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
+            aggs.add(reduced);
+        }
+
+        // now do the final reduce
+        MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
+            maxBucket,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+            rootCount.context().bigArrays(),
+            getMockScriptService(),
+            reduceBucketConsumer,
+            pipelines
+        );
+
+        @SuppressWarnings("unchecked")
+        A internalAgg = (A) aggs.get(0).reduce(aggs, context);
+
+        // materialize any parent pipelines
+        internalAgg = (A) internalAgg.reducePipelines(internalAgg, context, pipelines);
+
+        // materialize any sibling pipelines at top level
+        for (PipelineAggregator pipelineAggregator : pipelines.aggregators()) {
+            internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
+        }
+        doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+        return new CompositeAggregationAndCount(internalAgg, totalCollectCount);
+    }
+
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceStarTree(
         IndexSettings indexSettings,
         IndexSearcher searcher,
@@ -1413,6 +1575,24 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
         public void setWeight(Weight weight) {
             this.delegate.setWeight(weight);
+        }
+    }
+
+    protected static class CompositeAggregationAndCount {
+        private final InternalAggregation agg;
+        private final int count;
+
+        public CompositeAggregationAndCount(InternalAggregation agg, int count) {
+            this.agg = agg;
+            this.count = count;
+        }
+
+        public InternalAggregation getAgg() {
+            return agg;
+        }
+
+        public int getCount() {
+            return count;
         }
     }
 
