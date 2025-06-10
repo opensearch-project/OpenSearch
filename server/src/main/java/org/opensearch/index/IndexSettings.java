@@ -783,6 +783,13 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_AUTO_FORCE_MERGES_ENABLED = Setting.boolSetting(
+        "index.auto_force_merge.enabled",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<Boolean> INDEX_DERIVED_SOURCE_SETTING = Setting.boolSetting(
         "index.derived_source.enabled",
         false,
@@ -804,6 +811,7 @@ public final class IndexSettings {
     private volatile String remoteStoreTranslogRepository;
     private volatile String remoteStoreRepository;
     private int remoteTranslogKeepExtraGen;
+    private boolean autoForcemergeEnabled;
     private Version extendedCompatibilitySnapshotVersion;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
@@ -979,7 +987,7 @@ public final class IndexSettings {
      * while index level settings will overwrite node settings.
      *
      * @param indexMetadata the index metadata this settings object is associated with
-     * @param nodeSettings the nodes settings this index is allocated on.
+     * @param nodeSettings  the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings) {
         this(indexMetadata, nodeSettings, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
@@ -990,7 +998,7 @@ public final class IndexSettings {
      * while index level settings will overwrite node settings.
      *
      * @param indexMetadata the index metadata this settings object is associated with
-     * @param nodeSettings the nodes settings this index is allocated on.
+     * @param nodeSettings  the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
         scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetadata);
@@ -1195,6 +1203,8 @@ public final class IndexSettings {
             this::setRemoteTranslogUploadBufferInterval
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
+        this.autoForcemergeEnabled = scopedSettings.get(INDEX_AUTO_FORCE_MERGES_ENABLED);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_AUTO_FORCE_MERGES_ENABLED, this::setAutoForcemergeEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING, this::setEnableFuzzySetForDocId);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
@@ -1325,6 +1335,7 @@ public final class IndexSettings {
 
     /**
      * Returns the version the index was created on.
+     *
      * @see IndexMetadata#indexCreated(Settings)
      */
     public Version getIndexVersionCreated() {
@@ -1365,7 +1376,7 @@ public final class IndexSettings {
 
     /**
      * Returns true if segment replication is enabled on the index.
-     *
+     * <p>
      * Every shard on a remote node would also have SegRep enabled even without
      * proper index setting during the migration.
      */
@@ -1528,6 +1539,7 @@ public final class IndexSettings {
     /**
      * Returns the translog sync/upload buffer interval when remote translog store is enabled and index setting
      * {@code index.translog.durability} is set as {@code request}.
+     *
      * @return the buffer interval.
      */
     public TimeValue getRemoteTranslogUploadBufferInterval() {
@@ -1551,6 +1563,14 @@ public final class IndexSettings {
 
     public void setRemoteTranslogKeepExtraGen(int extraGen) {
         this.remoteTranslogKeepExtraGen = extraGen;
+    }
+
+    public void setAutoForcemergeEnabled(boolean autoForcemergeEnabled) {
+        this.autoForcemergeEnabled = autoForcemergeEnabled;
+    }
+
+    public boolean isAutoForcemergeEnabled() {
+        return this.autoForcemergeEnabled;
     }
 
     /**
@@ -1647,6 +1667,7 @@ public final class IndexSettings {
 
     /**
      * Returns the max number of filters in adjacency_matrix aggregation search requests
+     *
      * @deprecated This setting will be removed in 8.0
      */
     @Deprecated
@@ -1719,7 +1740,7 @@ public final class IndexSettings {
     }
 
     /**
-     *  Returns the maximum number of chars that will be analyzed in a highlight request
+     * Returns the maximum number of chars that will be analyzed in a highlight request
      */
     public int getHighlightMaxAnalyzedOffset() {
         return this.maxAnalyzedOffset;
@@ -1730,7 +1751,7 @@ public final class IndexSettings {
     }
 
     /**
-     *  Returns the maximum number of terms that can be used in a Terms Query request
+     * Returns the maximum number of terms that can be used in a Terms Query request
      */
     public int getMaxTermsCount() {
         return this.maxTermsCount;
@@ -1771,6 +1792,7 @@ public final class IndexSettings {
 
     /**
      * Returns the merge policy that should be used for this index.
+     *
      * @param isTimeSeriesIndex true if index contains @timestamp field
      */
     public MergePolicy getMergePolicy(boolean isTimeSeriesIndex) {
@@ -1931,7 +1953,6 @@ public final class IndexSettings {
 
     /**
      * Returns true if unreferenced files should be cleaned up on merge failure for this index.
-     *
      */
     public boolean shouldCleanupUnreferencedFiles() {
         return shouldCleanupUnreferencedFiles;
@@ -2034,6 +2055,7 @@ public final class IndexSettings {
 
     /**
      * Returns true if we need to maintain backward compatibility for index sorted indices created prior to version 2.7
+     *
      * @return boolean
      */
     public boolean shouldWidenIndexSortType() {
