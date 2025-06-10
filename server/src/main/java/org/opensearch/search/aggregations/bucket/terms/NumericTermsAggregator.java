@@ -184,7 +184,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parent, context, getDimensionFilters())
+            parent == null ? StarTreeQueryHelper.getStarTreeResult(starTreeValues, context, getDimensionFilters()) : null
         ) {
             @Override
             public void setSubCollectors() throws IOException {

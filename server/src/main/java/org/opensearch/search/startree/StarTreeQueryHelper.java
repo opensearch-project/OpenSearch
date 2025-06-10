@@ -232,7 +232,6 @@ public class StarTreeQueryHelper {
 
     public static FixedBitSet getStarTreeResult(
         StarTreeValues starTreeValues,
-        StarTreeBucketCollector parent,
         SearchContext context,
         List<DimensionFilter> dimensionFiltersToMerge
     ) throws IOException {
@@ -245,7 +244,7 @@ public class StarTreeQueryHelper {
             );
         }
 
-        return parent == null ? StarTreeTraversalUtil.getStarTreeResult(starTreeValues, starTreeFilter, context) : null;
+        return StarTreeTraversalUtil.getStarTreeResult(starTreeValues, starTreeFilter, context);
     }
 
     public static List<DimensionFilter> collectDimensionFilters(DimensionFilter initialDimensionFilter, Aggregator[] subAggregators) {

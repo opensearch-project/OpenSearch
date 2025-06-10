@@ -300,7 +300,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parentCollector, context, getDimensionFilters())
+            parentCollector == null ? StarTreeQueryHelper.getStarTreeResult(starTreeValues, context, getDimensionFilters()) : null
         ) {
             @Override
             public void setSubCollectors() throws IOException {

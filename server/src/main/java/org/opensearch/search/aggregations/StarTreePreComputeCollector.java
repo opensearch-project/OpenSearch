@@ -33,9 +33,9 @@ public interface StarTreePreComputeCollector {
     ) throws IOException;
 
     /**
-     * Returns the list of dimensions involved in this aggregation, which are required for
+     * Returns the list of dimensions filters involved in this aggregation, which are required for
      * merging dimension filters during StarTree precomputation. This is specifically needed
-     * for bucket aggregations to ensure that the correct dimensions are considered when
+     * for nested bucket aggregations to ensure that the correct dimensions are considered when
      * constructing or merging filters during StarTree traversal.
      * For metric aggregations, there is no need to specify dimensions since they operate
      * purely on values within the buckets formed by parent bucket aggregations.

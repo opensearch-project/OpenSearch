@@ -352,7 +352,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         LongUnaryOperator globalOperator = valuesSource.globalOrdinalsMapping(ctx);
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeQueryHelper.getStarTreeResult(starTreeValues, parent, context, getDimensionFilters())
+            parent == null ? StarTreeQueryHelper.getStarTreeResult(starTreeValues, context, getDimensionFilters()) : null
         ) {
             @Override
             public void setSubCollectors() throws IOException {
