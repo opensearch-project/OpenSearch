@@ -155,7 +155,6 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         for (ValuesSourceAggregationBuilder aggregationBuilder : aggBuilders) {
             query = new MatchAllDocsQuery();
             queryBuilder = null;
-
             termsAggregationBuilder = terms("terms_agg").field(CLIENTIP).subAggregation(aggregationBuilder);
             testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
 
