@@ -37,6 +37,7 @@ apply plugin: 'war'
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.test.fixtures'
 apply plugin: 'opensearch.internal-distribution-download'
+apply from: "$rootDir/gradle/fips.gradle"
 
 testFixtures.useFixture()
 
@@ -66,6 +67,7 @@ dependencies {
   testImplementation(project(':test:framework')) {
     exclude module: 'jakarta.annotation-api'
   }
+  testFipsRuntimeOnly libs.bundles.bouncycastle
 }
 
 war {

@@ -41,6 +41,7 @@ apply plugin: 'opensearch.internal-cluster-test'
 
 // The transport-netty4 plugin is published to maven
 apply plugin: 'opensearch.publish'
+apply from: "$rootDir/gradle/fips.gradle"
 
 /*
  TODOs:
@@ -65,6 +66,7 @@ dependencies {
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  testFipsRuntimeOnly libs.bundles.bouncycastle
 }
 
 restResources {
