@@ -87,6 +87,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.crypto.CryptoRegistryException;
 import org.opensearch.env.ShardLockObtainFailedException;
+import org.opensearch.index.engine.IngestionEngineException;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.seqno.RetentionLeaseAlreadyExistsException;
@@ -131,6 +132,7 @@ import org.opensearch.transport.client.transport.NoNodeAvailableException;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -166,7 +168,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         final Set<Class<?>> notRegistered = new HashSet<>();
         final Set<Class<?>> hasDedicatedWrite = new HashSet<>();
         final Set<Class<?>> registered = new HashSet<>();
-        final String path = "/org/opensearch";
+        final String path = "org/opensearch";
         final Path coreLibStartPath = PathUtils.get(OpenSearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI());
         final Path startPath = PathUtils.get(OpenSearchServerException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
             .resolve("org")
@@ -254,7 +256,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         Files.walkFileTree(coreLibStartPath, visitor);
         // walk the server module start path
         Files.walkFileTree(startPath, visitor);
-        final Path testStartPath = PathUtils.get(ExceptionSerializationTests.class.getResource(path).toURI());
+        final URI location = ExceptionSerializationTests.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+        final Path testStartPath = PathUtils.get(location).resolve(path);
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));
@@ -896,6 +899,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(173, ViewAlreadyExistsException.class);
         ids.put(174, InvalidIndexContextException.class);
         ids.put(175, ResponseLimitBreachedException.class);
+        ids.put(176, IngestionEngineException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();

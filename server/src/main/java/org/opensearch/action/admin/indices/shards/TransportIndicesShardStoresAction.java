@@ -146,7 +146,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
             final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(state.metadata().index(index).getSettings());
             for (IndexShardRoutingTable routing : indexShardRoutingTables) {
                 final int shardId = routing.shardId().id();
-                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing);
+                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing, state.metadata().index(index));
                 if (request.shardStatuses().contains(shardHealth.getStatus())) {
                     shardsToFetch.add(Tuple.tuple(routing.shardId(), customDataPath));
                 }

@@ -8,9 +8,9 @@
 
 package org.opensearch.arrow.flight.bootstrap;
 
-import org.opensearch.arrow.flight.api.FlightServerInfoAction;
-import org.opensearch.arrow.flight.api.NodesFlightInfoAction;
-import org.opensearch.arrow.flight.api.TransportNodesFlightInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.FlightServerInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.TransportNodesFlightInfoAction;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -31,6 +31,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
@@ -52,12 +53,19 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
  * FlightStreamPlugin class extends BaseFlightStreamPlugin and provides implementation for FlightStream plugin.
  */
-public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, NetworkPlugin, ActionPlugin, ClusterPlugin {
+public class FlightStreamPlugin extends Plugin
+    implements
+        StreamManagerPlugin,
+        NetworkPlugin,
+        ActionPlugin,
+        ClusterPlugin,
+        ExtensiblePlugin {
 
     private final FlightService flightService;
     private final boolean isArrowStreamsEnabled;
@@ -221,11 +229,8 @@ public class FlightStreamPlugin extends Plugin implements StreamManagerPlugin, N
      * Gets the StreamManager instance for managing flight streams.
      */
     @Override
-    public Supplier<StreamManager> getStreamManager() {
-        if (!isArrowStreamsEnabled) {
-            return null;
-        }
-        return flightService::getStreamManager;
+    public Optional<StreamManager> getStreamManager() {
+        return isArrowStreamsEnabled ? Optional.ofNullable(flightService.getStreamManager()) : Optional.empty();
     }
 
     /**

@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
@@ -160,7 +161,10 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         }
 
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        int shardCount = indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
+        int shardCount = shardRouting.isSearchOnly()
+            ? indexMetadata.getNumberOfSearchOnlyReplicas()
+            : indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
+
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute.
             if (isAwarenessAttributeAssociatedWithNode(node, awarenessAttribute) == false) {
@@ -175,18 +179,14 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
 
             int currentNodeCount = getCurrentNodeCountForAttribute(shardRouting, node, allocation, moveToNode, awarenessAttribute);
+            Set<String> attributeValues = getAttributeValues(shardRouting, allocation, awarenessAttribute);
+            int numberOfAttributes = attributeValues.size();
 
-            // build attr_value -> nodes map
-            Set<String> nodesPerAttribute = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
-            int numberOfAttributes = nodesPerAttribute.size();
             List<String> fullValues = forcedAwarenessAttributes.get(awarenessAttribute);
-
             if (fullValues != null) {
                 // If forced awareness is enabled, numberOfAttributes = count(distinct((union(discovered_attributes, forced_attributes)))
                 Set<String> attributesSet = new HashSet<>(fullValues);
-                for (String stringObjectCursor : nodesPerAttribute) {
-                    attributesSet.add(stringObjectCursor);
-                }
+                attributesSet.addAll(attributeValues);
                 numberOfAttributes = attributesSet.size();
             }
 
@@ -211,6 +211,11 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
     }
 
+    private Set<String> getAttributeValues(ShardRouting shardRouting, RoutingAllocation allocation, String awarenessAttribute) {
+        return allocation.routingNodes()
+            .nodesPerAttributesCounts(awarenessAttribute, routingNode -> routingNode.node().isSearchNode() == shardRouting.isSearchOnly());
+    }
+
     private int getCurrentNodeCountForAttribute(
         ShardRouting shardRouting,
         RoutingNode node,
@@ -220,9 +225,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     ) {
         // build the count of shards per attribute value
         final String shardAttributeForNode = getAttributeValueForNode(node, awarenessAttribute);
+        // Get all assigned shards of the same type
+        List<ShardRouting> assignedShards = getAssignedShards(allocation, shardRouting);
         int currentNodeCount = 0;
-        final List<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shardRouting.shardId());
-
         for (ShardRouting assignedShard : assignedShards) {
             if (assignedShard.started() || assignedShard.initializing()) {
                 // Note: this also counts relocation targets as that will be the new location of the shard.
@@ -255,6 +260,14 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         return currentNodeCount;
     }
 
+    private List<ShardRouting> getAssignedShards(RoutingAllocation allocation, ShardRouting shardRouting) {
+        return allocation.routingNodes()
+            .assignedShards(shardRouting.shardId())
+            .stream()
+            .filter(s -> s.isSearchOnly() == shardRouting.isSearchOnly())
+            .collect(Collectors.toList());
+    }
+
     private boolean isAwarenessAttributeAssociatedWithNode(RoutingNode node, String awarenessAttribute) {
         return node.node().getAttributes().containsKey(awarenessAttribute);
     }
@@ -262,5 +275,4 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     private String getAttributeValueForNode(final RoutingNode node, final String awarenessAttribute) {
         return node.node().getAttributes().get(awarenessAttribute);
     }
-
 }

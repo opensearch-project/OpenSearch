@@ -112,7 +112,7 @@ public class BitmapIndexQuery extends Query implements Accountable {
                 return new ScorerSupplier() {
                     long cost = -1;
 
-                    final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, field);
+                    final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                     final MergePointVisitor visitor = new MergePointVisitor(result);
 
                     @Override

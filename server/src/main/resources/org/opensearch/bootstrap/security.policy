@@ -91,6 +91,49 @@ grant codeBase "${codebase.zstd-jni}" {
 // repository-azure plugin and server side streaming
 grant codeBase "${codebase.reactor-core}" {
   permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant codeBase "${codebase.opensearch-cli}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant codeBase "${codebase.opensearch-core}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant codeBase "${codebase.jackson-core}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant codeBase "${codebase.opensearch-common}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant codeBase "${codebase.opensearch-x-content}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant codeBase "${codebase.opensearch}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant codeBase "${codebase.bcpkix-fips}" {
+  permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
+};
+
+grant codeBase "${codebase.bc-fips}" {
+  permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
+};
+
+grant codeBase "${codebase.opensearch-ssl-config}" {
+  permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
 };
 
 //// Everything else:
@@ -195,6 +238,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/user.slice/-", "read";
 
   // needed by RestClientBuilder
   permission java.io.FilePermission "${java.home}/lib/security/cacerts", "read";
@@ -202,4 +246,13 @@ grant {
   permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
   permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
   permission java.security.SecurityPermission "getProperty.keystore.type.compat";
+
+  // needed by SecurityProviderManager
+  permission java.security.SecurityPermission "removeProvider.SunJCE";
+
+  // needed by PemUtils
+  permission java.security.SecurityPermission "insertProvider.BCFIPS";
+  permission java.security.SecurityPermission "insertProvider.BCJSSE";
+
+  permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
 };

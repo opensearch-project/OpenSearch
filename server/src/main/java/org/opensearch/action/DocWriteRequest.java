@@ -59,7 +59,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
+public interface DocWriteRequest<T> extends IndicesRequest, DocRequest, Accountable {
 
     // Flag set for disallowing index auto creation for an individual write request.
     String REQUIRE_ALIAS = "require_alias";
@@ -69,18 +69,6 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * @return the Request
      */
     T index(String index);
-
-    /**
-     * Get the index that this request operates on
-     * @return the index
-     */
-    String index();
-
-    /**
-     * Get the id of the document for this request
-     * @return the id
-     */
-    String id();
 
     /**
      * Get the options for this request

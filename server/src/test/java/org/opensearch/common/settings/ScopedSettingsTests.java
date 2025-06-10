@@ -994,7 +994,10 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
             SettingsException.class,
             () -> settings.validate(Settings.builder().put("index.numbe_of_replica", "1").build(), false)
         );
-        assertEquals(e.getMessage(), "unknown setting [index.numbe_of_replica] did you mean [index.number_of_replicas]?");
+        assertEquals(
+            e.getMessage(),
+            "unknown setting [index.numbe_of_replica] did you mean any of [index.number_of_replicas, index.number_of_search_replicas]?"
+        );
     }
 
     public void testValidate() {

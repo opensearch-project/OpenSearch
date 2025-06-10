@@ -37,7 +37,8 @@ public enum Architecture {
     X64,
     ARM64,
     S390X,
-    PPC64LE;
+    PPC64LE,
+    RISCV64;
 
     public static Architecture current() {
         final String architecture = System.getProperty("os.arch", "");
@@ -51,6 +52,8 @@ public enum Architecture {
                 return S390X;
             case "ppc64le":
                 return PPC64LE;
+            case "riscv64":
+                return RISCV64;
             default:
                 throw new IllegalArgumentException("can not determine architecture from [" + architecture + "]");
         }

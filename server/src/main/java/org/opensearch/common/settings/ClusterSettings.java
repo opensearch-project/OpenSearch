@@ -70,7 +70,6 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ConcurrentRecoveriesAllocationDecider;
-import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
@@ -132,6 +131,7 @@ import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.checkpoint.PublishCheckpointAction;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.fs.FsHealthService;
@@ -297,6 +297,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                 IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                 IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
+                IndicesService.CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING,
                 IndicesService.CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING,
                 IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING,
                 IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
@@ -329,11 +330,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING,
-                DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE,
+                DiskThresholdSettings.ENABLE_FOR_SINGLE_DATA_NODE,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_WARM_DISK_THRESHOLD_ENABLED_SETTING,
                 DiskThresholdSettings.CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
@@ -411,6 +413,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ClusterService.USER_DEFINED_METADATA,
                 ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 IngestService.MAX_NUMBER_OF_INGEST_PROCESSORS,
+                IngestService.SYSTEM_INGEST_PIPELINE_ENABLED,
                 SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
@@ -440,6 +443,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
                 TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND,
                 TransportReplicationAction.REPLICATION_RETRY_TIMEOUT,
+                PublishCheckpointAction.PUBLISH_CHECK_POINT_RETRY_TIMEOUT,
                 TransportSettings.HOST,
                 TransportSettings.PUBLISH_HOST,
                 TransportSettings.PUBLISH_HOST_PROFILE,
@@ -552,6 +556,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_OPEN_PIT_CONTEXT,
                 SearchService.MAX_PIT_KEEPALIVE_SETTING,
                 SearchService.MAX_AGGREGATION_REWRITE_FILTERS,
+                SearchService.AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD,
                 SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING,
                 SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD,
                 SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED,
@@ -613,6 +618,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 OperationRouting.WEIGHTED_ROUTING_FAILOPEN_ENABLED,
                 OperationRouting.STRICT_WEIGHTED_SHARD_ROUTING_ENABLED,
                 OperationRouting.IGNORE_WEIGHTED_SHARD_ROUTING,
+                OperationRouting.STRICT_SEARCH_REPLICA_ROUTING_ENABLED,
                 IndexGraveyard.SETTING_MAX_TOMBSTONES,
                 PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
                 EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
@@ -820,7 +826,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ),
                 OpenSearchOnHeapCacheSettings.EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(
                     CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-                )
+                ),
+
+                // Setting related to refresh optimisations
+                IndicesService.CLUSTER_REFRESH_FIXED_INTERVAL_SCHEDULE_ENABLED_SETTING,
+                IndicesService.CLUSTER_REFRESH_SHARD_LEVEL_ENABLED_SETTING
             )
         )
     );

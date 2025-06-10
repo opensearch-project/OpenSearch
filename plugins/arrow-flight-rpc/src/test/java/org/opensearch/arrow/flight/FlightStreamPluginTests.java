@@ -8,8 +8,8 @@
 
 package org.opensearch.arrow.flight;
 
-import org.opensearch.arrow.flight.api.FlightServerInfoAction;
-import org.opensearch.arrow.flight.api.NodesFlightInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.FlightServerInfoAction;
+import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
 import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
 import org.opensearch.arrow.spi.StreamManager;
@@ -19,9 +19,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
@@ -29,21 +27,20 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.Optional;
 
-import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS_SETTING;
+import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
 import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class FlightStreamPluginTests extends OpenSearchTestCase {
-    private Settings settings;
+    private final Settings settings = Settings.EMPTY;
     private ClusterService clusterService;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        settings = Settings.builder().put(ARROW_STREAMS_SETTING.getKey(), true).build();
         clusterService = mock(ClusterService.class);
         ClusterState clusterState = mock(ClusterState.class);
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
@@ -52,9 +49,8 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
         when(nodes.getLocalNodeId()).thenReturn("test-node");
     }
 
+    @LockFeatureFlag(ARROW_STREAMS)
     public void testPluginEnabled() throws IOException {
-        FeatureFlags.initializeFeatureFlags(settings);
-        FeatureFlagSetter.set(ARROW_STREAMS_SETTING.getKey());
         FlightStreamPlugin plugin = new FlightStreamPlugin(settings);
         Collection<Object> components = plugin.createComponents(
             null,
@@ -80,8 +76,8 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
         assertFalse(executorBuilders.isEmpty());
         assertEquals(2, executorBuilders.size());
 
-        Supplier<StreamManager> streamManager = plugin.getStreamManager();
-        assertNotNull(streamManager);
+        Optional<StreamManager> streamManager = plugin.getStreamManager();
+        assertTrue(streamManager.isPresent());
 
         List<Setting<?>> settings = plugin.getSettings();
         assertNotNull(settings);

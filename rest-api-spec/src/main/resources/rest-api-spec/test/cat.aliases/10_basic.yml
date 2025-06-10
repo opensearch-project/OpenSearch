@@ -1,9 +1,7 @@
 
 ---
 "Help":
-  - skip:
-      version: " - 7.3.99"
-      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
 
   - do:
       cat.aliases:
@@ -54,9 +52,7 @@
 
 ---
 "Simple alias":
-  - skip:
-      version: " - 7.3.99"
-      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
 
   - do:
         indices.create:
@@ -114,9 +110,6 @@
 
 ---
 "Complex alias":
-  - skip:
-      version: " - 7.3.99"
-      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
 
   - do:
         indices.create:
@@ -278,9 +271,6 @@
 
 ---
 "Column headers":
-  - skip:
-      version: " - 7.3.99"
-      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
 
   - do:
         indices.create:
@@ -385,9 +375,7 @@
 
 ---
 "Alias against closed index":
-  - skip:
-      version: " - 7.3.99"
-      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
 
   - do:
       indices.create:

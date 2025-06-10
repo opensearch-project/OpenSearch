@@ -98,6 +98,7 @@ public class VersionProperties {
     private static final String bundledJdkLinux_x64;
     private static final String bundledJdkLinux_s390x;
     private static final String bundledJdkLinux_ppc64le;
+    private static final String bundledJdkLinux_riscv64;
     private static final String bundledJdkVendor;
     private static final Map<String, String> versions = new HashMap<String, String>();
 
@@ -117,6 +118,7 @@ public class VersionProperties {
         bundledJdkLinux_x64 = props.getProperty("bundled_jdk_linux_x64", bundledJdkLinux);
         bundledJdkLinux_s390x = props.getProperty("bundled_jdk_linux_s390x", bundledJdkLinux);
         bundledJdkLinux_ppc64le = props.getProperty("bundled_jdk_linux_ppc64le", bundledJdkLinux);
+        bundledJdkLinux_riscv64 = props.getProperty("bundled_jdk_linux_riscv64", bundledJdkLinux);
 
         for (String property : props.stringPropertyNames()) {
             versions.put(property, props.getProperty(property));
@@ -155,6 +157,8 @@ public class VersionProperties {
                 return bundledJdkLinux_s390x;
             case "ppc64le":
                 return bundledJdkLinux_ppc64le;
+            case "riscv64":
+                return bundledJdkLinux_riscv64;
             default:
                 throw new IllegalArgumentException("unknown platform [" + arch + "] for 'linux' platform");
         }

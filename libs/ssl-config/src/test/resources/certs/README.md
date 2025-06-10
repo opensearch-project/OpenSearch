@@ -110,7 +110,8 @@ done
 ```bash
 for n in 1 2 3
 do
-keytool -importcert -file ca${n}/ca.crt -alias ca${n} -keystore ca-all/ca.bcfks -storetype BCFKS -storepass bcfks-pass -providername BCFIPS -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider -providerpath $LIB_PATH/bc-fips-2.0.0.jar -v
+    keytool -importcert -file ca${n}/ca.crt -alias ca -keystore ca${n}/ca.bcfks -storetype BCFKS -storepass bcfks-pass -providername BCFIPS -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider -providerpath $LIB_PATH/bc-fips-2.0.0.jar -v
+    keytool -importcert -file ca${n}/ca.crt -alias ca${n} -keystore ca-all/ca.bcfks -storetype BCFKS -storepass bcfks-pass -providername BCFIPS -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider -providerpath $LIB_PATH/bc-fips-2.0.0.jar -v
 done
 ```
 

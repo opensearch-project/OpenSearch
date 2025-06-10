@@ -15,20 +15,15 @@ import org.junit.Before;
 import javax.crypto.Cipher;
 
 import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
 import java.security.Security;
 import java.util.Arrays;
-import java.util.Locale;
-
-import static org.opensearch.bootstrap.BootstrapForTesting.sunJceInsertFunction;
 
 public class SecurityProviderManagerTests extends OpenSearchTestCase {
 
     private static final String BC_FIPS = "BCFIPS";
     private static final String SUN_JCE = "SunJCE";
-
-    // BCFIPS will only provide legacy ciphers when running in general mode, otherwise approved-only mode forbids the use.
-    private static final String MODE_DEPENDENT_CIPHER_PROVIDER = inFipsJvm() ? SUN_JCE : BC_FIPS;
-
+    private static final String TOP_PRIO_CIPHER_PROVIDER = inFipsJvm() ? BC_FIPS : SUN_JCE;
     private static final String AES = "AES";
     private static final String RC_4 = "RC4";
     private static final String TRIPLE_DES = "DESedeWrap";
@@ -40,25 +35,16 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        var notInstalled = Arrays.stream(Security.getProviders()).noneMatch(provider -> SUN_JCE.equals(provider.getName()));
-        if (notInstalled && sunJceInsertFunction != null) {
-            sunJceInsertFunction.get();
-        }
-        assumeTrue(
-            String.format(
-                Locale.ROOT,
-                "SunJCE provider has to be initially installed through '%s' file",
-                System.getProperty("java.security.properties", "UNDEFINED")
-            ),
-            Arrays.stream(Security.getProviders()).anyMatch(provider -> SUN_JCE.equals(provider.getName()))
-        );
+        addSunJceProvider();
     }
 
     @AfterClass
     // restore the same state as before running the tests.
-    public static void removeSunJCE() {
+    public static void removeSunJCE() throws Exception {
         if (inFipsJvm()) {
-            SecurityProviderManager.excludeSunJCE();
+            SecurityProviderManager.removeNonCompliantFipsProviders();
+        } else {
+            addSunJceProvider();
         }
     }
 
@@ -66,68 +52,64 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
         // given
         var cipher = Cipher.getInstance(RC_4);
         assertEquals(RC_4, cipher.getAlgorithm());
-        assertEquals(MODE_DEPENDENT_CIPHER_PROVIDER, cipher.getProvider().getName());
+        assertEquals(SUN_JCE, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
-        if (inFipsJvm()) {
-            expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(RC_4));
-        } else {
-            cipher = Cipher.getInstance(RC_4);
-            assertEquals(RC_4, cipher.getAlgorithm());
-            assertEquals(BC_FIPS, cipher.getProvider().getName());
-        }
+        expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(RC_4));
     }
 
     public void testCipherAES() throws Exception {
         // given
         var cipher = Cipher.getInstance(AES);
         assertEquals(AES, cipher.getAlgorithm());
-        assertEquals(BC_FIPS, cipher.getProvider().getName());
+        assertEquals(TOP_PRIO_CIPHER_PROVIDER, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
-        cipher = Cipher.getInstance(AES);
-        assertEquals(AES, cipher.getAlgorithm());
-        assertEquals(BC_FIPS, cipher.getProvider().getName());
+        if (inFipsJvm()) {
+            cipher = Cipher.getInstance(AES);
+            assertEquals(AES, cipher.getAlgorithm());
+            assertEquals(BC_FIPS, cipher.getProvider().getName());
+        } else {
+            expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(AES));
+        }
     }
 
     public void testCipher3Des() throws Exception {
         // given
         var cipher = Cipher.getInstance(TRIPLE_DES);
         assertEquals(TRIPLE_DES, cipher.getAlgorithm());
-        assertEquals(BC_FIPS, cipher.getProvider().getName());
+        assertEquals(TOP_PRIO_CIPHER_PROVIDER, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
-        cipher = Cipher.getInstance(TRIPLE_DES);
-        assertEquals(TRIPLE_DES, cipher.getAlgorithm());
-        assertEquals(BC_FIPS, cipher.getProvider().getName());
+        if (inFipsJvm()) {
+            cipher = Cipher.getInstance(TRIPLE_DES);
+            assertEquals(TRIPLE_DES, cipher.getAlgorithm());
+            assertEquals(BC_FIPS, cipher.getProvider().getName());
+        } else {
+            expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(TRIPLE_DES));
+        }
     }
 
     public void testCipherDes() throws Exception {
         // given
         var cipher = Cipher.getInstance(DES);
         assertEquals(DES, cipher.getAlgorithm());
-        assertEquals(MODE_DEPENDENT_CIPHER_PROVIDER, cipher.getProvider().getName());
+        assertEquals(SUN_JCE, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
-        if (inFipsJvm()) {
-            expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(DES));
-        } else {
-            cipher = Cipher.getInstance(DES);
-            assertEquals(DES, cipher.getAlgorithm());
-            assertEquals(BC_FIPS, cipher.getProvider().getName());
-        }
+        expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(DES));
     }
 
     public void testCipherPBE() throws Exception {
@@ -137,7 +119,7 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
         assertEquals(SUN_JCE, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
         expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(PBE));
@@ -147,25 +129,27 @@ public class SecurityProviderManagerTests extends OpenSearchTestCase {
         // given
         var cipher = Cipher.getInstance(BLOWFISH);
         assertEquals(BLOWFISH, cipher.getAlgorithm());
-        assertEquals(MODE_DEPENDENT_CIPHER_PROVIDER, cipher.getProvider().getName());
+        assertEquals(SUN_JCE, cipher.getProvider().getName());
 
         // when
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
 
         // then
-        if (inFipsJvm()) {
-            expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(BLOWFISH));
-        } else {
-            cipher = Cipher.getInstance(BLOWFISH);
-            assertEquals(BLOWFISH, cipher.getAlgorithm());
-            assertEquals(BC_FIPS, cipher.getProvider().getName());
-        }
+        expectThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(BLOWFISH));
     }
 
     public void testGetPosition() {
         assertTrue(SUN_JCE + " is installed", SecurityProviderManager.getPosition(SUN_JCE) > 0);
-        SecurityProviderManager.excludeSunJCE();
+        SecurityProviderManager.removeNonCompliantFipsProviders();
         assertTrue(SUN_JCE + " is uninstalled", SecurityProviderManager.getPosition(SUN_JCE) < 0);
+    }
+
+    private static void addSunJceProvider() throws Exception {
+        if (Arrays.stream(Security.getProviders()).noneMatch(provider -> SUN_JCE.equals(provider.getName()))) {
+            var sunJceClass = Class.forName("com.sun.crypto.provider.SunJCE");
+            var originalSunProvider = (Provider) sunJceClass.getConstructor().newInstance();
+            Security.addProvider(originalSunProvider);
+        }
     }
 
 }

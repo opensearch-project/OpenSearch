@@ -36,7 +36,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.SearchBackpressureTask;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -49,7 +49,7 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class SearchTask extends QueryGroupTask implements SearchBackpressureTask {
+public class SearchTask extends WorkloadGroupTask implements SearchBackpressureTask {
     // generating description in a lazy way since source can be quite big
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;

@@ -24,6 +24,7 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
@@ -79,6 +80,11 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 
 import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
+import static org.opensearch.repositories.s3.S3Repository.EXPECTED_BUCKET_OWNER_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_TYPE_SETTING;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -437,7 +443,6 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             asyncService,
             true,
             "bucket",
-            S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
             S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY),
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
@@ -461,7 +466,12 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             asyncExecutorContainer,
             normalPrioritySizeBasedBlockingQ,
             lowPrioritySizeBasedBlockingQ,
-            genericStatsMetricPublisher
+            genericStatsMetricPublisher,
+            SERVER_SIDE_ENCRYPTION_TYPE_SETTING.getDefault(Settings.EMPTY),
+            SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING.getDefault(Settings.EMPTY),
+            SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.getDefault(Settings.EMPTY),
+            SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.getDefault(Settings.EMPTY),
+            EXPECTED_BUCKET_OWNER_SETTING.getDefault(Settings.EMPTY)
         );
     }
 
@@ -672,8 +682,16 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         when(blobStore.getLowPrioritySizeBasedBlockingQ()).thenReturn(sizeBasedBlockingQ);
         when(blobStore.getNormalPrioritySizeBasedBlockingQ()).thenReturn(sizeBasedBlockingQ);
 
-        final boolean serverSideEncryption = randomBoolean();
-        when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
+        if (randomBoolean()) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(randomAlphaOfLength(10));
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(randomBoolean());
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(randomAlphaOfLength(10));
+        }
+
+        when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
         when(blobStore.getStorageClass()).thenReturn(storageClass);

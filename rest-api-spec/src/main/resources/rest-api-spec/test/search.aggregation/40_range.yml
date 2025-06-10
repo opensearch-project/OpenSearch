@@ -213,9 +213,6 @@ setup:
 
 ---
 "IP Range Key Generation":
-  - skip:
-     version: " - 6.3.99"
-     reason: "Before 6.4.0, ip_range did not always generate bucket keys (see #21045)."
 
   - do:
       search:
@@ -229,9 +226,6 @@ setup:
 
 ---
 "IP Range avg_bucket":
-  - skip:
-      version: " - 7.7.99"
-      reason: Fixed in 7.8.0
   - do:
       bulk:
         refresh: true
@@ -394,9 +388,6 @@ setup:
 
 ---
 "Date range unmapped with children":
-  - skip:
-      version: " - 7.9.99"
-      reason: Fixed in 7.10.0
 
   - do:
       indices.create:

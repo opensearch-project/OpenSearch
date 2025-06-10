@@ -10,70 +10,52 @@ package org.opensearch.index.store.remote.filecache;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.index.store.remote.utils.cache.CacheUsage;
-import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 public class FileCacheStatsTests extends OpenSearchTestCase {
+
     private static final long BYTES_IN_GB = 1024 * 1024 * 1024;
 
-    public static CacheStats getMockCacheStats() {
-        final long evicted = randomLongBetween(10000, BYTES_IN_GB);
-        final long removed = randomLongBetween(10000, BYTES_IN_GB);
-        final long replaced = randomLongBetween(0, 10000);
-        final long hits = randomLongBetween(0, 10000);
-        final long miss = randomLongBetween(0, 10000);
-        return new CacheStats(hits, miss, 0, removed, replaced, 0, evicted);
-    }
+    public static FileCacheStats getMockFullFileCacheStats() {
+        final long active = randomLongBetween(100000, BYTES_IN_GB);
+        final long total = randomLongBetween(100000, BYTES_IN_GB);
+        final long used = randomLongBetween(100000, BYTES_IN_GB);
+        final long pinned = randomLongBetween(100000, BYTES_IN_GB);
+        final long evicted = randomLongBetween(0, active);
+        final long hits = randomLongBetween(0, 10);
+        final long misses = randomLongBetween(0, 10);
 
-    public static CacheUsage getMockCacheUsage(long total) {
-        final long used = randomLongBetween(100, total);
-        final long active = randomLongBetween(10, used);
-        return new CacheUsage(used, active);
-    }
-
-    public static long getMockCacheCapacity() {
-        return randomLongBetween(10 * BYTES_IN_GB, 1000 * BYTES_IN_GB);
-    }
-
-    public static FileCacheStats getFileCacheStats(final long fileCacheCapacity, final CacheStats stats, final CacheUsage usage) {
         return new FileCacheStats(
-            System.currentTimeMillis(),
-            usage.activeUsage(),
-            fileCacheCapacity,
-            usage.usage(),
-            stats.evictionWeight(),
-            stats.hitCount(),
-            stats.missCount()
+            active,
+            total,
+            used,
+            pinned,
+            evicted,
+            hits,
+            misses,
+            AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS
         );
     }
 
-    public static FileCacheStats getMockFileCacheStats() {
-        final long fcSize = getMockCacheCapacity();
-        return getFileCacheStats(fcSize, getMockCacheStats(), getMockCacheUsage(fcSize));
+    public static void validateFullFileCacheStats(FileCacheStats expected, FileCacheStats actual) {
+        assertEquals(expected.getActive(), actual.getActive());
+        assertEquals(expected.getUsed(), actual.getUsed());
+        assertEquals(expected.getEvicted(), actual.getEvicted());
+        assertEquals(expected.getHits(), actual.getHits());
+        assertEquals(expected.getActivePercent(), actual.getActivePercent());
     }
 
-    public static void validateFileCacheStats(FileCacheStats original, FileCacheStats deserialized) {
-        assertEquals(original.getTotal(), deserialized.getTotal());
-        assertEquals(original.getUsed(), deserialized.getUsed());
-        assertEquals(original.getUsedPercent(), deserialized.getUsedPercent());
-        assertEquals(original.getActive(), deserialized.getActive());
-        assertEquals(original.getActivePercent(), deserialized.getActivePercent());
-        assertEquals(original.getEvicted(), deserialized.getEvicted());
-        assertEquals(original.getCacheHits(), deserialized.getCacheHits());
-        assertEquals(original.getCacheMisses(), deserialized.getCacheMisses());
-    }
+    public void testFullFileCacheStatsSerialization() throws IOException {
+        final FileCacheStats fileCacheStats = getMockFullFileCacheStats();
 
-    public void testFileCacheStatsSerialization() throws IOException {
-        final FileCacheStats fileCacheStats = getMockFileCacheStats();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             fileCacheStats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                // Validate original object against deserialized values
-                validateFileCacheStats(fileCacheStats, new FileCacheStats(in));
+                validateFullFileCacheStats(fileCacheStats, new FileCacheStats(in));
             }
         }
+
     }
 }

@@ -382,9 +382,6 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             if (method.equals("HEAD") == false) {
                 standardHeaders.add("Content-length");
             }
-            if (method.equals("HEAD") == true || method.equals("GET") == true || method.equals("OPTIONS") == true) {
-                standardHeaders.add("Upgrade");
-            }
 
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());

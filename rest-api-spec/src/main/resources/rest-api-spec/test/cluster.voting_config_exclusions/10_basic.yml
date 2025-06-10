@@ -4,10 +4,6 @@ teardown:
 
 ---
 "Get cluster state without voting config exclusions":
-  - skip:
-      version:     " - 6.99.99"
-      reason:      Voting config exclusions were introduced in 7.0.0
-
   - do:
       cluster.state: {}
 
@@ -15,9 +11,7 @@ teardown:
 
 ---
 "Add voting config exclusion by unknown node Id":
-  - skip:
-      version:     " - 7.7.99"
-      reason:      Tests the new voting config exclusions API introduced in 7.8.0
+
 
   - do:
       cluster.post_voting_config_exclusions:
@@ -33,9 +27,7 @@ teardown:
 ---
 "Add voting config exclusion by unknown node Ids":
   - skip:
-      version:  " - 7.7.99"
       features: contains
-      reason:   "contains is a newly added assertion, and this tests the new voting config exclusions API introduced in 7.8.0"
 
   - do:
       cluster.post_voting_config_exclusions:
@@ -50,9 +42,7 @@ teardown:
 
 ---
 "Add voting config exclusion by unknown node name":
-  - skip:
-      version:     " - 7.7.99"
-      reason:      Tests the new voting config exclusions API introduced in 7.8.0
+
 
   - do:
       cluster.post_voting_config_exclusions:
@@ -68,9 +58,7 @@ teardown:
 ---
 "Add voting config exclusion by unknown node names":
   - skip:
-      version:  " - 7.7.99"
       features: contains
-      reason:   "contains is a newly added assertion, and this tests the new voting config exclusions API introduced in 7.8.0"
 
   - do:
       cluster.post_voting_config_exclusions:
@@ -85,9 +73,7 @@ teardown:
 
 ---
 "Throw exception when adding voting config exclusion without specifying nodes":
-  - skip:
-      version:     " - 7.7.99"
-      reason:      Tests the new voting config exclusions API introduced in 7.8.0
+
 
   - do:
       catch: /Please set node identifiers correctly. One and only one of \[node_name\], \[node_names\] and \[node_ids\] has to be set/
@@ -95,9 +81,7 @@ teardown:
 
 ---
 "Throw exception when adding voting config exclusion and specifying both node_ids and node_names":
-  - skip:
-      version:     " - 7.7.99"
-      reason:      Tests the new voting config exclusions API introduced in 7.8.0
+
 
   - do:
       catch: /Please set node identifiers correctly. One and only one of \[node_name\], \[node_names\] and \[node_ids\] has to be set/

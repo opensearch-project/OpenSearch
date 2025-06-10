@@ -41,7 +41,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 /**
  * Perform the search scroll
@@ -75,8 +75,8 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
 
-            if (task instanceof QueryGroupTask) {
-                ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
+            if (task instanceof WorkloadGroupTask) {
+                ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
             }
 
             ParsedScrollId scrollId = TransportSearchHelper.parseScrollId(request.scrollId());

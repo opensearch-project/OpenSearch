@@ -8,6 +8,7 @@
 
 package org.opensearch.search.approximate;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -16,6 +17,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -24,41 +26,51 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.IntsRef;
-import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * An approximate-able version of {@link PointRangeQuery}. It creates an instance of {@link PointRangeQuery} but short-circuits the intersect logic
  * after {@code size} is hit
  */
-public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
+public class ApproximatePointRangeQuery extends ApproximateQuery {
+    public static final Function<byte[], String> LONG_FORMAT = bytes -> Long.toString(LongPoint.decodeDimension(bytes, 0));
     private int size;
 
     private SortOrder sortOrder;
 
     public final PointRangeQuery pointRangeQuery;
 
-    protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims) {
-        this(field, lowerPoint, upperPoint, numDims, 10_000, null);
+    public ApproximatePointRangeQuery(
+        String field,
+        byte[] lowerPoint,
+        byte[] upperPoint,
+        int numDims,
+        Function<byte[], String> valueToString
+    ) {
+        this(field, lowerPoint, upperPoint, numDims, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, null, valueToString);
     }
 
-    protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims, int size) {
-        this(field, lowerPoint, upperPoint, numDims, size, null);
-    }
-
-    protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims, int size, SortOrder sortOrder) {
+    protected ApproximatePointRangeQuery(
+        String field,
+        byte[] lowerPoint,
+        byte[] upperPoint,
+        int numDims,
+        int size,
+        SortOrder sortOrder,
+        Function<byte[], String> valueToString
+    ) {
         this.size = size;
         this.sortOrder = sortOrder;
         this.pointRangeQuery = new PointRangeQuery(field, lowerPoint, upperPoint, numDims) {
             @Override
             protected String toString(int dimension, byte[] value) {
-                return super.toString(field);
+                return valueToString.apply(value);
             }
         };
     }
@@ -77,6 +89,11 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
 
     public void setSortOrder(SortOrder sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        return super.rewrite(indexSearcher);
     }
 
     @Override
@@ -145,10 +162,6 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
                     @Override
                     public void visit(int docID) {
                         // it is possible that size < 1024 and docCount < size but we will continue to count through all the 1024 docs
-                        // and collect less, but it won't hurt performance
-                        if (docCount[0] >= size) {
-                            return;
-                        }
                         adder.add(docID);
                         docCount[0]++;
                     }
@@ -160,9 +173,8 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
 
                     @Override
                     public void visit(IntsRef ref) {
-                        for (int i = 0; i < ref.length; i++) {
-                            adder.add(ref.ints[ref.offset + i]);
-                        }
+                        adder.add(ref);
+                        docCount[0] += ref.length;
                     }
 
                     @Override
@@ -231,10 +243,10 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
             // custom intersect visitor to walk the left of the tree
             public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
-                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] >= size) {
                     return;
                 }
+                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 switch (r) {
                     case CELL_OUTSIDE_QUERY:
                         // This cell is fully outside the query shape: stop recursing
@@ -276,63 +288,47 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
                 }
             }
 
-            // custom intersect visitor to walk the right of tree
+            // custom intersect visitor to walk the right of tree (from rightmost leaf going left)
             public void intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
-                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] >= size) {
                     return;
                 }
+                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 switch (r) {
-                    case CELL_OUTSIDE_QUERY:
-                        // This cell is fully outside the query shape: stop recursing
-                        break;
-
                     case CELL_INSIDE_QUERY:
-                        // If the cell is fully inside, we keep moving right as long as the point tree size is over our size requirement
-                        if (pointTree.size() > size && docCount[0] < size && moveRight(pointTree)) {
-                            intersectRight(visitor, pointTree, docCount);
+                    case CELL_CROSSES_QUERY:
+                        if (pointTree.moveToChild() && docCount[0] < size) {
+                            PointValues.PointTree leftChild = pointTree.clone();
+                            // BKD is binary today, so one moveToSibling() is enough to land on the right child.
+                            // If PointTree ever becomes n-ary, update the traversal below to visit all siblings or re-enable a full loop.
+                            if (pointTree.moveToSibling()) {
+                                // We have two children - visit right first
+                                intersectRight(visitor, pointTree, docCount);
+                                // Then visit left if we still need more docs
+                                if (docCount[0] < size) {
+                                    intersectRight(visitor, leftChild, docCount);
+                                }
+                            } else {
+                                // Only one child - visit it
+                                intersectRight(visitor, leftChild, docCount);
+                            }
                             pointTree.moveToParent();
-                        }
-                        // if point tree size is no longer over, we have to go back one level where it still was over and the intersect left
-                        else if (pointTree.size() <= size && docCount[0] < size) {
-                            pointTree.moveToParent();
-                            intersectLeft(visitor, pointTree, docCount);
-                        }
-                        // if we've reached leaf, it means out size is under the size of the leaf, we can just collect all docIDs
-                        else {
-                            // Leaf node; scan and filter all points in this block:
+                        } else {
                             if (docCount[0] < size) {
-                                pointTree.visitDocIDs(visitor);
+                                if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
+                                    pointTree.visitDocIDs(visitor);
+                                } else {
+                                    pointTree.visitDocValues(visitor);
+                                }
                             }
                         }
                         break;
-                    case CELL_CROSSES_QUERY:
-                        // If the cell is fully inside, we keep moving right as long as the point tree size is over our size requirement
-                        if (pointTree.size() > size && docCount[0] < size && moveRight(pointTree)) {
-                            intersectRight(visitor, pointTree, docCount);
-                            pointTree.moveToParent();
-                        }
-                        // if point tree size is no longer over, we have to go back one level where it still was over and the intersect left
-                        else if (pointTree.size() <= size && docCount[0] < size) {
-                            pointTree.moveToParent();
-                            intersectLeft(visitor, pointTree, docCount);
-                        }
-                        // if we've reached leaf, it means out size is under the size of the leaf, we can just collect all doc values
-                        else {
-                            // Leaf node; scan and filter all points in this block:
-                            if (docCount[0] < size) {
-                                pointTree.visitDocValues(visitor);
-                            }
-                        }
+                    case CELL_OUTSIDE_QUERY:
                         break;
                     default:
                         throw new IllegalArgumentException("Unreachable code");
                 }
-            }
-
-            public boolean moveRight(PointValues.PointTree pointTree) throws IOException {
-                return pointTree.moveToChild() && pointTree.moveToSibling();
             }
 
             @Override
@@ -344,14 +340,13 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
                 if (checkValidPointValues(values) == false) {
                     return null;
                 }
-                final Weight weight = this;
                 if (size > values.size()) {
                     return pointRangeQueryWeight.scorerSupplier(context);
                 } else {
                     if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
                         return new ScorerSupplier() {
 
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, pointRangeQuery.getField());
+                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                             final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
@@ -379,7 +374,7 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
                         size += deletedDocs;
                         return new ScorerSupplier() {
 
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, pointRangeQuery.getField());
+                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                             final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
@@ -424,20 +419,39 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
         if (context.aggregations() != null) {
             return false;
         }
+        // Exclude approximation when "track_total_hits": true
+        if (context.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+            return false;
+        }
+
         // size 0 could be set for caching
         if (context.from() + context.size() == 0) {
-            this.setSize(10_000);
+            this.setSize(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
+        } else {
+            // We add +1 to ensure we collect at least one more document than required. This guarantees correct relation value:
+            // - If we find exactly trackTotalHitsUpTo docs: relation = EQUAL_TO
+            // - If we find > trackTotalHitsUpTo docs: relation = GREATER_THAN_OR_EQUAL_TO
+            // With +1, we will consistently get GREATER_THAN_OR_EQUAL_TO relation.
+            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()) + 1);
         }
-        this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()));
         if (context.request() != null && context.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());
-            if (primarySortField != null
-                && primarySortField.missing() == null
-                && primarySortField.getFieldName().equals(((RangeQueryBuilder) context.request().source().query()).fieldName())) {
-                if (primarySortField.order() == SortOrder.DESC) {
-                    this.setSortOrder(SortOrder.DESC);
+            if (primarySortField != null) {
+                if (!primarySortField.fieldName().equals(pointRangeQuery.getField())) {
+                    return false;
                 }
+                if (primarySortField.missing() != null) {
+                    // Cannot sort documents missing this field.
+                    return false;
+                }
+                if (context.request().source().searchAfter() != null) {
+                    // TODO: We *could* optimize searchAfter, especially when this is the only sort field, but existing pruning is pretty
+                    // good.
+                    return false;
+                }
+                this.setSortOrder(primarySortField.order());
             }
+            return context.request().source().terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER;
         }
         return true;
     }
@@ -453,56 +467,16 @@ public abstract class ApproximatePointRangeQuery extends ApproximateQuery {
     }
 
     private boolean equalsTo(ApproximatePointRangeQuery other) {
-        return Objects.equals(pointRangeQuery.getField(), other.pointRangeQuery.getField())
-            && pointRangeQuery.getNumDims() == other.pointRangeQuery.getNumDims()
-            && pointRangeQuery.getBytesPerDim() == other.pointRangeQuery.getBytesPerDim()
-            && Arrays.equals(pointRangeQuery.getLowerPoint(), other.pointRangeQuery.getLowerPoint())
-            && Arrays.equals(pointRangeQuery.getUpperPoint(), other.pointRangeQuery.getUpperPoint());
+        return Objects.equals(pointRangeQuery, other.pointRangeQuery);
     }
 
     @Override
     public final String toString(String field) {
         final StringBuilder sb = new StringBuilder();
-        if (pointRangeQuery.getField().equals(field) == false) {
-            sb.append(pointRangeQuery.getField());
-            sb.append(':');
-        }
-
-        // print ourselves as "range per dimension"
-        for (int i = 0; i < pointRangeQuery.getNumDims(); i++) {
-            if (i > 0) {
-                sb.append(',');
-            }
-
-            int startOffset = pointRangeQuery.getBytesPerDim() * i;
-
-            sb.append('[');
-            sb.append(
-                toString(
-                    i,
-                    ArrayUtil.copyOfSubArray(pointRangeQuery.getLowerPoint(), startOffset, startOffset + pointRangeQuery.getBytesPerDim())
-                )
-            );
-            sb.append(" TO ");
-            sb.append(
-                toString(
-                    i,
-                    ArrayUtil.copyOfSubArray(pointRangeQuery.getUpperPoint(), startOffset, startOffset + pointRangeQuery.getBytesPerDim())
-                )
-            );
-            sb.append(']');
-        }
+        sb.append("Approximate(");
+        sb.append(pointRangeQuery.toString());
+        sb.append(")");
 
         return sb.toString();
     }
-
-    /**
-     * Returns a string of a single value in a human-readable format for debugging. This is used by
-     * {@link #toString()}.
-     *
-     * @param dimension dimension of the particular value
-     * @param value     single value, never null
-     * @return human readable value for debugging
-     */
-    protected abstract String toString(int dimension, byte[] value);
 }

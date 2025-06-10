@@ -40,6 +40,7 @@ import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.bouncycastle.bcpg.ArmoredInputStream;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
@@ -90,6 +91,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -602,7 +604,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
-     * ".sig" to the URL. It is expected that the plugin is signed with the OpenSearch signing key with ID C2EE2AF6542C03B4.
+     * ".sig" to the URL. It is expected that the plugin is signed with the OpenSearch Release signing key with ID 4E9275EE6BA2427F for 3.0.0 or above.
      *
      * @param zip       the path to the downloaded plugin ZIP
      * @param urlString the URL source of the downloade plugin ZIP
@@ -632,6 +634,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             // compute the signature of the downloaded plugin zip
             final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
             final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
+            Security.addProvider(new BouncyCastleFipsProvider());
             signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider("BCFIPS"), key);
             final byte[] buffer = new byte[1024];
             int read;
@@ -663,7 +666,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * @return the public key ID
      */
     String getPublicKeyId() {
-        return "C2EE2AF6542C03B4";
+        return "4E9275EE6BA2427F";
     }
 
     /**

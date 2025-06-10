@@ -43,8 +43,6 @@ import org.opensearch.cloud.azure.classic.management.AzureComputeService;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.ssl.KeyStoreFactory;
-import org.opensearch.common.ssl.KeyStoreType;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.Environment;
@@ -280,7 +278,7 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
 
     private static SSLContext getSSLContext() throws Exception {
         char[] passphrase = "keypass".toCharArray();
-        KeyStore ks = KeyStoreFactory.getInstance(KeyStoreType.JKS);
+        KeyStore ks = KeyStore.getInstance("JKS");
         try (InputStream stream = AzureDiscoveryClusterFormationTests.class.getResourceAsStream("/test-node.jks")) {
             assertNotNull("can't find keystore file", stream);
             ks.load(stream, passphrase);

@@ -32,8 +32,6 @@
 
 package org.opensearch.gradle.http;
 
-import de.thetaphi.forbiddenapis.SuppressForbidden;
-
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
@@ -218,7 +216,7 @@ public class WaitForHttpResource {
     }
 
     private KeyStore buildTrustStoreFromFile() throws GeneralSecurityException, IOException {
-        var keyStore = getKeyStoreInstance(trustStoreFile.getName().endsWith(".jks") ? "JKS" : "PKCS12");
+        KeyStore keyStore = KeyStore.getInstance(trustStoreFile.getName().endsWith(".jks") ? "JKS" : "PKCS12");
         try (InputStream input = new FileInputStream(trustStoreFile)) {
             keyStore.load(input, trustStorePassword == null ? null : trustStorePassword.toCharArray());
         }
@@ -226,7 +224,7 @@ public class WaitForHttpResource {
     }
 
     private KeyStore buildTrustStoreFromCA() throws GeneralSecurityException, IOException {
-        var store = getKeyStoreInstance(KeyStore.getDefaultType());
+        final KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
         store.load(null, null);
         final CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         int counter = 0;
@@ -239,11 +237,6 @@ public class WaitForHttpResource {
             }
         }
         return store;
-    }
-
-    @SuppressForbidden
-    private KeyStore getKeyStoreInstance(String type) throws KeyStoreException {
-        return KeyStore.getInstance(type);
     }
 
     private SSLContext createSslContext(KeyStore trustStore) throws GeneralSecurityException {

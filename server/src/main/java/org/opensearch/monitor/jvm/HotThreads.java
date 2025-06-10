@@ -160,7 +160,7 @@ public class HotThreads {
         Map<Long, MyThreadInfo> threadInfos = new HashMap<>();
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (Thread.currentThread().threadId() == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);
@@ -176,7 +176,7 @@ public class HotThreads {
         Thread.sleep(interval.millis());
         for (long threadId : threadBean.getAllThreadIds()) {
             // ignore our own thread...
-            if (Thread.currentThread().getId() == threadId) {
+            if (Thread.currentThread().threadId() == threadId) {
                 continue;
             }
             long cpu = threadBean.getThreadCpuTime(threadId);

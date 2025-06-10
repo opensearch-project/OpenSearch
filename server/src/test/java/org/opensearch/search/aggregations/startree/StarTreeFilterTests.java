@@ -24,7 +24,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
@@ -50,6 +49,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,9 +57,11 @@ import java.util.Map;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 
 public class StarTreeFilterTests extends AggregatorTestCase {
+    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
 
     private static final String FIELD_NAME = "field";
     private static final String SNDV = "sndv";
@@ -78,12 +80,12 @@ public class StarTreeFilterTests extends AggregatorTestCase {
 
     @Before
     public void setup() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
+        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
     }
 
     @After
     public void teardown() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+        fflock.close();
     }
 
     protected Codec getCodec(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension) {
@@ -479,5 +481,42 @@ public class StarTreeFilterTests extends AggregatorTestCase {
             }
             b.endObject();
         });
+    }
+
+    public void testStarTreeFilterWithBoolQueries() throws IOException {
+        List<Document> docs = new ArrayList<>();
+        Directory directory = createStarTreeIndex(5, true, docs);
+        DirectoryReader ir = DirectoryReader.open(directory);
+        initValuesSourceRegistry();
+        LeafReaderContext context = ir.leaves().get(0);
+        SegmentReader reader = Lucene.segmentReader(context.reader());
+        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        SearchContext searchContext = Mockito.mock(SearchContext.class);
+        Mockito.when(searchContext.mapperService()).thenReturn(mapperService);
+        Mockito.when(mapperService.fieldType(SNDV))
+            .thenReturn(new NumberFieldMapper.NumberFieldType(SNDV, NumberFieldMapper.NumberType.INTEGER));
+        Mockito.when(mapperService.fieldType(DV))
+            .thenReturn(new NumberFieldMapper.NumberFieldType(DV, NumberFieldMapper.NumberType.INTEGER));
+
+        // Test 'MUST' clause
+        StarTreeFilter mustFilter = new StarTreeFilter(
+            Map.of(SNDV, List.of(new ExactMatchDimFilter(SNDV, List.of(0L))), DV, List.of(new ExactMatchDimFilter(DV, List.of(0L))))
+        );
+        long starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, mustFilter, context, searchContext);
+        long docCount = getDocCount(docs, Map.of(SNDV, 0L, DV, 0L));
+        assertEquals(docCount, starTreeDocCount);
+
+        // Test 'SHOULD' clause (same dimension)
+        StarTreeFilter shouldFilter = new StarTreeFilter(
+            Map.of(SNDV, Arrays.asList(new ExactMatchDimFilter(SNDV, List.of(0L)), new ExactMatchDimFilter(SNDV, List.of(1L))))
+        );
+        starTreeDocCount = getDocCountFromStarTree(starTreeDocValuesReader, shouldFilter, context, searchContext);
+        docCount = getDocCount(docs, Map.of(SNDV, 0L)) + getDocCount(docs, Map.of(SNDV, 1L));
+        assertEquals(docCount, starTreeDocCount);
+
+        ir.close();
+        directory.close();
     }
 }

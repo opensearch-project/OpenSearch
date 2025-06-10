@@ -64,9 +64,9 @@ import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.protocol.HttpContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.Settings;
@@ -92,6 +92,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static java.util.Collections.emptyMap;
 
@@ -115,10 +116,20 @@ class S3Service implements Closeable {
      */
     private volatile Map<Settings, S3ClientSettings> derivedClientSettings = new ConcurrentHashMap<>();
 
-    S3Service(final Path configPath) {
+    /**
+     * Optional scheduled executor service to use for the client
+     */
+    private final @Nullable ScheduledExecutorService clientExecutorService;
+
+    S3Service(final Path configPath, @Nullable ScheduledExecutorService clientExecutorService) {
         staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
             .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath))
             .immutableMap();
+        this.clientExecutorService = clientExecutorService;
+    }
+
+    S3Service(final Path configPath) {
+        this(configPath, null);
     }
 
     /**
@@ -204,7 +215,7 @@ class S3Service implements Closeable {
         final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         builder.credentialsProvider(credentials);
         builder.httpClientBuilder(buildHttpClient(clientSettings));
-        builder.overrideConfiguration(buildOverrideConfiguration(clientSettings));
+        builder.overrideConfiguration(buildOverrideConfiguration(clientSettings, clientExecutorService));
 
         String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : DEFAULT_S3_ENDPOINT;
         if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
@@ -318,8 +329,14 @@ class S3Service implements Closeable {
         return proxyConfiguration.build();
     }
 
-    static ClientOverrideConfiguration buildOverrideConfiguration(final S3ClientSettings clientSettings) {
+    static ClientOverrideConfiguration buildOverrideConfiguration(
+        final S3ClientSettings clientSettings,
+        @Nullable ScheduledExecutorService clientExecutorService
+    ) {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
+        if (clientExecutorService != null) {
+            clientOverrideConfiguration = clientOverrideConfiguration.scheduledExecutorService(clientExecutorService);
+        }
         if (Strings.hasLength(clientSettings.signerOverride)) {
             clientOverrideConfiguration = clientOverrideConfiguration.putAdvancedOption(
                 SdkAdvancedClientOption.SIGNER,
@@ -341,7 +358,7 @@ class S3Service implements Closeable {
         // This part was taken from AWS settings
         try {
             final SSLContext sslCtx = SSLContext.getInstance("TLS");
-            sslCtx.init(SystemPropertyTlsKeyManagersProvider.create().keyManagers(), null, CryptoServicesRegistrar.getSecureRandom());
+            sslCtx.init(SystemPropertyTlsKeyManagersProvider.create().keyManagers(), null, Randomness.createSecure());
 
             return new SdkTlsSocketFactory(sslCtx, new DefaultHostnameVerifier()) {
                 @Override
@@ -510,5 +527,10 @@ class S3Service implements Closeable {
     @Override
     public void close() {
         releaseCachedClients();
+    }
+
+    @Nullable
+    ScheduledExecutorService getClientExecutorService() {
+        return clientExecutorService;
     }
 }

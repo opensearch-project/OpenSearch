@@ -41,12 +41,17 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.Version;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.plugins.SearchPlugin;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.matrix.MatrixAggregationModulePlugin;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -124,6 +129,90 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 assertTrue(MatrixAggregationInspectionHelper.hasValue(stats));
             }
         }
+    }
+
+    public void testMultiValueModeAffectsResult() throws Exception {
+        String field = "grades";
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(field, NumberFieldMapper.NumberType.DOUBLE);
+
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            Document doc = new Document();
+            doc.add(new SortedNumericDocValuesField(field, NumericUtils.doubleToSortableLong(1.0)));
+            doc.add(new SortedNumericDocValuesField(field, NumericUtils.doubleToSortableLong(3.0)));
+            doc.add(new SortedNumericDocValuesField(field, NumericUtils.doubleToSortableLong(5.0)));
+            indexWriter.addDocument(doc);
+
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                MatrixStatsAggregationBuilder avgAgg = new MatrixStatsAggregationBuilder("avg_agg").fields(Collections.singletonList(field))
+                    .multiValueMode(MultiValueMode.AVG);
+
+                MatrixStatsAggregationBuilder minAgg = new MatrixStatsAggregationBuilder("min_agg").fields(Collections.singletonList(field))
+                    .multiValueMode(MultiValueMode.MIN);
+
+                InternalMatrixStats avgStats = searchAndReduce(searcher, new MatchAllDocsQuery(), avgAgg, ft);
+                InternalMatrixStats minStats = searchAndReduce(searcher, new MatchAllDocsQuery(), minAgg, ft);
+
+                double avg = avgStats.getMean(field);
+                double min = minStats.getMean(field);
+
+                assertNotEquals("AVG and MIN mode should yield different means", avg, min, 0.0001);
+            }
+        }
+    }
+
+    public void testSerializationDeserialization() throws IOException {
+        MatrixStatsAggregationBuilder original = new MatrixStatsAggregationBuilder("test").fields(Collections.singletonList("field"))
+            .multiValueMode(MultiValueMode.MIN);
+
+        // Serialize
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_1_0);
+        original.writeTo(out);
+
+        // Deserialize
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.V_3_1_0);
+        MatrixStatsAggregationBuilder deserialized = new MatrixStatsAggregationBuilder(in);
+
+        assertEquals(original.getName(), deserialized.getName());
+        assertEquals(original.fields(), deserialized.fields());
+        assertEquals(original.multiValueMode(), deserialized.multiValueMode());
+    }
+
+    public void testDeserializationFallbackToAvg() throws IOException {
+        MatrixStatsAggregationBuilder original = new MatrixStatsAggregationBuilder("test").fields(Collections.singletonList("field"));
+
+        // Serialize with V_2_3_0 (fallback required)
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_2_3_0);
+        original.writeTo(out);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.V_2_3_0);
+        MatrixStatsAggregationBuilder deserialized = new MatrixStatsAggregationBuilder(in);
+
+        assertEquals(MultiValueMode.AVG, deserialized.multiValueMode());
+    }
+
+    public void testEqualsAndHashCode() {
+        MatrixStatsAggregationBuilder agg1 = new MatrixStatsAggregationBuilder("agg").fields(Collections.singletonList("field"))
+            .multiValueMode(MultiValueMode.AVG);
+
+        MatrixStatsAggregationBuilder agg2 = new MatrixStatsAggregationBuilder("agg").fields(Collections.singletonList("field"))
+            .multiValueMode(MultiValueMode.AVG);
+
+        MatrixStatsAggregationBuilder agg3 = new MatrixStatsAggregationBuilder("agg").fields(Collections.singletonList("field"))
+            .multiValueMode(MultiValueMode.MIN);
+
+        // equals
+        assertEquals(agg1, agg2);
+        assertNotEquals(agg1, agg3);
+
+        // hashCode
+        assertEquals(agg1.hashCode(), agg2.hashCode());
+        assertNotEquals(agg1.hashCode(), agg3.hashCode());
     }
 
     @Override

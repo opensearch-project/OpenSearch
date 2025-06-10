@@ -32,6 +32,7 @@
 
 package org.opensearch.common.ssl;
 
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
 import org.opensearch.common.Nullable;
 
 import javax.net.ssl.KeyManager;
@@ -52,15 +53,39 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.Collection;
-import java.util.Objects;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * A variety of utility methods for working with or constructing {@link KeyStore} instances.
  */
 final class KeyStoreUtil {
 
+    public static final Map<String, List<String>> TYPE_TO_EXTENSION_MAP = new HashMap<>();
+
+    static {
+        TYPE_TO_EXTENSION_MAP.put("JKS", List.of(".jks", ".ks"));
+        TYPE_TO_EXTENSION_MAP.put("PKCS12", List.of(".p12", ".pkcs12", ".pfx"));
+        TYPE_TO_EXTENSION_MAP.put("BCFKS", List.of(".bcfks")); // Bouncy Castle FIPS Keystore
+    }
+
     private KeyStoreUtil() {
         throw new IllegalStateException("Utility class should not be instantiated");
+    }
+
+    /**
+     * Make a best guess about the "type" (see {@link KeyStore#getType()}) of the keystore file located at the given {@code Path}.
+     * This method only references the <em>file name</em> of the keystore, it does not look at its contents.
+     */
+    static String inferStoreType(String filePath) {
+        return TYPE_TO_EXTENSION_MAP.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().stream().anyMatch(filePath::endsWith))
+            .map(Map.Entry::getKey)
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Unknown keystore type for file path: " + filePath));
     }
 
     /**
@@ -69,21 +94,24 @@ final class KeyStoreUtil {
      * @throws SslConfigException       If there is a problem reading from the provided path
      * @throws GeneralSecurityException If there is a problem with the keystore contents
      */
-    static KeyStore readKeyStore(Path path, KeyStoreType type, char[] password) throws GeneralSecurityException {
+    static KeyStore readKeyStore(Path path, String type, char[] password) throws GeneralSecurityException {
         if (Files.notExists(path)) {
             throw new SslConfigException(
                 "cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] because the file does not exist"
             );
         }
         try {
-            KeyStore keyStore = KeyStoreFactory.getInstance(type);
+            KeyStore keyStore = KeyStore.getInstance(type, CryptoServicesRegistrar.isInApprovedOnlyMode() ? "BCFIPS" : "SUN");
             try (InputStream in = Files.newInputStream(path)) {
                 keyStore.load(in, password);
             }
             return keyStore;
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
             var finalMessage = e.getMessage();
-            if (Objects.equals(e.getMessage(), "BCFKS KeyStore corrupted: MAC calculation failed.")) {
+            var isCrypticFailure = Stream.of("BCFKS KeyStore corrupted: MAC calculation failed.") // , "unknown object in getInstance",
+                                                                                                  // "corrupted stream detected")
+                .anyMatch(el -> e.getMessage().contains(el));
+            if (isCrypticFailure) {
                 finalMessage = "incorrect password or corrupt file.";
             }
             throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + finalMessage, e);
@@ -121,7 +149,12 @@ final class KeyStoreUtil {
     }
 
     private static KeyStore buildNewKeyStore() throws GeneralSecurityException {
-        KeyStore keyStore = KeyStoreFactory.getInstance(KeyStoreType.BCFKS);
+        KeyStore keyStore;
+        if (CryptoServicesRegistrar.isInApprovedOnlyMode()) {
+            keyStore = KeyStore.getInstance("BCFKS", "BCFIPS");
+        } else {
+            keyStore = KeyStore.getInstance("PKCS12", "SUN");
+        }
         try {
             keyStore.load(null, null);
         } catch (IOException e) {

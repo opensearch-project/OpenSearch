@@ -32,9 +32,6 @@
 
 package org.opensearch.tools.launchers;
 
-import java.io.FileNotFoundException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -42,12 +39,7 @@ import java.util.stream.Collectors;
 
 final class SystemJvmOptions {
 
-    static final String OPENSEARCH_CRYPTO_STANDARD = "OPENSEARCH_CRYPTO_STANDARD";
-    static final String FIPS_140_3 = "FIPS-140-3";
-    static final boolean IS_IN_FIPS_JVM = FIPS_140_3.equals(System.getenv(OPENSEARCH_CRYPTO_STANDARD))
-        || "true".equalsIgnoreCase(System.getProperty("org.bouncycastle.fips.approved_only"));
-
-    static List<String> systemJvmOptions(final Path config, Runtime.Version runtimeVersion) throws FileNotFoundException {
+    static List<String> systemJvmOptions() {
         return Collections.unmodifiableList(
             Arrays.asList(
                 /*
@@ -76,7 +68,7 @@ final class SystemJvmOptions {
                  */
                 "-XX:-OmitStackTraceInFastThrow",
                 // enable helpful NullPointerExceptions (https://openjdk.java.net/jeps/358), if they are supported
-                maybeShowCodeDetailsInExceptionMessages(runtimeVersion),
+                maybeShowCodeDetailsInExceptionMessages(),
                 // flags to configure Netty
                 "-Dio.netty.noUnsafe=true",
                 "-Dio.netty.noKeySetOptimization=true",
@@ -85,39 +77,13 @@ final class SystemJvmOptions {
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
-                // security settings
-                enableFips(),
-                allowSecurityManagerOption(runtimeVersion),
-                loadJavaSecurityProperties(config),
                 javaLocaleProviders()
             )
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
 
-    private static String enableFips() {
-        return IS_IN_FIPS_JVM ? "-Dorg.bouncycastle.fips.approved_only=true" : "";
-    }
-
-    private static String loadJavaSecurityProperties(final Path config) throws FileNotFoundException {
-        String securityFile = IS_IN_FIPS_JVM ? "fips_java.security" : "java.security";
-        var securityFilePath = config.resolve(securityFile);
-
-        if (!Files.exists(securityFilePath)) {
-            throw new FileNotFoundException("Security file not found: " + securityFilePath.toAbsolutePath());
-        }
-        return "-Djava.security.properties=" + securityFilePath.toAbsolutePath();
-    }
-
-    private static String allowSecurityManagerOption(Runtime.Version runtimeVersion) {
-        if (runtimeVersion.feature() > 17) {
-            return "-Djava.security.manager=allow";
-        } else {
-            return "";
-        }
-    }
-
-    private static String maybeShowCodeDetailsInExceptionMessages(Runtime.Version runtimeVersion) {
-        if (runtimeVersion.feature() >= 14) {
+    private static String maybeShowCodeDetailsInExceptionMessages() {
+        if (Runtime.version().feature() >= 14) {
             return "-XX:+ShowCodeDetailsInExceptionMessages";
         } else {
             return "";

@@ -796,9 +796,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
         // Override the system hostname variables for testing
         defaultEnv.put("HOSTNAME", HOSTNAME_OVERRIDE);
         defaultEnv.put("COMPUTERNAME", COMPUTERNAME_OVERRIDE);
-        if (FipsBuildParams.isInFipsMode()) {
-            defaultEnv.put(FipsBuildParams.FIPS_ENV_VAR, FipsBuildParams.getFipsMode());
-        }
 
         Set<String> commonKeys = new HashSet<>(environment.keySet());
         commonKeys.retainAll(defaultEnv.keySet());

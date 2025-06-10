@@ -96,8 +96,8 @@ public class SecurityTests extends OpenSearchTestCase {
             new URL("file://test-kafka-server-common-3.6.1-test.jar"),
             "test-lucene-core-9.11.0-snapshot-8a555eb.jar",
             new URL("file://test-lucene-core-9.11.0-snapshot-8a555eb.jar"),
-            "test-zstd-jni-1.5.5-5.jar",
-            new URL("file://test-zstd-jni-1.5.5-5.jar")
+            "test-zstd-jni-1.5.6-1.jar",
+            new URL("file://test-zstd-jni-1.5.6-1.jar")
         );
 
         AccessController.doPrivileged(

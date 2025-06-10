@@ -74,6 +74,7 @@ import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
 import org.opensearch.common.util.CachedSupplier;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
@@ -347,10 +348,9 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             int hitCountThreshold
         ) {
             if (sortAndFormats == null) {
-                return new TopScoreDocCollectorManager(numHits, searchAfter, hitCountThreshold, false).newCollector();
+                return new TopScoreDocCollectorManager(numHits, searchAfter, hitCountThreshold).newCollector();
             } else {
-                return new TopFieldCollectorManager(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold, false)
-                    .newCollector();
+                return new TopFieldCollectorManager(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold).newCollector();
             }
         }
 
@@ -363,17 +363,12 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             if (sortAndFormats == null) {
                 // See please https://github.com/apache/lucene/pull/450, should be fixed in 9.x
                 if (searchAfter != null) {
-                    return new TopScoreDocCollectorManager(
-                        numHits,
-                        new FieldDoc(searchAfter.doc, searchAfter.score),
-                        hitCountThreshold,
-                        true
-                    );
+                    return new TopScoreDocCollectorManager(numHits, new FieldDoc(searchAfter.doc, searchAfter.score), hitCountThreshold);
                 } else {
-                    return new TopScoreDocCollectorManager(numHits, null, hitCountThreshold, true);
+                    return new TopScoreDocCollectorManager(numHits, null, hitCountThreshold);
                 }
             } else {
-                return new TopFieldCollectorManager(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold, true);
+                return new TopFieldCollectorManager(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold);
             }
         }
 
@@ -724,6 +719,8 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 query = ((ConstantScoreQuery) query).getQuery();
             } else if (query instanceof BoostQuery) {
                 query = ((BoostQuery) query).getQuery();
+            } else if (query instanceof ApproximateScoreQuery) {
+                query = ((ApproximateScoreQuery) query).getOriginalQuery();
             } else {
                 break;
             }

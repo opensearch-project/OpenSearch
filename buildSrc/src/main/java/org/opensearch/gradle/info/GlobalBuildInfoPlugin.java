@@ -181,11 +181,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             LOGGER.quiet("  JAVA_HOME             : " + gradleJvm.getJavaHome());
         }
         LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
-        if (FipsBuildParams.isInFipsMode()) {
-            LOGGER.quiet("  Crypto Standard       : " + FipsBuildParams.getFipsMode());
-        } else {
-            LOGGER.quiet("  Crypto Standard       : any-supported");
-        }
+        LOGGER.quiet("  Crypto Standard       : " + FipsBuildParams.getFipsMode());
         LOGGER.quiet("=======================================");
     }
 

@@ -187,12 +187,16 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
@@ -211,6 +215,7 @@ import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.ingest.IngestService;
+import org.opensearch.ingest.SystemIngestPipelineCache;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
@@ -456,9 +461,18 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             testClusterNodes.nodes.values().iterator().next().clusterService.state()
         );
 
-        Map<String, FileCacheStats> nodeFileCacheStats = new HashMap<>();
+        Map<String, AggregateFileCacheStats> nodeFileCacheStats = new HashMap<>();
         for (TestClusterNodes.TestClusterNode node : testClusterNodes.nodes.values()) {
-            nodeFileCacheStats.put(node.node.getId(), new FileCacheStats(0, 1, 0, 0, 0, 0, 0));
+            nodeFileCacheStats.put(
+                node.node.getId(),
+                new AggregateFileCacheStats(
+                    0,
+                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                    new FileCacheStats(0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
+                    new FileCacheStats(1, 0, 0, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
+                )
+            );
         }
         ClusterInfo clusterInfo = new ClusterInfo(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), nodeFileCacheStats);
         testClusterNodes.nodes.values().forEach(node -> when(node.getMockClusterInfoService().getClusterInfo()).thenReturn(clusterInfo));
@@ -1932,6 +1946,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             private Coordinator coordinator;
             private RemoteStoreNodeService remoteStoreNodeService;
 
+            private final MappingTransformerRegistry mappingTransformerRegistry;
+
             private Map<ActionType, TransportAction> actions = new HashMap<>();
 
             TestClusterNode(DiscoveryNode node) throws IOException {
@@ -2171,7 +2187,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ),
                     RetentionLeaseSyncer.EMPTY,
                     SegmentReplicationCheckpointPublisher.EMPTY,
-                    mock(RemoteStoreStatsTrackerFactory.class)
+                    mock(RemoteStoreStatsTrackerFactory.class),
+                    new MergedSegmentWarmerFactory(null, null, null)
                 );
 
                 final SystemIndices systemIndices = new SystemIndices(emptyMap());
@@ -2193,6 +2210,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     DefaultRemoteStoreSettings.INSTANCE,
                     null
                 );
+
+                mappingTransformerRegistry = new MappingTransformerRegistry(List.of(), namedXContentRegistry);
+
                 actions.put(
                     CreateIndexAction.INSTANCE,
                     new TransportCreateIndexAction(
@@ -2201,7 +2221,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         threadPool,
                         metadataCreateIndexService,
                         actionFilters,
-                        indexNameExpressionResolver
+                        indexNameExpressionResolver,
+                        mappingTransformerRegistry
                     )
                 );
                 final MetadataDeleteIndexService metadataDeleteIndexService = new MetadataDeleteIndexService(
@@ -2267,7 +2288,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                             Collections.emptyList(),
                             client,
-                            indicesService
+                            indicesService,
+                            namedXContentRegistry,
+                            new SystemIngestPipelineCache()
                         ),
                         transportShardBulkAction,
                         client,
@@ -2307,7 +2330,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         metadataMappingService,
                         actionFilters,
                         indexNameExpressionResolver,
-                        new RequestValidators<>(Collections.emptyList())
+                        new RequestValidators<>(Collections.emptyList()),
+                        mappingTransformerRegistry
                     )
                 );
                 actions.put(

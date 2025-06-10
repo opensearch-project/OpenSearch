@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
+import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
@@ -18,6 +19,7 @@ import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +101,7 @@ public class ShardsLimitAllocationDeciderRemoteStoreEnabledIT extends RemoteStor
                 assertTrue("No node should have more than 1 primary shard of test1", count <= 1);
             }
         });
+        cleanUp("test1", "test2");
     }
 
     public void testUpdatingIndexPrimaryShardLimit() throws Exception {
@@ -168,6 +171,7 @@ public class ShardsLimitAllocationDeciderRemoteStoreEnabledIT extends RemoteStor
                 assertTrue("No node should have more than 1 primary shard of test1", count <= 1);
             }
         });
+        cleanUp("test1");
     }
 
     public void testClusterPrimaryShardLimitss() throws Exception {
@@ -222,6 +226,7 @@ public class ShardsLimitAllocationDeciderRemoteStoreEnabledIT extends RemoteStor
                 assertTrue("No node should have more than 1 primary shard", count <= 1);
             }
         });
+        cleanUp("test1");
     }
 
     public void testCombinedIndexAndClusterPrimaryShardLimits() throws Exception {
@@ -311,9 +316,21 @@ public class ShardsLimitAllocationDeciderRemoteStoreEnabledIT extends RemoteStor
                 assertTrue("No node should have more than 3 primary shards total", count <= 3);
             }
         });
+        cleanUp("test1", "test2");
     }
 
     private void updateClusterSetting(String setting, int value) {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(setting, value)).get();
+    }
+
+    private void cleanUp(String... indices) throws Exception {
+        logger.info(">>> Starting custom tearDown in ShardsLimitAllocationDeciderRemoteStoreEnabledIT");
+        // Synchronization: Force flush relevant indices.
+        logger.info("Attempting to flush indices {} to help sync remote store before cleanup...", Arrays.toString(indices));
+        FlushRequest flushRequest = new FlushRequest(indices);
+        flushRequest.force(true); // Force even if no changes detected
+        flushRequest.waitIfOngoing(true); // Wait if flush already in progress
+        client().admin().indices().flush(flushRequest).actionGet(); // Use actionGet() or get() to wait
+        logger.info("Flush request for {} completed.", Arrays.toString(indices));
     }
 }

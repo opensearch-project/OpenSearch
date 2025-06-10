@@ -566,17 +566,22 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertEquals(1, searchResponse.getAggregations().asList().size());
         MatrixStats matrixStats = searchResponse.getAggregations().get("agg1");
         assertEquals(5, matrixStats.getFieldCount("num"));
-        assertEquals(56d, matrixStats.getMean("num"), 0d);
-        assertEquals(1830.0000000000002, matrixStats.getVariance("num"), 0d);
-        assertEquals(0.09340198804973039, matrixStats.getSkewness("num"), 0d);
-        assertEquals(1.2741646510794589, matrixStats.getKurtosis("num"), 0d);
+        assertEqualsOnDouble(56d, matrixStats.getMean("num"));
+        assertEqualsOnDouble(1830.0000000000002, matrixStats.getVariance("num"));
+        assertEqualsOnDouble(0.09340198804973039, matrixStats.getSkewness("num"));
+        assertEqualsOnDouble(1.2741646510794589, matrixStats.getKurtosis("num"));
         assertEquals(5, matrixStats.getFieldCount("num2"));
-        assertEquals(29d, matrixStats.getMean("num2"), 0d);
-        assertEquals(330d, matrixStats.getVariance("num2"), 0d);
-        assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 1.0e-16);
-        assertEquals(1.3517561983471071, matrixStats.getKurtosis("num2"), 0d);
-        assertEquals(-767.5, matrixStats.getCovariance("num", "num2"), 0d);
-        assertEquals(-0.9876336291667923, matrixStats.getCorrelation("num", "num2"), 0d);
+        assertEqualsOnDouble(29d, matrixStats.getMean("num2"));
+        assertEqualsOnDouble(330d, matrixStats.getVariance("num2"));
+        assertEqualsOnDouble(-0.13568039346585542, matrixStats.getSkewness("num2"));
+        assertEqualsOnDouble(1.3517561983471071, matrixStats.getKurtosis("num2"));
+        assertEqualsOnDouble(-767.5, matrixStats.getCovariance("num", "num2"));
+        assertEqualsOnDouble(-0.9876336291667923, matrixStats.getCorrelation("num", "num2"));
+    }
+
+    private void assertEqualsOnDouble(double expected, double actual) {
+        // Concurrent search could have small difference in floating-point results when merging from different way of slicing shard.
+        assertEquals(expected, actual, 1.0e-12);
     }
 
     public void testSearchWithParentJoin() throws IOException {

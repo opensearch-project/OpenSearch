@@ -95,7 +95,7 @@ final class DefaultJdkTrustConfig implements SslTrustConfig {
     private KeyStore getSystemTrustStore() {
         if (isPkcs11Truststore(systemProperties) && trustStorePassword != null) {
             try {
-                KeyStore keyStore = KeyStoreFactory.getInstance(KeyStoreType.PKCS_11);
+                KeyStore keyStore = KeyStore.getInstance("PKCS11");
                 keyStore.load(null, trustStorePassword);
                 return keyStore;
             } catch (GeneralSecurityException | IOException e) {

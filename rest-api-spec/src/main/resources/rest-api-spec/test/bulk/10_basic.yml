@@ -53,9 +53,7 @@
 
 ---
 "Empty _id with op_type create":
-  - skip:
-      version: " - 7.4.99"
-      reason: "auto id + op type create only supported since 7.5"
+
 
   - do:
       bulk:
@@ -111,9 +109,6 @@
 
 ---
 "When setting require_alias flag per request":
-  - skip:
-      version: " - 7.9.99"
-      reason: "require_alias flag was added in version 7.10"
 
   - do:
       indices.create:
@@ -154,9 +149,6 @@
         index: new_index_not_created
 ---
 "When setting require_alias flag":
-  - skip:
-      version: " - 7.9.99"
-      reason: "require_alias flag was added in version 7.10"
 
   - do:
       indices.create:
@@ -193,9 +185,7 @@
         index: new_index_not_created
 ---
 "Return item-level error when no write index defined for an alias":
-  - skip:
-      version: " - 7.8.99"
-      reason: "supporting code added in 7.9.0"
+
 
   - do:
       indices.create:

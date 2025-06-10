@@ -8,19 +8,17 @@
 
 package org.opensearch.client;
 
-import org.opensearch.common.ssl.KeyStoreType;
-
 import static org.opensearch.client.RestClientTestCase.inFipsJvm;
 
 public interface RestClientFipsAwareTestCase {
 
     default void makeRequest() throws Exception {
         if (inFipsJvm()) {
-            makeRequest(KeyStoreType.BCFKS);
+            makeRequest("BCFKS");
         } else {
-            makeRequest(KeyStoreType.JKS);
+            makeRequest("JKS");
         }
     }
 
-    void makeRequest(KeyStoreType keyStoreType) throws Exception;
+    void makeRequest(String keyStoreType) throws Exception;
 }

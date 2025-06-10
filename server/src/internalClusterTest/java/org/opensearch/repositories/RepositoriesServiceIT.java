@@ -44,9 +44,14 @@ import org.opensearch.transport.client.Client;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -121,5 +126,72 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         final Settings.Builder repoSettings = Settings.builder().put("system_repository", true).put("location", randomRepoPath());
 
         assertThrows(RepositoryException.class, () -> createRepository(repositoryName, FsRepository.TYPE, repoSettings));
+    }
+
+    public void testCreatSnapAndUpdateReposityCauseInfiniteLoop() throws InterruptedException {
+        // create index
+        internalCluster();
+        String indexName = "test-index";
+        createIndex(indexName, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0).put(SETTING_NUMBER_OF_SHARDS, 1).build());
+        index(indexName, "_doc", "1", Collections.singletonMap("user", generateRandomStringArray(1, 10, false, false)));
+        flush(indexName);
+
+        // create repository
+        final String repositoryName = "test-repo";
+        Settings.Builder repoSettings = Settings.builder()
+            .put("location", randomRepoPath())
+            .put("max_snapshot_bytes_per_sec", "10mb")
+            .put("max_restore_bytes_per_sec", "10mb");
+        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+            client().admin().cluster(),
+            repositoryName,
+            FsRepository.TYPE,
+            true,
+            repoSettings
+        );
+
+        final AtomicInteger snapshotCount = new AtomicInteger();
+        Runnable createSnapshot = () -> {
+            String snapshotName = "snapshot-" + snapshotCount.incrementAndGet();
+            logger.info("--> beginning snapshot for " + snapshotName);
+            client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repositoryName, snapshotName)
+                .setWaitForCompletion(true)
+                .setIndices(indexName)
+                .get();
+            logger.info("--> finishing snapshot");
+        };
+
+        // snapshot mab be failed when updating repository
+        Thread thread = new Thread(() -> {
+            try {
+                createSnapshot.run();
+            } catch (Exception e) {
+                assertThat(e, instanceOf(RepositoryException.class));
+                assertThat(e, hasToString(containsString(("the repository has been changed, try again"))));
+            }
+        });
+        thread.start();
+
+        try {
+            logger.info("--> begin to reset repository");
+            repoSettings = Settings.builder().put("location", randomRepoPath()).put("max_snapshot_bytes_per_sec", "300mb");
+            OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+                client().admin().cluster(),
+                repositoryName,
+                FsRepository.TYPE,
+                true,
+                repoSettings
+            );
+            logger.info("--> finish to reset repository");
+        } catch (IllegalStateException e) {
+            assertThat(e, hasToString(containsString(("trying to modify or unregister repository that is currently used"))));
+        }
+
+        // after updating repository, snapshot should be success
+        createSnapshot.run();
+
+        thread.join();
     }
 }

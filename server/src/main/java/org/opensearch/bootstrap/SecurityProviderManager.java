@@ -13,19 +13,17 @@ import java.security.Security;
 /**
  * Provides additional control over declared security providers in 'java.security' file.
  */
-public class SecurityProviderManager {
+final class SecurityProviderManager {
 
     public static final String SUN_JCE = "SunJCE";
 
-    private SecurityProviderManager() {
-        // singleton constructor
-    }
+    private SecurityProviderManager() {}
 
     /**
      * Removes the SunJCE provider from the list of installed security providers. This method is intended to be used when running
      * in a FIPS JVM and when the security file specifies additional configuration, instead of a complete replacement.
      */
-    public static void excludeSunJCE() {
+    public static void removeNonCompliantFipsProviders() {
         Security.removeProvider(SUN_JCE);
     }
 
@@ -39,7 +37,7 @@ public class SecurityProviderManager {
             var providers = java.security.Security.getProviders();
             for (int i = 0; i < providers.length; i++) {
                 if (providers[i].getName().equals(providerName)) {
-                    return i + 1; // provider positions starts at 1
+                    return i + 1; // provider positions start at 1
                 }
             }
         }

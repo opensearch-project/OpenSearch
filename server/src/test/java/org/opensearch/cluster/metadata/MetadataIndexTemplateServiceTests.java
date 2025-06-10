@@ -47,7 +47,6 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -95,6 +94,7 @@ import static org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemp
 import static org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata.fromComponentTemplateInfo;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.common.settings.Settings.builder;
+import static org.opensearch.common.util.FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES;
 import static org.opensearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
 import static org.opensearch.env.Environment.PATH_HOME_SETTING;
 import static org.opensearch.index.mapper.DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
@@ -769,8 +769,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testPutGlobalV2TemplateWhichProvidesContextNotPresentInState() throws Exception {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(
             List.of("*"),
@@ -809,8 +809,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testPutGlobalV2TemplateWhichProvidesContextWithNonExistingVersion() throws Exception {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
 
         Function<String, Template> templateApplier = codec -> new Template(
@@ -893,8 +893,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testPutGlobalV2TemplateWhichProvidesContextInComposedOfSection() throws Exception {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
 
         Function<String, Template> templateApplier = codec -> new Template(
@@ -972,16 +972,18 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testPutGlobalV2TemplateWhichProvidesContextWithSpecificVersion() throws Exception {
         verifyTemplateCreationUsingContext("1");
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testPutGlobalV2TemplateWhichProvidesContextWithLatestVersion() throws Exception {
         verifyTemplateCreationUsingContext("_latest");
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testModifySystemTemplateViaUnknownSource() throws Exception {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
 
         Function<String, Template> templateApplier = codec -> new Template(
@@ -1014,6 +1016,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testResolveSettingsWithContextVersion() throws Exception {
         ClusterService clusterService = node().injector().getInstance(ClusterService.class);
         final String indexTemplateName = verifyTemplateCreationUsingContext("1");
@@ -1022,6 +1025,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         assertThat(settings.get("index.codec"), equalTo(CodecService.BEST_COMPRESSION_CODEC));
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     public void testResolveSettingsWithContextLatest() throws Exception {
         ClusterService clusterService = node().injector().getInstance(ClusterService.class);
         final String indexTemplateName = verifyTemplateCreationUsingContext(Context.LATEST_VERSION);
@@ -2629,8 +2633,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         }
     }
 
+    @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
     private String verifyTemplateCreationUsingContext(String contextVersion) throws Exception {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
 
         Function<String, Template> templateApplier = codec -> new Template(
@@ -2751,9 +2755,6 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, false)
-            .build();
+        return Settings.builder().put(super.featureFlagSettings()).put(APPLICATION_BASED_CONFIGURATION_TEMPLATES, false).build();
     }
 }

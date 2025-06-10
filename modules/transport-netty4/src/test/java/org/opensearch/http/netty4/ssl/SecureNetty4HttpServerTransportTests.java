@@ -15,8 +15,6 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.ssl.KeyStoreFactory;
-import org.opensearch.common.ssl.KeyStoreType;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
@@ -56,6 +54,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.Collections;
@@ -123,9 +122,13 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
             @Override
             public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
                 try {
-                    final KeyStore keyStore = KeyStoreFactory.getInstance(KeyStoreType.BCFKS);
+                    var keyStoreType = inFipsJvm() ? "BCFKS" : "JKS";
+                    var fileExtension = inFipsJvm() ? ".bcfks" : ".jks";
+                    var provider = inFipsJvm() ? "BCFIPS" : "SUN";
+                    final KeyStore keyStore = KeyStore.getInstance(keyStoreType, provider);
+
                     keyStore.load(
-                        SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure.bcfks"),
+                        SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure" + fileExtension),
                         "password".toCharArray()
                     );
 
@@ -137,8 +140,8 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
                         .build()
                         .newEngine(NettyAllocator.getAllocator());
                     return Optional.of(engine);
-                } catch (final IOException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException
-                    | CertificateException ex) {
+                } catch (final IOException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException | CertificateException
+                    | NoSuchProviderException ex) {
                     throw new SSLException(ex);
                 }
             }

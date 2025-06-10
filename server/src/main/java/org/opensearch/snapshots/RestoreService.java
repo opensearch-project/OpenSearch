@@ -69,7 +69,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -90,7 +89,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -126,6 +125,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
+import static org.opensearch.cluster.service.ClusterManagerTask.RESTORE_SNAPSHOT;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.common.util.set.Sets.newHashSet;
@@ -229,7 +229,7 @@ public class RestoreService implements ClusterStateApplier {
         this.dataToFileCacheSizeRatioSupplier = dataToFileCacheSizeRatioSupplier;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        restoreSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.RESTORE_SNAPSHOT_KEY, true);
+        restoreSnapshotTaskKey = clusterService.registerClusterManagerTask(RESTORE_SNAPSHOT, true);
     }
 
     /**
@@ -889,7 +889,7 @@ public class RestoreService implements ClusterStateApplier {
                     private void validateSearchableSnapshotRestorable(long totalRestorableRemoteIndexesSize) {
                         ClusterInfo clusterInfo = clusterInfoSupplier.get();
                         final double remoteDataToFileCacheRatio = dataToFileCacheSizeRatioSupplier.get();
-                        Map<String, FileCacheStats> nodeFileCacheStats = clusterInfo.getNodeFileCacheStats();
+                        Map<String, AggregateFileCacheStats> nodeFileCacheStats = clusterInfo.getNodeFileCacheStats();
                         if (nodeFileCacheStats.isEmpty() || remoteDataToFileCacheRatio <= 0.01f) {
                             return;
                         }

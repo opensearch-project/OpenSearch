@@ -111,7 +111,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
 
     @Override
     public long count() {
-        // Include this here so caches don't have to create an entire CacheStats object to run count().
+        // Include this here so caches don't have to create an entire AggregateRefCountedCacheStats object to run count().
         return statsRoot.getEntries();
     }
 

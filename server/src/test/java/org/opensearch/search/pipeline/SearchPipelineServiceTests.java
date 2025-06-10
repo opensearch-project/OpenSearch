@@ -70,6 +70,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -145,6 +146,10 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             .getResponseProcessorFactories();
         assertEquals(1, responseProcessorFactories.size());
         assertTrue(responseProcessorFactories.containsKey("bar"));
+        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseInjectorProcessorFactories = searchPipelineService
+            .getSearchPhaseResultsProcessorFactories();
+        assertEquals(1, phaseInjectorProcessorFactories.size());
+        assertTrue(phaseInjectorProcessorFactories.containsKey("zoe"));
     }
 
     public void testSearchPipelinePluginDuplicate() {
@@ -878,7 +883,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         ProcessorInfo reqProcessor = new ProcessorInfo("scale_request_size");
         ProcessorInfo rspProcessor = new ProcessorInfo("fixed_score");
-        ProcessorInfo injProcessor = new ProcessorInfo("max_score");
+        ProcessorInfo searchPhaseProcessor = new ProcessorInfo("max_score");
         DiscoveryNode n1 = new DiscoveryNode("n1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode n2 = new DiscoveryNode("n2", buildNewFakeTransportAddress(), Version.CURRENT);
         PutSearchPipelineRequest putRequest = new PutSearchPipelineRequest(
@@ -893,8 +898,22 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             MediaTypeRegistry.JSON
         );
 
+        String longId = "a".repeat(512) + "a";
+        PutSearchPipelineRequest maxLengthIdPutRequest = new PutSearchPipelineRequest(
+            longId,
+            new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : \"foo\" } } ] }"),
+            MediaTypeRegistry.JSON
+        );
+
         SearchPipelineInfo completePipelineInfo = new SearchPipelineInfo(
-            Map.of(Pipeline.REQUEST_PROCESSORS_KEY, List.of(reqProcessor), Pipeline.RESPONSE_PROCESSORS_KEY, List.of(rspProcessor))
+            Map.of(
+                Pipeline.REQUEST_PROCESSORS_KEY,
+                List.of(reqProcessor),
+                Pipeline.RESPONSE_PROCESSORS_KEY,
+                List.of(rspProcessor),
+                Pipeline.PHASE_PROCESSORS_KEY,
+                List.of(searchPhaseProcessor)
+            )
         );
         SearchPipelineInfo incompletePipelineInfo = new SearchPipelineInfo(Map.of(Pipeline.REQUEST_PROCESSORS_KEY, List.of(reqProcessor)));
         // One node is missing a processor
@@ -905,6 +924,18 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         // Discovery failed, no infos passed.
         expectThrows(IllegalStateException.class, () -> searchPipelineService.validatePipeline(Collections.emptyMap(), putRequest));
+
+        // Max length of pipeline length
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> searchPipelineService.validatePipeline(Map.of(n1, completePipelineInfo), maxLengthIdPutRequest)
+        );
+        String errorMessage = String.format(
+            Locale.ROOT,
+            "Search Pipeline id [%s] exceeds maximum length of 512 UTF-8 bytes (actual: 513 bytes)",
+            longId
+        );
+        assertEquals(errorMessage, e.getMessage());
 
         // Invalid configuration in request
         PutSearchPipelineRequest badPutRequest = new PutSearchPipelineRequest(
@@ -1037,6 +1068,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchPipelineInfo info = searchPipelineService.info();
         assertTrue(info.containsProcessor(Pipeline.REQUEST_PROCESSORS_KEY, "scale_request_size"));
         assertTrue(info.containsProcessor(Pipeline.RESPONSE_PROCESSORS_KEY, "fixed_score"));
+        assertTrue(info.containsProcessor(Pipeline.PHASE_PROCESSORS_KEY, "max_score"));
     }
 
     public void testExceptionOnPipelineCreation() {

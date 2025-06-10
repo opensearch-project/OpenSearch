@@ -1,7 +1,5 @@
 setup:
-  - skip:
-      version: " - 7.1.99"
-      reason:  These new error messages were added in 7.2
+
 
   - do:
       indices.create:
@@ -101,9 +99,7 @@ setup:
 
 ---
 "Top level bucket_sort":
-  - skip:
-      version: " - 7.7.99"
-      reason:  This validation was changed in 7.8.0
+
 
   - do:
       catch: /bucket_sort aggregation \[the_bad_bucket_sort\] must be declared inside of another aggregation/

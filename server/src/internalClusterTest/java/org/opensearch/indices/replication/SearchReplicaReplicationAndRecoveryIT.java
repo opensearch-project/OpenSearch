@@ -21,7 +21,6 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -72,11 +71,6 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
             .build();
     }
 
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL, true).build();
-    }
-
     public void testReplication() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final String primary = internalCluster().startDataOnlyNode();
@@ -103,7 +97,7 @@ public class SearchReplicaReplicationAndRecoveryIT extends SegmentReplicationBas
             Settings.builder()
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 0)
-                .put("number_of_search_only_replicas", 1)
+                .put("number_of_search_replicas", 1)
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build()
         );

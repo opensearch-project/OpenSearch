@@ -49,9 +49,6 @@
 
 ---
 "Cluster shard allocation explanation test with a closed index":
-  - skip:
-      version: " - 7.1.99"
-      reason: closed indices are replicated starting version 7.2.0
 
   - do:
       indices.create:

@@ -51,7 +51,7 @@ import java.io.IOException;
  */
 public class ParsingException extends OpenSearchException {
 
-    protected static final int UNKNOWN_POSITION = -1;
+    public static final int UNKNOWN_POSITION = -1;
     private final int lineNumber;
     private final int columnNumber;
 

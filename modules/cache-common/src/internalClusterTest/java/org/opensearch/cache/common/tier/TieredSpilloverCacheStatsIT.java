@@ -430,7 +430,7 @@ public class TieredSpilloverCacheStatsIT extends TieredSpilloverCacheBaseIT {
 
         // Closing the index should close the shard
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest("index")).get());
-        assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), getTotalStats(client));
+        assertBusy(() -> assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), getTotalStats(client)));
     }
 
     private void startIndex(Client client, String indexName) throws InterruptedException {

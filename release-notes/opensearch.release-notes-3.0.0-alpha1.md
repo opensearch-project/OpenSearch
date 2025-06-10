@@ -56,7 +56,6 @@
 - Implemented computation of segment replication stats at shard level ([#17055](https://github.com/opensearch-project/OpenSearch/pull/17055))
 - [Rule Based Auto-tagging] Add in-memory attribute value store ([#17342](https://github.com/opensearch-project/OpenSearch/pull/17342))
 
-
 ### Dependencies
 - Bump Apache HttpCore5/HttpClient5 dependencies from 5.2.5/5.3.1 to 5.3.1/5.4.1 to support ExtendedSocketOption in HttpAsyncClient ([#16757](https://github.com/opensearch-project/OpenSearch/pull/16757))
 - Bumps `jetty` version from 9.4.55.v20240627 to 9.4.57.v20241219 ([#17395](https://github.com/opensearch-project/OpenSearch/pull/17395))
@@ -91,7 +90,7 @@
 - Refactor the `:server` module `org.opensearch.client` to `org.opensearch.transport.client` to eliminate top level split packages for JPMS support ([#17272](https://github.com/opensearch-project/OpenSearch/pull/17272))
 - Use Lucene `BM25Similarity` as default since the `LegacyBM25Similarity` is marked as deprecated ([#17306](https://github.com/opensearch-project/OpenSearch/pull/17306))
 - Wildcard field index only 3gram of the input data [#17349](https://github.com/opensearch-project/OpenSearch/pull/17349)
-- Use BC libraries to parse PEM files, increase key length, allow general use of known cryptographic binary extensions, remove unused BC dependencies ([#3420](https://github.com/opensearch-project/OpenSearch/pull/14912))
+- Use BC libraries to parse PEM files, increase key length, allow general use of known cryptographic binary extensions, remove unused BC dependencies ([#17393](https://github.com/opensearch-project/OpenSearch/pull/17393))
 - Add optional enum set read / write functionality to stream input / output ([#17556](https://github.com/opensearch-project/OpenSearch/pull/17556))
 - Convert transport-reactor-netty4 to use gradle version catalog [#17233](https://github.com/opensearch-project/OpenSearch/pull/17233)
 - Increase force merge threads to 1/8th of cores [#17255](https://github.com/opensearch-project/OpenSearch/pull/17255)

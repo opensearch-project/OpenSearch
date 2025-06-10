@@ -235,7 +235,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @param obj the input object
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
-    static Object maybeConvertToBytesRef(Object obj) {
+    public static Object maybeConvertToBytesRef(Object obj) {
         if (obj instanceof String) {
             return BytesRefs.toBytesRef(obj);
         } else if (obj instanceof CharBuffer) {

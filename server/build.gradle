@@ -39,6 +39,8 @@ plugins {
   id('me.champeau.gradle.japicmp') version '0.4.6'
 }
 
+apply from: "$rootDir/gradle/fips.gradle"
+
 publishing {
   publications {
     nebula(MavenPublication) {
@@ -69,9 +71,8 @@ dependencies {
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
-  api project(":libs:opensearch-ssl-config")
-  implementation project(':libs:opensearch-arrow-spi')
 
+  compileOnly project(":libs:agent-sm:bootstrap")
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 
@@ -123,6 +124,7 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
   }
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -342,7 +344,8 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
-            'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
+            'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
+            'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException'
     )
 }
 
@@ -378,9 +381,7 @@ tasks.named("licenseHeaders").configure {
 
 tasks.test {
     environment "node.roles.test", "[]"
-    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-        jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED"]
-    }
+    jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED", "-Djdk.attach.allowAttachSelf=true", "-XX:+EnableDynamicAgentLoading" ]
 }
 
 tasks.named("sourcesJar").configure {

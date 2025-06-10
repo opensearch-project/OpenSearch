@@ -124,6 +124,7 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
     }
 
     public void testLoadTrustFromBCFKS() {
+        assumeTrue("BCFKS only available with BCFIPS provider", inFipsJvm());
         final Settings.Builder builder = Settings.builder().put("test.ssl.truststore.path", "ca-all/ca.bcfks");
         if (randomBoolean()) {
             builder.put("test.ssl.truststore.password", "bcfks-pass");
@@ -220,6 +221,7 @@ public class SslConfigurationLoaderTests extends OpenSearchTestCase {
     }
 
     public void testLoadKeysFromBCFKS() {
+        assumeTrue("BCFKS only available with BCFIPS provider", inFipsJvm());
         final Settings.Builder builder = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.bcfks");
         if (randomBoolean()) {
             builder.put("test.ssl.keystore.password", "bcfks-pass");

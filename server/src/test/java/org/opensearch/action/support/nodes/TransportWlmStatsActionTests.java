@@ -15,7 +15,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.transport.CapturingTransport;
-import org.opensearch.wlm.QueryGroupService;
+import org.opensearch.wlm.WorkloadGroupService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ public class TransportWlmStatsActionTests extends TransportNodesActionTests {
             THREAD_POOL,
             clusterService,
             transportService,
-            mock(QueryGroupService.class),
+            mock(WorkloadGroupService.class),
             new ActionFilters(Collections.emptySet())
         );
         PlainActionFuture<WlmStatsRequest> listener = new PlainActionFuture<>();

@@ -208,7 +208,7 @@ public class UnsignedLongValuesSource extends SingleDimensionValuesSource<BigInt
             upperPoint = null;
         }
 
-        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+        if (fieldType != null && fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
             NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) fieldType;
             if (ft.typeName() == "unsigned_long") {
                 return new UnsignedLongPointsSortedDocsProducer(fieldType.name(), lowerPoint, upperPoint);

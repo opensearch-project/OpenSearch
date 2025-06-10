@@ -100,9 +100,10 @@ public class CustomUnifiedHighlighterTests extends OpenSearchTestCase {
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
                 assertThat(topDocs.totalHits.value(), equalTo(1L));
                 String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
+                UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
+                builder.withFieldMatcher("text"::equals);
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-                    searcher,
-                    analyzer,
+                    builder,
                     UnifiedHighlighter.OffsetSource.ANALYSIS,
                     new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
                     locale,
@@ -112,7 +113,6 @@ public class CustomUnifiedHighlighterTests extends OpenSearchTestCase {
                     query,
                     noMatchSize,
                     expectedPassages.length,
-                    name -> "text".equals(name),
                     Integer.MAX_VALUE,
                     null
                 );

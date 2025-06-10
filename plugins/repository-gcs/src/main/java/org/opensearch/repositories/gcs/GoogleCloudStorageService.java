@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.gcs;
 
+import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
@@ -46,8 +47,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.collect.MapBuilder;
-import org.opensearch.common.ssl.KeyStoreFactory;
-import org.opensearch.common.ssl.KeyStoreType;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 
@@ -57,6 +56,8 @@ import java.net.Authenticator;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
 import java.net.URI;
+import java.security.KeyStore;
+import java.security.Security;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -188,10 +189,16 @@ public class GoogleCloudStorageService {
     private HttpTransport createHttpTransport(final GoogleCloudStorageClientSettings clientSettings) throws IOException {
         return SocketAccess.doPrivilegedIOException(() -> {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-            // use the BCFIPS trustStore format instead of PKCS#12 to ensure compatibility with BC-FIPS
-            var certTrustStore = KeyStoreFactory.getInstance(KeyStoreType.BCFKS);
-            InputStream keyStoreStream = getClass().getResourceAsStream("/google.bcfks");
-            SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
+            KeyStore certTrustStore;
+            if (Security.getProvider("BCFIPS") != null) {
+                certTrustStore = KeyStore.getInstance("BCFKS");
+                InputStream keyStoreStream = getClass().getResourceAsStream("/google.bcfks");
+                SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
+            } else {
+                // requires java.lang.RuntimePermission "setFactory"
+                // Pin the TLS trust certificates.
+                certTrustStore = GoogleUtils.getCertificateTrustStore();
+            }
 
             builder.trustCertificates(certTrustStore);
             final ProxySettings proxySettings = clientSettings.getProxySettings();

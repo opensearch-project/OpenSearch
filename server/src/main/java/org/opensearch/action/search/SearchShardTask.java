@@ -38,7 +38,7 @@ import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.SearchBackpressureTask;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -50,7 +50,7 @@ import java.util.function.Supplier;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class SearchShardTask extends QueryGroupTask implements SearchBackpressureTask {
+public class SearchShardTask extends WorkloadGroupTask implements SearchBackpressureTask {
     // generating metadata in a lazy way since source can be quite big
     private final MemoizedSupplier<String> metadataSupplier;
 

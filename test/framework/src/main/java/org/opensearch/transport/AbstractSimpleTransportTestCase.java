@@ -2074,7 +2074,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 logger.debug((Supplier<?>) () -> new ParameterizedMessage("---> received exception for id {}", id), exp);
                 allRequestsDone.countDown();
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
-                assertNotNull(unwrap);
+                assertNotNull("Expected an IOException somewhere in causal chain: " + exp, unwrap);
                 assertEquals(IOException.class, unwrap.getClass());
                 assertEquals("forced failure", unwrap.getMessage());
             }

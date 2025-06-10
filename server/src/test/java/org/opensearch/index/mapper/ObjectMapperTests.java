@@ -556,23 +556,20 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             ex.getMessage()
         );
 
-        final Settings starTreeEnabledSettings = Settings.builder().put(STAR_TREE_INDEX, "true").build();
-        FeatureFlags.initializeFeatureFlags(starTreeEnabledSettings);
+        FeatureFlags.TestUtils.with(STAR_TREE_INDEX, () -> {
+            DocumentMapper documentMapper = createIndex("test", settings).mapperService()
+                .documentMapperParser()
+                .parse("tweet", new CompressedXContent(mapping));
 
-        DocumentMapper documentMapper = createIndex("test", settings).mapperService()
-            .documentMapperParser()
-            .parse("tweet", new CompressedXContent(mapping));
-
-        Mapper mapper = documentMapper.root().getMapper("startree");
-        assertTrue(mapper instanceof StarTreeMapper);
-        StarTreeMapper starTreeMapper = (StarTreeMapper) mapper;
-        assertEquals("star_tree", starTreeMapper.fieldType().typeName());
-        // Check that field in properties was parsed correctly as well
-        mapper = documentMapper.root().getMapper("@timestamp");
-        assertNotNull(mapper);
-        assertEquals("date", mapper.typeName());
-
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
+            Mapper mapper = documentMapper.root().getMapper("startree");
+            assertTrue(mapper instanceof StarTreeMapper);
+            StarTreeMapper starTreeMapper = (StarTreeMapper) mapper;
+            assertEquals("star_tree", starTreeMapper.fieldType().typeName());
+            // Check that field in properties was parsed correctly as well
+            mapper = documentMapper.root().getMapper("@timestamp");
+            assertNotNull(mapper);
+            assertEquals("date", mapper.typeName());
+        });
     }
 
     public void testNestedIsParent() throws Exception {

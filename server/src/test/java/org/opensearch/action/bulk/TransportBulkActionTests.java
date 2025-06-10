@@ -86,6 +86,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
+import static org.opensearch.ingest.IngestServiceTests.createIngestServiceWithProcessors;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -110,7 +111,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
                 TransportBulkActionTests.this.threadPool,
                 transportService,
                 clusterService,
-                null,
+                createIngestServiceWithProcessors(Collections.emptyMap()),
                 null,
                 null,
                 new ActionFilters(Collections.emptySet()),

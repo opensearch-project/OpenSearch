@@ -1498,17 +1498,6 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         String clusterMode = randomFrom(modeSettings);
         String indexMode = randomFrom(modeSettings);
 
-        // default to false in case mode setting is not set
-        boolean concurrentSearchEnabled = false;
-
-        boolean aggregationSupportsConcurrent = randomBoolean();
-
-        if (indexMode != null) {
-            concurrentSearchEnabled = !indexMode.equals("none") && aggregationSupportsConcurrent;
-        } else if (clusterMode != null) {
-            concurrentSearchEnabled = !clusterMode.equals("none") && aggregationSupportsConcurrent;
-        }
-
         // Set the cluster setting for mode
         if (clusterMode == null) {
             client().admin()
@@ -1539,46 +1528,76 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                 .get();
         }
 
-        try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
-            assertEquals(
-                clusterMode,
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .get()
-                    .getState()
-                    .getMetadata()
-                    .transientSettings()
-                    .get(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey())
-            );
-            assertEquals(
-                indexMode,
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(index)
-                    .get()
-                    .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey())
-            );
-            SearchContextAggregations mockAggregations = mock(SearchContextAggregations.class);
-            when(mockAggregations.factories()).thenReturn(mock(AggregatorFactories.class));
-            when(mockAggregations.factories().allFactoriesSupportConcurrentSearch()).thenReturn(aggregationSupportsConcurrent);
-
-            // set the aggregations for context
-            searchContext.aggregations(mockAggregations);
-
-            searchContext.evaluateRequestShouldUseConcurrentSearch();
-            // check concurrentSearchenabled based on mode and supportedAggregation is computed correctly
-            assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
-            assertThat(searchContext.searcher().getTaskExecutor(), is(notNullValue()));
-        } finally {
-            // Cleanup
+        assertEquals(
+            clusterMode,
             client().admin()
                 .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey()))
-                .get();
+                .prepareState()
+                .get()
+                .getState()
+                .getMetadata()
+                .transientSettings()
+                .get(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey())
+        );
+        assertEquals(
+            indexMode,
+            client().admin()
+                .indices()
+                .prepareGetSettings(index)
+                .get()
+                .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey())
+        );
 
+        boolean concurrentSearchEnabled;
+        // with aggregations.
+        {
+            boolean aggregationSupportsConcurrent = randomBoolean();
+            // Default concurrent search mode is auto, which enables concurrent segment search when aggregations are present.
+            // aggregationSupportsConcurrent determines if the present aggregation type supports concurrent segment search.
+            concurrentSearchEnabled = aggregationSupportsConcurrent;
+            if (indexMode != null) {
+                concurrentSearchEnabled = !indexMode.equals("none") && aggregationSupportsConcurrent;
+            } else if (clusterMode != null) {
+                concurrentSearchEnabled = !clusterMode.equals("none") && aggregationSupportsConcurrent;
+            }
+
+            try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+                SearchContextAggregations mockAggregations = mock(SearchContextAggregations.class);
+                when(mockAggregations.factories()).thenReturn(mock(AggregatorFactories.class));
+                when(mockAggregations.factories().allFactoriesSupportConcurrentSearch()).thenReturn(aggregationSupportsConcurrent);
+
+                // set the aggregations for context
+                searchContext.aggregations(mockAggregations);
+
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
+                // check concurrentSearchenabled based on mode and supportedAggregation is computed correctly
+                assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
+                assertThat(searchContext.searcher().getTaskExecutor(), is(notNullValue()));
+            }
         }
+
+        // without aggregations.
+        {
+            // Default concurrent search mode is auto, without aggregations, concurrent search will be disabled.
+            concurrentSearchEnabled = false;
+            if (indexMode != null) {
+                concurrentSearchEnabled = indexMode.equals("all");
+            } else if (clusterMode != null) {
+                concurrentSearchEnabled = clusterMode.equals("all");
+            }
+            try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
+                assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
+                assertThat(searchContext.searcher().getTaskExecutor(), is(notNullValue()));
+            }
+        }
+
+        // Cleanup
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey()))
+            .get();
     }
 
     /**

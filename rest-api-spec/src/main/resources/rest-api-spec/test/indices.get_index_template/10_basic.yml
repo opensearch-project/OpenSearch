@@ -1,7 +1,5 @@
 setup:
   - skip:
-      version: " - 7.7.99"
-      reason: "index template v2 API unavailable before 7.8"
       features: allowed_warnings
 
   - do:
@@ -22,9 +20,7 @@ setup:
 
 ---
 "Get index template":
-  - skip:
-      version: " - 7.7.99"
-      reason: "index template v2 API unavailable before 7.8"
+
 
   - do:
       indices.get_index_template:
@@ -38,8 +34,6 @@ setup:
 ---
 "Get all index templates":
   - skip:
-      version: " - 7.7.99"
-      reason: "index template v2 API unavailable before 7.8"
       features: allowed_warnings
 
   - do:
@@ -61,9 +55,6 @@ setup:
 
 ---
 "Get index template with local flag":
-  - skip:
-      version: " - 7.7.99"
-      reason: "index template v2 API unavailable before 7.8"
 
   - do:
       indices.get_index_template:

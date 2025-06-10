@@ -36,10 +36,12 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.IndexStoreListener;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
@@ -81,6 +83,41 @@ public interface IndexStorePlugin {
      * @return a map from store type to an directory factory
      */
     Map<String, DirectoryFactory> getDirectoryFactories();
+
+    /**
+     * An interface that describes how to create a new composite directory instance per shard.
+     *
+     * @opensearch.api
+     */
+    @FunctionalInterface
+    @ExperimentalApi
+    interface CompositeDirectoryFactory {
+        /**
+         * Creates a new composite directory per shard
+         * @param indexSettings the shards index settings
+         * @param shardPath the path the shard is using
+         * @return a new composite directory instance
+         * @throws IOException if an IOException occurs while opening the directory
+         */
+        Directory newDirectory(
+            IndexSettings indexSettings,
+            ShardPath shardPath,
+            DirectoryFactory localDirectoryFactory,
+            Directory remoteDirectory,
+            FileCache fileCache
+        ) throws IOException;
+    }
+
+    /**
+     * The {@link CompositeDirectoryFactory} mappings for this plugin. When an index is created the composite store type setting
+     * {@link org.opensearch.index.IndexModule#INDEX_COMPOSITE_STORE_TYPE_SETTING} on the index will be examined and either use the default or a
+     * built-in type, or looked up among all the composite directory factories from {@link IndexStorePlugin} plugins.
+     *
+     * @return a map from composite store type to a composite directory factory
+     */
+    default Map<String, CompositeDirectoryFactory> getCompositeDirectoryFactories() {
+        return Collections.emptyMap();
+    }
 
     /**
      * An interface that allows to create a new {@link RecoveryState} per shard.

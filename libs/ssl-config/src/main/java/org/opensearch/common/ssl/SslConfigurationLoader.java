@@ -43,11 +43,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.ssl.KeyStoreType.inferStoreType;
+import static org.opensearch.common.ssl.KeyStoreUtil.inferStoreType;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CERTIFICATE;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CERTIFICATE_AUTHORITIES;
 import static org.opensearch.common.ssl.SslConfigurationKeys.CIPHERS;
@@ -244,10 +243,11 @@ public abstract class SslConfigurationLoader {
         }
         if (trustStorePath != null) {
             final char[] password = resolvePasswordSetting(TRUSTSTORE_SECURE_PASSWORD, TRUSTSTORE_LEGACY_PASSWORD);
-            final Optional<String> maybeStoreType = Optional.ofNullable(resolveSetting(TRUSTSTORE_TYPE, Function.identity(), null));
-            final KeyStoreType storeType = maybeStoreType.map(KeyStoreType::getByJcaName)
-                .orElse(inferStoreType(trustStorePath.toString().toLowerCase(Locale.ROOT)));
-
+            final String storeType = resolveSetting(
+                TRUSTSTORE_TYPE,
+                Function.identity(),
+                inferStoreType(trustStorePath.toString().toLowerCase(Locale.ROOT))
+            );
             final String algorithm = resolveSetting(TRUSTSTORE_ALGORITHM, Function.identity(), TrustManagerFactory.getDefaultAlgorithm());
             return new StoreTrustConfig(trustStorePath, password, storeType, algorithm);
         }
@@ -286,11 +286,11 @@ public abstract class SslConfigurationLoader {
             if (keyPassword.length == 0) {
                 keyPassword = storePassword;
             }
-
-            final Optional<String> maybeStoreType = Optional.ofNullable(resolveSetting(KEYSTORE_TYPE, Function.identity(), null));
-            final KeyStoreType storeType = maybeStoreType.map(KeyStoreType::getByJcaName)
-                .orElse(inferStoreType(keyStorePath.toString().toLowerCase(Locale.ROOT)));
-
+            final String storeType = resolveSetting(
+                KEYSTORE_TYPE,
+                Function.identity(),
+                inferStoreType(keyStorePath.toString().toLowerCase(Locale.ROOT))
+            );
             final String algorithm = resolveSetting(KEYSTORE_ALGORITHM, Function.identity(), KeyManagerFactory.getDefaultAlgorithm());
             return new StoreKeyConfig(keyStorePath, storePassword, storeType, keyPassword, algorithm);
         }
