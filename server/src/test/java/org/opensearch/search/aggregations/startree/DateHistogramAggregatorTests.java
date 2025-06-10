@@ -163,7 +163,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
         supportedDimensions.put(
             new NumericDimension(SIZE),
-            new NumberFieldMapper.NumberFieldType(STATUS, NumberFieldMapper.NumberType.INTEGER)
+            new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.INTEGER)
         );
         supportedDimensions.put(
             new DateDimension(
@@ -325,7 +325,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             b.startObject("properties");
             b.startObject("@timestamp");
             b.field("type", "date");
-            b.field("format", "strict_date_optional_time||epoch_second");
+            b.field("format", "strict_date_optional_time||epoch_millis");
             b.endObject();
             b.startObject("message");
             b.field("type", "keyword");
