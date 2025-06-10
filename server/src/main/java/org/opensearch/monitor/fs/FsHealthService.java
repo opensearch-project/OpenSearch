@@ -35,6 +35,7 @@ package org.opensearch.monitor.fs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -46,6 +47,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -55,12 +57,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.ClusterManagerMetrics.NODE_ID_TAG;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
@@ -74,6 +78,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
     private final ThreadPool threadPool;
+    private final ClusterManagerMetrics clusterManagerMetrics;
     private volatile boolean enabled;
     private volatile boolean brokenLock;
     private final TimeValue refreshInterval;
@@ -115,7 +120,13 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         Setting.Property.Dynamic
     );
 
-    public FsHealthService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, NodeEnvironment nodeEnv) {
+    public FsHealthService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        NodeEnvironment nodeEnv,
+        ClusterManagerMetrics clusterManagerMetrics
+    ) {
         this.threadPool = threadPool;
         this.enabled = ENABLED_SETTING.get(settings);
         this.refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
@@ -123,6 +134,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
         this.healthyTimeoutThreshold = HEALTHY_TIMEOUT_SETTING.get(settings);
         this.nodeEnv = nodeEnv;
+        this.clusterManagerMetrics = clusterManagerMetrics;
         clusterSettings.addSettingsUpdateConsumer(SLOW_PATH_LOGGING_THRESHOLD_SETTING, this::setSlowPathLoggingThreshold);
         clusterSettings.addSettingsUpdateConsumer(HEALTHY_TIMEOUT_SETTING, this::setHealthyTimeoutThreshold);
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
@@ -198,10 +210,22 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             } catch (Exception e) {
                 logger.error("health check failed", e);
             } finally {
+                emitMetric();
                 if (checkEnabled) {
                     boolean completed = checkInProgress.compareAndSet(true, false);
                     assert completed;
                 }
+            }
+        }
+
+        private void emitMetric() {
+            StatusInfo healthStatus = getHealth();
+            if (healthStatus.getStatus() == UNHEALTHY) {
+                clusterManagerMetrics.incrementCounter(
+                    clusterManagerMetrics.fsHealthFailCounter,
+                    1.0,
+                    Optional.ofNullable(Tags.create().addTag(NODE_ID_TAG, nodeEnv.nodeId()))
+                );
             }
         }
 
