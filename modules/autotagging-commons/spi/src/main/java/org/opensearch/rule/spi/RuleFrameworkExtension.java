@@ -9,7 +9,6 @@
 package org.opensearch.rule.spi;
 
 import org.opensearch.rule.RulePersistenceService;
-import org.opensearch.rule.RuleRoutingService;
 import org.opensearch.rule.autotagging.FeatureType;
 
 import java.util.function.Supplier;
@@ -26,14 +25,9 @@ public interface RuleFrameworkExtension {
     Supplier<RulePersistenceService> getRulePersistenceServiceSupplier();
 
     /**
-     * This method is used to flow implementation from consumer plugins into framework plugin
-     * @return the plugin specific implementation of RuleRoutingService
+     * It tells the framework its FeatureType which can be used by Transport classes to handle the
+     * consumer specific persistence
+     * @return
      */
-    Supplier<RuleRoutingService> getRuleRoutingServiceSupplier();
-
-    /**
-     * Flow implementation from consumer plugins into framework plugin
-     * @return the specific implementation of FeatureType
-     */
-    Supplier<FeatureType> getFeatureTypeSupplier();
+    FeatureType getFeatureType();
 }

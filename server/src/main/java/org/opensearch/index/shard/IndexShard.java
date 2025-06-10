@@ -90,7 +90,6 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.lucene.index.DerivedSourceDirectoryReader;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
@@ -499,17 +498,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
         indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
-        if (indexSettings.isDerivedSourceEnabled()) {
-            readerWrapper = reader -> {
-                final DirectoryReader wrappedReader = indexReaderWrapper == null ? reader : indexReaderWrapper.apply(reader);
-                return DerivedSourceDirectoryReader.wrap(
-                    wrappedReader,
-                    getEngine().config().getDocumentMapperForTypeSupplier().get().getDocumentMapper().root()::deriveSource
-                );
-            };
-        } else {
-            readerWrapper = indexReaderWrapper;
-        }
+        readerWrapper = indexReaderWrapper;
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -2032,7 +2021,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public static Engine.Searcher wrapSearcher(
+    static Engine.Searcher wrapSearcher(
         Engine.Searcher engineSearcher,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper
     ) throws IOException {

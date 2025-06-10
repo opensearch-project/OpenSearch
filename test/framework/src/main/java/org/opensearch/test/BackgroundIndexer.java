@@ -274,7 +274,7 @@ public class BackgroundIndexer implements AutoCloseable {
 
     }
 
-    protected XContentBuilder generateSource(long id, Random random) throws IOException {
+    private XContentBuilder generateSource(long id, Random random) throws IOException {
         int contentLength = RandomNumbers.randomIntBetween(random, minFieldSize, maxFieldSize);
         StringBuilder text = new StringBuilder(contentLength);
         while (text.length() < contentLength) {

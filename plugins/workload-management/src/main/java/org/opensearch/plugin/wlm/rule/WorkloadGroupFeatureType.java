@@ -10,8 +10,8 @@ package org.opensearch.plugin.wlm.rule;
 
 import org.opensearch.rule.RuleAttribute;
 import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
-import org.opensearch.rule.autotagging.FeatureValueValidator;
 
 import java.util.Map;
 
@@ -20,6 +20,10 @@ import java.util.Map;
  * @opensearch.experimental
  */
 public class WorkloadGroupFeatureType implements FeatureType {
+    /**
+     * The instance for WorkloadGroupFeatureType
+     */
+    public static final WorkloadGroupFeatureType INSTANCE = new WorkloadGroupFeatureType();
     /**
      * Name for WorkloadGroupFeatureType
      */
@@ -30,15 +34,8 @@ public class WorkloadGroupFeatureType implements FeatureType {
         RuleAttribute.INDEX_PATTERN.getName(),
         RuleAttribute.INDEX_PATTERN
     );
-    private final FeatureValueValidator featureValueValidator;
 
-    /**
-     * constructor for WorkloadGroupFeatureType
-     * @param featureValueValidator
-     */
-    public WorkloadGroupFeatureType(FeatureValueValidator featureValueValidator) {
-        this.featureValueValidator = featureValueValidator;
-    }
+    private WorkloadGroupFeatureType() {}
 
     @Override
     public String getName() {
@@ -61,7 +58,7 @@ public class WorkloadGroupFeatureType implements FeatureType {
     }
 
     @Override
-    public FeatureValueValidator getFeatureValueValidator() {
-        return featureValueValidator;
+    public void registerFeatureType() {
+        AutoTaggingRegistry.registerFeatureType(INSTANCE);
     }
 }

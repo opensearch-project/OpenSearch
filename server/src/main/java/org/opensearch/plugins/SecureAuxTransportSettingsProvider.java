@@ -10,7 +10,6 @@ package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.transport.AuxTransport;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
@@ -28,7 +27,8 @@ public interface SecureAuxTransportSettingsProvider {
      * Fetch an SSLContext as managed by pluggable security provider.
      * @return an instance of SSLContext.
      */
-    default Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, AuxTransport transport) throws SSLException {
+    default Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, NetworkPlugin.AuxTransport transport)
+        throws SSLException {
         return Optional.empty();
     }
 

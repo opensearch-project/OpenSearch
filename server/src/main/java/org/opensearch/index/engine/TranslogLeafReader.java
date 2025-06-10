@@ -31,10 +31,8 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
@@ -42,8 +40,6 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
@@ -58,28 +54,18 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.store.ByteBuffersDirectory;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
-import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
-
-import static org.apache.lucene.index.DirectoryReader.open;
 
 /**
  * Internal class that mocks a single doc read from the transaction log as a leaf reader.
@@ -89,8 +75,6 @@ import static org.apache.lucene.index.DirectoryReader.open;
 public final class TranslogLeafReader extends LeafReader {
 
     private final Translog.Index operation;
-    private final EngineConfig engineConfig;
-    private volatile LeafReader inMemoryIndexReader;
     private static final FieldInfo FAKE_SOURCE_FIELD = new FieldInfo(
         SourceFieldMapper.NAME,
         1,
@@ -153,88 +137,8 @@ public final class TranslogLeafReader extends LeafReader {
     );
     public static Set<String> ALL_FIELD_NAMES = Sets.newHashSet(FAKE_SOURCE_FIELD.name, FAKE_ROUTING_FIELD.name, FAKE_ID_FIELD.name);
 
-    TranslogLeafReader(Translog.Index operation, EngineConfig engineConfig) {
+    TranslogLeafReader(Translog.Index operation) {
         this.operation = operation;
-        this.engineConfig = engineConfig;
-    }
-
-    private LeafReader getInMemoryIndexReader() throws IOException {
-        if (inMemoryIndexReader == null) {
-            synchronized (this) {
-                if (inMemoryIndexReader == null) {
-                    inMemoryIndexReader = createInMemoryIndexReader(operation, engineConfig);
-                }
-            }
-        }
-        return inMemoryIndexReader;
-    }
-
-    public static LeafReader createInMemoryIndexReader(Translog.Index operation, EngineConfig engineConfig) throws IOException {
-        boolean success = false;
-        final Directory directory = new ByteBuffersDirectory();
-        try {
-            SourceToParse sourceToParse = new SourceToParse(
-                engineConfig.getIndexSettings().getIndex().getName(),
-                operation.id(),
-                operation.source(),
-                MediaTypeRegistry.xContentType(operation.source()),
-                operation.routing()
-            );
-            ParsedDocument parsedDocument = engineConfig.getDocumentMapperForTypeSupplier().get().getDocumentMapper().parse(sourceToParse);
-            parsedDocument.updateSeqID(operation.seqNo(), operation.primaryTerm());
-            parsedDocument.version().setLongValue(operation.version());
-            final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
-            iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-            iwc.setCodec(engineConfig.getCodec());
-            IndexWriter indexWriter = new IndexWriter(directory, iwc);
-            indexWriter.addDocuments(parsedDocument.docs());
-            final DirectoryReader directoryReader = open(indexWriter);
-            if (directoryReader.leaves().size() != 1
-                || directoryReader.leaves().get(0).reader().numDocs() != parsedDocument.docs().size()) {
-                throw new IllegalStateException(
-                    "Expected a single segment with "
-                        + parsedDocument.docs().size()
-                        + " documents, but ["
-                        + directoryReader.leaves().size()
-                        + " segments with "
-                        + directoryReader.leaves().get(0).reader().numDocs()
-                        + " documents"
-                );
-            }
-            LeafReader leafReader = directoryReader.leaves().get(0).reader();
-            LeafReader sequentialLeafReader = new SequentialStoredFieldsLeafReader(leafReader) {
-                @Override
-                protected void doClose() throws IOException {
-                    IOUtils.close(super::doClose, directory);
-                }
-
-                @Override
-                public CacheHelper getCoreCacheHelper() {
-                    return leafReader.getCoreCacheHelper();
-                }
-
-                @Override
-                public CacheHelper getReaderCacheHelper() {
-                    return leafReader.getReaderCacheHelper();
-                }
-
-                @Override
-                public StoredFieldsReader getSequentialStoredFieldsReader() {
-                    return Lucene.segmentReader(leafReader).getFieldsReader().getMergeInstance();
-                }
-
-                @Override
-                protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
-                    return reader;
-                }
-            };
-            success = true;
-            return sequentialLeafReader;
-        } finally {
-            if (!success) {
-                IOUtils.closeWhileHandlingException(directory);
-            }
-        }
     }
 
     @Override
@@ -326,23 +230,9 @@ public final class TranslogLeafReader extends LeafReader {
                     throw new IllegalArgumentException("no such doc ID " + docID);
                 }
                 if (visitor.needsField(FAKE_SOURCE_FIELD) == StoredFieldVisitor.Status.YES) {
-                    if (engineConfig.getIndexSettings().isDerivedSourceEnabled()) {
-                        LeafReader leafReader = getInMemoryIndexReader();
-                        assert leafReader != null && leafReader.leaves().size() == 1;
-                        visitor.binaryField(
-                            FAKE_SOURCE_FIELD,
-                            engineConfig.getDocumentMapperForTypeSupplier()
-                                .get()
-                                .getDocumentMapper()
-                                .root()
-                                .deriveSource(leafReader, docID)
-                                .toBytesRef().bytes
-                        );
-                    } else {
-                        assert operation.source().toBytesRef().offset == 0;
-                        assert operation.source().toBytesRef().length == operation.source().toBytesRef().bytes.length;
-                        visitor.binaryField(FAKE_SOURCE_FIELD, operation.source().toBytesRef().bytes);
-                    }
+                    assert operation.source().toBytesRef().offset == 0;
+                    assert operation.source().toBytesRef().length == operation.source().toBytesRef().bytes.length;
+                    visitor.binaryField(FAKE_SOURCE_FIELD, operation.source().toBytesRef().bytes);
                 }
                 if (operation.routing() != null && visitor.needsField(FAKE_ROUTING_FIELD) == StoredFieldVisitor.Status.YES) {
                     visitor.stringField(FAKE_ROUTING_FIELD, operation.routing());

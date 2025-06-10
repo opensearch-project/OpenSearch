@@ -18,7 +18,7 @@ import org.opensearch.rule.GetRuleResponse;
 public class GetRuleAction extends ActionType<GetRuleResponse> {
 
     /**
-     * An instance of GetRuleAction
+     * An instance of GetWlmRuleAction
      */
     public static final GetRuleAction INSTANCE = new GetRuleAction();
 

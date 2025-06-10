@@ -38,8 +38,10 @@ public class SortedSetDocValuesFetcher extends FieldValueFetcher {
                 return values;
             }
             int valueCount = sortedSetDocValues.docValueCount();
+            // docValueCount() is equivalent to one plus the maximum ordinal, that means ordinal
+            // range is [0, docValueCount() - 1]
             for (int ord = 0; ord < valueCount; ord++) {
-                BytesRef value = sortedSetDocValues.lookupOrd(sortedSetDocValues.nextOrd());
+                BytesRef value = sortedSetDocValues.lookupOrd(ord);
                 values.add(BytesRef.deepCopyOf(value));
             }
         } catch (IOException e) {

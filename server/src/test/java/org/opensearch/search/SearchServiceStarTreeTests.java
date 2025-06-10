@@ -11,15 +11,13 @@ package org.opensearch.search;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.opensearch.action.bulk.BulkRequestBuilder;
-import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
@@ -33,14 +31,13 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettin
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
+import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
-import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.aggregations.AggregationBuilders;
@@ -67,13 +64,9 @@ import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -95,14 +88,7 @@ import static org.mockito.Mockito.when;
 public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
 
     private static final String TIMESTAMP_FIELD = "@timestamp";
-    private static final String STATUS = "status";
-    private static final String SIZE = "size";
-    Settings starStreeEnabledIndexSettings = Settings.builder()
-        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-        .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
-        .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
-        .build();
+    private static final String FIELD_NAME = "status";
 
     /**
      * Test query parsing for non-nested metric aggregations, with/without numeric term query
@@ -111,10 +97,16 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     public void testQueryParsingForMetricAggregations() throws IOException {
         setStarTreeIndexSetting("true");
 
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .build();
         CreateIndexRequestBuilder builder = client().admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(starStreeEnabledIndexSettings)
+            .setSettings(settings)
             .setMapping(
                 StarTreeFilterTests.getExpandedMapping(
                     1,
@@ -167,7 +159,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                 starTreeFieldConfiguration,
                 "startree",
                 -1,
-                List.of(new NumericDimension(STATUS)),
+                List.of(new NumericDimension(FIELD_NAME)),
                 List.of(new Metric("field", List.of(MetricStat.MAX))),
                 baseQuery,
                 sourceBuilder,
@@ -256,10 +248,16 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     public void testQueryParsingForDateHistogramAggregations() throws IOException {
         setStarTreeIndexSetting("true");
 
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .build();
         CreateIndexRequestBuilder builder = client().admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(starStreeEnabledIndexSettings)
+            .setSettings(settings)
             .setMapping(DateHistogramAggregatorTests.getExpandedMapping(1, false));
         createIndex("test", builder);
 
@@ -278,10 +276,10 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             null
         );
 
-        MaxAggregationBuilder maxAggNoSub = max("max").field(STATUS);
-        MaxAggregationBuilder sumAggNoSub = max("sum").field(STATUS);
-        SumAggregationBuilder sumAggSub = sum("sum").field(STATUS).subAggregation(maxAggNoSub);
-        MedianAbsoluteDeviationAggregationBuilder medianAgg = medianAbsoluteDeviation("median").field(STATUS);
+        MaxAggregationBuilder maxAggNoSub = max("max").field(FIELD_NAME);
+        MaxAggregationBuilder sumAggNoSub = max("sum").field(FIELD_NAME);
+        SumAggregationBuilder sumAggSub = sum("sum").field(FIELD_NAME).subAggregation(maxAggNoSub);
+        MedianAbsoluteDeviationAggregationBuilder medianAgg = medianAbsoluteDeviation("median").field(FIELD_NAME);
 
         StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
             1,
@@ -306,7 +304,10 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .subAggregation(maxAggNoSub);
         baseQuery = new MatchAllQueryBuilder();
         sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(dateHistogramAggregationBuilder);
-
+        CompositeIndexFieldInfo expectedStarTree = new CompositeIndexFieldInfo(
+            "startree1",
+            CompositeMappedFieldType.CompositeFieldType.STAR_TREE
+        );
         assertStarTreeContext(
             request,
             sourceBuilder,
@@ -321,9 +322,9 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                         List.of(new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)),
                         DateFieldMapper.Resolution.MILLISECONDS
                     ),
-                    new NumericDimension(STATUS)
+                    new NumericDimension(FIELD_NAME)
                 ),
-                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
                 baseQuery,
                 sourceBuilder,
                 true
@@ -351,7 +352,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         dateHistogramAggregationBuilder = dateHistogram("by_day").field(TIMESTAMP_FIELD)
             .calendarInterval(DateHistogramInterval.DAY)
             .subAggregation(maxAggNoSub);
-        baseQuery = new TermQueryBuilder(STATUS, 1L);
+        baseQuery = new TermQueryBuilder(FIELD_NAME, 1L);
         sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(dateHistogramAggregationBuilder);
         assertStarTreeContext(
             request,
@@ -367,9 +368,9 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                         List.of(new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)),
                         DateFieldMapper.Resolution.MILLISECONDS
                     ),
-                    new NumericDimension(STATUS)
+                    new NumericDimension(FIELD_NAME)
                 ),
-                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
                 baseQuery,
                 sourceBuilder,
                 true
@@ -417,11 +418,11 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                         List.of(new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)),
                         DateFieldMapper.Resolution.MILLISECONDS
                     ),
-                    new NumericDimension(STATUS)
+                    new NumericDimension(FIELD_NAME)
                 ),
                 List.of(
                     new Metric(TIMESTAMP_FIELD, List.of(MetricStat.SUM, MetricStat.MAX)),
-                    new Metric(STATUS, List.of(MetricStat.MAX, MetricStat.SUM))
+                    new Metric(FIELD_NAME, List.of(MetricStat.MAX, MetricStat.SUM))
                 ),
                 baseQuery,
                 sourceBuilder,
@@ -496,10 +497,16 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     public void testInvalidQueryParsingForDateHistogramAggregations() throws IOException {
         setStarTreeIndexSetting("true");
 
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .build();
         CreateIndexRequestBuilder builder = client().admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(starStreeEnabledIndexSettings)
+            .setSettings(settings)
             .setMapping(
                 StarTreeFilterTests.getExpandedMapping(
                     1,
@@ -525,7 +532,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             null
         );
 
-        MaxAggregationBuilder maxAggNoSub = max("max").field(STATUS);
+        MaxAggregationBuilder maxAggNoSub = max("max").field(FIELD_NAME);
         DateHistogramAggregationBuilder dateHistogramAggregationBuilder = dateHistogram("by_day").field(TIMESTAMP_FIELD)
             .calendarInterval(DateHistogramInterval.DAY)
             .subAggregation(maxAggNoSub);
@@ -544,10 +551,16 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     public void testQueryParsingForBucketAggregations() throws IOException {
         setStarTreeIndexSetting("true");
 
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .build();
         CreateIndexRequestBuilder builder = client().admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(starStreeEnabledIndexSettings)
+            .setSettings(settings)
             .setMapping(NumericTermsAggregatorTests.getExpandedMapping(1, false));
         createIndex("test", builder);
 
@@ -568,10 +581,10 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         String KEYWORD_FIELD = "clientip";
         String NUMERIC_FIELD = "size";
 
-        MaxAggregationBuilder maxAggNoSub = max("max").field(STATUS);
-        MaxAggregationBuilder sumAggNoSub = max("sum").field(STATUS);
-        SumAggregationBuilder sumAggSub = sum("sum").field(STATUS).subAggregation(maxAggNoSub);
-        MedianAbsoluteDeviationAggregationBuilder medianAgg = medianAbsoluteDeviation("median").field(STATUS);
+        MaxAggregationBuilder maxAggNoSub = max("max").field(FIELD_NAME);
+        MaxAggregationBuilder sumAggNoSub = max("sum").field(FIELD_NAME);
+        SumAggregationBuilder sumAggSub = sum("sum").field(FIELD_NAME).subAggregation(maxAggNoSub);
+        MedianAbsoluteDeviationAggregationBuilder medianAgg = medianAbsoluteDeviation("median").field(FIELD_NAME);
 
         QueryBuilder baseQuery;
         SearchContext searchContext = createSearchContext(indexService);
@@ -595,7 +608,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                 "startree1",
                 -1,
                 List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD)),
-                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
                 baseQuery,
                 sourceBuilder,
                 true
@@ -615,7 +628,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                 "startree1",
                 -1,
                 List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD)),
-                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
                 baseQuery,
                 sourceBuilder,
                 true
@@ -625,7 +638,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
 
         // Case 3: NumericTermsQuery and non-nested metric aggregations is nested within keyword term aggregation, should use star tree
         termsAggregationBuilder = terms("term").field(KEYWORD_FIELD).subAggregation(maxAggNoSub);
-        baseQuery = new TermQueryBuilder(STATUS, 1);
+        baseQuery = new TermQueryBuilder(FIELD_NAME, 1);
         sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(termsAggregationBuilder);
         assertStarTreeContext(
             request,
@@ -635,8 +648,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                 starTreeFieldConfiguration,
                 "startree1",
                 -1,
-                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD), new NumericDimension(STATUS)),
-                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
+                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD), new NumericDimension(FIELD_NAME)),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
                 baseQuery,
                 sourceBuilder,
                 true
@@ -646,7 +659,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
 
         // Case 4: NumericTermsQuery and multiple non-nested metric aggregations is within numeric term aggregation, should use star tree
         termsAggregationBuilder = terms("term").field(NUMERIC_FIELD).subAggregation(maxAggNoSub).subAggregation(sumAggNoSub);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(STATUS, 1)).aggregation(termsAggregationBuilder);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(FIELD_NAME, 1)).aggregation(termsAggregationBuilder);
 
         assertStarTreeContext(
             request,
@@ -656,8 +669,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                 starTreeFieldConfiguration,
                 "startree1",
                 -1,
-                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD), new NumericDimension(STATUS)),
-                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
+                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD), new NumericDimension(FIELD_NAME)),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
                 baseQuery,
                 sourceBuilder,
                 true
@@ -667,12 +680,12 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
 
         // Case 5: Nested metric aggregations is nested within numeric term aggregation, should not use star tree
         termsAggregationBuilder = terms("term").field(NUMERIC_FIELD).subAggregation(sumAggSub);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(STATUS, 1)).aggregation(termsAggregationBuilder);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(FIELD_NAME, 1)).aggregation(termsAggregationBuilder);
         assertStarTreeContext(request, sourceBuilder, null, -1);
 
         // Case 6: Unsupported aggregations is nested within numeric term aggregation, should not use star tree
         termsAggregationBuilder = terms("term").field(NUMERIC_FIELD).subAggregation(medianAgg);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(STATUS, 1)).aggregation(termsAggregationBuilder);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(FIELD_NAME, 1)).aggregation(termsAggregationBuilder);
         assertStarTreeContext(request, sourceBuilder, null, -1);
 
         setStarTreeIndexSetting(null);
@@ -685,10 +698,16 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     public void testQueryParsingForRangeAggregations() throws IOException {
         setStarTreeIndexSetting("true");
 
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), true)
+            .build();
         CreateIndexRequestBuilder builder = client().admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(starStreeEnabledIndexSettings)
+            .setSettings(settings)
             .setMapping(NumericTermsAggregatorTests.getExpandedMapping(1, false));
         createIndex("test", builder);
 
@@ -710,9 +729,9 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         String NUMERIC_FIELD = "size";
         String NUMERIC_FIELD_NOT_ORDERED_DIMENSION = "rank";
 
-        MaxAggregationBuilder maxAggNoSub = max("max").field(STATUS);
-        SumAggregationBuilder sumAggSub = sum("sum").field(STATUS).subAggregation(maxAggNoSub);
-        MedianAbsoluteDeviationAggregationBuilder medianAgg = medianAbsoluteDeviation("median").field(STATUS);
+        MaxAggregationBuilder maxAggNoSub = max("max").field(FIELD_NAME);
+        SumAggregationBuilder sumAggSub = sum("sum").field(FIELD_NAME).subAggregation(maxAggNoSub);
+        MedianAbsoluteDeviationAggregationBuilder medianAgg = medianAbsoluteDeviation("median").field(FIELD_NAME);
 
         QueryBuilder baseQuery;
         SearchContext searchContext = createSearchContext(indexService);
@@ -736,7 +755,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                 "startree1",
                 -1,
                 List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD)),
-                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
                 baseQuery,
                 sourceBuilder,
                 true
@@ -746,7 +765,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
 
         // Case 2: NumericTermsQuery and non-nested metric aggregations is nested within range aggregation, should use star tree
         rangeAggregationBuilder = range("range").field(NUMERIC_FIELD).addRange(0, 100).subAggregation(maxAggNoSub);
-        baseQuery = new TermQueryBuilder(STATUS, 1);
+        baseQuery = new TermQueryBuilder(FIELD_NAME, 1);
         sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(rangeAggregationBuilder);
 
         assertStarTreeContext(
@@ -757,8 +776,8 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                 starTreeFieldConfiguration,
                 "startree1",
                 -1,
-                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD), new NumericDimension(STATUS)),
-                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
+                List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD), new NumericDimension(FIELD_NAME)),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
                 baseQuery,
                 sourceBuilder,
                 true
@@ -768,12 +787,12 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
 
         // Case 3: Nested metric aggregations within range aggregation, should not use star tree
         rangeAggregationBuilder = range("range").field(NUMERIC_FIELD).addRange(0, 100).subAggregation(sumAggSub);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(STATUS, 1)).aggregation(rangeAggregationBuilder);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(FIELD_NAME, 1)).aggregation(rangeAggregationBuilder);
         assertStarTreeContext(request, sourceBuilder, null, -1);
 
         // Case 4: Unsupported aggregations within range aggregation, should not use star tree
         rangeAggregationBuilder = range("range").field(NUMERIC_FIELD).addRange(0, 100).subAggregation(medianAgg);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(STATUS, 1)).aggregation(rangeAggregationBuilder);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new TermQueryBuilder(FIELD_NAME, 1)).aggregation(rangeAggregationBuilder);
         assertStarTreeContext(request, sourceBuilder, null, -1);
 
         // Case 5: Range Aggregation on field not in ordered dimensions, should not use star tree
@@ -801,146 +820,13 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
                 "startree1",
                 1,
                 List.of(new NumericDimension(NUMERIC_FIELD), new OrdinalDimension(KEYWORD_FIELD)),
-                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
+                List.of(new Metric(FIELD_NAME, List.of(MetricStat.SUM, MetricStat.MAX))),
                 baseQuery,
                 sourceBuilder,
                 true
             ),
             0
         );
-
-        setStarTreeIndexSetting(null);
-    }
-
-    /**
-     * Test different aggregations with different combinations of date range query
-     */
-    @LockFeatureFlag(STAR_TREE_INDEX)
-    public void testDateRangeQuery() throws IOException {
-        setStarTreeIndexSetting("true");
-        CreateIndexRequestBuilder builder = client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(starStreeEnabledIndexSettings)
-            .setMapping(DateHistogramAggregatorTests.getExpandedMapping(1, false));
-        createIndex("test", builder);
-        indexRandomDocuments(100);
-
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
-        final String DATE_FORMAT = "strict_date_optional_time||epoch_second";
-
-        IndexShard indexShard = indexService.getShard(0);
-        ShardSearchRequest request = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            new SearchRequest().allowPartialSearchResults(true),
-            indexShard.shardId(),
-            1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
-            1.0f,
-            -1,
-            null,
-            null
-        );
-        SearchContext searchContext = createSearchContext(indexService);
-        StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
-            1,
-            Collections.emptySet(),
-            StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
-        );
-
-        SumAggregationBuilder sumAggNoSub = sum("sum").field(STATUS);
-
-        final long nowMillis = System.currentTimeMillis();
-        Instant now = Instant.ofEpochMilli(nowMillis);
-        DateTimeFormatter formatter = DateTimeFormatter.ISO_INSTANT;
-        Instant startOfTodayUTC = now.truncatedTo(ChronoUnit.DAYS);
-
-        long from = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(80);
-        long to = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(20);
-        String fromDateString = formatter.format(Instant.ofEpochMilli(from));
-        String toDateString = formatter.format(Instant.ofEpochMilli(to));
-
-        // valid date-range(gte,lt) query
-        QueryBuilder queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, true)
-            .to(toDateString, false)
-            .format("strict_date_optional_time||epoch_second");
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
-        StarTreeQueryContext expectedContext = getStarTreeQueryContext(
-            searchContext,
-            starTreeFieldConfiguration,
-            "startree1",
-            -1,
-            List.of(
-                new DateDimension(
-                    TIMESTAMP_FIELD,
-                    List.of(new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH)),
-                    DateFieldMapper.Resolution.MILLISECONDS
-                ),
-                new NumericDimension(STATUS)
-            ),
-            List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
-            queryBuilder,
-            sourceBuilder,
-            true
-        );
-        assertStarTreeContext(request, sourceBuilder, expectedContext, -1);
-
-        // valid date-range(lt) query
-        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).to(toDateString, false).format(DATE_FORMAT);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
-        assertStarTreeContext(request, sourceBuilder, expectedContext, -1);
-
-        // valid date-range(gte) query
-        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, true).format(DATE_FORMAT);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
-        assertStarTreeContext(request, sourceBuilder, expectedContext, -1);
-
-        // invalid date-range(gte,lte) query
-        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, true).to(toDateString, true).format(DATE_FORMAT);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
-        assertStarTreeContext(request, sourceBuilder, null, -1);
-
-        // Query cannot be resolved by star-tree
-        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, false).to(toDateString, false).format(DATE_FORMAT);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
-        assertStarTreeContext(request, sourceBuilder, null, -1);
-
-        // Query cannot be resolved by star-tree
-        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, false).to(toDateString, true).format(DATE_FORMAT);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
-        assertStarTreeContext(request, sourceBuilder, null, -1);
-
-        TermQueryBuilder termQueryBuilder = new TermQueryBuilder(TIMESTAMP_FIELD, fromDateString);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(termQueryBuilder).aggregation(sumAggNoSub);
-        assertStarTreeContext(request, sourceBuilder, null, -1);
-
-        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(TIMESTAMP_FIELD, List.of(fromDateString, toDateString));
-        sourceBuilder = new SearchSourceBuilder().size(0).query(termsQueryBuilder).aggregation(sumAggNoSub);
-        assertStarTreeContext(request, sourceBuilder, null, -1);
-
-        from = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(240);
-        to = startOfTodayUTC.toEpochMilli() - TimeUnit.DAYS.toMillis(200);
-        fromDateString = formatter.format(Instant.ofEpochMilli(from));
-        toDateString = formatter.format(Instant.ofEpochMilli(to));
-
-        // Query resolves to MatchNoneQuery, star-tree query context will not be created
-        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, true).to(toDateString, false).format(DATE_FORMAT);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
-        assertStarTreeContext(request, sourceBuilder, null, -1);
-
-        // Query resolves to MatchNoneQuery, star-tree query context will not be created
-        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).to(toDateString, false).format(DATE_FORMAT);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
-        assertStarTreeContext(request, sourceBuilder, null, -1);
-
-        from = startOfTodayUTC.toEpochMilli() + TimeUnit.DAYS.toMillis(40);
-        fromDateString = formatter.format(Instant.ofEpochMilli(from));
-
-        // Query resolves to MatchNoneQuery, star-tree query context will not be created
-        queryBuilder = new RangeQueryBuilder(TIMESTAMP_FIELD).from(fromDateString, true).format(DATE_FORMAT);
-        sourceBuilder = new SearchSourceBuilder().size(0).query(queryBuilder).aggregation(sumAggNoSub);
-        assertStarTreeContext(request, sourceBuilder, null, -1);
 
         setStarTreeIndexSetting(null);
     }
@@ -1019,57 +905,5 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             searchContext.getQueryShardContext().setStarTreeQueryContext(starTreeQueryContext);
         }
         return starTreeQueryContext;
-    }
-
-    public void indexRandomDocuments(int totalDocs) throws IOException {
-
-        long nowMillis = Instant.now().toEpochMilli();
-        long duration180DaysMillis = TimeUnit.DAYS.toMillis(180);
-
-        BulkRequestBuilder bulkRequest = client().prepareBulk();
-        IndexRequestBuilder indexRequest;
-
-        for (int i = 0; i < totalDocs; i++) {
-            long date = nowMillis - random().nextLong(duration180DaysMillis); // Random date within last 180 days
-
-            // Create a document
-            indexRequest = client().prepareIndex("test")
-                .setSource(
-                    XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field(TIMESTAMP_FIELD, date) // Random timestamp
-                        .field(STATUS, random().nextBoolean() ? random().nextInt(10) : null) // Random status (0-9)
-                        .field(SIZE, random().nextBoolean() ? random().nextInt(100) : null) // Random size (0-99)
-                        .endObject()
-                );
-
-            bulkRequest.add(indexRequest);
-        }
-
-        // Adding 2 documents with minimum and maximum timestamp
-        indexRequest = client().prepareIndex("test")
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(TIMESTAMP_FIELD, nowMillis)
-                    .field(STATUS, random().nextBoolean() ? random().nextInt(10) : null) // Random status (0-9)
-                    .field(SIZE, random().nextBoolean() ? random().nextInt(100) : null) // Random size (0-99)
-                    .endObject()
-            );
-        bulkRequest.add(indexRequest);
-
-        indexRequest = client().prepareIndex("test")
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(TIMESTAMP_FIELD, nowMillis - duration180DaysMillis)
-                    .field(STATUS, random().nextBoolean() ? random().nextInt(10) : null) // Random status (0-9)
-                    .field(SIZE, random().nextBoolean() ? random().nextInt(100) : null) // Random size (0-99)
-                    .endObject()
-            );
-        bulkRequest.add(indexRequest);
-        bulkRequest.get();
-        client().admin().indices().prepareRefresh("test").get();
-        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).get();
     }
 }

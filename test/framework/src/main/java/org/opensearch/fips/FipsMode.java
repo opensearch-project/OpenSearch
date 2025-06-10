@@ -15,7 +15,7 @@ public class FipsMode {
     public static Check CHECK = () -> {
         try {
             return CryptoServicesRegistrar.isInApprovedOnlyMode();
-        } catch (NoClassDefFoundError | NoSuchMethodError e) {
+        } catch (NoClassDefFoundError e) {
             return false;
         }
     };

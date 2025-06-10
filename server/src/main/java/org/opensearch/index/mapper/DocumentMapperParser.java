@@ -172,11 +172,7 @@ public class DocumentMapperParser {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
-        final DocumentMapper documentMapper = docBuilder.build(mapperService);
-        if (mapperService.getIndexSettings().isDerivedSourceEnabled()) {
-            documentMapper.root().canDeriveSource();
-        }
-        return documentMapper;
+        return docBuilder.build(mapperService);
     }
 
     public static void checkNoRemainingFields(String fieldName, Map<?, ?> fieldNodeMap, Version indexVersionCreated) {

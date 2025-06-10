@@ -38,8 +38,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RunnableFuture;
@@ -64,7 +62,6 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
     private final AtomicLong insertionOrder = new AtomicLong();
     private final Queue<Runnable> current = ConcurrentCollections.newQueue();
     private final ScheduledExecutorService timer;
-    private final ConcurrentMap<Runnable, TaskMetrics> taskMetrics = new ConcurrentHashMap<>();
 
     public PrioritizedOpenSearchThreadPoolExecutor(
         String name,
@@ -117,15 +114,6 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
 
     private void addPending(List<Runnable> runnables, List<Pending> pending, boolean executing) {
         for (Runnable runnable : runnables) {
-            long executionTimeInMillis = 0;
-
-            if (executing) {
-                TaskMetrics metrics = taskMetrics.get(runnable);
-                if (metrics != null) {
-                    executionTimeInMillis = metrics.getExecutionTimeMillis();
-                }
-            }
-
             if (runnable instanceof TieBreakingPrioritizedRunnable) {
                 TieBreakingPrioritizedRunnable t = (TieBreakingPrioritizedRunnable) runnable;
                 Runnable innerRunnable = t.runnable;
@@ -134,7 +122,7 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
                       innerRunnable can be null if task is finished but not removed from executor yet,
                       see {@link TieBreakingPrioritizedRunnable#run} and {@link TieBreakingPrioritizedRunnable#runAndClean}
                      */
-                    pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing, executionTimeInMillis));
+                    pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing));
                 }
             } else if (runnable instanceof PrioritizedFutureTask) {
                 PrioritizedFutureTask t = (PrioritizedFutureTask) runnable;
@@ -142,7 +130,7 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
                 if (t.task instanceof Runnable) {
                     task = super.unwrap((Runnable) t.task);
                 }
-                pending.add(new Pending(task, t.priority, t.insertionOrder, executing, executionTimeInMillis));
+                pending.add(new Pending(task, t.priority, t.insertionOrder, executing));
             }
         }
     }
@@ -150,14 +138,12 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
         current.add(r);
-        taskMetrics.put(r, new TaskMetrics());
     }
 
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
         current.remove(r);
-        taskMetrics.remove(r); // Clean up metrics when task completes
     }
 
     public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
@@ -225,14 +211,12 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
         public final Priority priority;
         public final long insertionOrder;
         public final boolean executing;
-        public final long executionTimeInMillis;
 
-        public Pending(Object task, Priority priority, long insertionOrder, boolean executing, long executionTimeInMillis) {
+        public Pending(Object task, Priority priority, long insertionOrder, boolean executing) {
             this.task = task;
             this.priority = priority;
             this.insertionOrder = insertionOrder;
             this.executing = executing;
-            this.executionTimeInMillis = executionTimeInMillis;
         }
     }
 
@@ -307,6 +291,7 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
         public Runnable unwrap() {
             return runnable;
         }
+
     }
 
     private static final class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask> {
@@ -336,26 +321,6 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
                 return res;
             }
             return insertionOrder < pft.insertionOrder ? -1 : 1;
-        }
-    }
-
-    /**
-     * Generic class to track various task metrics.
-     * This implementation tracks task execution time, but can be extended
-     * to include additional metrics.
-     */
-    private static class TaskMetrics {
-        private final long startTimeNanos;
-
-        TaskMetrics() {
-            this.startTimeNanos = System.nanoTime();
-        }
-
-        /**
-         * Get the task execution time in milliseconds.
-         */
-        long getExecutionTimeMillis() {
-            return TimeUnit.MILLISECONDS.convert(System.nanoTime() - startTimeNanos, TimeUnit.NANOSECONDS);
         }
     }
 

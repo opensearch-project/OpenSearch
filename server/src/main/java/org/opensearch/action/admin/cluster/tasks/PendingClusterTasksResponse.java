@@ -91,8 +91,6 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
                 .append(pendingClusterTask.getSource())
                 .append("/")
                 .append(pendingClusterTask.getTimeInQueue())
-                .append("/")
-                .append(pendingClusterTask.getTimeInExecution())
                 .append("\n");
         }
         return sb.toString();
@@ -110,8 +108,6 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
             builder.field(Fields.EXECUTING, pendingClusterTask.isExecuting());
             builder.field(Fields.TIME_IN_QUEUE_MILLIS, pendingClusterTask.getTimeInQueueInMillis());
             builder.field(Fields.TIME_IN_QUEUE, pendingClusterTask.getTimeInQueue());
-            builder.field(Fields.TIME_IN_EXECUTION_MILLIS, pendingClusterTask.getTimeInExecutionInMillis());
-            builder.field(Fields.TIME_IN_EXECUTION, pendingClusterTask.getTimeInExecution());
             builder.endObject();
         }
         builder.endArray();
@@ -133,8 +129,6 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
         static final String SOURCE = "source";
         static final String TIME_IN_QUEUE_MILLIS = "time_in_queue_millis";
         static final String TIME_IN_QUEUE = "time_in_queue";
-        static final String TIME_IN_EXECUTION_MILLIS = "time_in_execution_millis";
-        static final String TIME_IN_EXECUTION = "time_in_execution";
 
     }
 

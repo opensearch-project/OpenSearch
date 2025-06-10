@@ -351,9 +351,8 @@ public class ClusterServiceIT extends OpenSearchIntegTestCase {
         clusterService.submitStateUpdateTask("1", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                invoked1.countDown();
                 try {
-                    Thread.sleep(50);
-                    invoked1.countDown();
                     block1.await();
                 } catch (InterruptedException e) {
                     fail();
@@ -396,9 +395,6 @@ public class ClusterServiceIT extends OpenSearchIntegTestCase {
         assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(10));
         assertThat(pendingClusterTasks.get(0).getSource().string(), equalTo("1"));
         assertThat(pendingClusterTasks.get(0).isExecuting(), equalTo(true));
-        assertThat(pendingClusterTasks.get(0).getTimeInExecutionInMillis(), greaterThan(0L));
-        assertThat(pendingClusterTasks.get(1).isExecuting(), equalTo(false));
-        assertThat(pendingClusterTasks.get(1).getTimeInExecutionInMillis(), equalTo(0L));
         for (PendingClusterTask task : pendingClusterTasks) {
             controlSources.remove(task.getSource().string());
         }
@@ -409,9 +405,6 @@ public class ClusterServiceIT extends OpenSearchIntegTestCase {
         assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(10));
         assertThat(response.pendingTasks().get(0).getSource().string(), equalTo("1"));
         assertThat(response.pendingTasks().get(0).isExecuting(), equalTo(true));
-        assertThat(response.pendingTasks().get(0).getTimeInExecutionInMillis(), greaterThan(0L));
-        assertThat(response.pendingTasks().get(1).isExecuting(), equalTo(false));
-        assertThat(response.pendingTasks().get(1).getTimeInExecutionInMillis(), equalTo(0L));
         for (PendingClusterTask task : response) {
             controlSources.remove(task.getSource().string());
         }

@@ -28,7 +28,6 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -40,6 +39,7 @@ import java.util.function.Supplier;
 
 import io.grpc.BindableService;
 
+import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_BIND_HOST;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_HOST;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_KEEPALIVE_TIMEOUT;
@@ -50,6 +50,7 @@ import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SET
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_HOST;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_PUBLISH_PORT;
 import static org.opensearch.plugin.transport.grpc.Netty4GrpcServerTransport.SETTING_GRPC_WORKER_COUNT;
+import static org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport.GRPC_SECURE_TRANSPORT_SETTING_KEY;
 import static org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTransport.SETTING_GRPC_SECURE_PORT;
 
 /**
@@ -89,8 +90,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin {
             throw new RuntimeException("client cannot be null");
         }
         List<BindableService> grpcServices = registerGRPCServices(new DocumentServiceImpl(client), new SearchServiceImpl(client));
-        AuxTransport transport = new Netty4GrpcServerTransport(settings, grpcServices, networkService);
-        return Collections.singletonMap(transport.settingKey(), () -> transport);
+        return Collections.singletonMap(
+            GRPC_TRANSPORT_SETTING_KEY,
+            () -> new Netty4GrpcServerTransport(settings, grpcServices, networkService)
+        );
     }
 
     /**
@@ -121,13 +124,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin {
             throw new RuntimeException("client cannot be null");
         }
         List<BindableService> grpcServices = registerGRPCServices(new DocumentServiceImpl(client), new SearchServiceImpl(client));
-        AuxTransport transport = new SecureNetty4GrpcServerTransport(
-            settings,
-            grpcServices,
-            networkService,
-            secureAuxTransportSettingsProvider
+        return Collections.singletonMap(
+            GRPC_SECURE_TRANSPORT_SETTING_KEY,
+            () -> new SecureNetty4GrpcServerTransport(settings, grpcServices, networkService, secureAuxTransportSettingsProvider)
         );
-        return Collections.singletonMap(transport.settingKey(), () -> transport);
     }
 
     /**

@@ -71,6 +71,7 @@ public class BootstrapTests extends OpenSearchTestCase {
     }
 
     public void testLoadSecureSettings() throws Exception {
+        assumeFalse("Can't use empty password in a FIPS JVM", inFipsJvm());
         final Path configPath = env.configDir();
         final SecureString seed;
         try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {

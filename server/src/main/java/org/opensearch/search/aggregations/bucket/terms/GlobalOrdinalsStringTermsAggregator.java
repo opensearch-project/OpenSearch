@@ -76,7 +76,7 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.startree.StarTreeTraversalUtil;
-import org.opensearch.search.startree.filter.MatchAllFilter;
+import org.opensearch.search.startree.filter.DimensionFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -108,6 +108,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
     LongUnaryOperator globalOperator;
+
+    /**
+     * Lookup global ordinals
+     *
+     * @opensearch.internal
+     */
+    public interface GlobalOrdLookupFunction {
+        BytesRef apply(long ord) throws IOException;
+    }
 
     public GlobalOrdinalsStringTermsAggregator(
         String name,
@@ -343,7 +352,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
                     context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
                     fieldName,
-                    List.of(new MatchAllFilter(fieldName))
+                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
                 ),
                 context
             )
@@ -366,7 +375,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
                     if (docCountsIterator.advanceExact(starTreeEntry)) {
                         long metricValue = docCountsIterator.nextValue();
-                        long bucketOrd = collectionStrategy.getOrAddBucketOrd(owningBucketOrd, ord);
+                        long bucketOrd = collectionStrategy.globalOrdToBucketOrd(0, ord);
                         collectStarTreeBucket(this, metricValue, bucketOrd, starTreeEntry);
                     }
                 }
@@ -629,7 +638,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         abstract long globalOrdToBucketOrd(long owningBucketOrd, long globalOrd);
 
         /**
-         * Iterate all the buckets. Implementations take into account
+         * Iterate all of the buckets. Implementations take into account
          * the {@link BucketCountThresholds}. In particular,
          * if the {@link BucketCountThresholds#getMinDocCount()} is 0 then
          * they'll make sure to iterate a bucket even if it was never
@@ -638,12 +647,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * they'll skip all global ords that weren't collected.
          */
         abstract void forEach(long owningBucketOrd, BucketInfoConsumer consumer) throws IOException;
-
-        /**
-         * Add a global ordinal if it hasn't been seen before.
-         * Convert the global ordinal into a bucket ordinal.
-         */
-        abstract long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) throws IOException;
     }
 
     interface BucketInfoConsumer {
@@ -692,11 +695,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     consumer.accept(globalOrd, globalOrd, docCount);
                 }
             }
-        }
-
-        @Override
-        long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) {
-            return globalOrdToBucketOrd(owningBucketOrd, globalOrd);
         }
 
         @Override
@@ -778,11 +776,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     consumer.accept(ordsEnum.value(), ordsEnum.ord(), bucketDocCount(ordsEnum.ord()));
                 }
             }
-        }
-
-        @Override
-        long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) {
-            return bucketOrds.add(owningBucketOrd, globalOrd);
         }
 
         @Override

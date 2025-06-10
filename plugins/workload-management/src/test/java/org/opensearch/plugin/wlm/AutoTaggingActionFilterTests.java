@@ -19,7 +19,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
-import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -47,11 +46,7 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("AutoTaggingActionFilterTests");
-        AttributeValueStoreFactory attributeValueStoreFactory = new AttributeValueStoreFactory(
-            WLMFeatureType.WLM,
-            DefaultAttributeValueStore::new
-        );
-        ruleProcessingService = spy(new InMemoryRuleProcessingService(attributeValueStoreFactory));
+        ruleProcessingService = spy(new InMemoryRuleProcessingService(WLMFeatureType.WLM, DefaultAttributeValueStore::new));
         autoTaggingActionFilter = new AutoTaggingActionFilter(ruleProcessingService, threadPool);
     }
 
@@ -97,6 +92,9 @@ public class AutoTaggingActionFilterTests extends OpenSearchTestCase {
         public Map<String, Attribute> getAllowedAttributesRegistry() {
             return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
         }
+
+        @Override
+        public void registerFeatureType() {}
     }
 
     public enum TestAttribute implements Attribute {

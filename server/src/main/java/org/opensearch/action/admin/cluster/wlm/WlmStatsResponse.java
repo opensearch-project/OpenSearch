@@ -33,7 +33,7 @@ public class WlmStatsResponse extends BaseNodesResponse<WlmStats> implements ToX
         super(in);
     }
 
-    public WlmStatsResponse(ClusterName clusterName, List<WlmStats> nodes, List<FailedNodeException> failures) {
+    WlmStatsResponse(ClusterName clusterName, List<WlmStats> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 

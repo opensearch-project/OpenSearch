@@ -9,13 +9,12 @@
 package org.opensearch.rule.autotagging;
 
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.BeforeClass;
 
 import static org.opensearch.rule.autotagging.AutoTaggingRegistry.MAX_FEATURE_TYPE_NAME_LENGTH;
 import static org.opensearch.rule.autotagging.RuleTests.INVALID_FEATURE;
-import static org.opensearch.rule.utils.RuleTestUtils.FEATURE_TYPE_NAME;
+import static org.opensearch.rule.autotagging.RuleTests.TEST_FEATURE_TYPE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -23,13 +22,14 @@ public class AutoTaggingRegistryTests extends OpenSearchTestCase {
 
     @BeforeClass
     public static void setUpOnce() {
-        FeatureType featureType = RuleTestUtils.MockRuleFeatureType.INSTANCE;
+        FeatureType featureType = mock(FeatureType.class);
+        when(featureType.getName()).thenReturn(TEST_FEATURE_TYPE);
         AutoTaggingRegistry.registerFeatureType(featureType);
     }
 
     public void testGetFeatureType_Success() {
-        FeatureType retrievedFeatureType = AutoTaggingRegistry.getFeatureType(FEATURE_TYPE_NAME);
-        assertEquals(FEATURE_TYPE_NAME, retrievedFeatureType.getName());
+        FeatureType retrievedFeatureType = AutoTaggingRegistry.getFeatureType(TEST_FEATURE_TYPE);
+        assertEquals(TEST_FEATURE_TYPE, retrievedFeatureType.getName());
     }
 
     public void testRuntimeException() {
@@ -39,7 +39,7 @@ public class AutoTaggingRegistryTests extends OpenSearchTestCase {
     public void testIllegalStateExceptionException() {
         assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(null));
         FeatureType featureType = mock(FeatureType.class);
-        when(featureType.getName()).thenReturn(FEATURE_TYPE_NAME);
+        when(featureType.getName()).thenReturn(TEST_FEATURE_TYPE);
         assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(featureType));
         when(featureType.getName()).thenReturn(randomAlphaOfLength(MAX_FEATURE_TYPE_NAME_LENGTH + 1));
         assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(featureType));

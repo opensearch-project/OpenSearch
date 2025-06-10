@@ -133,16 +133,7 @@ public class DimensionFilterMergerUtils {
             }
         }
 
-        String effectiveSubDimension = mapper.resolveUsingSubDimension()
-            ? mapper.getSubDimensionFieldEffective(range1.getSubDimensionName(), range2.getSubDimensionName())
-            : null;
-
-        return new RangeMatchDimFilter(range1.getDimensionName(), newLow, newHigh, includeLow, includeHigh) {
-            @Override
-            public String getSubDimensionName() {
-                return effectiveSubDimension;
-            }
-        };
+        return new RangeMatchDimFilter(range1.getDimensionName(), newLow, newHigh, includeLow, includeHigh);
     }
 
     /**

@@ -51,8 +51,7 @@ public class RangeMatchDimFilter implements DimensionFilter {
     public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
         skipRangeCollection = false;
         this.dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-            searchContext.mapperService().fieldType(dimensionName),
-            searchContext
+            searchContext.mapperService().fieldType(dimensionName)
         );
 
         lowOrdinal = 0L;
