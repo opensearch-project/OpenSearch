@@ -1066,4 +1066,18 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), nodeSettings);
         assertTrue("Index should be on remote node", settings.isAssignedOnRemoteNode());
     }
+
+    public void testUpdateDerivedSourceFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        SettingsException error = expectThrows(
+            SettingsException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put("index.derived_source.enabled", randomBoolean()).build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertThat(error.getMessage(), equalTo("final index setting [index.derived_source.enabled], not updateable"));
+    }
 }

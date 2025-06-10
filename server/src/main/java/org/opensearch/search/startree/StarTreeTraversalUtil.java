@@ -84,9 +84,11 @@ public class StarTreeTraversalUtil {
         for (String remainingPredicateColumn : starTreeResult.remainingPredicateColumns) {
             logger.debug("remainingPredicateColumn : {}, maxMatchedDoc : {} ", remainingPredicateColumn, starTreeResult.maxMatchedDoc);
 
-            StarTreeValuesIterator valuesIterator = starTreeValues.getDimensionValuesIterator(remainingPredicateColumn);
             // Get the query value directly
             List<DimensionFilter> dimensionFilters = starTreeFilter.getFiltersForDimension(remainingPredicateColumn);
+            StarTreeValuesIterator valuesIterator = starTreeValues.getDimensionValuesIterator(
+                dimensionFilters.getFirst().getMatchingDimension()
+            );
 
             // Clear the temporary bit set before reuse
             tempBitSet.clear(0, starTreeResult.maxMatchedDoc + 1);
@@ -131,7 +133,7 @@ public class StarTreeTraversalUtil {
         Queue<StarTreeNode> queue = new ArrayDeque<>();
         queue.add(starTree);
         int currentDimensionId = -1;
-        Set<String> remainingPredicateColumns = new HashSet<>(starTreeFilter.getDimensions());
+        Set<String> remainingPredicateColumns = new HashSet<>(starTreeFilter.getMatchingDimensions());
         int matchedDocsCountInStarTree = 0;
         int maxDocNum = -1;
         StarTreeNode starTreeNode;
