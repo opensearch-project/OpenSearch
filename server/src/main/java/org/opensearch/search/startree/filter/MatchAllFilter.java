@@ -46,7 +46,8 @@ public class MatchAllFilter implements DimensionFilter {
         if (parentNode != null) {
             for (Iterator<? extends StarTreeNode> it = parentNode.getChildrenIterator(); it.hasNext();) {
                 StarTreeNode starTreeNode = it.next();
-                if (starTreeNode.getStarTreeNodeType() == StarTreeNodeType.DEFAULT.getValue()) {
+                if (starTreeNode.getStarTreeNodeType() == StarTreeNodeType.DEFAULT.getValue()
+                    || starTreeNode.getStarTreeNodeType() == StarTreeNodeType.NULL.getValue()) {
                     collector.collectStarTreeNode(starTreeNode);
                 }
             }
@@ -66,5 +67,4 @@ public class MatchAllFilter implements DimensionFilter {
     public String getSubDimensionName() {
         return subDimensionName;
     }
-
 }
