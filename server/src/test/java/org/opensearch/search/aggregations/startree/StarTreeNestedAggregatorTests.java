@@ -30,7 +30,6 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.codec.composite.composite101.Composite101Codec;
@@ -58,8 +57,6 @@ import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.InternalTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,7 +66,6 @@ import java.util.Random;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
@@ -93,19 +89,6 @@ public class StarTreeNestedAggregatorTests extends DateHistogramAggregatorTestCa
         NumberFieldMapper.NumberType.LONG
     );
     private static final MappedFieldType SIZE_FIELD_TYPE = new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.LONG);
-    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
-
-    @Before
-    public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-        // FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
-    }
-
-    @After
-    public void teardown() throws IOException {
-        fflock.close();
-        // FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
-    }
 
     protected Codec getCodec() {
         final Logger testLogger = LogManager.getLogger(MetricAggregatorTests.class);

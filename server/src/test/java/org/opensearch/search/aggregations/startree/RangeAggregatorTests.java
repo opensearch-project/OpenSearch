@@ -27,7 +27,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.codec.composite.composite101.Composite101Codec;
@@ -44,8 +43,6 @@ import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.bucket.range.InternalRange;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +50,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Random;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
@@ -63,7 +59,6 @@ import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 public class RangeAggregatorTests extends AggregatorTestCase {
-    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
     final static String STATUS = "status";
     final static String SIZE = "size";
     private static final MappedFieldType STATUS_FIELD_TYPE = new NumberFieldMapper.NumberFieldType(
@@ -71,16 +66,6 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         NumberFieldMapper.NumberType.LONG
     );
     private static final MappedFieldType SIZE_FIELD_NAME = new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.FLOAT);
-
-    @Before
-    public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-    }
-
-    @After
-    public void teardown() throws IOException {
-        fflock.close();
-    }
 
     protected Codec getCodec() {
         final Logger testLogger = LogManager.getLogger(NumericTermsAggregatorTests.class);
