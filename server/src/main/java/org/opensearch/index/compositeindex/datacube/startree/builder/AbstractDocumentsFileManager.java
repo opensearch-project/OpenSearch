@@ -246,7 +246,7 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
             } else if (aggregatedValueType instanceof CompensatedSumType) {
                 long val = input.readLong(offset);
                 if (isAggregatedDoc) {
-                    metrics[i] = new CompensatedSum(DOUBLE.toDoubleValue(val), 0);
+                    metrics[i] = new CompensatedSum(aggregatedValueType.toDoubleValue(val), 0);
                 } else {
                     metrics[i] = val;
                 }
