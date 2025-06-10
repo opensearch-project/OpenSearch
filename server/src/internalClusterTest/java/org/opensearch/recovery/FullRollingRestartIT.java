@@ -38,6 +38,9 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.action.bulk.BulkRequestBuilder;
+import org.opensearch.action.bulk.BulkResponse;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
@@ -49,13 +52,23 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -395,5 +408,434 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
+    }
+
+    public void testDerivedSourceRollingRestart() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "text_field": {
+                  "type": "text",
+                  "store": true
+                },
+                "keyword_field": {
+                  "type": "keyword"
+                },
+                "numeric_field": {
+                  "type": "long"
+                },
+                "date_field": {
+                  "type": "date"
+                }
+              }
+            }""";
+
+        // Start initial node
+        internalCluster().startNode();
+        assertAcked(
+            prepareCreate(
+                "test",
+                Settings.builder()
+                    .put("index.number_of_shards", 3)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+            ).setMapping(mapping)
+        );
+
+        // Index test data
+        int docCount = randomIntBetween(1000, 2000);
+        bulkIndexDocuments(docCount);
+
+        ensureGreen();
+
+        // Start rolling restart with verification
+        logger.info("--> starting rolling restart with {} initial docs", docCount);
+        rollingRestartWithVerification(docCount);
+    }
+
+    public void testDerivedSourceWithMixedVersionRollingRestart() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "text_field": {
+                  "type": "text",
+                  "store": true
+                },
+                "multi_field": {
+                  "properties": {
+                    "keyword_field": {
+                      "type": "keyword"
+                    },
+                    "long_field": {
+                      "type": "long"
+                    },
+                    "boolean_field": {
+                       "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }""";
+
+        // Start initial cluster
+        internalCluster().startNode();
+        assertAcked(
+            prepareCreate(
+                "test",
+                Settings.builder()
+                    .put("index.number_of_shards", 3)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+                    .put("index.refresh_interval", "1s") // Ensure regular refreshes
+            ).setMapping(mapping)
+        );
+
+        // Index initial documents
+        int docCount = randomIntBetween(500, 1000);
+        bulkIndexMultiFieldDocuments(docCount, 0);
+
+        // Ensure documents are visible
+        flush("test");
+        refresh("test");
+
+        // Verify initial document count
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), docCount);
+
+        // Add replicas before starting new nodes
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2))
+        );
+
+        // Add nodes and additional documents
+        int totalDocs = docCount;
+        for (int i = 0; i < 2; i++) {
+            internalCluster().startNode();
+
+            // Add more documents
+            int additionalDocs = randomIntBetween(100, 200);
+            bulkIndexMultiFieldDocuments(additionalDocs, totalDocs);
+            totalDocs += additionalDocs;
+
+            // Ensure all documents are visible
+            flush("test");
+            refresh("test");
+
+            // Verify document count and contents
+            int finalTotalDocs = totalDocs;
+            assertBusy(() -> { verifyDerivedSourceWithMultiField(finalTotalDocs); }, 30, TimeUnit.SECONDS);
+        }
+
+        ensureGreen("test");
+
+        // Rolling restart
+        for (String node : internalCluster().getNodeNames()) {
+            internalCluster().restartNode(node);
+            ensureGreen("test");
+
+            // Verify after each node restart
+            int finalTotalDocs1 = totalDocs;
+            assertBusy(() -> { verifyDerivedSourceWithMultiField(finalTotalDocs1); }, 30, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testDerivedSourceWithConcurrentUpdatesRollingRestart() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "text_field": {
+                  "type": "text",
+                  "store": true
+                },
+                "counter": {
+                  "type": "long"
+                },
+                "last_updated": {
+                  "type": "date"
+                },
+                "version": {
+                  "type": "long"
+                }
+              }
+            }""";
+
+        // Start initial node
+        internalCluster().startNode();
+        assertAcked(
+            prepareCreate(
+                "test",
+                Settings.builder()
+                    .put("index.number_of_shards", 3)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+                    .put("index.refresh_interval", "1s")
+            ).setMapping(mapping)
+        );
+
+        // Initial indexing
+        int docCount = randomIntBetween(100, 200); // Reduced count for stability
+        BulkRequestBuilder bulkRequest = client().prepareBulk();
+        for (int i = 0; i < docCount; i++) {
+            bulkRequest.add(
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource("text_field", "text value " + i, "counter", 0, "last_updated", System.currentTimeMillis(), "version", 0)
+            );
+
+            if (i % 100 == 0) {
+                BulkResponse response = bulkRequest.execute().actionGet();
+                assertFalse(response.hasFailures());
+                bulkRequest = client().prepareBulk();
+            }
+        }
+        if (bulkRequest.numberOfActions() > 0) {
+            BulkResponse response = bulkRequest.execute().actionGet();
+            assertFalse(response.hasFailures());
+        }
+
+        refresh("test");
+        flush("test");
+        ensureGreen();
+
+        // Verify initial document count
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), docCount);
+
+        // Start concurrent updates during rolling restart
+        logger.info("--> starting rolling restart with concurrent updates");
+        concurrentUpdatesRollingRestartWithVerification(docCount);
+    }
+
+    private void concurrentUpdatesRollingRestartWithVerification(int initialDocCount) throws Exception {
+        AtomicBoolean stop = new AtomicBoolean(false);
+        AtomicInteger totalUpdates = new AtomicInteger(0);
+        CountDownLatch updateLatch = new CountDownLatch(1);
+
+        // Start concurrent update thread
+        Thread updateThread = new Thread(() -> {
+            try {
+                updateLatch.await(); // Wait for cluster to be ready
+                while (stop.get() == false) {
+                    try {
+                        int docId = randomIntBetween(0, initialDocCount - 1);
+                        client().prepareUpdate("test", String.valueOf(docId))
+                            .setRetryOnConflict(3)
+                            .setDoc("counter", randomIntBetween(0, 1000), "last_updated", System.currentTimeMillis(), "version", 1)
+                            .execute()
+                            .actionGet();
+                        totalUpdates.incrementAndGet();
+                        Thread.sleep(10);
+                    } catch (Exception e) {
+                        if (e instanceof InterruptedException) {
+                            break;
+                        }
+                        logger.warn("Error in update thread", e);
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        updateThread.start();
+
+        try {
+            // Add replicas
+            assertAcked(
+                client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2))
+            );
+
+            // Start additional nodes
+            for (int i = 0; i < 2; i++) {
+                internalCluster().startNode();
+            }
+            ensureGreen("test");
+
+            // Start updates
+            updateLatch.countDown();
+
+            // Wait for some updates to occur
+            Thread.sleep(2000);
+
+            // Rolling restart of all nodes
+            for (String node : internalCluster().getNodeNames()) {
+                internalCluster().restartNode(node);
+                ensureGreen(TimeValue.timeValueMinutes(2));
+                verifyDerivedSourceWithUpdates(initialDocCount);
+            }
+        } finally {
+            stop.set(true);
+            updateThread.join();
+        }
+
+        logger.info("--> performed {} concurrent updates during rolling restart", totalUpdates.get());
+        refresh("test");
+        flush("test");
+        verifyDerivedSourceWithUpdates(initialDocCount);
+    }
+
+    private void verifyDerivedSourceWithUpdates(int expectedDocs) throws Exception {
+        assertBusy(() -> {
+            SearchResponse response = client().prepareSearch("test")
+                .setSize(expectedDocs)
+                .addSort("last_updated", SortOrder.DESC) // Sort by version to ensure we see latest updates
+                .get();
+            assertHitCount(response, expectedDocs);
+
+            for (SearchHit hit : response.getHits()) {
+                Map<String, Object> source = hit.getSourceAsMap();
+                String id = hit.getId();
+
+                // Verify all required fields are present
+                assertEquals("text value " + id, source.get("text_field"));
+                assertNotNull("counter missing for doc " + id, source.get("counter"));
+                assertFalse(((String) source.get("last_updated")).isEmpty());
+                assertEquals(1, source.get("version"));
+
+                // Verify text_field maintains original value
+                assertEquals("text value " + id, source.get("text_field"));
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void bulkIndexDocuments(int docCount) throws Exception {
+        BulkRequestBuilder bulkRequest = client().prepareBulk();
+        for (int i = 0; i < docCount; i++) {
+            bulkRequest.add(
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource(
+                        "text_field",
+                        "text value " + i,
+                        "keyword_field",
+                        "key_" + i,
+                        "numeric_field",
+                        i,
+                        "date_field",
+                        System.currentTimeMillis()
+                    )
+            );
+
+            if (i % 100 == 0) {
+                bulkRequest.execute().actionGet();
+                bulkRequest = client().prepareBulk();
+            }
+        }
+        if (bulkRequest.numberOfActions() > 0) {
+            bulkRequest.execute().actionGet();
+        }
+        refresh();
+    }
+
+    private void bulkIndexMultiFieldDocuments(int docCount, int startingId) throws Exception {
+        BulkRequestBuilder bulkRequest = client().prepareBulk();
+        for (int i = 0; i < docCount; i++) {
+            int id = startingId + i;
+            Map<String, Object> multiFieldObj = new HashMap<>();
+            multiFieldObj.put("keyword_field", "keyword_" + id);
+            multiFieldObj.put("long_field", id);
+            multiFieldObj.put("boolean_field", id % 2 == 0);
+
+            bulkRequest.add(
+                client().prepareIndex("test")
+                    .setId(String.valueOf(id))
+                    .setSource("text_field", "text value " + id, "multi_field", multiFieldObj)
+            );
+
+            if (i % 100 == 0) {
+                BulkResponse response = bulkRequest.execute().actionGet();
+                assertFalse(response.hasFailures());
+                bulkRequest = client().prepareBulk();
+            }
+        }
+        if (bulkRequest.numberOfActions() > 0) {
+            BulkResponse response = bulkRequest.execute().actionGet();
+            assertFalse(response.hasFailures());
+        }
+    }
+
+    private void verifyDerivedSourceWithMultiField(int expectedDocs) {
+        // Search with preference to primary to ensure consistency
+        SearchResponse response = client().prepareSearch("test")
+            .setSize(expectedDocs)
+            .setPreference("_primary")
+            .addSort("multi_field.long_field", SortOrder.ASC)
+            .get();
+
+        assertHitCount(response, expectedDocs);
+
+        int previousId = -1;
+        for (SearchHit hit : response.getHits()) {
+            Map<String, Object> source = hit.getSourceAsMap();
+            Map<String, Object> multiField = (Map<String, Object>) source.get("multi_field");
+
+            int currentId = ((Number) multiField.get("long_field")).intValue();
+            assertTrue("Documents should be in order", currentId > previousId);
+            previousId = currentId;
+
+            assertEquals("text value " + currentId, source.get("text_field"));
+            assertEquals("keyword_" + currentId, multiField.get("keyword_field"));
+            assertEquals(currentId % 2 == 0, multiField.get("boolean_field"));
+        }
+    }
+
+    private void rollingRestartWithVerification(int initialDocCount) throws Exception {
+        final String healthTimeout = "1m";
+        int currentNodes = 1;
+
+        // Add replicas
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 2))
+        );
+
+        // Add nodes
+        for (int i = 0; i < 2; i++) {
+            internalCluster().startNode();
+            currentNodes++;
+            assertTimeout(
+                client().admin()
+                    .cluster()
+                    .prepareHealth()
+                    .setWaitForEvents(Priority.LANGUID)
+                    .setTimeout(healthTimeout)
+                    .setWaitForNoRelocatingShards(true)
+                    .setWaitForNodes(String.valueOf(currentNodes))
+            );
+            verifyDerivedSource(initialDocCount);
+        }
+
+        ensureGreen();
+
+        // Remove nodes
+        for (int i = 0; i < 2; i++) {
+            internalCluster().stopRandomDataNode();
+            currentNodes--;
+            assertTimeout(
+                client().admin()
+                    .cluster()
+                    .prepareHealth()
+                    .setWaitForEvents(Priority.LANGUID)
+                    .setTimeout(healthTimeout)
+                    .setWaitForNodes(String.valueOf(currentNodes))
+                    .setWaitForYellowStatus()
+            );
+            verifyDerivedSource(initialDocCount);
+        }
+    }
+
+    private void verifyDerivedSource(int expectedDocs) throws Exception {
+        refresh();
+        assertBusy(() -> {
+            SearchResponse response = client().prepareSearch("test").setSize(expectedDocs).addSort("numeric_field", SortOrder.ASC).get();
+            assertHitCount(response, expectedDocs);
+
+            for (SearchHit hit : response.getHits()) {
+                Map<String, Object> source = hit.getSourceAsMap();
+                String id = hit.getId();
+                int docId = Integer.parseInt(id);
+
+                assertEquals("text value " + docId, source.get("text_field"));
+                assertEquals("key_" + docId, source.get("keyword_field"));
+                assertEquals(docId, source.get("numeric_field"));
+                assertNotNull(source.get("date_field"));
+            }
+        });
     }
 }
