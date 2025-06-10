@@ -152,6 +152,7 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.autoforcemerge.AutoForceMergeManager;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
@@ -370,7 +371,6 @@ public class Node implements Closeable {
      * Note that this does not control whether the node stores actual indices (see
      * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
      * and {@link #NODE_MASTER_SETTING} must also be false.
-     *
      */
     public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting(
         "node.local_storage",
@@ -452,7 +452,7 @@ public class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
     private final Tracer tracer;
-
+    private final AutoForceMergeManager autoForceMergeManager;
     private final MetricsRegistry metricsRegistry;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
@@ -1172,6 +1172,8 @@ public class Node implements Closeable {
                 workloadGroupService
             );
 
+            this.autoForceMergeManager = new AutoForceMergeManager(threadPool, monitorService, indicesService, clusterService);
+
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
                 .stream()
                 .map(p -> p.getSecureSettingFactory(settings))
@@ -1585,6 +1587,7 @@ public class Node implements Closeable {
                 b.bind(SegmentReplicator.class).toInstance(segmentReplicator);
                 b.bind(MergedSegmentWarmerFactory.class).toInstance(mergedSegmentWarmerFactory);
                 b.bind(MappingTransformerRegistry.class).toInstance(mappingTransformerRegistry);
+                b.bind(AutoForceMergeManager.class).toInstance(autoForceMergeManager);
 
                 taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });
@@ -1787,6 +1790,7 @@ public class Node implements Closeable {
         // start after transport service so the local disco is known
         discovery.start(); // start before cluster service so that it can set initial state on ClusterApplierService
         clusterService.start();
+        this.autoForceMergeManager.start();
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
@@ -1881,7 +1885,7 @@ public class Node implements Closeable {
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
         nodeService.getTaskCancellationMonitoringService().stop();
-
+        autoForceMergeManager.stop();
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
@@ -1981,7 +1985,7 @@ public class Node implements Closeable {
         if (logger.isTraceEnabled()) {
             toClose.add(() -> logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint()));
         }
-
+        autoForceMergeManager.stop();
         IOUtils.close(toClose);
         logger.info("closed");
     }
