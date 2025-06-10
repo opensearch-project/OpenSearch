@@ -57,6 +57,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
@@ -243,7 +244,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.recoveryTargetService = recoveryTargetService;
-        this.shardStateAction = clusterService.getClusterManagerService() == null ? null : shardStateAction;
+        this.shardStateAction = shardStateAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
         this.repositoriesService = repositoriesService;
         this.primaryReplicaSyncer = primaryReplicaSyncer;
@@ -831,14 +832,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     public void handleRecoveryDone(ReplicationState state, ShardRouting shardRouting, long primaryTerm) {
         RecoveryState recoveryState = (RecoveryState) state;
-        if (shardStateAction != null) {
-            shardStateAction.shardStarted(
-                shardRouting,
-                primaryTerm,
-                "after " + recoveryState.getRecoverySource(),
-                SHARD_STATE_ACTION_LISTENER
-            );
-        } else {
+        if (FeatureFlags.isEnabled(FeatureFlags.CLUSTERLESS_FLAG)) {
             // We're running in "clusterless" mode. Apply the state change directly to the local cluster state.
             ClusterState clusterState = clusterService.state();
             RoutingTable routingTable = clusterState.getRoutingTable();
@@ -863,6 +857,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             clusterStateBuilder.routingTable(routingTableBuilder.build());
             clusterService.getClusterApplierService()
                 .onNewClusterState("shard-started " + shardRouting.shardId(), clusterStateBuilder::build, (s, e) -> {});
+        } else {
+            shardStateAction.shardStarted(
+                shardRouting,
+                primaryTerm,
+                "after " + recoveryState.getRecoverySource(),
+                SHARD_STATE_ACTION_LISTENER
+            );
         }
     }
 
