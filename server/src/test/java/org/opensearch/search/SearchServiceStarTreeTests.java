@@ -17,7 +17,6 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexService;
@@ -255,7 +254,6 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testStarTreeNestedAggregations() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
         setStarTreeIndexSetting("true");
 
         Settings settings = Settings.builder()
