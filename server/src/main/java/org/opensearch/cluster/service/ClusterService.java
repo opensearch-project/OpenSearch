@@ -376,6 +376,9 @@ public class ClusterService extends AbstractLifecycleComponent {
         clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
     }
 
+    /**
+     * @return the class to use to handle shard state actions. Subclasses may provide a different implementation.
+     */
     public Class<?> getShardStateActionClass() {
         return ShardStateAction.class;
     }

@@ -20,6 +20,10 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
+/**
+ * A local implementation of {@link ClusterService} that assumes we have no cluster manager.
+ * This is used in clusterless mode.
+ */
 public class LocalClusterService extends ClusterService {
     public LocalClusterService(
         Settings settings,

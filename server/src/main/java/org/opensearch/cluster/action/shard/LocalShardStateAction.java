@@ -21,6 +21,10 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+/**
+ * A local implementation of {@link ShardStateAction} that applies shard state changes directly to the
+ * local cluster state. This is used in clusterless mode, where there is no cluster manager.
+ */
 public class LocalShardStateAction extends ShardStateAction {
     @Inject
     public LocalShardStateAction(
