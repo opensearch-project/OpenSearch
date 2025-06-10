@@ -75,7 +75,7 @@ public class ConcurrentQueryTimingProfileBreakdown extends AbstractQueryTimingPr
 
     @Override
     public AbstractTimingProfileBreakdown getPluginBreakdown(Object context) {
-        final QueryTimingProfileBreakdown profile = (QueryTimingProfileBreakdown) contexts.get(context);
+        final QueryTimingProfileBreakdown profile = (QueryTimingProfileBreakdown) context(context);
 
         if (profile != null) {
             return profile.getPluginBreakdown(context);

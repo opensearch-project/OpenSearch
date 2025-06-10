@@ -10,6 +10,7 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 
 import java.util.List;
@@ -18,6 +19,7 @@ import java.util.Map;
 /**
  * A {@link AbstractTimingProfileBreakdown} for query timings with contexts.
  */
+@PublicApi(since="3.0.0")
 public abstract class AbstractQueryTimingProfileBreakdown extends AbstractTimingProfileBreakdown {
 
     public abstract AbstractQueryTimingProfileBreakdown context(Object context);

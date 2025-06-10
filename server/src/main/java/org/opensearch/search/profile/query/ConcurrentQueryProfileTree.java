@@ -32,7 +32,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
 
     @Override
     protected AbstractQueryTimingProfileBreakdown createProfileBreakdown(Query query) {
-        if(pluginBreakdownClasses != null) {
+        if(pluginBreakdownClasses != null && pluginBreakdownClasses.get(query.getClass()) != null) {
             return new ConcurrentQueryTimingProfileBreakdown(pluginBreakdownClasses.get(query.getClass()));
         }
         return new ConcurrentQueryTimingProfileBreakdown(null);
