@@ -116,7 +116,64 @@ permissions:
 #   | https://docs.github.com/en/actions/learn-github-actions/expressions#example
 
 jobs:
+  get-versions-wazuh-indexer:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      opensearch_version: ${{ steps.version.outputs.opensearch_version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get Wazuh Indexer version
+        id: version
+        run: |
+          # Get the Wazuh Indexer version using the product_version.sh script
+          echo "version=$(bash ./build-scripts/product_version.sh)" >> "$GITHUB_OUTPUT"
+
+          # Extracts the Opensearch version using the upstream-version.sh script
+          opensearch_version=$(bash ./build-scripts/upstream-version.sh)
+          echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
+  
+  get-versions-wazuh-indexer-plugins:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.plugins_version.outputs.version }}
+      opensearch_version: ${{ steps.plugins_version.outputs.opensearch_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: wazuh/wazuh-indexer-plugins
+          ref: ${{ inputs.wazuh_plugins_ref }}
+
+      - name: Read versions from wazuh-indexer-plugins
+        id: plugins_version
+        run: |
+          ls scripts/
+          echo "version=$(bash ./scripts/product_version.sh)" >> "$GITHUB_OUTPUT"
+
+          # Extracts the Opensearch version
+          opensearch_version=$(bash scripts/opensearch_version.sh "setup") >> "$GITHUB_OUTPUT"
+          echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
+
+  compatibility-check:
+    runs-on: ubuntu-24.04
+    needs: [get-versions-wazuh-indexer, get-versions-wazuh-indexer-plugins]
+    steps:
+      - name: Check version compatibility
+        run: |
+          if [[ "${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.version }}" ]]; then
+            echo "The Wazuh Indexer version is not compatible with the plugins version."
+            exit 1
+          elif [[ "${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.opensearch_version }}" ]]; then
+            echo "The Wazuh Indexer Opensearch version is not compatible with the plugins Opensearch version."
+            exit 1
+          else
+            echo "The Wazuh Indexer version and the plugins version are compatible."
+            exit 0
+          fi
+
   setup:
+    needs: [compatibility-check]
     name: Set up variables
     runs-on: ubuntu-24.04
     outputs:
@@ -144,6 +201,7 @@ jobs:
           echo "previous_version=$PREVIOUS" >> $GITHUB_OUTPUT
 
   build-wazuh-plugins:
+    needs: [compatibility-check]
     if: ${{ inputs.wazuh_plugins_ref != '' }}
     strategy:
       fail-fast: false

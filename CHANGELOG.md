@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add new users, roles and mappings [(#886)](https://github.com/wazuh/wazuh-indexer/pull/886)
 - Add custom GitHub Action to validate commiter's emails by domain [(#896)](https://github.com/wazuh/wazuh-indexer/pull/896)
 - Migrate to OpenSearch 3.0.0 [(#903)](https://github.com/wazuh/wazuh-indexer/pull/903)
+- Add Wazuh version comparison [(#936)](https://github.com/wazuh/wazuh-indexer/pull/936)
 
 ### Fixed
 - Fix Snapshot rename replacement unbounded length rename ([#20464](https://github.com/opensearch-project/OpenSearch/issues/20464))
