@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  *
  * <pre>
  * {@code
- * T something = AccessController.doPrivilegedChecked((Callable<T>) () -> {
+ * T something = AccessController.doPrivilegedChecked(() -> {
  *     // code that requires privileges and may throw a checked exception
  *     return something;
  *     // or
