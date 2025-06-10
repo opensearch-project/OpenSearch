@@ -73,7 +73,6 @@ import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -381,17 +380,7 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
 
     @Override
     public List<String> getDimensionFilters() {
-        List<String> dimensionsToMerge = new ArrayList<>();
-        dimensionsToMerge.add(fieldName);
-
-        for (Aggregator subAgg : subAggregators) {
-            if (subAgg instanceof StarTreePreComputeCollector collector) {
-                List<String> childFilters = collector.getDimensionFilters();
-                dimensionsToMerge.addAll(childFilters != null ? childFilters : Collections.emptyList());
-            }
-        }
-
-        return dimensionsToMerge;
+        return StarTreeQueryHelper.collectDimensionFilters(fieldName, subAggregators);
     }
 
     @Override

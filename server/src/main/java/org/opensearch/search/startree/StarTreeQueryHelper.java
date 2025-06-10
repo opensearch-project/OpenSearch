@@ -22,13 +22,17 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -243,6 +247,20 @@ public class StarTreeQueryHelper {
                 context
             )
             : null;
+    }
+
+    public static List<String> collectDimensionFilters(String initialDimension, Aggregator[] subAggregators) {
+        List<String> dimensions = new ArrayList<>();
+        dimensions.add(initialDimension);
+
+        for (Aggregator subAgg : subAggregators) {
+            if (subAgg instanceof StarTreePreComputeCollector collector) {
+                List<String> childFilters = collector.getDimensionFilters();
+                dimensions.addAll(childFilters != null ? childFilters : Collections.emptyList());
+            }
+        }
+
+        return dimensions;
     }
 
 }

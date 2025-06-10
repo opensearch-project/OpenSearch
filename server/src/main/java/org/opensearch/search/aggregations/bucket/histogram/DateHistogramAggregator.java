@@ -67,7 +67,6 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -284,17 +283,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
     @Override
     public List<String> getDimensionFilters() {
-        List<String> dimensionsToMerge = new ArrayList<>();
-        dimensionsToMerge.add(starTreeDateDimension);
-
-        for (Aggregator subAgg : subAggregators) {
-            if (subAgg instanceof StarTreePreComputeCollector collector) {
-                List<String> childFilters = collector.getDimensionFilters();
-                dimensionsToMerge.addAll(childFilters != null ? childFilters : Collections.emptyList());
-            }
-        }
-
-        return dimensionsToMerge;
+        return StarTreeQueryHelper.collectDimensionFilters(starTreeDateDimension, subAggregators);
     }
 
     @Override

@@ -70,9 +70,7 @@ import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -170,17 +168,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
     @Override
     public List<String> getDimensionFilters() {
-        List<String> dimensionsToMerge = new ArrayList<>();
-        dimensionsToMerge.add(fieldName);
-
-        for (Aggregator subAgg : subAggregators) {
-            if (subAgg instanceof StarTreePreComputeCollector collector) {
-                List<String> childFilters = collector.getDimensionFilters();
-                dimensionsToMerge.addAll(childFilters != null ? childFilters : Collections.emptyList());
-            }
-        }
-
-        return dimensionsToMerge;
+        return StarTreeQueryHelper.collectDimensionFilters(fieldName, subAggregators);
     }
 
     public StarTreeBucketCollector getStarTreeBucketCollector(
