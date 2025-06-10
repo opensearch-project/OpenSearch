@@ -42,6 +42,7 @@ import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.NodeConnectionsService;
+import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.RerouteService;
@@ -51,7 +52,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
@@ -106,9 +106,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         this(
             settings,
             clusterSettings,
-            FeatureFlags.isEnabled(FeatureFlags.CLUSTERLESS_FLAG)
-                ? null
-                : new ClusterManagerService(settings, clusterSettings, threadPool, clusterManagerMetrics),
+            new ClusterManagerService(settings, clusterSettings, threadPool, clusterManagerMetrics),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, clusterManagerMetrics)
         );
     }
@@ -147,24 +145,18 @@ public class ClusterService extends AbstractLifecycleComponent {
     @Override
     protected synchronized void doStart() {
         clusterApplierService.start();
-        if (clusterManagerService != null) {
-            clusterManagerService.start();
-        }
+        clusterManagerService.start();
     }
 
     @Override
     protected synchronized void doStop() {
-        if (clusterManagerService != null) {
-            clusterManagerService.stop();
-        }
+        clusterManagerService.stop();
         clusterApplierService.stop();
     }
 
     @Override
     protected synchronized void doClose() {
-        if (clusterManagerService != null) {
-            clusterManagerService.close();
-        }
+        clusterManagerService.close();
         clusterApplierService.close();
     }
 
@@ -314,10 +306,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      * @return throttling task key which needs to be passed while submitting task to cluster manager
      */
     public ClusterManagerTaskThrottler.ThrottlingKey registerClusterManagerTask(ClusterManagerTask task, boolean throttlingEnabled) {
-        if (clusterManagerService != null) {
-            return clusterManagerService.registerClusterManagerTask(task, throttlingEnabled);
-        }
-        return null;
+        return clusterManagerService.registerClusterManagerTask(task, throttlingEnabled);
     }
 
     /**
@@ -384,11 +373,10 @@ public class ClusterService extends AbstractLifecycleComponent {
         final ClusterStateTaskConfig config,
         final ClusterStateTaskExecutor<T> executor
     ) {
-        if (clusterManagerService == null) {
-            throw new UnsupportedOperationException(
-                "Cannot submit cluster state update tasks when cluster manager service is not available"
-            );
-        }
         clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
+    }
+
+    public Class<?> getShardStateActionClass() {
+        return ShardStateAction.class;
     }
 }
