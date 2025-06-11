@@ -13,12 +13,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Implement parallel shard refresh behind cluster settings ([#17782](https://github.com/opensearch-project/OpenSearch/pull/17782))
 - Bump OpenSearch Core main branch to 3.0.0 ([#18039](https://github.com/opensearch-project/OpenSearch/pull/18039))
 - [Rule based Auto-tagging] Add wlm `ActionFilter` ([#17791](https://github.com/opensearch-project/OpenSearch/pull/17791))
+- [Rule based auto-tagging] Add update rule API ([#17797](https://github.com/opensearch-project/OpenSearch/pull/17797))
+- [Rule based auto-tagging] Bug fix for update rule api ([#18488](https://github.com/opensearch-project/OpenSearch/pull/18488))
 - Update API of Message in index to add the timestamp for lag calculation in ingestion polling ([#17977](https://github.com/opensearch-project/OpenSearch/pull/17977/))
 - Add Warm Disk Threshold Allocation Decider for Warm shards ([#18082](https://github.com/opensearch-project/OpenSearch/pull/18082))
 - Add composite directory factory ([#17988](https://github.com/opensearch-project/OpenSearch/pull/17988))
 - [Rule based auto-tagging] Add refresh based synchronization service for `Rule`s ([#18128](https://github.com/opensearch-project/OpenSearch/pull/18128))
 - Add pull-based ingestion error metrics and make internal queue size configurable ([#18088](https://github.com/opensearch-project/OpenSearch/pull/18088))
-- Adding support for derive source feature and implementing it for various type of field mappers ([#17759](https://github.com/opensearch-project/OpenSearch/pull/17759))
+- [Derive Source] Adding support for derive source feature and implementing it for various type of field mappers ([#17759](https://github.com/opensearch-project/OpenSearch/pull/17759))
+- [Derive Source] Adding integration of derived source feature across diff paths ([#18054](https://github.com/opensearch-project/OpenSearch/pull/18054))
 - [Security Manager Replacement] Enhance Java Agent to intercept newByteChannel ([#17989](https://github.com/opensearch-project/OpenSearch/pull/17989))
 - Enabled Async Shard Batch Fetch by default ([#18139](https://github.com/opensearch-project/OpenSearch/pull/18139))
 - Allow to get the search request from the QueryCoordinatorContext ([#17818](https://github.com/opensearch-project/OpenSearch/pull/17818))
@@ -26,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Improve sort-query performance by retaining the default `totalHitsThreshold` for approximated `match_all` queries ([#18189](https://github.com/opensearch-project/OpenSearch/pull/18189))
 - Enable testing for ExtensiblePlugins using classpath plugins ([#16908](https://github.com/opensearch-project/OpenSearch/pull/16908))
 - Introduce system generated ingest pipeline ([#17817](https://github.com/opensearch-project/OpenSearch/pull/17817)))
+- Added Auto Force Merge Manager to enhance hot to warm migration experience ([#18229](https://github.com/opensearch-project/OpenSearch/pull/18229))
 - Apply cluster state metadata and routing table diff when building cluster state from remote([#18256](https://github.com/opensearch-project/OpenSearch/pull/18256))
 - Support create mode in pull-based ingestion and add retries for transient failures ([#18250](https://github.com/opensearch-project/OpenSearch/pull/18250)))
 - Decouple the init of Crypto Plugin and KeyProvider in CryptoRegistry ([18270](https://github.com/opensearch-project/OpenSearch/pull18270)))
@@ -41,6 +45,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added File Cache Pinning ([#17617](https://github.com/opensearch-project/OpenSearch/issues/13648))
 - Support consumer reset in Resume API for pull-based ingestion. This PR includes a breaking change for the experimental pull-based ingestion feature. ([#18332](https://github.com/opensearch-project/OpenSearch/pull/18332))
 - Add FIPS build tooling ([#4254](https://github.com/opensearch-project/security/issues/4254))
+- Support Nested Aggregations as part of Star-Tree ([#18048](https://github.com/opensearch-project/OpenSearch/pull/18048))
+- [Star-Tree] Support for date-range queries with star-tree supported aggregations ([#17855](https://github.com/opensearch-project/OpenSearch/pull/17855)
+- Added node-left metric to cluster manager ([#18421](https://github.com/opensearch-project/OpenSearch/pull/18421))
+- [Star tree] Remove star tree feature flag and add index setting to configure star tree search on index basis ([#18070](https://github.com/opensearch-project/OpenSearch/pull/18070))
+- Approximation Framework Enhancement: Update the BKD traversal logic to improve the performance on skewed data ([#18439](https://github.com/opensearch-project/OpenSearch/issues/18439))
+- Support system generated ingest pipelines for bulk update operations ([#18277](https://github.com/opensearch-project/OpenSearch/pull/18277)))
+- Added FS Health Check Failure metric ([#18435](https://github.com/opensearch-project/OpenSearch/pull/18435))
 - Extend BooleanQuery must_not rewrite to numeric must, term, and terms queries ([#18498](https://github.com/opensearch-project/OpenSearch/pull/18498))
 
 ### Changed
@@ -70,6 +81,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.nimbusds:oauth2-oidc-sdk` from 11.23.1 to 11.25 ([#18369](https://github.com/opensearch-project/OpenSearch/pull/18369))
 - Bump `gradle/actions` from 3 to 4 ([#18371](https://github.com/opensearch-project/OpenSearch/pull/18371))
 - Bump `com.azure:azure-storage-common` from 12.28.0 to 12.29.0 ([#18415](https://github.com/opensearch-project/OpenSearch/pull/18415))
+- Bump `com.squareup.okio:okio` from 3.10.2 to 3.12.0 ([#18468](https://github.com/opensearch-project/OpenSearch/pull/18468))
+- Bump `com.azure:azure-xml` from 1.1.0 to 1.2.0 ([#18469](https://github.com/opensearch-project/OpenSearch/pull/18469))
+- Bump `com.maxmind.db:maxmind-db` from 3.1.1 to 3.2.0 ([#18470](https://github.com/opensearch-project/OpenSearch/pull/18470))
 
 ### Deprecated
 
@@ -85,6 +99,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Null check field names in QueryStringQueryBuilder ([#18194](https://github.com/opensearch-project/OpenSearch/pull/18194))
 - Avoid NPE if on SnapshotInfo if 'shallow' boolean not present ([#18187](https://github.com/opensearch-project/OpenSearch/issues/18187))
 - Fix 'system call filter not installed' caused when network.host: 0.0.0.0 ([#18309](https://github.com/opensearch-project/OpenSearch/pull/18309))
+- DocValues-only IP field supports `terms_query` with more than 1025 IP masks ([#18357](https://github.com/opensearch-project/OpenSearch/pull/18357)
 - Fix MatrixStatsAggregator reuse when mode parameter changes ([#18242](https://github.com/opensearch-project/OpenSearch/issues/18242))
 - Replace the deprecated construction method of TopScoreDocCollectorManager with the new method ([#18395](https://github.com/opensearch-project/OpenSearch/pull/18395))
 - Fixed Approximate Framework regression with Lucene 10.2.1 by updating `intersectRight` BKD walk and `IntRef` visit method ([#18358](https://github.com/opensearch-project/OpenSearch/issues/18358

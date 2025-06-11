@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry;
+package org.opensearch.test.telemetry;
 
 import org.opensearch.telemetry.metrics.Histogram;
 import org.opensearch.telemetry.metrics.tags.Tags;
@@ -26,10 +26,23 @@ public class TestInMemoryHistogram implements Histogram {
     private AtomicInteger histogramValue = new AtomicInteger(0);
     private ConcurrentHashMap<HashMap<String, ?>, Double> histogramValueForTags = new ConcurrentHashMap<>();
 
+    /**
+     * Constructor.
+     */
+    public TestInMemoryHistogram() {}
+
+    /**
+     * Returns the Histogram value.
+     * @return
+     */
     public Integer getHistogramValue() {
         return this.histogramValue.get();
     }
 
+    /**
+     * Returns the Histogram value for tags
+     * @return
+     */
     public ConcurrentHashMap<HashMap<String, ?>, Double> getHistogramValueForTags() {
         return this.histogramValueForTags;
     }

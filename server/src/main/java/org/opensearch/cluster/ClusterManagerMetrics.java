@@ -23,6 +23,8 @@ import java.util.Optional;
  */
 public final class ClusterManagerMetrics {
 
+    public static final String FOLLOWER_NODE_ID_TAG = "follower_node_id";
+    public static final String REASON_TAG = "reason";
     private static final String LATENCY_METRIC_UNIT_MS = "ms";
     private static final String COUNTER_METRICS_UNIT = "1";
 
@@ -36,6 +38,7 @@ public final class ClusterManagerMetrics {
     public final Counter followerChecksFailureCounter;
     public final Counter asyncFetchFailureCounter;
     public final Counter asyncFetchSuccessCounter;
+    public final Counter nodeLeftCounter;
 
     public ClusterManagerMetrics(MetricsRegistry metricsRegistry) {
         clusterStateAppliersHistogram = metricsRegistry.createHistogram(
@@ -83,7 +86,7 @@ public final class ClusterManagerMetrics {
             "Counter for number of successful async fetches",
             COUNTER_METRICS_UNIT
         );
-
+        nodeLeftCounter = metricsRegistry.createCounter("node.left.count", "Counter for node left operation", COUNTER_METRICS_UNIT);
     }
 
     public void recordLatency(Histogram histogram, Double value) {

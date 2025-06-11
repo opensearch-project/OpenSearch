@@ -56,7 +56,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A Query that matches documents within an range of terms.
+ * A Query that matches documents within a range of terms.
  *
  * @opensearch.internal
  */
