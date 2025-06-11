@@ -48,10 +48,6 @@ public class ArrowStreamInput extends StreamInput {
 
         for (FieldVector vector : root.getFieldVectors()) {
             String fieldName = vector.getField().getName();
-            // skip the header field
-            if (fieldName.equals("_meta")) {
-                continue;
-            }
             String parentPath = extractParentPath(fieldName);
             vectorsByPath.computeIfAbsent(parentPath, k -> new ArrayList<>()).add(vector);
         }

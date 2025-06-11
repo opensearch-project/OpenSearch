@@ -11,12 +11,14 @@ package org.opensearch.transport.stream;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.transport.TransportResponse;
 
+import java.io.Closeable;
+
 /**
  * Represents a streaming transport response.
  *
  */
 @ExperimentalApi
-public interface StreamTransportResponse<T extends TransportResponse> {
+public interface StreamTransportResponse<T extends TransportResponse> extends Closeable {
     /**
      * Returns the next response in the stream.
      *

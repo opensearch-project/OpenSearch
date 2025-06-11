@@ -11,6 +11,7 @@ package org.opensearch.arrow.flight.transport;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightProducer;
 import org.apache.arrow.flight.FlightServer;
+import org.apache.arrow.flight.FlightServerMiddleware;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.OSFlightClient;
 import org.apache.arrow.flight.OSFlightServer;
@@ -91,8 +92,8 @@ public class FlightTransport extends TcpTransport {
     private final ThreadPool threadPool;
     private BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
-
-    private record ClientHolder(Location location, FlightClient flightClient) {
+    public final FlightServerMiddleware.Key<ServerHeaderMiddleware> SERVER_HEADER_KEY = FlightServerMiddleware.Key.of("opensearch-header-middleware");
+    private record ClientHolder(Location location, FlightClient flightClient, HeaderContext context) {
     }
 
     public FlightTransport(
@@ -123,7 +124,7 @@ public class FlightTransport extends TcpTransport {
         boolean success = false;
         try {
             allocator = AccessController.doPrivileged((PrivilegedAction<BufferAllocator>) () -> new RootAllocator(Integer.MAX_VALUE));
-            flightProducer = new ArrowFlightProducer(this, allocator);
+            flightProducer = new ArrowFlightProducer(this, allocator, SERVER_HEADER_KEY);
             bindServer();
             super.doStart();
             success = true;
@@ -184,6 +185,7 @@ public class FlightTransport extends TcpTransport {
                 Location location = sslContextProvider != null
                     ? Location.forGrpcTls(hostAddress.getHostAddress(), portNumber)
                     : Location.forGrpcInsecure(hostAddress.getHostAddress(), portNumber);
+                ServerHeaderMiddleware.Factory factory = new ServerHeaderMiddleware.Factory();
                 FlightServer server = OSFlightServer.builder()
                     .allocator(allocator)
                     .location(location)
@@ -193,6 +195,7 @@ public class FlightTransport extends TcpTransport {
                     .bossEventLoopGroup(bossEventLoopGroup)
                     .workerEventLoopGroup(workerEventLoopGroup)
                     .executor(serverExecutor)
+                    .middleware(SERVER_HEADER_KEY, factory)
                     .build();
                 server.start();
                 this.flightServer = server;
@@ -254,6 +257,8 @@ public class FlightTransport extends TcpTransport {
             Location location = sslContextProvider != null
                 ? Location.forGrpcTls(address, flightPort)
                 : Location.forGrpcInsecure(address, flightPort);
+            HeaderContext context = new HeaderContext();
+            ClientHeaderMiddleware.Factory factory = new ClientHeaderMiddleware.Factory(context, getVersion());
             FlightClient client = OSFlightClient.builder()
                 .allocator(allocator)
                 .location(location)
@@ -261,20 +266,21 @@ public class FlightTransport extends TcpTransport {
                 .eventLoopGroup(workerEventLoopGroup)
                 .sslContext(sslContextProvider != null ? sslContextProvider.getClientSslContext() : null)
                 .executor(serverExecutor)
+                .intercept(factory)
                 .build();
-            return new ClientHolder(location, client);
+            return new ClientHolder(location, client, context);
         });
 
         return new FlightClientChannel(
             holder.flightClient(),
             node,
             holder.location(),
+            holder.context(),
             false,
             DEFAULT_PROFILE,
             getResponseHandlers(),
             threadPool,
             this.inboundHandler.getMessageListener(),
-            getVersion(),
             namedWriteableRegistry
         );
     }
