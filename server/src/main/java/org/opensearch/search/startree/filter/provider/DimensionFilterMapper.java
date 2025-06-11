@@ -25,7 +25,6 @@ import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
@@ -53,7 +52,6 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.signum;
 /**
  * Generates the @{@link DimensionFilter} raw values and the @{@link MappedFieldType} of the dimension.
  */
-// TODO: Revert @PublicApi annotation from RangeQueryBuilder when @ExperimentalApi is removed here
 @ExperimentalApi
 public interface DimensionFilterMapper {
     /**
@@ -67,10 +65,10 @@ public interface DimensionFilterMapper {
     /**
      * Generates @{@link RangeMatchDimFilter} from Range query input.
      * @param mappedFieldType:
-     * @param rangeQueryBuilder:
+     * @param rangeQuery:
      * @return :
      */
-    DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, RangeQueryBuilder rangeQueryBuilder);
+    DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery);
 
     /**
      * Called during conversion from parsedUserInput to segmentOrdinal for every segment.
@@ -214,18 +212,18 @@ abstract class NumericNonDecimalMapper extends NumericMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, RangeQueryBuilder rangeQueryBuilder) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
 
-        Long parsedLow = rangeQueryBuilder.from() == null
+        Long parsedLow = rangeQuery.from() == null
             ? defaultMinimum()
-            : numberFieldType.numberType().parse(rangeQueryBuilder.from(), true).longValue();
-        Long parsedHigh = rangeQueryBuilder.to() == null
+            : numberFieldType.numberType().parse(rangeQuery.from(), true).longValue();
+        Long parsedHigh = rangeQuery.to() == null
             ? defaultMaximum()
-            : numberFieldType.numberType().parse(rangeQueryBuilder.to(), true).longValue();
+            : numberFieldType.numberType().parse(rangeQuery.to(), true).longValue();
 
         boolean lowerTermHasDecimalPart = hasDecimalPart(parsedLow);
-        if ((lowerTermHasDecimalPart == false && rangeQueryBuilder.includeLower() == false)
+        if ((lowerTermHasDecimalPart == false && rangeQuery.includeLower() == false)
             || (lowerTermHasDecimalPart && signum(parsedLow) > 0)) {
             if (parsedLow.equals(defaultMaximum())) {
                 return new MatchNoneFilter();
@@ -233,7 +231,7 @@ abstract class NumericNonDecimalMapper extends NumericMapper {
             ++parsedLow;
         }
         boolean upperTermHasDecimalPart = hasDecimalPart(parsedHigh);
-        if ((upperTermHasDecimalPart == false && rangeQueryBuilder.includeUpper() == false)
+        if ((upperTermHasDecimalPart == false && rangeQuery.includeUpper() == false)
             || (upperTermHasDecimalPart && signum(parsedHigh) < 0)) {
             if (parsedHigh.equals(defaultMinimum())) {
                 return new MatchNoneFilter();
@@ -328,20 +326,20 @@ abstract class NumericDecimalFieldMapper extends NumericMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, RangeQueryBuilder rangeQueryBuilder) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
         Number l = Long.MIN_VALUE;
         Number u = Long.MAX_VALUE;
-        if (rangeQueryBuilder.from() != null) {
-            l = numberFieldType.numberType().parse(rangeQueryBuilder.from(), false);
-            if (rangeQueryBuilder.includeLower() == false) {
+        if (rangeQuery.from() != null) {
+            l = numberFieldType.numberType().parse(rangeQuery.from(), false);
+            if (rangeQuery.includeLower() == false) {
                 l = getNextHigh(l);
             }
             l = convertToDocValues(l);
         }
-        if (rangeQueryBuilder.to() != null) {
-            u = numberFieldType.numberType().parse(rangeQueryBuilder.to(), false);
-            if (rangeQueryBuilder.includeUpper() == false) {
+        if (rangeQuery.to() != null) {
+            u = numberFieldType.numberType().parse(rangeQuery.to(), false);
+            if (rangeQuery.includeUpper() == false) {
                 u = getNextLow(u);
             }
             u = convertToDocValues(u);
@@ -421,14 +419,14 @@ class KeywordFieldMapper implements DimensionFilterMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, RangeQueryBuilder rangeQueryBuilder) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
         return new RangeMatchDimFilter(
             mappedFieldType.name(),
-            parseRawKeyword(mappedFieldType.name(), rangeQueryBuilder.from(), keywordFieldType),
-            parseRawKeyword(mappedFieldType.name(), rangeQueryBuilder.to(), keywordFieldType),
-            rangeQueryBuilder.includeLower(),
-            rangeQueryBuilder.includeUpper()
+            parseRawKeyword(mappedFieldType.name(), rangeQuery.from(), keywordFieldType),
+            parseRawKeyword(mappedFieldType.name(), rangeQuery.to(), keywordFieldType),
+            rangeQuery.includeLower(),
+            rangeQuery.includeUpper()
         );
     }
 

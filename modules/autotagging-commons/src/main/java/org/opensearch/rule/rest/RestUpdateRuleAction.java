@@ -8,6 +8,7 @@
 
 package org.opensearch.rule.rest;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
@@ -18,38 +19,39 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
-import org.opensearch.rule.action.CreateRuleAction;
-import org.opensearch.rule.action.CreateRuleRequest;
-import org.opensearch.rule.action.CreateRuleResponse;
+import org.opensearch.rule.action.UpdateRuleAction;
+import org.opensearch.rule.action.UpdateRuleRequest;
+import org.opensearch.rule.action.UpdateRuleResponse;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule.Builder;
 import org.opensearch.transport.client.node.NodeClient;
-import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.opensearch.rest.RestRequest.Method.PUT;
+import static org.opensearch.rule.autotagging.Rule.ID_STRING;
 import static org.opensearch.rule.rest.RestGetRuleAction.FEATURE_TYPE;
 
 /**
- * Rest action to create a Rule
+ * Rest action to update a Rule
  * @opensearch.experimental
  */
-public class RestCreateRuleAction extends BaseRestHandler {
+@ExperimentalApi
+public class RestUpdateRuleAction extends BaseRestHandler {
     /**
-     * constructor for RestCreateRuleAction
+     * constructor for RestUpdateRuleAction
      */
-    public RestCreateRuleAction() {}
+    public RestUpdateRuleAction() {}
 
     @Override
     public String getName() {
-        return "create_rule";
+        return "update_rule";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new RestHandler.Route(PUT, "_rules/{featureType}"));
+        return List.of(new RestHandler.Route(PUT, "_rules/{featureType}/{id}"));
     }
 
     @Override
@@ -57,15 +59,21 @@ public class RestCreateRuleAction extends BaseRestHandler {
         final FeatureType featureType = FeatureType.from(request.param(FEATURE_TYPE));
         try (XContentParser parser = request.contentParser()) {
             Builder builder = Builder.fromXContent(parser, featureType);
-            CreateRuleRequest createRuleRequest = new CreateRuleRequest(builder.updatedAt(Instant.now().toString()).id().build());
-            return channel -> client.execute(CreateRuleAction.INSTANCE, createRuleRequest, createRuleResponse(channel));
+            UpdateRuleRequest updateRuleRequest = new UpdateRuleRequest(
+                request.param(ID_STRING),
+                builder.getDescription(),
+                builder.getAttributeMap(),
+                builder.getFeatureValue(),
+                featureType
+            );
+            return channel -> client.execute(UpdateRuleAction.INSTANCE, updateRuleRequest, updateRuleResponse(channel));
         }
     }
 
-    private RestResponseListener<CreateRuleResponse> createRuleResponse(final RestChannel channel) {
+    private RestResponseListener<UpdateRuleResponse> updateRuleResponse(final RestChannel channel) {
         return new RestResponseListener<>(channel) {
             @Override
-            public RestResponse buildResponse(final CreateRuleResponse response) throws Exception {
+            public RestResponse buildResponse(final UpdateRuleResponse response) throws Exception {
                 return new BytesRestResponse(RestStatus.OK, response.toXContent(channel.newBuilder(), ToXContent.EMPTY_PARAMS));
             }
         };

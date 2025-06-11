@@ -10,16 +10,16 @@ package org.opensearch.rule.rest;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-public class RestDeleteRuleActionTests extends OpenSearchTestCase {
-    RestDeleteRuleAction action = new RestDeleteRuleAction();
+public class RestUpdateRuleActionTests extends OpenSearchTestCase {
+    RestUpdateRuleAction action = new RestUpdateRuleAction();;
 
     public void testGetName() {
-        assertEquals("delete_rule", action.getName());
+        assertEquals("update_rule", action.getName());
     }
 
     public void testRoutes() {
         var routes = action.routes();
         assertEquals(1, routes.size());
-        assertTrue(routes.stream().anyMatch(r -> r.getMethod().name().equals("DELETE") && r.getPath().equals("_rules/{featureType}/{id}")));
+        assertTrue(routes.stream().anyMatch(r -> r.getPath().equals("_rules/{featureType}/{id}")));
     }
 }

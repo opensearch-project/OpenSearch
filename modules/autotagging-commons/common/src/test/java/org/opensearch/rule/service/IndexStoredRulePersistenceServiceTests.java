@@ -28,14 +28,17 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.query.QueryBuilder;
-import org.opensearch.rule.CreateRuleRequest;
-import org.opensearch.rule.CreateRuleResponse;
-import org.opensearch.rule.DeleteRuleRequest;
-import org.opensearch.rule.GetRuleRequest;
-import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.RuleQueryMapper;
+import org.opensearch.rule.RuleUtils;
+import org.opensearch.rule.action.CreateRuleRequest;
+import org.opensearch.rule.action.CreateRuleResponse;
+import org.opensearch.rule.action.DeleteRuleRequest;
+import org.opensearch.rule.action.GetRuleRequest;
+import org.opensearch.rule.action.GetRuleResponse;
+import org.opensearch.rule.action.UpdateRuleRequest;
+import org.opensearch.rule.action.UpdateRuleResponse;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.search.SearchHit;
@@ -56,17 +59,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.mockito.ArgumentCaptor;
 
 import static org.opensearch.rule.XContentRuleParserTests.VALID_JSON;
 import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_MAP;
 import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.DESCRIPTION_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.DESCRIPTION_TWO;
+import static org.opensearch.rule.utils.RuleTestUtils.FEATURE_VALUE_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE;
-import static org.opensearch.rule.utils.RuleTestUtils.MockRuleFeatureType;
 import static org.opensearch.rule.utils.RuleTestUtils.TEST_INDEX_NAME;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.any;
@@ -79,7 +84,6 @@ import static org.mockito.Mockito.when;
 public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
 
     private static final int MAX_VALUES_PER_PAGE = 50;
-
     private Client client;
     private ClusterService clusterService;
     private RuleQueryMapper<QueryBuilder> ruleQueryMapper;
@@ -93,16 +97,13 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         super.setUp();
         searchRequestBuilder = mock(SearchRequestBuilder.class);
         client = setUpMockClient(searchRequestBuilder);
-
         rule = mock(Rule.class);
-
         clusterService = mock(ClusterService.class);
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.hasIndex(TEST_INDEX_NAME)).thenReturn(true);
-
         ruleQueryMapper = mock(RuleQueryMapper.class);
         ruleEntityParser = mock(RuleEntityParser.class);
         queryBuilder = mock(QueryBuilder.class);
@@ -151,7 +152,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
 
         CreateRuleRequest createRuleRequest = mock(CreateRuleRequest.class);
         when(rule.getAttributeMap()).thenReturn(ATTRIBUTE_MAP);
-        when(rule.getFeatureType()).thenReturn(MockRuleFeatureType.INSTANCE);
+        when(rule.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
         when(createRuleRequest.getRule()).thenReturn(rule);
 
         RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
@@ -172,7 +173,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
                             synchronized (storedAttributeMaps) {
                                 storedAttributeMaps.add(MOCK_RULE_ATTRIBUTE_ONE.getName());
                             }
-                            listener.onResponse(new CreateRuleResponse("fake-id", rule));
+                            listener.onResponse(new CreateRuleResponse(rule));
                             latch.countDown();
                         }
 
@@ -355,5 +356,156 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         listenerCaptor.getValue().onFailure(new DocumentMissingException(new ShardId(TEST_INDEX_NAME, "_na_", 0), ruleId));
 
         verify(listener).onFailure(any(ResourceNotFoundException.class));
+    }
+
+    public void testConcurrentUpdateDuplicateRules() throws InterruptedException {
+        int threadCount = 10;
+        CountDownLatch latch = new CountDownLatch(threadCount);
+        ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
+        Set<String> storedAttributeMaps = ConcurrentHashMap.newKeySet();
+
+        UpdateRuleRequest updateRuleRequest = mock(UpdateRuleRequest.class);
+        when(updateRuleRequest.getFeatureValue()).thenReturn(FEATURE_VALUE_ONE);
+        when(updateRuleRequest.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        when(updateRuleRequest.getAttributeMap()).thenReturn(ATTRIBUTE_MAP);
+        when(updateRuleRequest.getDescription()).thenReturn(DESCRIPTION_TWO);
+
+        Rule originalRule = mock(Rule.class);
+        when(originalRule.getId()).thenReturn(_ID_ONE);
+        when(originalRule.getAttributeMap()).thenReturn(ATTRIBUTE_MAP);
+        when(originalRule.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        when(originalRule.getFeatureValue()).thenReturn(FEATURE_VALUE_ONE);
+        when(originalRule.getDescription()).thenReturn(DESCRIPTION_ONE);
+
+        RulePersistenceService rulePersistenceService = new IndexStoredRulePersistenceService(
+            TEST_INDEX_NAME,
+            client,
+            clusterService,
+            MAX_VALUES_PER_PAGE,
+            ruleEntityParser,
+            ruleQueryMapper
+        ) {
+            @Override
+            public void updateRule(UpdateRuleRequest request, ActionListener<UpdateRuleResponse> listener) {
+                singleThreadExecutor.execute(() -> {
+                    Rule updatedRule = RuleUtils.composeUpdatedRule(originalRule, request, request.getFeatureType());
+                    validateNoDuplicateRule(updatedRule, new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            listener.onResponse(new UpdateRuleResponse(updatedRule));
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                            latch.countDown();
+                        }
+                    });
+                });
+            }
+
+            public void validateNoDuplicateRule(Rule rule, ActionListener<Void> listener) {
+                synchronized (storedAttributeMaps) {
+                    String key = rule.getAttributeMap().toString();
+                    if (storedAttributeMaps.contains(key)) {
+                        listener.onFailure(new IllegalArgumentException("Duplicate rule exists with attribute map"));
+                    } else {
+                        storedAttributeMaps.add(key);
+                        listener.onResponse(null);
+                    }
+                }
+            }
+        };
+
+        class TestListener implements ActionListener<UpdateRuleResponse> {
+            final AtomicInteger successCount = new AtomicInteger();
+            final AtomicInteger failureCount = new AtomicInteger();
+            final List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+
+            @Override
+            public void onResponse(UpdateRuleResponse response) {
+                successCount.incrementAndGet();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failureCount.incrementAndGet();
+                failures.add(e);
+            }
+        }
+
+        TestListener testListener = new TestListener();
+
+        for (int i = 0; i < threadCount; i++) {
+            new Thread(() -> rulePersistenceService.updateRule(updateRuleRequest, testListener)).start();
+        }
+
+        boolean completed = latch.await(10, TimeUnit.SECONDS);
+        singleThreadExecutor.shutdown();
+
+        assertTrue("All update calls should complete", completed);
+        assertEquals(1, testListener.successCount.get());
+        assertEquals(threadCount - 1, testListener.failureCount.get());
+
+        for (Exception e : testListener.failures) {
+            assertTrue(e instanceof IllegalArgumentException);
+            assertTrue(e.getMessage().contains("Duplicate rule"));
+        }
+    }
+
+    public void testUpdateRule_RuleNotFound() {
+        UpdateRuleRequest request = mock(UpdateRuleRequest.class);
+        when(request.getId()).thenReturn(_ID_ONE);
+
+        SearchHits emptyHits = new SearchHits(new SearchHit[] {}, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(emptyHits);
+        when(searchRequestBuilder.get()).thenReturn(searchResponse);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        rulePersistenceService.updateRule(request, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateRuleResponse updateRuleResponse) {
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+            }
+        });
+
+        assertTrue(failure.get() instanceof ResourceNotFoundException);
+        assertTrue(failure.get().getMessage().contains(_ID_ONE));
+    }
+
+    public void testUpdateRule_ParseFailure() {
+        UpdateRuleRequest request = mock(UpdateRuleRequest.class);
+        when(request.getId()).thenReturn(_ID_ONE);
+
+        SearchHit searchHit = new SearchHit(1, _ID_ONE, null, null);
+        searchHit.sourceRef(new BytesArray(VALID_JSON));
+        SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        when(searchRequestBuilder.get()).thenReturn(searchResponse);
+        when(ruleEntityParser.parse(anyString())).thenThrow(new RuntimeException("Invalid JSON"));
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        rulePersistenceService.updateRule(request, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateRuleResponse updateRuleResponse) {
+                fail();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+            }
+        });
+
+        assertNotNull(failure.get());
+        assertTrue(failure.get().getMessage().contains("Invalid JSON"));
     }
 }
