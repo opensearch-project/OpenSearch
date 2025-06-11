@@ -23,11 +23,13 @@ import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AuxTransport;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static org.opensearch.arrow.flight.bootstrap.FlightService.ARROW_FLIGHT_TRANSPORT_SETTING_KEY;
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
@@ -52,24 +54,19 @@ public class FlightStreamPluginTests extends OpenSearchTestCase {
     @LockFeatureFlag(ARROW_STREAMS)
     public void testPluginEnabled() throws IOException {
         FlightStreamPlugin plugin = new FlightStreamPlugin(settings);
-        Collection<Object> components = plugin.createComponents(
-            null,
-            clusterService,
+        plugin.createComponents(null, clusterService, mock(ThreadPool.class), null, null, null, null, null, null, null, null);
+        Map<String, Supplier<AuxTransport>> aux_map = plugin.getAuxTransports(
+            settings,
             mock(ThreadPool.class),
             null,
-            null,
-            null,
-            null,
-            null,
-            null,
+            new NetworkService(List.of()),
             null,
             null
         );
 
-        assertNotNull(components);
-        assertFalse(components.isEmpty());
-        assertEquals(1, components.size());
-        assertTrue(components.iterator().next() instanceof FlightService);
+        AuxTransport transport = aux_map.get(ARROW_FLIGHT_TRANSPORT_SETTING_KEY).get();
+        assertNotNull(transport);
+        assertTrue(transport instanceof FlightService);
 
         List<ExecutorBuilder<?>> executorBuilders = plugin.getExecutorBuilders(settings);
         assertNotNull(executorBuilders);

@@ -35,7 +35,6 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
@@ -61,8 +60,6 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-// TODO: Revert @PublicApi annotation after @ExperimentalApi is removed from DimensionFilterMapper
-@PublicApi(since = "1.0.0")
 public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "range";
 
