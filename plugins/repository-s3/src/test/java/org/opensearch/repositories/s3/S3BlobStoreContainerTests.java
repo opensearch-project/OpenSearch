@@ -1713,7 +1713,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         Exception exception = capturedException.get();
         assertNotNull("Expected an exception to be captured", exception);
         assertTrue("Exception should be an OpenSearchException", exception instanceof OpenSearchException);
-        assertEquals("stale_primary_shard", exception.getMessage());
+        assertEquals("Precondition Failed : Etag Mismatch", exception.getMessage());
 
         verify(client).createMultipartUpload(any(CreateMultipartUploadRequest.class));
         verify(client).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
@@ -1839,7 +1839,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
             if ("S3Exception".equals(exceptionType) && statusCode == 412) {
                 assertTrue(listenerException instanceof OpenSearchException);
-                assertEquals("stale_primary_shard", ((OpenSearchException) listenerException).getMessage());
+                assertEquals("Precondition Failed : Etag Mismatch", listenerException.getMessage());
             } else {
                 assertTrue(listenerException instanceof IOException);
             }
