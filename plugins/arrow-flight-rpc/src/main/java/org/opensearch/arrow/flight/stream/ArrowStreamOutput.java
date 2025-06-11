@@ -29,7 +29,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -300,16 +299,8 @@ public class ArrowStreamOutput extends StreamOutput {
         structVector.setValueCount(row + 1);
     }
 
-    public VectorSchemaRoot getUnifiedRoot(ByteBuffer headers) {
+    public VectorSchemaRoot getUnifiedRoot() {
         List<FieldVector> allFields = new ArrayList<>();
-        // TODO: we need a better mechanism to serialize headers; maybe make use of Tcp headers
-        if (headers != null) {
-            Field field = new Field("_meta", new FieldType(true, new ArrowType.Binary(), null, null), null);
-            VarBinaryVector fieldVector = new VarBinaryVector(field, allocator);
-            fieldVector.setSafe(0, headers.array());
-            fieldVector.setValueCount(1);
-            allFields.add(fieldVector);
-        }
         for (VectorSchemaRoot root : roots.values()) {
             allFields.addAll(root.getFieldVectors());
         }

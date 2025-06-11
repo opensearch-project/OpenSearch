@@ -52,7 +52,7 @@ public class ArrowStreamSerializationTests extends OpenSearchTestCase {
 
         try (ArrowStreamOutput output = new ArrowStreamOutput(allocator)) {
             output.writeNamedWriteable(original);
-            VectorSchemaRoot unifiedRoot = output.getUnifiedRoot(null);
+            VectorSchemaRoot unifiedRoot = output.getUnifiedRoot();
 
             try (ArrowStreamInput input = new ArrowStreamInput(unifiedRoot, registry)) {
                 StringTerms deserialized = input.readNamedWriteable(StringTerms.class);
