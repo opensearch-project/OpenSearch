@@ -27,47 +27,47 @@ import java.io.IOException;
 import static org.opensearch.rule.RuleFrameworkPlugin.RULE_THREAD_POOL_NAME;
 
 /**
- * Transport action to create Rules
+ * Transport action to update Rules
  * @opensearch.experimental
  */
-public class TransportCreateRuleAction extends TransportAction<CreateRuleRequest, CreateRuleResponse> {
+public class TransportUpdateRuleAction extends TransportAction<UpdateRuleRequest, UpdateRuleResponse> {
     private final ThreadPool threadPool;
     private final RuleRoutingServiceRegistry ruleRoutingServiceRegistry;
     private final RulePersistenceServiceRegistry rulePersistenceServiceRegistry;
 
     /**
-     * Constructor for TransportCreateRuleAction
+     * Constructor for TransportUpdateRuleAction
      * @param transportService - a {@link TransportService} object
+     * @param  threadPool - a {@link ThreadPool} object
      * @param actionFilters - a {@link ActionFilters} object
-     * @param threadPool - a {@link ThreadPool} object
      * @param rulePersistenceServiceRegistry - a {@link RulePersistenceServiceRegistry} object
      * @param ruleRoutingServiceRegistry - a {@link RuleRoutingServiceRegistry} object
      */
     @Inject
-    public TransportCreateRuleAction(
+    public TransportUpdateRuleAction(
         TransportService transportService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         RulePersistenceServiceRegistry rulePersistenceServiceRegistry,
         RuleRoutingServiceRegistry ruleRoutingServiceRegistry
     ) {
-        super(CreateRuleAction.NAME, actionFilters, transportService.getTaskManager());
+        super(UpdateRuleAction.NAME, actionFilters, transportService.getTaskManager());
+        this.rulePersistenceServiceRegistry = rulePersistenceServiceRegistry;
         this.ruleRoutingServiceRegistry = ruleRoutingServiceRegistry;
         this.threadPool = threadPool;
-        this.rulePersistenceServiceRegistry = rulePersistenceServiceRegistry;
 
         transportService.registerRequestHandler(
-            CreateRuleAction.NAME,
+            UpdateRuleAction.NAME,
             ThreadPool.Names.SAME,
-            CreateRuleRequest::new,
-            new TransportRequestHandler<CreateRuleRequest>() {
+            UpdateRuleRequest::new,
+            new TransportRequestHandler<UpdateRuleRequest>() {
                 @Override
-                public void messageReceived(CreateRuleRequest request, TransportChannel channel, Task task) {
+                public void messageReceived(UpdateRuleRequest request, TransportChannel channel, Task task) {
                     executeLocally(request, ActionListener.wrap(response -> {
                         try {
                             channel.sendResponse(response);
                         } catch (IOException e) {
-                            logger.error("Failed to send CreateRuleResponse to transport channel", e);
+                            logger.error("Failed to send UpdateRuleResponse to transport channel", e);
                             throw new TransportException("Fail to send", e);
                         }
                     }, exception -> {
@@ -84,21 +84,21 @@ public class TransportCreateRuleAction extends TransportAction<CreateRuleRequest
     }
 
     @Override
-    protected void doExecute(Task task, CreateRuleRequest request, ActionListener<CreateRuleResponse> listener) {
-        ruleRoutingServiceRegistry.getRuleRoutingService(request.getRule().getFeatureType()).handleCreateRuleRequest(request, listener);
+    protected void doExecute(Task task, UpdateRuleRequest request, ActionListener<UpdateRuleResponse> listener) {
+        ruleRoutingServiceRegistry.getRuleRoutingService(request.getFeatureType()).handleUpdateRuleRequest(request, listener);
     }
 
     /**
-     * Executes the create rule operation locally on the dedicated rule thread pool.
-     * @param request the CreateRuleRequest
+     * Executes the update rule operation locally on the dedicated rule thread pool.
+     * @param request the UpdateRuleRequest
      * @param listener listener to handle response or failure
      */
-    private void executeLocally(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener) {
+    private void executeLocally(UpdateRuleRequest request, ActionListener<UpdateRuleResponse> listener) {
         threadPool.executor(RULE_THREAD_POOL_NAME).execute(() -> {
             final RulePersistenceService rulePersistenceService = rulePersistenceServiceRegistry.getRulePersistenceService(
-                request.getRule().getFeatureType()
+                request.getFeatureType()
             );
-            rulePersistenceService.createRule(request, listener);
+            rulePersistenceService.updateRule(request, listener);
         });
     }
 }

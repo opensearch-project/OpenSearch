@@ -9,6 +9,7 @@
 package org.opensearch.rule;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.rule.action.GetRuleRequest;
 
 /**
  * This interface is responsible for creating query objects which storage layer can use

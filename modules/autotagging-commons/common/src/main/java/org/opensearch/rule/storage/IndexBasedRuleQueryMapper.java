@@ -12,14 +12,12 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.rule.GetRuleRequest;
 import org.opensearch.rule.RuleQueryMapper;
+import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.autotagging.Attribute;
 
 import java.util.Map;
 import java.util.Set;
-
-import static org.opensearch.rule.autotagging.Rule._ID_STRING;
 
 /**
  * This class is used to build opensearch index based query object
@@ -40,7 +38,7 @@ public class IndexBasedRuleQueryMapper implements RuleQueryMapper<QueryBuilder> 
 
         boolQuery.filter(QueryBuilders.existsQuery(request.getFeatureType().getName()));
         if (id != null) {
-            return boolQuery.must(QueryBuilders.termQuery(_ID_STRING, id));
+            return boolQuery.must(QueryBuilders.termQuery("_id", id));
         }
         for (Map.Entry<Attribute, Set<String>> entry : attributeFilters.entrySet()) {
             Attribute attribute = entry.getKey();

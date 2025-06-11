@@ -13,14 +13,15 @@ import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class RuleTestUtils {
-    public static final String _ID_ONE = "AgfUO5Ja9yfvhdONlYi3TQ==";
+    public static final String _ID_ONE = "e9f35a73-ece2-3fa7-857e-7c1af877fc75";
     public static final String ATTRIBUTE_VALUE_ONE = "mock_attribute_one";
     public static final String ATTRIBUTE_VALUE_TWO = "mock_attribute_two";
     public static final String DESCRIPTION_ONE = "description_1";
@@ -29,7 +30,7 @@ public class RuleTestUtils {
     public static final String INVALID_ATTRIBUTE = "invalid_attribute";
 
     public static final String SEARCH_AFTER = "search_after";
-    public static final String _ID_TWO = "G5iIq84j7eK1qIAAAAIH53=1";
+    public static final String _ID_TWO = "b55aa7e6-5aae-38e8-bf43-803599996ffe";
     public static final String FEATURE_VALUE_ONE = "feature_value_one";
     public static final String FEATURE_VALUE_TWO = "feature_value_two";
     public static final String DESCRIPTION_TWO = "description_2";
@@ -63,14 +64,12 @@ public class RuleTestUtils {
         return Map.of(_ID_ONE, ruleOne, _ID_TWO, ruleTwo);
     }
 
-    public static void assertEqualRules(Map<String, Rule> mapOne, Map<String, Rule> mapTwo, boolean ruleUpdated) {
+    public static void assertEqualRules(List<Rule> mapOne, List<Rule> mapTwo, boolean ruleUpdated) {
         assertEquals(mapOne.size(), mapTwo.size());
-        for (Map.Entry<String, Rule> entry : mapOne.entrySet()) {
-            String id = entry.getKey();
-            assertTrue(mapTwo.containsKey(id));
-            Rule one = mapOne.get(id);
-            Rule two = mapTwo.get(id);
-            assertEqualRule(one, two, ruleUpdated);
+        mapOne.sort(Comparator.comparing(Rule::getId));
+        mapTwo.sort(Comparator.comparing(Rule::getId));
+        for (int i = 0; i < mapOne.size(); i++) {
+            assertEqualRule(mapOne.get(i), mapTwo.get(i), ruleUpdated);
         }
     }
 
