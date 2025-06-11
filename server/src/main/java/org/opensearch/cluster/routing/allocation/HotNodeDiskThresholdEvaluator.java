@@ -45,56 +45,48 @@ public class HotNodeDiskThresholdEvaluator implements DiskThresholdEvaluator {
     }
 
     @Override
-    public long calculateFreeSpaceLowThreshold(long totalSpace) {
-        // For hot data nodes, we use the standard disk threshold settings
-        // Check for absolute bytes threshold first
-        ByteSizeValue bytesThreshold = diskThresholdSettings.getFreeBytesThresholdLow();
-        if (bytesThreshold != null && bytesThreshold.getBytes() > 0) {
-            return bytesThreshold.getBytes();
-        }
-
-        // Check for percentage-based threshold
-        double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdLow();
-        if (percentageThreshold > 0) {
-            return (long) (totalSpace * percentageThreshold / 100.0);
-        }
-
-        // Default fallback
-        return 0;
+    public long getFreeSpaceLowThreshold(long totalAddressableSpace) {
+        return calculateFreeSpaceWatermarkThreshold(
+            diskThresholdSettings.getFreeDiskThresholdLow(),
+            diskThresholdSettings.getFreeBytesThresholdLow(),
+            totalAddressableSpace
+        );
     }
 
     @Override
-    public long calculateFreeSpaceHighThreshold(long totalSpace) {
-        // For hot data nodes, we use the standard disk threshold settings
-        // Check for absolute bytes threshold first
-        ByteSizeValue bytesThreshold = diskThresholdSettings.getFreeBytesThresholdHigh();
-        if (bytesThreshold != null && bytesThreshold.getBytes() > 0) {
-            return bytesThreshold.getBytes();
-        }
-
-        // Check for percentage-based threshold
-        double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdHigh();
-        if (percentageThreshold > 0) {
-            return (long) (totalSpace * percentageThreshold / 100.0);
-        }
-
-        // Default fallback
-        return 0;
+    public long getFreeSpaceHighThreshold(long totalAddressableSpace) {
+        return calculateFreeSpaceWatermarkThreshold(
+            diskThresholdSettings.getFreeDiskThresholdHigh(),
+            diskThresholdSettings.getFreeBytesThresholdHigh(),
+            totalAddressableSpace
+        );
     }
 
     @Override
-    public long calculateFreeSpaceFloodStageThreshold(long totalSpace) {
+    public long getFreeSpaceFloodStageThreshold(long totalAddressableSpace) {
+        return calculateFreeSpaceWatermarkThreshold(
+            diskThresholdSettings.getFreeDiskThresholdFloodStage(),
+            diskThresholdSettings.getFreeBytesThresholdFloodStage(),
+            totalAddressableSpace
+        );
+    }
+
+    private long calculateFreeSpaceWatermarkThreshold(
+        double freeDiskWatermarkThreshold,
+        ByteSizeValue freeBytesWatermarkThreshold,
+        long totalAddressableSpace
+    ) {
         // For hot data nodes, we use the standard disk threshold settings
         // Check for absolute bytes threshold first
-        ByteSizeValue bytesThreshold = diskThresholdSettings.getFreeBytesThresholdFloodStage();
+        ByteSizeValue bytesThreshold = freeBytesWatermarkThreshold;
         if (bytesThreshold != null && bytesThreshold.getBytes() > 0) {
             return bytesThreshold.getBytes();
         }
 
         // Check for percentage-based threshold
-        double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdFloodStage();
+        double percentageThreshold = freeDiskWatermarkThreshold;
         if (percentageThreshold > 0) {
-            return (long) (totalSpace * percentageThreshold / 100.0);
+            return (long) (totalAddressableSpace * percentageThreshold / 100.0);
         }
 
         // Default fallback

@@ -44,26 +44,26 @@ public interface DiskThresholdEvaluator {
     boolean isNodeExceedingFloodStageWatermark(DiskUsage diskUsage);
 
     /**
-     * Calculates the free space low threshold for a given total space
+     * Get the free space low threshold for a given total space
      *
      * @param totalSpace total available space
      * @return free space low threshold in bytes
      */
-    long calculateFreeSpaceLowThreshold(long totalSpace);
+    long getFreeSpaceLowThreshold(long totalSpace);
 
     /**
-     * Calculates the free space high threshold for a given total space
+     * Get the free space high threshold for a given total space
      *
      * @param totalSpace total available space
      * @return free space high threshold in bytes
      */
-    long calculateFreeSpaceHighThreshold(long totalSpace);
+    long getFreeSpaceHighThreshold(long totalSpace);
 
     /**
-     * Calculates the free space flood stage threshold for a given total space
+     * Get the free space flood stage threshold for a given total space
      *
      * @param totalSpace total available space
      * @return free space flood stage threshold in bytes
      */
-    long calculateFreeSpaceFloodStageThreshold(long totalSpace);
+    long getFreeSpaceFloodStageThreshold(long totalSpace);
 }

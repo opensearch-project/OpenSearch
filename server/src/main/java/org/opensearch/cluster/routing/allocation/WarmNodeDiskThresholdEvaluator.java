@@ -11,6 +11,7 @@ package org.opensearch.cluster.routing.allocation;
 import org.opensearch.cluster.DiskUsage;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -32,91 +33,71 @@ public class WarmNodeDiskThresholdEvaluator implements DiskThresholdEvaluator {
 
     @Override
     public boolean isNodeExceedingLowWatermark(DiskUsage diskUsage) {
-        if (dataToFileCacheSizeRatioSupplier.get() <= 0) {
-            return false;
-        }
-        long totalBytes = diskUsage.getTotalBytes();
-        long freeSpace = diskUsage.getFreeBytes();
-        long freeSpaceLowThreshold = calculateFreeSpaceLowThreshold(totalBytes);
-
-        return freeSpace < freeSpaceLowThreshold;
+        return isNodeExceedingWatermark(diskUsage, this::getFreeSpaceLowThreshold);
     }
 
     @Override
     public boolean isNodeExceedingHighWatermark(DiskUsage diskUsage) {
-        if (dataToFileCacheSizeRatioSupplier.get() <= 0) {
-            return false;
-        }
-        long totalBytes = diskUsage.getTotalBytes();
-        long freeSpace = diskUsage.getFreeBytes();
-        long freeSpaceHighThreshold = calculateFreeSpaceHighThreshold(totalBytes);
-
-        return freeSpace < freeSpaceHighThreshold;
+        return isNodeExceedingWatermark(diskUsage, this::getFreeSpaceHighThreshold);
     }
 
     @Override
     public boolean isNodeExceedingFloodStageWatermark(DiskUsage diskUsage) {
+        return isNodeExceedingWatermark(diskUsage, this::getFreeSpaceFloodStageThreshold);
+    }
+
+    private boolean isNodeExceedingWatermark(DiskUsage diskUsage, Function<Long, Long> thresholdFunction) {
         if (dataToFileCacheSizeRatioSupplier.get() <= 0) {
             return false;
         }
         long totalBytes = diskUsage.getTotalBytes();
         long freeSpace = diskUsage.getFreeBytes();
-        long freeSpaceFloodStageThreshold = calculateFreeSpaceFloodStageThreshold(totalBytes);
+        long freeSpaceThreshold = thresholdFunction.apply(totalBytes);
 
-        return freeSpace < freeSpaceFloodStageThreshold;
+        return freeSpace < freeSpaceThreshold;
     }
 
     @Override
-    public long calculateFreeSpaceLowThreshold(long totalAddressableSpace) {
+    public long getFreeSpaceLowThreshold(long totalAddressableSpace) {
+        return calculateFreeSpaceWatermarkThreshold(
+            diskThresholdSettings.getFreeDiskThresholdLow(),
+            diskThresholdSettings.getFreeBytesThresholdLow(),
+            totalAddressableSpace
+        );
+    }
+
+    @Override
+    public long getFreeSpaceHighThreshold(long totalAddressableSpace) {
+        return calculateFreeSpaceWatermarkThreshold(
+            diskThresholdSettings.getFreeDiskThresholdHigh(),
+            diskThresholdSettings.getFreeBytesThresholdHigh(),
+            totalAddressableSpace
+        );
+    }
+
+    @Override
+    public long getFreeSpaceFloodStageThreshold(long totalAddressableSpace) {
+        return calculateFreeSpaceWatermarkThreshold(
+            diskThresholdSettings.getFreeDiskThresholdFloodStage(),
+            diskThresholdSettings.getFreeBytesThresholdFloodStage(),
+            totalAddressableSpace
+        );
+    }
+
+    private long calculateFreeSpaceWatermarkThreshold(
+        double freeDiskWatermarkThreshold,
+        ByteSizeValue freeBytesWatermarkThreshold,
+        long totalAddressableSpace
+    ) {
         // Check for percentage-based threshold
-        double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdLow();
-        if (percentageThreshold > 0) {
-            return (long) (totalAddressableSpace * percentageThreshold / 100.0);
+        if (freeDiskWatermarkThreshold > 0) {
+            return (long) (totalAddressableSpace * freeDiskWatermarkThreshold / 100.0);
         }
 
         // Check for absolute bytes threshold
         final double dataToFileCacheSizeRatio = dataToFileCacheSizeRatioSupplier.get();
-        ByteSizeValue bytesThreshold = diskThresholdSettings.getFreeBytesThresholdLow();
-        if (bytesThreshold != null && bytesThreshold.getBytes() > 0) {
-            return bytesThreshold.getBytes() * (long) dataToFileCacheSizeRatio;
-        }
-
-        // Default fallback
-        return 0;
-    }
-
-    @Override
-    public long calculateFreeSpaceHighThreshold(long totalAddressableSpace) {
-        // Check for percentage-based threshold
-        double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdHigh();
-        if (percentageThreshold > 0) {
-            return (long) (totalAddressableSpace * percentageThreshold / 100.0);
-        }
-
-        // Check for absolute bytes threshold
-        final double dataToFileCacheSizeRatio = dataToFileCacheSizeRatioSupplier.get();
-        ByteSizeValue bytesThreshold = diskThresholdSettings.getFreeBytesThresholdHigh();
-        if (bytesThreshold != null && bytesThreshold.getBytes() > 0) {
-            return bytesThreshold.getBytes() * (long) dataToFileCacheSizeRatio;
-        }
-
-        // Default fallback
-        return 0;
-    }
-
-    @Override
-    public long calculateFreeSpaceFloodStageThreshold(long totalAddressableSpace) {
-        // Check for percentage-based threshold
-        double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdFloodStage();
-        if (percentageThreshold > 0) {
-            return (long) (totalAddressableSpace * percentageThreshold / 100.0);
-        }
-
-        // Check for absolute bytes threshold
-        final double dataToFileCacheSizeRatio = dataToFileCacheSizeRatioSupplier.get();
-        ByteSizeValue bytesThreshold = diskThresholdSettings.getFreeBytesThresholdFloodStage();
-        if (bytesThreshold != null && bytesThreshold.getBytes() > 0) {
-            return bytesThreshold.getBytes() * (long) dataToFileCacheSizeRatio;
+        if (freeBytesWatermarkThreshold != null && freeBytesWatermarkThreshold.getBytes() > 0) {
+            return freeBytesWatermarkThreshold.getBytes() * (long) dataToFileCacheSizeRatio;
         }
 
         // Default fallback

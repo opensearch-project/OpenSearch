@@ -174,15 +174,16 @@ public class DiskThresholdMonitor {
 
         for (final Map.Entry<String, DiskUsage> entry : usages.entrySet()) {
             final String node = entry.getKey();
-            // Create DiskUsage for Warm Nodes based on total Addressable Space
             DiskUsage usage = entry.getValue();
             final RoutingNode routingNode = routingNodes.node(node);
             if (routingNode == null) {
                 continue;
             }
 
+            // Only for Dedicated Warm Nodes
             final boolean isWarmNode = REMOTE_CAPABLE.equals(getNodePool(routingNode));
             if (isWarmNode) {
+                // Create DiskUsage for Warm Nodes based on total Addressable Space
                 usage = getWarmDiskUsage(usage, info, routingNode, state);
             }
 
@@ -219,7 +220,6 @@ public class DiskThresholdMonitor {
                 }
             }
 
-            // Check if for warm node if reserved space comes out to be zero, if not make it 0
             final long reservedSpace = info.getReservedSpace(usage.getNodeId(), usage.getPath()).getTotal();
             final DiskUsage usageWithReservedSpace = new DiskUsage(
                 usage.getNodeId(),
@@ -229,7 +229,6 @@ public class DiskThresholdMonitor {
                 Math.max(0L, usage.getFreeBytes() - reservedSpace)
             );
 
-            // Check if node exceeds high watermark with reserved space factored in
             if (isNodeExceedingHighWatermark(usageWithReservedSpace, isWarmNode)) {
 
                 nodesOverLowThreshold.add(node);
@@ -456,7 +455,7 @@ public class DiskThresholdMonitor {
             .filter(shard -> shard.primary() && REMOTE_CAPABLE.equals(getIndexPool(state.metadata().getIndexSafe(shard.index()))))
             .collect(Collectors.toList());
 
-        var remoteShardSize = 0L;
+        long remoteShardSize = 0L;
         for (ShardRouting shard : remoteShardsOnNode) {
             remoteShardSize += DiskThresholdDecider.getExpectedShardSize(shard, 0L, info, null, state.metadata(), state.getRoutingTable());
         }
