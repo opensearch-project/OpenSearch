@@ -113,6 +113,8 @@ teardown:
 
 ---
 "Processor injects field on bulk index to non-existent index matching template":
+  - skip:
+        features: allowed_warnings
   - do:
       indices.put_template:
         name: bulk-template
@@ -123,6 +125,8 @@ teardown:
               system_ingest_processor_trigger_field:
                 type: keyword
   - do:
+      allowed_warnings:
+        - "index [bulk-template-index-1] matches multiple legacy templates [bulk-template, global], composable templates will only match a single template"
       bulk:
         refresh: true
         body:
