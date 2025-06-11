@@ -89,18 +89,22 @@ public class StreamSearchTransportService extends SearchTransportService {
 
             @Override
             public void handleStreamResponse(StreamTransportResponse<SearchPhaseResult> response) {
-                SearchPhaseResult result = response.nextResponse();
-                listener.onResponse(result);
+                try {
+                    SearchPhaseResult result = response.nextResponse();
+                    listener.onResponse(result);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
             }
 
             @Override
             public void handleResponse(SearchPhaseResult response) {
-
+                throw new IllegalStateException("handleResponse is not supported for Streams");
             }
 
             @Override
-            public void handleException(TransportException exp) {
-
+            public void handleException(TransportException e) {
+                listener.onFailure(e);
             }
 
             @Override
@@ -139,12 +143,12 @@ public class StreamSearchTransportService extends SearchTransportService {
 
             @Override
             public void handleResponse(FetchSearchResult response) {
-
+                throw new IllegalStateException("handleResponse is not supported for Streams");
             }
 
             @Override
             public void handleException(TransportException exp) {
-
+                listener.onFailure(exp);
             }
 
             @Override

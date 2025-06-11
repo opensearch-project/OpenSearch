@@ -52,9 +52,7 @@ public class FlightTransportChannel extends TcpTransportChannel {
             outboundHandler.sendErrorResponse(version, features, getChannel(), requestId, action, exception);
             logger.debug("Sent error response for action [{}] with requestId [{}]", action, requestId);
         } finally {
-            if (streamOpen.compareAndSet(true, false)) {
-                release(true);
-            }
+            release(true);
         }
     }
 
@@ -92,11 +90,30 @@ public class FlightTransportChannel extends TcpTransportChannel {
                 requestId,
                 action,
                 ActionListener.wrap(
-                    (resp) -> logger.debug("Stream completed for action [{}] with requestId [{}]", action, requestId),
-                    e -> logger.error("Failed to complete stream for action [{}] with requestId [{}]", action, requestId, e)
+                    (resp) -> {
+                        logger.debug("Stream completed for action [{}] with requestId [{}]", action, requestId);
+                        release(false);
+                    },
+                    e -> {
+                        logger.error("Failed to complete stream for action [{}] with requestId [{}]", action, requestId, e);
+                        release(true);
+                    }
                 )
             );
-            release(false);
+        } else {
+            try {
+                outboundHandler.sendErrorResponse(version,
+                    features,
+                    getChannel(),
+                    requestId,
+                    action,
+                    new RuntimeException("FlightTransportChannel stream already closed.")
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } finally {
+                release(true);
+            }
         }
     }
 }
