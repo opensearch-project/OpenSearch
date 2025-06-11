@@ -585,6 +585,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>(numClusters);
         for (int bucketOrd = 0; bucketOrd < numClusters; bucketOrd++) {
+            checkCancelled();
             buckets.add(collector.buildBucket(bucketOrd, subAggregationResults[bucketOrd]));
         }
 
