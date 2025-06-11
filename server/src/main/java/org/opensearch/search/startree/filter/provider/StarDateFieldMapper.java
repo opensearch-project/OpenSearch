@@ -16,7 +16,6 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTime
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.RangeMatchDimFilter;
@@ -58,45 +57,45 @@ class StarDateFieldMapper implements DimensionFilterMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, RangeQueryBuilder rangeQueryBuilder) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         DateFieldType dateFieldType = (DateFieldType) mappedFieldType;
-        String field = rangeQueryBuilder.fieldName();
-        assert Objects.equals(dateDimension.getField(), rangeQueryBuilder.fieldName());
+        String field = rangeQuery.fieldName();
+        assert Objects.equals(dateDimension.getField(), rangeQuery.fieldName());
 
         // Convert format string to DateMathParser if provided
-        DateMathParser forcedDateParser = rangeQueryBuilder.format() != null
-            ? DateFormatter.forPattern(rangeQueryBuilder.format()).toDateMathParser()
+        DateMathParser forcedDateParser = rangeQuery.format() != null
+            ? DateFormatter.forPattern(rangeQuery.format()).toDateMathParser()
             : org.opensearch.index.mapper.DateFieldMapper.getDefaultDateTimeFormatter().toDateMathParser();
 
-        ZoneId timeZone = rangeQueryBuilder.timeZone() != null ? ZoneId.of(rangeQueryBuilder.timeZone()) : null;
+        ZoneId timeZone = rangeQuery.timeZone() != null ? ZoneId.of(rangeQuery.timeZone()) : null;
 
         long l = Long.MIN_VALUE;
         long u = Long.MAX_VALUE;
 
-        if (rangeQueryBuilder.from() != null) {
+        if (rangeQuery.from() != null) {
             l = DateFieldType.parseToLong(
-                rangeQueryBuilder.from(),
-                !rangeQueryBuilder.includeLower(),
+                rangeQuery.from(),
+                !rangeQuery.includeLower(),
                 timeZone,
                 forcedDateParser,
                 nowSupplier,
                 dateFieldType.resolution()
             );
-            if (!rangeQueryBuilder.includeLower()) {
+            if (!rangeQuery.includeLower()) {
                 ++l;
             }
         }
 
-        if (rangeQueryBuilder.to() != null) {
+        if (rangeQuery.to() != null) {
             u = DateFieldType.parseToLong(
-                rangeQueryBuilder.to(),
-                rangeQueryBuilder.includeUpper(),
+                rangeQuery.to(),
+                rangeQuery.includeUpper(),
                 timeZone,
                 forcedDateParser,
                 nowSupplier,
                 dateFieldType.resolution()
             );
-            if (!rangeQueryBuilder.includeUpper()) {
+            if (!rangeQuery.includeUpper()) {
                 --u;
             }
         }
