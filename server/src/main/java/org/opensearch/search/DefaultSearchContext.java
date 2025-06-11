@@ -58,6 +58,8 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -1146,6 +1148,16 @@ final class DefaultSearchContext extends SearchContext {
             && sort != null
             && sort.isSortOnTimeSeriesField()
             && sort.sort.getSort()[0].getReverse() == false;
+    }
+
+    @Override
+    public boolean getStarTreeIndexEnabled() {
+        return indexService.getIndexSettings()
+            .getSettings()
+            .getAsBoolean(
+                StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING.getKey(),
+                clusterService.getClusterSettings().get(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING)
+            );
     }
 
     @Override

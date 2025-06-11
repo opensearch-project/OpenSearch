@@ -91,7 +91,6 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
     private static FeatureType featureType;
     private static RulePersistenceService rulePersistenceService;
     private static RuleRoutingService ruleRoutingService;
-
     private AutoTaggingActionFilter autoTaggingActionFilter;
 
     /**
@@ -128,7 +127,6 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin, Sy
             parser,
             new IndexBasedRuleQueryMapper()
         );
-
         ruleRoutingService = new WorkloadGroupRuleRoutingService(client, clusterService);
 
         RefreshBasedSyncMechanism refreshMechanism = new RefreshBasedSyncMechanism(

@@ -9,7 +9,6 @@
 package org.opensearch.rule.action;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.rule.GetRuleResponse;
 
 /**
  * Action type for getting Rules

@@ -175,8 +175,8 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
             .build();
 
         final Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 4000L); // 5000 bytes
-        shardSizes.put("[test][0][r]", 4000L);
+        shardSizes.put("[test][0][p]", 5500L); // 5500 bytes shard size and total addressable space - 5000 bytes
+        shardSizes.put("[test][0][r]", 5500L);
         shardSizes.put("[test2][0][p]", 1000L); // 1000 bytes
         shardSizes.put("[test2][0][r]", 1000L);
 
@@ -354,8 +354,8 @@ public class WarmDiskThresholdDeciderTests extends OpenSearchAllocationTestCase 
         WarmDiskThresholdDecider decider = new WarmDiskThresholdDecider(settings, clusterSettings);
 
         final Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 4000L); // 4000 bytes
-        shardSizes.put("[test][0][r]", 4000L);
+        shardSizes.put("[test][0][p]", 5500L); // Shard size more than total addressable space - 5000 bytes
+        shardSizes.put("[test][0][r]", 5500L);
         shardSizes.put("[test2][0][p]", 1000L); // 1000 bytes
         shardSizes.put("[test2][0][r]", 1000L);
 

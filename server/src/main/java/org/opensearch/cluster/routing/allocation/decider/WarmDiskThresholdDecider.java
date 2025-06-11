@@ -127,8 +127,8 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
 
         final long totalAddressableSpace = calculateTotalAddressableSpace(node, allocation);
         final long currentNodeRemoteShardSize = calculateCurrentNodeRemoteShardSize(node, allocation, false);
-        final long freeSpace = totalAddressableSpace - currentNodeRemoteShardSize;
-        final long freeSpaceAfterAllocation = freeSpace > shardSize ? freeSpace - shardSize : 0;
+        final long freeSpace = Math.max(totalAddressableSpace - currentNodeRemoteShardSize, 0);
+        final long freeSpaceAfterAllocation = Math.max(freeSpace - shardSize, 0);
         final long freeSpaceLowThreshold = diskThresholdEvaluator.getFreeSpaceLowThreshold(totalAddressableSpace);
 
         final ByteSizeValue freeSpaceLowThresholdInByteSize = new ByteSizeValue(freeSpaceLowThreshold);
@@ -149,7 +149,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "allocating the shard to this node will bring the node above the low watermark cluster setting [%s=%s] "
+                "allocating the shard to this node will bring the node above the low watermark cluster setting [%s] "
                     + "and cause it to have less than the minimum required [%s] of addressable remote free space (free: [%s], estimated remote shard size: [%s])",
                 CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
                 freeSpaceLowThresholdInByteSize,
@@ -187,7 +187,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
 
         final long totalAddressableSpace = calculateTotalAddressableSpace(node, allocation);
         final long currentNodeRemoteShardSize = calculateCurrentNodeRemoteShardSize(node, allocation, true);
-        final long freeSpace = totalAddressableSpace - currentNodeRemoteShardSize;
+        final long freeSpace = Math.max(totalAddressableSpace - currentNodeRemoteShardSize, 0);
 
         final long freeSpaceHighThreshold = diskThresholdEvaluator.getFreeSpaceHighThreshold(totalAddressableSpace);
 
@@ -204,8 +204,8 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "the shard cannot remain on this node because it is above the high watermark cluster setting [%s=%s] "
-                    + "and there is less than the required [%s%%] free remote addressable space on node, actual free: [%s%%]",
+                "the shard cannot remain on this node because it is above the high watermark cluster setting [%s] "
+                    + "and there is less than the required [%s] free remote addressable space on node, actual free: [%s]",
                 CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
                 freeSpaceHighThresholdInByteSize,
                 freeSpaceInByteSize

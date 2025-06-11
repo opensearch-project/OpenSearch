@@ -45,8 +45,6 @@ import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.bucket.terms.InternalTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,7 +52,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Random;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
@@ -75,16 +72,6 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         NumberFieldMapper.NumberType.LONG
     );
     private static final MappedFieldType SIZE_FIELD_NAME = new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.FLOAT);
-
-    @Before
-    public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-    }
-
-    @After
-    public void teardown() throws IOException {
-        fflock.close();
-    }
 
     protected Codec getCodec() {
         final Logger testLogger = LogManager.getLogger(NumericTermsAggregatorTests.class);

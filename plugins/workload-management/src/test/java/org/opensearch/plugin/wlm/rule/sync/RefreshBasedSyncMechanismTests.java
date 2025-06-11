@@ -14,11 +14,11 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.AutoTaggingActionFilterTests;
 import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
-import org.opensearch.rule.GetRuleRequest;
-import org.opensearch.rule.GetRuleResponse;
 import org.opensearch.rule.InMemoryRuleProcessingService;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
+import org.opensearch.rule.action.GetRuleRequest;
+import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
@@ -33,12 +33,12 @@ import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifierTests.getRandomRule;
 import static org.mockito.ArgumentMatchers.any;
@@ -166,7 +166,7 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             .id("test_id")
             .build();
 
-        when(getRuleResponse.getRules()).thenReturn(Map.of("test_id", rule));
+        when(getRuleResponse.getRules()).thenReturn(List.of(rule));
         doAnswer(invocation -> {
             ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
             listener.onResponse(getRuleResponse);
@@ -181,10 +181,10 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     public void test_doRun_RefreshesRulesAndCheckInMemoryView() {
         GetRuleResponse getRuleResponse = mock(GetRuleResponse.class);
-        Map<String, Rule> existingRules = new HashMap<>();
+        List<Rule> existingRules = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             final String randomRuleId = randomAlphaOfLength(5);
-            existingRules.put(randomRuleId, getRandomRule(randomRuleId));
+            existingRules.add(getRandomRule(randomRuleId));
         }
 
         when(getRuleResponse.getRules()).thenReturn(existingRules);
@@ -197,16 +197,16 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
         // marks the first run of service
         sut.doRun();
 
-        Set<Rule> previousRules = new HashSet<>(existingRules.values());
+        Set<Rule> previousRules = new HashSet<>(existingRules);
 
         Set<Rule> newRules = new HashSet<>();
 
         int deletionEventCount = 10;
         // Mark some deletions
-        for (Map.Entry<String, Rule> rule : existingRules.entrySet()) {
+        for (Rule rule : existingRules) {
             if (randomBoolean()) {
                 deletionEventCount--;
-                newRules.add(rule.getValue());
+                newRules.add(rule);
             }
         }
 
@@ -224,7 +224,7 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             }
         }
 
-        when(getRuleResponse.getRules()).thenReturn(newRules.stream().collect(Collectors.toMap(Rule::getId, rule -> rule)));
+        when(getRuleResponse.getRules()).thenReturn(new ArrayList<>(newRules));
         doAnswer(invocation -> {
             ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
             listener.onResponse(getRuleResponse);
