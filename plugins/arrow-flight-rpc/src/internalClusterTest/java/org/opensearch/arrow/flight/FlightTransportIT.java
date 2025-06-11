@@ -77,7 +77,6 @@ public class FlightTransportIT extends OpenSearchIntegTestCase {
 
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testArrowFlightProducer() throws Exception {
-        final SearchRequest searchRequest = new SearchRequest("index");
         ActionFuture<SearchResponse> future = client().prepareStreamSearch("index").execute();
         SearchResponse resp = future.actionGet();
         assertNotNull(resp);

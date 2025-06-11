@@ -11,167 +11,196 @@ package org.opensearch.arrow.flight.transport;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.Ticket;
-import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.opensearch.Version;
 import org.opensearch.arrow.flight.stream.ArrowStreamInput;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.Header;
-import org.opensearch.transport.InboundDecoder;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
-import org.opensearch.transport.TransportStatus;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Objects;
 
 /**
- * Represents a streaming transport response.
- *
+ * Handles streaming transport responses using Apache Arrow Flight.
+ * Lazily fetches batches from the server when requested.
  */
 @ExperimentalApi
-public class FlightTransportResponse<T extends TransportResponse> implements StreamTransportResponse<T>, Closeable {
+public class FlightTransportResponse<T extends TransportResponse> implements StreamTransportResponse<T> {
     private final FlightStream flightStream;
-    private final Version version;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final HeaderContext headerContext;
     private TransportResponseHandler<T> handler;
-    private Header currentHeader;
-    private VectorSchemaRoot currentRoot;
-    private volatile boolean isClosed = false;
+    private boolean isClosed;
+    private Throwable pendingException;
+    private VectorSchemaRoot pendingRoot;  // Holds the current batch's root for reuse
 
     /**
-     * It makes a network call to fetch the flight stream, so it should be created async.
-     * @param flightClient flight client
-     * @param ticket ticket
-     * @param version version
-     * @param namedWriteableRegistry named writeable registry
+     * Constructs a new streaming response. The flight stream is initialized asynchronously
+     * to avoid blocking during construction.
+     *
+     * @param flightClient           the Arrow Flight client
+     * @param headerContext         the context containing header information
+     * @param ticket                the ticket for fetching the stream
+     * @param namedWriteableRegistry the registry for deserialization
      */
     public FlightTransportResponse(
         FlightClient flightClient,
+        HeaderContext headerContext,
         Ticket ticket,
-        Version version,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
-        this.version = version;
-        this.namedWriteableRegistry = namedWriteableRegistry;
-        this.currentHeader = null;
-        this.currentRoot = null;
-        // its a network call
-        this.flightStream = flightClient.getStream(ticket);
-        if (flightStream.next()) {
-            currentRoot = flightStream.getRoot();
-            try {
-                currentHeader = parseAndValidateHeader(currentRoot, version);
-            } catch (IOException e) {
-                throw new TransportException("Failed to parse header", e);
-            }
-        }
+        this.flightStream = Objects.requireNonNull(flightClient, "flightClient must not be null")
+            .getStream(Objects.requireNonNull(ticket, "ticket must not be null"));
+        this.headerContext = Objects.requireNonNull(headerContext, "headerContext must not be null");
+        this.namedWriteableRegistry = Objects.requireNonNull(namedWriteableRegistry, "namedWriteableRegistry must not be null");
+        this.isClosed = false;
+        this.pendingException = null;
+        this.pendingRoot = null;
     }
 
     /**
-     * This could be a blocking call depending on whether batch is present on the wire or not;
-     * if present, flightStream.next() is lightweight, otherwise, it will wait for the server to produce thereby the
-     * thread will be in WAITING state depending on the backpressure strategy used in {@link ArrowFlightProducer}.
-     * {@link #setHandler(TransportResponseHandler)}  should be called before calling this method.
-     * @return next response in the stream, or null if there are no more responses.
+     * Sets the handler for deserializing responses.
+     *
+     * @param handler the response handler
+     * @throws IllegalStateException if the handler is already set or the stream is closed
+     */
+    public void setHandler(TransportResponseHandler<T> handler) {
+        ensureOpen();
+        if (this.handler != null) {
+            throw new IllegalStateException("Handler already set");
+        }
+        this.handler = Objects.requireNonNull(handler, "handler must not be null");
+    }
+
+    /**
+     * Retrieves the next response from the stream. This may block if the server
+     * is still producing data, depending on the backpressure strategy.
+     *
+     * @return the next response, or null if no more responses are available
+     * @throws IllegalStateException if the handler is not set or the stream is closed
+     * @throws RuntimeException if an exception occurred during header retrieval or batch fetching
      */
     @Override
     public T nextResponse() {
-        if (currentRoot != null) {
-            // we lazily deserialize the response only when demanded; header needs to be fetched first,
-            // thus are part of constructor; We can revisit this logic if better approach exists on header transmission
-            return deserializeResponse();
+        ensureOpen();
+        ensureHandlerSet();
+
+        if (pendingException != null) {
+            Throwable e = pendingException;
+            pendingException = null;
+            throw new TransportException("Failed to fetch batch", e);
+        }
+
+        VectorSchemaRoot rootToUse;
+        if (pendingRoot != null) {
+            rootToUse = pendingRoot;
+            pendingRoot = null;
         } else {
-            if (flightStream.next()) {
-                currentRoot = flightStream.getRoot();
-                return deserializeResponse();
-            } else {
-                return null;
+            try {
+                if (flightStream.next()) {
+                    rootToUse = flightStream.getRoot();
+                } else {
+                    return null;  // No more data
+                }
+            } catch (Exception e) {
+                throw new TransportException("Failed to fetch next batch", e);
             }
+        }
+
+        try {
+            return deserializeResponse(rootToUse);
+        } finally {
+            rootToUse.close();
         }
     }
 
     /**
-     * Set the handler for the response.
-     * @param handler handler for the response
-     */
-    public void setHandler(TransportResponseHandler<T> handler) {
-        this.handler = handler;
-    }
-
-    /**
-     * Returns the header associated with current batch.
-     * @return header associated with current batch
+     * Retrieves the header for the current batch. Fetches the next batch if not already fetched,
+     * but keeps the root open for reuse in nextResponse().
+     *
+     * @return the header for the current batch, or null if no more data is available
      */
     public Header currentHeader() {
-        if (currentHeader != null) {
-            return currentHeader;
+        ensureOpen();
+        if (pendingRoot != null) {
+            return headerContext.getHeader();
         }
-        assert currentRoot != null;
-        // this header parsing for subsequent batches aren't needed unless we expect different headers
-        // for each batch; We can make it configurable, however, framework will parse it anyway from current batch
-        // when requested
         try {
-            currentHeader = parseAndValidateHeader(currentRoot, version);
-        } catch (IOException e) {
-            throw new TransportException("Failed to parse header", e);
-        }
-        return currentHeader;
-    }
-
-    private T deserializeResponse() {
-        try {
-            if (currentRoot.getRowCount() == 0) {
-                throw new IllegalStateException("TransportResponse null");
+            if (flightStream.next()) {
+                pendingRoot = flightStream.getRoot();
+                return headerContext.getHeader();
+            } else {
+                return null;  // No more data
             }
-            try (ArrowStreamInput input = new ArrowStreamInput(currentRoot, namedWriteableRegistry)) {
-                return handler.read(input);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to deserialize response", e);
-        } finally {
-            currentRoot.close();
-            currentRoot = null;
+        } catch (Exception e) {
+            pendingException = e;
+            return headerContext.getHeader();
         }
     }
 
-    private static Header parseAndValidateHeader(VectorSchemaRoot root, Version version) throws IOException {
-        VarBinaryVector metaVector = (VarBinaryVector) root.getVector("_meta");
-        if (metaVector == null || metaVector.getValueCount() == 0 || metaVector.isNull(0)) {
-            throw new TransportException("Missing _meta vector in batch");
-        }
-        byte[] headerBytes = metaVector.get(0);
-        BytesReference headerRef = new BytesArray(headerBytes);
-        Header header = InboundDecoder.readHeader(version, headerRef.length(), headerRef);
-
-        if (!Version.CURRENT.isCompatible(header.getVersion())) {
-            throw new TransportException("Incompatible version: " + header.getVersion());
-        }
-        if (TransportStatus.isError(header.getStatus())) {
-            throw new TransportException("Received error response");
-        }
-        return header;
-    }
-
+    /**
+     * Closes the underlying flight stream and releases resources, including any pending root.
+     */
     @Override
     public void close() {
         if (isClosed) {
             return;
         }
+        if (pendingRoot != null) {
+            pendingRoot.close();
+            pendingRoot = null;
+        }
         try {
-            if (currentRoot != null) {
-                currentRoot.close();
-            }
             flightStream.close();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new TransportException("Failed to close flight stream", e);
         } finally {
             isClosed = true;
+        }
+    }
+
+    /**
+     * Deserializes the response from the given VectorSchemaRoot.
+     *
+     * @param root the root containing the response data
+     * @return the deserialized response
+     * @throws RuntimeException if deserialization fails
+     */
+    private T deserializeResponse(VectorSchemaRoot root) {
+        if (root.getRowCount() == 0) {
+            throw new IllegalStateException("Empty response received");
+        }
+        try (ArrowStreamInput input = new ArrowStreamInput(root, namedWriteableRegistry)) {
+            return handler.read(input);
+        } catch (IOException e) {
+            throw new TransportException("Failed to deserialize response", e);
+        }
+    }
+
+    /**
+     * Ensures the stream is not closed before performing operations.
+     *
+     * @throws IllegalStateException if the stream is closed
+     */
+    private void ensureOpen() {
+        if (isClosed) {
+            throw new IllegalStateException("Stream is closed");
+        }
+    }
+
+    /**
+     * Ensures the handler is set before attempting to read responses.
+     *
+     * @throws IllegalStateException if the handler is not set
+     */
+    private void ensureHandlerSet() {
+        if (handler == null) {
+            throw new IllegalStateException("Handler must be set before requesting responses");
         }
     }
 }

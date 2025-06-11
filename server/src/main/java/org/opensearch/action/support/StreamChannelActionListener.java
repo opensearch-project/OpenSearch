@@ -32,8 +32,10 @@ public class StreamChannelActionListener<Response extends TransportResponse, Req
     @Override
     public void onResponse(Response response) {
         try {
+            // placeholder for batching
             channel.sendResponseBatch(response);
         } finally {
+            // this can be removed once batching is supported
             channel.completeStream();
         }
     }
@@ -44,8 +46,6 @@ public class StreamChannelActionListener<Response extends TransportResponse, Req
             channel.sendResponse(e);
         } catch (IOException exc) {
             throw new RuntimeException(exc);
-        } finally {
-            channel.completeStream();
         }
     }
 }
