@@ -523,15 +523,36 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testGetComplementNonNumericField() throws Exception {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
-        String textValue = "some_text";
-        Document d = new Document();
-        d.add(new TextField(TEXT_FIELD_NAME, textValue, Field.Store.NO));
-        w.addDocument(d);
-        w.commit();
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = getIndexSearcher(reader);
 
-        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, textValue);
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, "some_text");
+        assertNull(queryBuilder.getComplement(createShardContext(searcher)));
+        IOUtils.close(w, reader, dir);
+    }
+
+    public void testGetComplementBitmap() throws Exception {
+        // Complement should return null if using bitmap value type.
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, randomTermsLookup().store(true)).valueType(
+            TermsQueryBuilder.ValueType.BITMAP
+        );
+        assertNull(queryBuilder.getComplement(createShardContext(searcher)));
+        IOUtils.close(w, reader, dir);
+    }
+
+    public void testGetComplementValuesLookup() throws Exception {
+        // Complement should return null if the builder has termsLookup instead of values specified
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, randomTermsLookup().store(true));
         assertNull(queryBuilder.getComplement(createShardContext(searcher)));
         IOUtils.close(w, reader, dir);
     }

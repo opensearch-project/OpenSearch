@@ -643,6 +643,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
     @Override
     public List<QueryBuilder> getComplement(QueryShardContext context) {
+        // If this uses BITMAP value type, or if we're using termsLookup, we can't provide the complement.
+        if (valueType.equals(ValueType.BITMAP)) return null;
+        if (values == null || termsLookup != null) return null;
         // If this is a terms query on a numeric field, we can provide the complement using RangeQueryBuilder.
         NumberFieldMapper.NumberFieldType nft = ComplementHelperUtils.getNumberFieldType(context, fieldName);
         if (nft == null) return null;
