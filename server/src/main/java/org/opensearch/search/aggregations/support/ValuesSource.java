@@ -81,6 +81,7 @@ import java.util.function.LongUnaryOperator;
 @PublicApi(since = "1.0.0")
 public abstract class ValuesSource {
     private Runnable cancellationCheck;
+
     /**
      * Get the current {@link BytesValues}.
      */

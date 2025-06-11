@@ -37,8 +37,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -332,7 +332,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     protected void checkCancelled() {
         if (context.isCancelled()) {
-            throw new OpenSearchRejectedExecutionException("The query has been cancelled");
+            throw new TaskCancelledException("The query has been cancelled");
         }
     }
 }
