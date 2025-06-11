@@ -695,7 +695,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         return rq;
     }
 
-    static void addDocument(IndexWriter w, String fieldName, int... values) throws Exception {
+    private void addDocument(IndexWriter w, String fieldName, int... values) throws Exception {
         Document d = new Document();
         for (int value : values) {
             d.add(new IntPoint(fieldName, value));
