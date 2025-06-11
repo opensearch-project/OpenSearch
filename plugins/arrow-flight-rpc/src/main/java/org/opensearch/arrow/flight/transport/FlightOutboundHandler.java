@@ -16,7 +16,6 @@
 
 package org.opensearch.arrow.flight.transport;
 
-import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.Version;
 import org.opensearch.arrow.flight.stream.ArrowStreamOutput;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -32,7 +31,6 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.transport.TransportStatus;
 import org.opensearch.transport.nativeprotocol.NativeOutboundMessage;
 
 import java.io.IOException;
@@ -108,7 +106,6 @@ public class FlightOutboundHandler extends ProtocolOutboundHandler {
         }
         try {
             // Create NativeOutboundMessage for headers
-            byte status = TransportStatus.setResponse((byte) 0);
             NativeOutboundMessage.Response headerMessage = new NativeOutboundMessage.Response(
                 threadPool.getThreadContext(),
                 features,
@@ -126,16 +123,9 @@ public class FlightOutboundHandler extends ProtocolOutboundHandler {
                 headerBuffer = ByteBuffer.wrap(headerBytes.toBytesRef().bytes);
             }
 
-            if (response instanceof TransportResponse.Empty) {
-                // Empty response treated as a batch
-                flightChannel.sendBatch(null, listener);
-                messageListener.onResponseSent(requestId, action, response);
-                return;
-            }
             try (ArrowStreamOutput out = new ArrowStreamOutput(flightChannel.getAllocator())) {
                 response.writeTo(out);
-                VectorSchemaRoot root = out.getUnifiedRoot(headerBuffer);
-                flightChannel.sendBatch(root, listener);
+                flightChannel.sendBatch(headerBuffer, out, listener);
                 messageListener.onResponseSent(requestId, action, response);
             }
         } catch (Exception e) {
@@ -158,6 +148,7 @@ public class FlightOutboundHandler extends ProtocolOutboundHandler {
         try {
             flightChannel.completeStream(listener);
             // listener.onResponse(null);
+            // TODO - do we need to call onResponseSent() for messageListener; its already called for individual batches
             // messageListener.onResponseSent(requestId, action, null);
         } catch (Exception e) {
             listener.onFailure(new TransportException("Failed to complete stream for action [" + action + "]", e));
@@ -177,15 +168,28 @@ public class FlightOutboundHandler extends ProtocolOutboundHandler {
         if (!(channel instanceof FlightServerChannel)) {
             throw new IllegalStateException("Expected FlightServerChannel, got " + channel.getClass().getName());
         }
+        NativeOutboundMessage.Response headerMessage = new NativeOutboundMessage.Response(
+            threadPool.getThreadContext(),
+            features,
+            out -> {},
+            Version.min(version, nodeVersion),
+            requestId,
+            false,
+            false
+        );
+        // Serialize headers
+        ByteBuffer headerBuffer;
+        try (BytesStreamOutput bytesStream = new BytesStreamOutput()) {
+            BytesReference headerBytes = headerMessage.serialize(bytesStream);
+            headerBuffer = ByteBuffer.wrap(headerBytes.toBytesRef().bytes);
+        }
         FlightServerChannel flightChannel = (FlightServerChannel) channel;
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, error));
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-            try {
-                flightChannel.sendError(error, listener);
-            } catch (Exception e) {
-                listener.onFailure(new TransportException("Failed to send error response for action [" + action + "]", e));
-            }
-        });
+        try {
+            flightChannel.sendError(headerBuffer, error, listener);
+        } catch (Exception e) {
+            listener.onFailure(new TransportException("Failed to send error response for action [" + action + "]", e));
+        }
     }
 
     @Override
