@@ -8298,14 +8298,16 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testNewChangesSnapshotWithDerivedSource() throws IOException {
-
+        IOUtils.close(engine, store);
         // Create test documents
         List<Engine.Operation> operations = new ArrayList<>();
         final int numDocs = randomIntBetween(1, 100);
 
         try (Store store = createStore()) {
             EngineConfig engineConfig = createEngineConfigWithMapperSupplierForDerivedSource(store);
-            try (InternalEngine engine = createEngine(engineConfig)) {
+            InternalEngine engine = null;
+            try {
+                engine = createEngine(engineConfig);
                 // Index documents
                 for (int i = 0; i < numDocs; i++) {
                     ParsedDocument doc = testParsedDocument(
@@ -8359,11 +8361,14 @@ public class InternalEngineTests extends EngineTestCase {
                     // Verify we got all documents
                     assertThat(count, equalTo(numDocs));
                 }
+            } finally {
+                IOUtils.close(engine, store);
             }
         }
     }
 
-    public void testNewChangesSnapshotWithDeleteAndUpdate() throws IOException {
+    public void testNewChangesSnapshotWithDeleteAndUpdateWithDerivedSource() throws IOException {
+        IOUtils.close(engine, store);
         final List<Engine.Operation> operations = new ArrayList<>();
         int numDocs = randomIntBetween(10, 100);
         int numDocsToDelete = randomIntBetween(1, numDocs / 2);
@@ -8371,7 +8376,9 @@ public class InternalEngineTests extends EngineTestCase {
 
         try (Store store = createStore()) {
             EngineConfig engineConfig = createEngineConfigWithMapperSupplierForDerivedSource(store);
-            try (InternalEngine engine = createEngine(engineConfig)) {
+            InternalEngine engine = null;
+            try {
+                engine = createEngine(engineConfig);
                 // First index documents
                 for (int i = 0; i < numDocs; i++) {
                     ParsedDocument doc = testParsedDocument(
@@ -8516,6 +8523,8 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                     assertEquals("Expected number of operations in range", to - from + 1, count);
                 }
+            } finally {
+                IOUtils.close(engine, store);
             }
         }
     }
