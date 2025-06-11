@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule;
+package org.opensearch.rule.action;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -80,7 +80,7 @@ public class DeleteRuleRequest extends ActionRequest {
      *
      * @return The feature type.
      */
-    public FeatureType getFeatureType() {
+    FeatureType getFeatureType() {
         return featureType;
     }
 }

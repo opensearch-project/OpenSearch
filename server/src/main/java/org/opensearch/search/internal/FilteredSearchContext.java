@@ -582,4 +582,9 @@ public abstract class FilteredSearchContext extends SearchContext {
     public boolean shouldUseTimeSeriesDescSortOptimization() {
         return in.shouldUseTimeSeriesDescSortOptimization();
     }
+
+    @Override
+    public boolean getStarTreeIndexEnabled() {
+        return in.getStarTreeIndexEnabled();
+    }
 }

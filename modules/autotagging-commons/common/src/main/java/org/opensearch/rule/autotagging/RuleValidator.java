@@ -26,6 +26,7 @@ import static org.opensearch.cluster.metadata.WorkloadGroup.isValid;
  * @opensearch.experimental
  */
 public class RuleValidator {
+    private final String id;
     private final String description;
     private final Map<Attribute, Set<String>> attributeMap;
     private final String featureValue;
@@ -38,6 +39,7 @@ public class RuleValidator {
 
     /**
      * deafult constructor
+     * @param id
      * @param description
      * @param attributeMap
      * @param featureValue
@@ -45,12 +47,14 @@ public class RuleValidator {
      * @param featureType
      */
     public RuleValidator(
+        String id,
         String description,
         Map<Attribute, Set<String>> attributeMap,
         String featureValue,
         String updatedAt,
         FeatureType featureType
     ) {
+        this.id = id;
         this.description = description;
         this.attributeMap = attributeMap;
         this.featureValue = featureValue;
@@ -76,6 +80,9 @@ public class RuleValidator {
 
     private List<String> validateStringFields() {
         List<String> errors = new ArrayList<>();
+        if (isNullOrEmpty(id)) {
+            errors.add("Rule id can't be null or empty");
+        }
         if (isNullOrEmpty(description)) {
             errors.add("Rule description can't be null or empty");
         } else if (description.length() > MAX_DESCRIPTION_LENGTH) {
@@ -129,14 +136,14 @@ public class RuleValidator {
                 Set<String> attributeValues = entry.getValue();
                 errors.addAll(validateAttributeExistence(attribute));
                 errors.addAll(validateMaxAttributeValues(attribute, attributeValues));
-                errors.addAll(validateAttributeValuesLength(attributeValues));
+                errors.addAll(validateAttributeValuesList(attributeValues));
             }
         }
         return errors;
     }
 
     private List<String> validateAttributeExistence(Attribute attribute) {
-        if (featureType.getAttributeFromName(attribute.getName()) == null) {
+        if (!featureType.isValidAttribute(attribute)) {
             return List.of(attribute.getName() + " is not a valid attribute within the " + featureType.getName() + " feature.");
         }
         return new ArrayList<>();
@@ -164,14 +171,19 @@ public class RuleValidator {
         return errors;
     }
 
-    private List<String> validateAttributeValuesLength(Set<String> attributeValues) {
+    private List<String> validateAttributeValuesList(Set<String> attributeValues) {
         int maxValueLength = featureType.getMaxCharLengthPerAttributeValue();
+        List<String> errors = new ArrayList<>();
         for (String attributeValue : attributeValues) {
             if (attributeValue.isEmpty() || attributeValue.length() > maxValueLength) {
-                return List.of("Attribute value [" + attributeValue + "] is invalid (empty or exceeds " + maxValueLength + " characters)");
+                errors.add("Attribute value [" + attributeValue + "] is invalid (empty or exceeds " + maxValueLength + " characters)");
+            }
+            int asteriskCount = (int) attributeValue.chars().filter(c -> c == '*').count();
+            if (asteriskCount > 1 || (asteriskCount == 1 && !attributeValue.endsWith("*"))) {
+                errors.add("Attribute value [" + attributeValue + "] is invalid (only one '*' is allowed and it must appear at the end)");
             }
         }
-        return new ArrayList<>();
+        return errors;
     }
 
     @Override
