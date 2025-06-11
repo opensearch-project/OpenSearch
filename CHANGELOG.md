@@ -50,6 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Star tree] Remove star tree feature flag and add index setting to configure star tree search on index basis ([#18070](https://github.com/opensearch-project/OpenSearch/pull/18070))
 - Approximation Framework Enhancement: Update the BKD traversal logic to improve the performance on skewed data ([#18439](https://github.com/opensearch-project/OpenSearch/issues/18439))
 - Add a dynamic setting to change skip_cache_factor and min_frequency for querycache ([#18351](https://github.com/opensearch-project/OpenSearch/issues/18351))
+- Added FS Health Check Failure metric ([#18435](https://github.com/opensearch-project/OpenSearch/pull/18435))
 
 ### Changed
 - Create generic DocRequest to better categorize ActionRequests ([#18269](https://github.com/opensearch-project/OpenSearch/pull/18269)))
