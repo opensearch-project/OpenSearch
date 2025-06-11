@@ -14,7 +14,6 @@ import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
-import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
@@ -53,7 +52,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -119,35 +117,7 @@ public final class AsyncTransferManager {
         StreamContext streamContext,
         StatsMetricPublisher statsMetricPublisher
     ) {
-
-        CompletableFuture<Void> returnFuture = new CompletableFuture<>();
-        try {
-            if (streamContext.getNumberOfParts() == 1) {
-                log.debug(() -> "Starting the upload as a single upload part request");
-                TransferSemaphoresHolder.RequestContext requestContext = transferSemaphoresHolder.createRequestContext();
-                Semaphore semaphore = AsyncPartsHandler.maybeAcquireSemaphore(
-                    transferSemaphoresHolder,
-                    requestContext,
-                    uploadRequest.getWritePriority(),
-                    uploadRequest.getKey()
-                );
-                try {
-                    uploadInOneChunk(s3AsyncClient, uploadRequest, streamContext, returnFuture, statsMetricPublisher, semaphore);
-                } catch (Exception ex) {
-                    if (semaphore != null) {
-                        semaphore.release();
-                    }
-                    throw ex;
-                }
-            } else {
-                log.debug(() -> "Starting the upload as multipart upload request");
-                uploadInParts(s3AsyncClient, uploadRequest, streamContext, returnFuture, statsMetricPublisher);
-            }
-        } catch (Throwable throwable) {
-            returnFuture.completeExceptionally(throwable);
-        }
-
-        return returnFuture;
+        return processUploadRequest(s3AsyncClient, uploadRequest, streamContext, statsMetricPublisher, false).thenApply(response -> null);
     }
 
     /**
@@ -170,10 +140,25 @@ public final class AsyncTransferManager {
             throw new IllegalArgumentException("Cannot perform conditional upload with null options");
         }
 
+        return processUploadRequest(s3AsyncClient, uploadRequest, streamContext, statsMetricPublisher, true);
+    }
+
+    /**
+     internal upload execution for both regular and conditional uploads
+     */
+    private CompletableFuture<ConditionalWriteResponse> processUploadRequest(
+        S3AsyncClient s3AsyncClient,
+        UploadRequest uploadRequest,
+        StreamContext streamContext,
+        StatsMetricPublisher statsMetricPublisher,
+        boolean isConditional
+    ) {
         CompletableFuture<ConditionalWriteResponse> returnFuture = new CompletableFuture<>();
         try {
             if (streamContext.getNumberOfParts() == 1) {
-                log.debug(() -> "Starting conditional single part upload for key: " + uploadRequest.getKey());
+                log.debug(
+                    () -> "Starting " + (isConditional ? "conditional " : "") + "single part upload for key: " + uploadRequest.getKey()
+                );
                 TransferSemaphoresHolder.RequestContext requestContext = transferSemaphoresHolder.createRequestContext();
                 Semaphore semaphore = AsyncPartsHandler.maybeAcquireSemaphore(
                     transferSemaphoresHolder,
@@ -182,13 +167,14 @@ public final class AsyncTransferManager {
                     uploadRequest.getKey()
                 );
                 try {
-                    uploadInOneChunkConditionally(
+                    uploadInOneChunk(
                         s3AsyncClient,
                         uploadRequest,
                         streamContext,
                         returnFuture,
                         statsMetricPublisher,
-                        semaphore
+                        semaphore,
+                        isConditional
                     );
                 } catch (Exception ex) {
                     if (semaphore != null) {
@@ -197,8 +183,10 @@ public final class AsyncTransferManager {
                     throw ex;
                 }
             } else {
-                log.debug(() -> "Starting conditional multipart upload for key: " + uploadRequest.getKey());
-                uploadInPartsConditionally(s3AsyncClient, uploadRequest, streamContext, returnFuture, statsMetricPublisher);
+                log.debug(
+                    () -> "Starting " + (isConditional ? "conditional " : "") + "multipart upload for key: " + uploadRequest.getKey()
+                );
+                uploadInParts(s3AsyncClient, uploadRequest, streamContext, returnFuture, statsMetricPublisher, isConditional);
             }
         } catch (Throwable throwable) {
             returnFuture.completeExceptionally(throwable);
@@ -207,12 +195,16 @@ public final class AsyncTransferManager {
         return returnFuture;
     }
 
+    /**
+     multipart upload initiation for both regular and conditional async uploads
+     */
     private void uploadInParts(
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
         StreamContext streamContext,
-        CompletableFuture<Void> returnFuture,
-        StatsMetricPublisher statsMetricPublisher
+        CompletableFuture<ConditionalWriteResponse> returnFuture,
+        StatsMetricPublisher statsMetricPublisher,
+        boolean isConditional
     ) {
 
         CreateMultipartUploadRequest.Builder createMultipartUploadRequestBuilder = CreateMultipartUploadRequest.builder()
@@ -245,121 +237,24 @@ public final class AsyncTransferManager {
             uploadId = createMultipartUploadResponse.uploadId();
             log.debug(() -> "Initiated new multipart upload, uploadId: " + createMultipartUploadResponse.uploadId());
         } catch (Exception ex) {
-            handleException(returnFuture, () -> "Failed to initiate multipart upload", ex);
+            handleUploadException(returnFuture, ex, uploadRequest.getKey(), isConditional);
             return;
         }
 
-        doUploadInParts(s3AsyncClient, uploadRequest, streamContext, returnFuture, uploadId, statsMetricPublisher);
+        doUploadInParts(s3AsyncClient, uploadRequest, streamContext, returnFuture, uploadId, statsMetricPublisher, isConditional);
     }
 
-    private void uploadInPartsConditionally(
-        S3AsyncClient s3AsyncClient,
-        UploadRequest uploadRequest,
-        StreamContext streamContext,
-        CompletableFuture<ConditionalWriteResponse> returnFuture,
-        StatsMetricPublisher statsMetricPublisher
-    ) {
-        CreateMultipartUploadRequest.Builder createMultipartUploadRequestBuilder = CreateMultipartUploadRequest.builder()
-            .bucket(uploadRequest.getBucket())
-            .key(uploadRequest.getKey())
-            .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector));
-
-        if (CollectionUtils.isNotEmpty(uploadRequest.getMetadata())) {
-            createMultipartUploadRequestBuilder.metadata(uploadRequest.getMetadata());
-        }
-        if (uploadRequest.doRemoteDataIntegrityCheck()) {
-            createMultipartUploadRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
-        }
-
-        CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadFuture = SocketAccess.doPrivileged(
-            () -> s3AsyncClient.createMultipartUpload(createMultipartUploadRequestBuilder.build())
-        );
-
-        // Ensure cancellations are forwarded to the createMultipartUploadFuture future
-        CompletableFutureUtils.forwardExceptionTo(returnFuture, createMultipartUploadFuture);
-
-        String uploadId;
-        try {
-            // Block main thread here so that upload of parts doesn't get executed in future completion thread.
-            // We should never execute latent operation like acquisition of permit in future completion pool.
-            CreateMultipartUploadResponse createMultipartUploadResponse = createMultipartUploadFuture.get();
-            uploadId = createMultipartUploadResponse.uploadId();
-            log.debug(() -> "Initiated new multipart upload, uploadId: " + createMultipartUploadResponse.uploadId());
-        } catch (Exception ex) {
-            handleConditionalException(returnFuture, ex, uploadRequest.getKey());
-            return;
-        }
-
-        doUploadInPartsConditionally(s3AsyncClient, uploadRequest, streamContext, returnFuture, uploadId, statsMetricPublisher);
-    }
-
+    /**
+     multipart upload execution for both regular and conditional uploads
+     */
     private void doUploadInParts(
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
         StreamContext streamContext,
-        CompletableFuture<Void> returnFuture,
-        String uploadId,
-        StatsMetricPublisher statsMetricPublisher
-    ) {
-
-        // The list of completed parts must be sorted
-        AtomicReferenceArray<CompletedPart> completedParts = new AtomicReferenceArray<>(streamContext.getNumberOfParts());
-        AtomicReferenceArray<CheckedContainer> inputStreamContainers = new AtomicReferenceArray<>(streamContext.getNumberOfParts());
-
-        List<CompletableFuture<CompletedPart>> futures;
-        try {
-            futures = AsyncPartsHandler.uploadParts(
-                s3AsyncClient,
-                executorService,
-                priorityExecutorService,
-                urgentExecutorService,
-                uploadRequest,
-                streamContext,
-                uploadId,
-                completedParts,
-                inputStreamContainers,
-                statsMetricPublisher,
-                uploadRequest.isUploadRetryEnabled(),
-                transferSemaphoresHolder,
-                maxRetryablePartSize
-            );
-        } catch (Exception ex) {
-            try {
-                AsyncPartsHandler.cleanUpParts(s3AsyncClient, uploadRequest, uploadId);
-            } finally {
-                returnFuture.completeExceptionally(ex);
-            }
-            return;
-        }
-
-        CompletableFutureUtils.allOfExceptionForwarded(futures.toArray(CompletableFuture[]::new)).thenApply(resp -> {
-            try {
-                uploadRequest.getUploadFinalizer().accept(true);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            return resp;
-        }).thenApply(ignore -> {
-            if (uploadRequest.doRemoteDataIntegrityCheck()) {
-                mergeAndVerifyChecksum(inputStreamContainers, uploadRequest.getKey(), uploadRequest.getExpectedChecksum());
-            }
-            return null;
-        })
-            .thenCompose(ignore -> completeMultipartUpload(s3AsyncClient, uploadRequest, uploadId, completedParts, statsMetricPublisher))
-            .handle(handleExceptionOrResponse(s3AsyncClient, uploadRequest, returnFuture, uploadId))
-            .exceptionally(throwable -> {
-                handleException(returnFuture, () -> "Unexpected exception occurred", throwable);
-                return null;
-            });
-    }
-
-    private void doUploadInPartsConditionally(
-        S3AsyncClient s3AsyncClient,
-        UploadRequest uploadRequest,
-        StreamContext streamContext,
         CompletableFuture<ConditionalWriteResponse> returnFuture,
         String uploadId,
-        StatsMetricPublisher statsMetricPublisher
+        StatsMetricPublisher statsMetricPublisher,
+        boolean isConditional
     ) {
         // The list of completed parts must be sorted
         AtomicReferenceArray<CompletedPart> completedParts = new AtomicReferenceArray<>(streamContext.getNumberOfParts());
@@ -404,207 +299,96 @@ public final class AsyncTransferManager {
             }
             return null;
         }).thenCompose(ignore -> {
-            log.debug(() -> "Completing conditional multipart upload, uploadId: " + uploadId);
-
-            CompletedPart[] parts = IntStream.range(0, completedParts.length()).mapToObj(completedParts::get).toArray(CompletedPart[]::new);
-
-            CompleteMultipartUploadRequest.Builder completeRequestBuilder = CompleteMultipartUploadRequest.builder()
-                .bucket(uploadRequest.getBucket())
-                .key(uploadRequest.getKey())
-                .uploadId(uploadId)
-                .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
-                .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector));
-
-            if (uploadRequest.getConditionalOptions() != null) {
-                applyConditionalHeaders(completeRequestBuilder, uploadRequest.getConditionalOptions());
-            }
-
-            return s3AsyncClient.completeMultipartUpload(completeRequestBuilder.build());
+            log.debug(() -> "Completing " + (isConditional ? "conditional " : "") + "multipart upload, uploadId: " + uploadId);
+            return completeMultipartUpload(s3AsyncClient, uploadRequest, uploadId, completedParts, statsMetricPublisher, isConditional);
         }).handle((response, throwable) -> {
             if (throwable != null) {
                 AsyncPartsHandler.cleanUpParts(s3AsyncClient, uploadRequest, uploadId);
 
-                Throwable unwrappedThrowable = ExceptionsHelper.unwrap(throwable, S3Exception.class);
-                if (unwrappedThrowable != null) {
-                    S3Exception s3Exception = (S3Exception) unwrappedThrowable;
-                    if (s3Exception.statusCode() == HTTP_STATUS_PRECONDITION_FAILED) {
-                        returnFuture.completeExceptionally(
-                            S3Exception.builder()
-                                .message("Conditional write failed: condition not met for " + uploadRequest.getKey())
-                                .statusCode(HTTP_STATUS_PRECONDITION_FAILED)
-                                .cause(s3Exception)
-                                .build()
-                        );
-                        return null;
-                    } else if (s3Exception.statusCode() == HTTP_STATUS_CONFLICT) {
-                        returnFuture.completeExceptionally(
-                            S3Exception.builder()
-                                .message("Blob already exists: " + uploadRequest.getKey())
-                                .statusCode(HTTP_STATUS_CONFLICT)
-                                .cause(s3Exception)
-                                .build()
-                        );
-                        return null;
+                if (isConditional) {
+                    Throwable unwrappedThrowable = ExceptionsHelper.unwrap(throwable, S3Exception.class);
+                    if (unwrappedThrowable != null) {
+                        S3Exception s3Exception = (S3Exception) unwrappedThrowable;
+                        if (s3Exception.statusCode() == HTTP_STATUS_PRECONDITION_FAILED) {
+                            returnFuture.completeExceptionally(
+                                S3Exception.builder()
+                                    .message("Conditional write failed: condition not met for " + uploadRequest.getKey())
+                                    .statusCode(HTTP_STATUS_PRECONDITION_FAILED)
+                                    .cause(s3Exception)
+                                    .build()
+                            );
+                            return null;
+                        } else if (s3Exception.statusCode() == HTTP_STATUS_CONFLICT) {
+                            returnFuture.completeExceptionally(
+                                S3Exception.builder()
+                                    .message("Blob already exists: " + uploadRequest.getKey())
+                                    .statusCode(HTTP_STATUS_CONFLICT)
+                                    .cause(s3Exception)
+                                    .build()
+                            );
+                            return null;
+                        }
                     }
                 }
-                handleConditionalException(returnFuture, throwable, uploadRequest.getKey());
+                handleUploadException(returnFuture, throwable, uploadRequest.getKey(), isConditional);
                 return null;
             } else {
-                returnFuture.complete(ConditionalWriteResponse.success(response.eTag()));
+                returnFuture.complete(response);
                 return null;
             }
+
         }).exceptionally(throwable -> {
-            handleConditionalException(returnFuture, throwable, uploadRequest.getKey());
+            handleUploadException(returnFuture, throwable, uploadRequest.getKey(), isConditional);
             return null;
         });
     }
 
-    private void mergeAndVerifyChecksum(
-        AtomicReferenceArray<CheckedContainer> inputStreamContainers,
-        String fileName,
-        long expectedChecksum
-    ) {
-        long resultantChecksum = fromBase64String(inputStreamContainers.get(0).getChecksum());
-        for (int index = 1; index < inputStreamContainers.length(); index++) {
-            long curChecksum = fromBase64String(inputStreamContainers.get(index).getChecksum());
-            resultantChecksum = JZlib.crc32_combine(resultantChecksum, curChecksum, inputStreamContainers.get(index).getContentLength());
-        }
-
-        if (resultantChecksum != expectedChecksum) {
-            throw new RuntimeException(new CorruptFileException("File level checksums didn't match combined part checksums", fileName));
-        }
-    }
-
-    private BiFunction<CompleteMultipartUploadResponse, Throwable, Void> handleExceptionOrResponse(
-        S3AsyncClient s3AsyncClient,
-        UploadRequest uploadRequest,
-        CompletableFuture<Void> returnFuture,
-        String uploadId
-    ) {
-
-        return (response, throwable) -> {
-            if (throwable != null) {
-                AsyncPartsHandler.cleanUpParts(s3AsyncClient, uploadRequest, uploadId);
-                handleException(returnFuture, () -> "Failed to send multipart upload requests.", throwable);
-            } else {
-                returnFuture.complete(null);
-            }
-
-            return null;
-        };
-    }
-
-    private CompletableFuture<CompleteMultipartUploadResponse> completeMultipartUpload(
+    /**
+     complete multipart upload for both regular and conditional uploads
+     */
+    private CompletableFuture<ConditionalWriteResponse> completeMultipartUpload(
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
         String uploadId,
         AtomicReferenceArray<CompletedPart> completedParts,
-        StatsMetricPublisher statsMetricPublisher
+        StatsMetricPublisher statsMetricPublisher,
+        boolean isConditional
     ) {
 
         log.debug(() -> new ParameterizedMessage("Sending completeMultipartUploadRequest, uploadId: {}", uploadId));
         CompletedPart[] parts = IntStream.range(0, completedParts.length()).mapToObj(completedParts::get).toArray(CompletedPart[]::new);
-        CompleteMultipartUploadRequest completeMultipartUploadRequest = CompleteMultipartUploadRequest.builder()
+
+        CompleteMultipartUploadRequest.Builder completeRequestBuilder = CompleteMultipartUploadRequest.builder()
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
             .uploadId(uploadId)
             .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector))
             .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
-            .expectedBucketOwner(uploadRequest.getExpectedBucketOwner())
-            .build();
+            .expectedBucketOwner(uploadRequest.getExpectedBucketOwner());
 
-        return SocketAccess.doPrivileged(() -> s3AsyncClient.completeMultipartUpload(completeMultipartUploadRequest));
-    }
-
-    private static String base64StringFromLong(Long val) {
-        return Base64.getEncoder().encodeToString(Arrays.copyOfRange(ByteUtils.toByteArrayBE(val), 4, 8));
-    }
-
-    private static long fromBase64String(String base64String) {
-        byte[] decodedBytes = Base64.getDecoder().decode(base64String);
-        if (decodedBytes.length != 4) {
-            throw new IllegalArgumentException("Invalid Base64 encoded CRC32 checksum");
+        if (isConditional && uploadRequest.getConditionalOptions() != null) {
+            applyConditionalHeaders(completeRequestBuilder, uploadRequest.getConditionalOptions());
         }
-        long result = 0;
-        for (int i = 0; i < 4; i++) {
-            result <<= 8;
-            result |= (decodedBytes[i] & 0xFF);
-        }
-        return result;
-    }
 
-    private static void handleException(CompletableFuture<Void> returnFuture, Supplier<String> message, Throwable throwable) {
-        Throwable cause = throwable instanceof CompletionException ? throwable.getCause() : throwable;
+        CompleteMultipartUploadRequest completeRequest = completeRequestBuilder.build();
 
-        if (cause instanceof Error) {
-            returnFuture.completeExceptionally(cause);
-        } else {
-            SdkClientException exception = SdkClientException.create(message.get(), cause);
-            returnFuture.completeExceptionally(exception);
-        }
+        return SocketAccess.doPrivileged(() -> s3AsyncClient.completeMultipartUpload(completeRequest))
+            .thenApply(response -> ConditionalWriteResponse.success(response.eTag()));
     }
 
     /**
-     * Error handler for conditional uploads
+
+     single chunk upload for both regular and conditional uploads
      */
-    private <T> void handleConditionalException(CompletableFuture<T> returnFuture, Throwable throwable, String resourceName) {
-        Throwable cause = throwable;
-        while (cause instanceof CompletionException && cause.getCause() != null) {
-            cause = cause.getCause();
-        }
-
-        if (cause instanceof S3Exception s3e) {
-            if (s3e.statusCode() == HTTP_STATUS_PRECONDITION_FAILED) {
-                returnFuture.completeExceptionally(
-                    S3Exception.builder()
-                        .message("Conditional write failed: condition not met for " + resourceName)
-                        .statusCode(HTTP_STATUS_PRECONDITION_FAILED)
-                        .cause(s3e)
-                        .build()
-                );
-                return;
-            } else if (s3e.statusCode() == HTTP_STATUS_CONFLICT) {
-                returnFuture.completeExceptionally(
-                    S3Exception.builder()
-                        .message("Blob already exists: " + resourceName)
-                        .statusCode(HTTP_STATUS_CONFLICT)
-                        .cause(s3e)
-                        .build()
-                );
-                return;
-            }
-        }
-        if (cause instanceof Error) {
-            returnFuture.completeExceptionally(cause);
-        } else {
-            SdkClientException exception = SdkClientException.create("Failed conditional upload of " + resourceName, cause);
-            returnFuture.completeExceptionally(exception);
-        }
-    }
-
-    /**
-     * Calculates the optimal part size of each part request if the upload operation is carried out as multipart upload.
-     */
-    public long calculateOptimalPartSize(long contentLengthOfSource, WritePriority writePriority, boolean uploadRetryEnabled) {
-        if (contentLengthOfSource < ByteSizeUnit.MB.toBytes(5)) {
-            return contentLengthOfSource;
-        }
-        if (uploadRetryEnabled && (writePriority == WritePriority.HIGH || writePriority == WritePriority.URGENT)) {
-            return new ByteSizeValue(5, ByteSizeUnit.MB).getBytes();
-        }
-        double optimalPartSize = contentLengthOfSource / (double) MAX_UPLOAD_PARTS;
-        optimalPartSize = Math.ceil(optimalPartSize);
-        return (long) Math.max(optimalPartSize, minimumPartSize);
-    }
-
     @SuppressWarnings("unchecked")
     private void uploadInOneChunk(
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
         StreamContext streamContext,
-        CompletableFuture<Void> returnFuture,
+        CompletableFuture<ConditionalWriteResponse> returnFuture,
         StatsMetricPublisher statsMetricPublisher,
-        Semaphore semaphore
+        Semaphore semaphore,
+        boolean isConditional
     ) {
         PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
             .bucket(uploadRequest.getBucket())
@@ -623,100 +407,7 @@ public final class AsyncTransferManager {
 
         configureEncryptionSettings(putObjectRequestBuilder, uploadRequest);
 
-        PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
-        ExecutorService streamReadExecutor;
-        if (uploadRequest.getWritePriority() == WritePriority.URGENT) {
-            streamReadExecutor = urgentExecutorService;
-        } else if (uploadRequest.getWritePriority() == WritePriority.HIGH) {
-            streamReadExecutor = priorityExecutorService;
-        } else {
-            streamReadExecutor = executorService;
-        }
-
-        CompletableFuture<Void> putObjectFuture = SocketAccess.doPrivileged(() -> {
-            InputStream inputStream = null;
-            CompletableFuture<PutObjectResponse> putObjectRespFuture;
-            try {
-                InputStreamContainer inputStreamContainer = streamContext.provideStream(0);
-                inputStream = AsyncPartsHandler.maybeRetryInputStream(
-                    inputStreamContainer.getInputStream(),
-                    uploadRequest.getWritePriority(),
-                    uploadRequest.isUploadRetryEnabled(),
-                    uploadRequest.getContentLength(),
-                    maxRetryablePartSize
-                );
-                AsyncRequestBody asyncRequestBody = AsyncRequestBody.fromInputStream(
-                    inputStream,
-                    inputStreamContainer.getContentLength(),
-                    streamReadExecutor
-                );
-                putObjectRespFuture = s3AsyncClient.putObject(putObjectRequest, asyncRequestBody);
-            } catch (Exception e) {
-                releaseResourcesSafely(semaphore, inputStream, uploadRequest.getKey());
-                return CompletableFuture.failedFuture(e);
-            }
-
-            InputStream finalInputStream = inputStream;
-            return putObjectRespFuture.handle((resp, throwable) -> {
-                releaseResourcesSafely(semaphore, finalInputStream, uploadRequest.getKey());
-
-                if (throwable != null) {
-                    Throwable unwrappedThrowable = ExceptionsHelper.unwrap(throwable, S3Exception.class);
-                    if (unwrappedThrowable != null) {
-                        S3Exception s3Exception = (S3Exception) unwrappedThrowable;
-                        if (s3Exception.statusCode() == HttpStatusCode.BAD_REQUEST
-                            && "BadDigest".equals(s3Exception.awsErrorDetails().errorCode())) {
-                            throw new RuntimeException(new CorruptFileException(s3Exception, uploadRequest.getKey()));
-                        }
-                    }
-                    returnFuture.completeExceptionally(throwable);
-                } else {
-                    try {
-                        uploadRequest.getUploadFinalizer().accept(true);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                    returnFuture.complete(null);
-                }
-
-                return null;
-            }).handle((resp, throwable) -> {
-                if (throwable != null) {
-                    deleteUploadedObject(s3AsyncClient, uploadRequest);
-                    returnFuture.completeExceptionally(throwable);
-                }
-
-                return null;
-            });
-        });
-
-        CompletableFutureUtils.forwardExceptionTo(returnFuture, putObjectFuture);
-        CompletableFutureUtils.forwardResultTo(putObjectFuture, returnFuture);
-    }
-
-    private void uploadInOneChunkConditionally(
-        S3AsyncClient s3AsyncClient,
-        UploadRequest uploadRequest,
-        StreamContext streamContext,
-        CompletableFuture<ConditionalWriteResponse> returnFuture,
-        StatsMetricPublisher statsMetricPublisher,
-        Semaphore semaphore
-    ) {
-        PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
-            .bucket(uploadRequest.getBucket())
-            .key(uploadRequest.getKey())
-            .contentLength(uploadRequest.getContentLength())
-            .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.putObjectMetricPublisher));
-
-        if (CollectionUtils.isNotEmpty(uploadRequest.getMetadata())) {
-            putObjectRequestBuilder.metadata(uploadRequest.getMetadata());
-        }
-        if (uploadRequest.doRemoteDataIntegrityCheck()) {
-            putObjectRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
-            putObjectRequestBuilder.checksumCRC32(base64StringFromLong(uploadRequest.getExpectedChecksum()));
-        }
-
-        if (uploadRequest.getConditionalOptions() != null) {
+        if (isConditional && uploadRequest.getConditionalOptions() != null) {
             applyConditionalHeaders(putObjectRequestBuilder, uploadRequest.getConditionalOptions());
         }
 
@@ -793,7 +484,32 @@ public final class AsyncTransferManager {
     }
 
     /**
-     * Apply conditional headers to a request builder
+     exception handling for both regular and conditional uploads
+     */
+    private void handleUploadException(
+        CompletableFuture<ConditionalWriteResponse> returnFuture,
+        Throwable throwable,
+        String resourceName,
+        boolean isConditional
+    ) {
+        if (isConditional) {
+            handleConditionalException(returnFuture, throwable, resourceName);
+        } else {
+            CompletableFuture<Void> voidFuture = new CompletableFuture<>();
+            handleException(voidFuture, () -> "Upload failed for " + resourceName, throwable);
+            voidFuture.whenComplete((result, ex) -> {
+                if (ex != null) {
+                    returnFuture.completeExceptionally(ex);
+                } else {
+                    returnFuture.complete(ConditionalWriteResponse.success(""));
+                }
+            });
+        }
+    }
+
+    /**
+
+     Apply conditional headers to a request builder
      */
     private void applyConditionalHeaders(Object builder, ConditionalWriteOptions options) {
         if (options == null) {
@@ -815,6 +531,107 @@ public final class AsyncTransferManager {
                 completeBuilder.ifMatch(options.getVersionIdentifier());
             }
         }
+    }
+
+    /**
+
+     Error handler for conditional uploads
+     */
+    private <T> void handleConditionalException(CompletableFuture<T> returnFuture, Throwable throwable, String resourceName) {
+        Throwable cause = throwable;
+        while (cause instanceof CompletionException && cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+
+        if (cause instanceof S3Exception s3e) {
+            if (s3e.statusCode() == HTTP_STATUS_PRECONDITION_FAILED) {
+                returnFuture.completeExceptionally(
+                    S3Exception.builder()
+                        .message("Conditional write failed: condition not met for " + resourceName)
+                        .statusCode(HTTP_STATUS_PRECONDITION_FAILED)
+                        .cause(s3e)
+                        .build()
+                );
+                return;
+            } else if (s3e.statusCode() == HTTP_STATUS_CONFLICT) {
+                returnFuture.completeExceptionally(
+                    S3Exception.builder()
+                        .message("Blob already exists: " + resourceName)
+                        .statusCode(HTTP_STATUS_CONFLICT)
+                        .cause(s3e)
+                        .build()
+                );
+                return;
+            }
+        }
+        if (cause instanceof Error) {
+            returnFuture.completeExceptionally(cause);
+        } else {
+            SdkClientException exception = SdkClientException.create("Failed conditional upload of " + resourceName, cause);
+            returnFuture.completeExceptionally(exception);
+        }
+    }
+
+    private void mergeAndVerifyChecksum(
+        AtomicReferenceArray<CheckedContainer> inputStreamContainers,
+        String fileName,
+        long expectedChecksum
+    ) {
+        long resultantChecksum = fromBase64String(inputStreamContainers.get(0).getChecksum());
+        for (int index = 1; index < inputStreamContainers.length(); index++) {
+            long curChecksum = fromBase64String(inputStreamContainers.get(index).getChecksum());
+            resultantChecksum = JZlib.crc32_combine(resultantChecksum, curChecksum, inputStreamContainers.get(index).getContentLength());
+        }
+
+        if (resultantChecksum != expectedChecksum) {
+            throw new RuntimeException(new CorruptFileException("File level checksums didn't match combined part checksums", fileName));
+        }
+
+    }
+
+    private static String base64StringFromLong(Long val) {
+        return Base64.getEncoder().encodeToString(Arrays.copyOfRange(ByteUtils.toByteArrayBE(val), 4, 8));
+    }
+
+    private static long fromBase64String(String base64String) {
+        byte[] decodedBytes = Base64.getDecoder().decode(base64String);
+        if (decodedBytes.length != 4) {
+            throw new IllegalArgumentException("Invalid Base64 encoded CRC32 checksum");
+        }
+        long result = 0;
+        for (int i = 0; i < 4; i++) {
+            result <<= 8;
+            result |= (decodedBytes[i] & 0xFF);
+        }
+        return result;
+    }
+
+    private static void handleException(CompletableFuture<Void> returnFuture, Supplier<String> message, Throwable throwable) {
+        Throwable cause = throwable instanceof CompletionException ? throwable.getCause() : throwable;
+
+        if (cause instanceof Error) {
+            returnFuture.completeExceptionally(cause);
+        } else {
+            SdkClientException exception = SdkClientException.create(message.get(), cause);
+            returnFuture.completeExceptionally(exception);
+        }
+
+    }
+
+    /**
+
+     Calculates the optimal part size of each part request if the upload operation is carried out as multipart upload.
+     */
+    public long calculateOptimalPartSize(long contentLengthOfSource, WritePriority writePriority, boolean uploadRetryEnabled) {
+        if (contentLengthOfSource < ByteSizeUnit.MB.toBytes(5)) {
+            return contentLengthOfSource;
+        }
+        if (uploadRetryEnabled && (writePriority == WritePriority.HIGH || writePriority == WritePriority.URGENT)) {
+            return new ByteSizeValue(5, ByteSizeUnit.MB).getBytes();
+        }
+        double optimalPartSize = contentLengthOfSource / (double) MAX_UPLOAD_PARTS;
+        optimalPartSize = Math.ceil(optimalPartSize);
+        return (long) Math.max(optimalPartSize, minimumPartSize);
     }
 
     private void releaseResourcesSafely(Semaphore semaphore, InputStream inputStream, String file) {
