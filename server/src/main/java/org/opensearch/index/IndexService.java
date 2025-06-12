@@ -104,6 +104,7 @@ import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -596,7 +597,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final DiscoveryNode targetNode,
         @Nullable DiscoveryNode sourceNode,
         DiscoveryNodes discoveryNodes,
-        MergedSegmentWarmerFactory mergedSegmentWarmerFactory
+        MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+        MergedSegmentPublisher mergedSegmentPublisher
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -728,7 +730,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 fixedRefreshIntervalSchedulingEnabled,
                 this::getRefreshInterval,
                 refreshMutex,
-                clusterService.getClusterApplierService()
+                clusterService.getClusterApplierService(),
+                this.indexSettings.isSegRepEnabledOrRemoteNode() ? mergedSegmentPublisher : null
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
