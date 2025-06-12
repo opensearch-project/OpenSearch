@@ -516,15 +516,13 @@ public final class AsyncTransferManager {
             return;
         }
 
-        if (builder instanceof PutObjectRequest.Builder) {
-            PutObjectRequest.Builder putBuilder = (PutObjectRequest.Builder) builder;
+        if (builder instanceof PutObjectRequest.Builder putBuilder) {
             if (options.isIfNotExists()) {
                 putBuilder.ifNoneMatch("*");
             } else if (options.isIfMatch()) {
                 putBuilder.ifMatch(options.getVersionIdentifier());
             }
-        } else if (builder instanceof CompleteMultipartUploadRequest.Builder) {
-            CompleteMultipartUploadRequest.Builder completeBuilder = (CompleteMultipartUploadRequest.Builder) builder;
+        } else if (builder instanceof CompleteMultipartUploadRequest.Builder completeBuilder) {
             if (options.isIfNotExists()) {
                 completeBuilder.ifNoneMatch("*");
             } else if (options.isIfMatch()) {
