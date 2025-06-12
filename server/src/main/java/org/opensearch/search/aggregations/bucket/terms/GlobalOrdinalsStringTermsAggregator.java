@@ -843,6 +843,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             B[][] topBucketsPreOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCount = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                checkCancelled();
                 final int size;
                 if (localBucketCountThresholds.getMinDocCount() == 0) {
                     // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
