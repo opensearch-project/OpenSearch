@@ -65,7 +65,9 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
@@ -1001,5 +1003,22 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             childRequestBytes += upsertRequest.ramBytesUsed();
         }
         return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + childRequestBytes;
+    }
+
+    /**
+     * Gets all valid child index requests for the update request.
+     * The order is deterministic.
+     *
+     * @return a list of index requests
+     */
+    public List<IndexRequest> getChildIndexRequests() {
+        List<IndexRequest> childIndexRequests = new ArrayList<>();
+        if (doc != null) {
+            childIndexRequests.add(doc);
+        }
+        if (upsertRequest != null) {
+            childIndexRequests.add(upsertRequest);
+        }
+        return childIndexRequests;
     }
 }
