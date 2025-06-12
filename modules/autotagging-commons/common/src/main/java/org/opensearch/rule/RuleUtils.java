@@ -67,8 +67,12 @@ public class RuleUtils {
     public static Optional<String> getDuplicateRuleId(Rule rule, List<Rule> ruleList) {
         Map<Attribute, Set<String>> targetAttributeMap = rule.getAttributeMap();
         for (Rule currRule : ruleList) {
-            Map<Attribute, Set<String>> existingAttributeMap = currRule.getAttributeMap();
+            String currRuleId = currRule.getId();
+            if (currRuleId.equals(rule.getId())) {
+                continue;
+            }
 
+            Map<Attribute, Set<String>> existingAttributeMap = currRule.getAttributeMap();
             if (rule.getFeatureType() != currRule.getFeatureType() || targetAttributeMap.size() != existingAttributeMap.size()) {
                 continue;
             }
@@ -82,7 +86,7 @@ public class RuleUtils {
                 }
             }
             if (allAttributesIntersect) {
-                return Optional.of(currRule.getId());
+                return Optional.of(currRuleId);
             }
         }
         return Optional.empty();
