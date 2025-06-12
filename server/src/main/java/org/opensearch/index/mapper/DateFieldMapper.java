@@ -608,7 +608,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
 
             return query;
-//            return nowUsed[0] ? new DateRangeIncludingNowQuery(query) : query;
         }
 
         public long parseToLong(Object value, boolean roundUp, @Nullable ZoneId zone, DateMathParser dateParser, LongSupplier now) {
