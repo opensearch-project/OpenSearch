@@ -38,8 +38,11 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -52,6 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class IndexSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     private static final XContentBuilder TEST_MAPPING = createTestMapping();
+    private static final XContentBuilder NESTED_TEST_MAPPING = createNestedTestMapping();
 
     public IndexSortIT(Settings staticSettings) {
         super(staticSettings);
@@ -93,6 +97,49 @@ public class IndexSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private static XContentBuilder createNestedTestMapping() {
+        try {
+            return jsonBuilder().startObject()
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "integer")
+                .endObject()
+                .startObject("foo1")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("contacts")
+                .field("type", "nested")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("age")
+                .field("type", "integer")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static void addNestedDocuments(String id, int foo, String foo1, String name, int age) throws IOException {
+        XContentBuilder sourceBuilder = jsonBuilder().startObject()
+            .field("foo", foo)
+            .field("foo1", foo1)
+            .startArray("contacts")
+            .startObject()
+            .field("name", name)
+            .field("age", age)
+            .endObject()
+            .endArray()
+            .endObject();
+
+        client().prepareIndex("nested-test-index").setId(id).setSource(sourceBuilder).get();
     }
 
     public void testIndexSort() {
@@ -145,5 +192,92 @@ public class IndexSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
                 .get()
         );
         assertThat(exc.getMessage(), containsString("docvalues not found for index sort field:[keyword]"));
+    }
+
+    public void testIndexSortOnNestedField() throws IOException {
+        SortField regularSort = new SortedNumericSortField("foo", SortField.Type.INT, false);
+        regularSort.setMissingValue(Integer.MAX_VALUE);
+
+        Sort indexSort = new Sort(regularSort);
+
+        prepareCreate("nested-test-index").setSettings(
+            Settings.builder()
+                .put(indexSettings())
+                .put("index.number_of_shards", "1")
+                .put("index.number_of_replicas", "0")
+                .putList("index.sort.field", "foo")
+                .putList("index.sort.order", "asc")
+        ).setMapping(NESTED_TEST_MAPPING).get();
+
+        addNestedDocuments("1", 30, "", "Alice", 30);
+        addNestedDocuments("2", 40, "", "Charlie", 40);
+        addNestedDocuments("3", 20, "", "Divs", 20);
+
+        flushAndRefresh("nested-test-index");
+        ensureGreen("nested-test-index");
+
+        assertSortedSegments("nested-test-index", indexSort);
+
+        SearchResponse response = client().prepareSearch("nested-test-index")
+            .addSort("foo", SortOrder.ASC)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .get();
+
+        assertEquals(3, response.getHits().getTotalHits().value());
+        assertEquals("3", response.getHits().getAt(0).getId());
+        assertEquals("1", response.getHits().getAt(1).getId());
+        assertEquals("2", response.getHits().getAt(2).getId());
+    }
+
+    public void testIndexSortWithNestedField_MultiField() throws IOException {
+        prepareCreate("nested-test-index").setSettings(
+            Settings.builder()
+                .put(indexSettings())
+                .put("index.number_of_shards", "1")
+                .put("index.number_of_replicas", "0")
+                .putList("index.sort.field", "foo", "foo1")
+                .putList("index.sort.order", "desc", "asc")
+        ).setMapping(NESTED_TEST_MAPPING).get();
+
+        addNestedDocuments("1", 40, "Charlie", "Charlie", 40);
+        addNestedDocuments("2", 30, "Divs", "Divs", 30);
+        addNestedDocuments("3", 30, "Alice", "Alice", 30);
+
+        flushAndRefresh("nested-test-index");
+        ensureGreen("nested-test-index");
+        SearchResponse response = client().prepareSearch("nested-test-index")
+            .addSort("foo", SortOrder.DESC)
+            .addSort("foo1", SortOrder.ASC)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .get();
+
+        assertEquals(3, response.getHits().getTotalHits().value());
+        assertEquals(40, response.getHits().getAt(0).getSourceAsMap().get("foo"));
+        assertEquals("Charlie", response.getHits().getAt(0).getSourceAsMap().get("foo1"));
+
+        assertEquals(30, response.getHits().getAt(1).getSourceAsMap().get("foo"));
+        assertEquals(30, response.getHits().getAt(2).getSourceAsMap().get("foo"));
+
+        // specifically verify secondary sort on foo1 when foo values are the same
+        // since foo1 sort is asc, "ALice" should come before "Divs"
+        assertEquals("Alice", response.getHits().getAt(1).getSourceAsMap().get("foo1"));
+        assertEquals("Divs", response.getHits().getAt(2).getSourceAsMap().get("foo1"));
+
+    }
+
+    public void testIndexSortWithSortFieldInsideDocBlock() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepareCreate("nested-sort-test").setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put("index.number_of_shards", "1")
+                    .put("index.number_of_replicas", "0")
+                    .putList("index.sort.field", "contacts.age")
+                    .putList("index.sort.order", "desc")
+            ).setMapping(NESTED_TEST_MAPPING).get()
+        );
+
+        assertThat(exception.getMessage(), containsString("index sorting on nested fields is not supported"));
     }
 }
