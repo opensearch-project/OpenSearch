@@ -177,7 +177,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             isThrottled = in.readBoolean();
             throttleTimeInMillis = in.readLong();
             if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
-                maxLastIndexRequestTimestamp = in.readVLong();
+                maxLastIndexRequestTimestamp = in.readZLong();
             } else {
                 maxLastIndexRequestTimestamp = 0L;
             }
