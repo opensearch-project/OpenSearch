@@ -149,6 +149,30 @@ public class IndexingStatsTests extends OpenSearchTestCase {
         assertEquals(-50L, statsNeg.getMaxLastIndexRequestTimestamp());
     }
 
+    public void testMaxLastIndexRequestTimestampBackwardCompatibility() throws IOException {
+        IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
+        long ts = randomLongBetween(0, 1000000);
+        IndexingStats.Stats stats = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts);
+
+        // Serialize with V_3_1_0 (should include the field)
+        BytesStreamOutput outNew = new BytesStreamOutput();
+        outNew.setVersion(org.opensearch.Version.V_3_1_0);
+        stats.writeTo(outNew);
+        StreamInput inNew = outNew.bytes().streamInput();
+        inNew.setVersion(org.opensearch.Version.V_3_1_0);
+        IndexingStats.Stats deserializedNew = new IndexingStats.Stats(inNew);
+        assertEquals(ts, deserializedNew.getMaxLastIndexRequestTimestamp());
+
+        // Serialize with V_2_11_0 (should NOT include the field, should default to 0)
+        BytesStreamOutput outOld = new BytesStreamOutput();
+        outOld.setVersion(org.opensearch.Version.V_2_11_0);
+        stats.writeTo(outOld);
+        StreamInput inOld = outOld.bytes().streamInput();
+        inOld.setVersion(org.opensearch.Version.V_2_11_0);
+        IndexingStats.Stats deserializedOld = new IndexingStats.Stats(inOld);
+        assertEquals(0L, deserializedOld.getMaxLastIndexRequestTimestamp());
+    }
+
     private IndexingStats createTestInstance() {
         IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
         for (int i = 1; i < 6; ++i) {

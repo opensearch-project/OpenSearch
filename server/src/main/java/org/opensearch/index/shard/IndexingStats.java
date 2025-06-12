@@ -176,8 +176,11 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             noopUpdateCount = in.readVLong();
             isThrottled = in.readBoolean();
             throttleTimeInMillis = in.readLong();
-            maxLastIndexRequestTimestamp = in.readLong();
-
+            if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+                maxLastIndexRequestTimestamp = in.readVLong();
+            } else {
+                maxLastIndexRequestTimestamp = 0L;
+            }
             if (in.getVersion().onOrAfter(Version.V_2_11_0)) {
                 docStatusStats = in.readOptionalWriteable(DocStatusStats::new);
             } else {
@@ -230,7 +233,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (getDocStatusStats() != null) {
                 getDocStatusStats().add(stats.getDocStatusStats());
             }
-            // Aggregate maxLastIndexRequestTimestamp using Math.max
+
             maxLastIndexRequestTimestamp = Math.max(maxLastIndexRequestTimestamp, stats.maxLastIndexRequestTimestamp);
         }
 
@@ -321,8 +324,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeVLong(noopUpdateCount);
             out.writeBoolean(isThrottled);
             out.writeLong(throttleTimeInMillis);
-            out.writeLong(maxLastIndexRequestTimestamp);
-
+            if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+                out.writeVLong(maxLastIndexRequestTimestamp);
+            }
             if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
                 out.writeOptionalWriteable(docStatusStats);
             }
