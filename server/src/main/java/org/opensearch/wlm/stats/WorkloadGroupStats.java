@@ -126,6 +126,22 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             this.resourceStats = in.readMap((i) -> ResourceType.fromName(i.readString()), ResourceStats::new);
         }
 
+        public long getCompletions() {
+            return completions;
+        }
+
+        public long getRejections() {
+            return rejections;
+        }
+
+        public long getCancellations() {
+            return cancellations;
+        }
+
+        public Map<ResourceType, ResourceStats> getResourceStats() {
+            return resourceStats;
+        }
+
         /**
          * static factory method to convert {@link WorkloadGroupState} into {@link WorkloadGroupStatsHolder}
          * @param workloadGroupState which needs to be converted
@@ -225,6 +241,18 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             this.currentUsage = in.readDouble();
             this.cancellations = in.readVLong();
             this.rejections = in.readVLong();
+        }
+
+        public double getCurrentUsage() {
+            return currentUsage;
+        }
+
+        public long getCancellations() {
+            return cancellations;
+        }
+
+        public long getRejections() {
+            return rejections;
         }
 
         /**

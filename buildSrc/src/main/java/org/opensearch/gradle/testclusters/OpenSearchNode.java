@@ -46,6 +46,7 @@ import org.opensearch.gradle.ReaperService;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.VersionProperties;
 import org.opensearch.gradle.info.BuildParams;
+import org.opensearch.gradle.info.FipsBuildParams;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -544,6 +545,10 @@ public class OpenSearchNode implements TestClusterConfiguration {
             final String[] arguments = Stream.concat(Stream.of("install", "--batch"), pluginsToInstall.stream()).toArray(String[]::new);
             runOpenSearchBinScript("opensearch-plugin", arguments);
             logToProcessStdout("installed plugins");
+        }
+
+        if (FipsBuildParams.isInFipsMode() && keystorePassword.isEmpty()) {
+            throw new TestClustersException("Can not start " + this + " in FIPS JVM, missing keystore password");
         }
 
         logToProcessStdout("Creating opensearch keystore with password set to [" + keystorePassword + "]");

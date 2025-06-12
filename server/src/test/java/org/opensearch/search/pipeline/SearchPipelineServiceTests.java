@@ -1068,6 +1068,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchPipelineInfo info = searchPipelineService.info();
         assertTrue(info.containsProcessor(Pipeline.REQUEST_PROCESSORS_KEY, "scale_request_size"));
         assertTrue(info.containsProcessor(Pipeline.RESPONSE_PROCESSORS_KEY, "fixed_score"));
+        assertTrue(info.containsProcessor(Pipeline.PHASE_PROCESSORS_KEY, "max_score"));
     }
 
     public void testExceptionOnPipelineCreation() {

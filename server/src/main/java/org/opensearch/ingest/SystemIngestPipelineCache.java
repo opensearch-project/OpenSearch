@@ -82,7 +82,7 @@ public class SystemIngestPipelineCache {
      * @param index [index_name/index_uuid]
      * @return cached system ingest pipeline
      */
-    public Pipeline getSystemIngestPipeline(@NonNull final String index) {
+    public Pipeline getSystemIngestPipeline(final String index) {
         // Check if the cache contains a valid entry for the index
         final CacheEntry entry = cache.get(index);
         if (entry != null) {

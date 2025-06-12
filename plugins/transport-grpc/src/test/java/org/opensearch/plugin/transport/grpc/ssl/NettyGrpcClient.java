@@ -110,6 +110,14 @@ public class NettyGrpcClient implements AutoCloseable {
         return healthStub.check(HealthCheckRequest.newBuilder().build()).getStatus();
     }
 
+    /**
+     * Get the managed channel for creating service stubs.
+     * @return The managed channel.
+     */
+    public ManagedChannel getChannel() {
+        return channel;
+    }
+
     public static class Builder {
         private Boolean clientAuth = false;
         private Boolean insecure = false;
