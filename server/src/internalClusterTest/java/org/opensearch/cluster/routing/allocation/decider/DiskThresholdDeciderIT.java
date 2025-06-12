@@ -136,7 +136,7 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
 
     private FileSystem defaultFileSystem;
 
-    protected static final String BASE_REMOTE_REPO = "test-rs-repo" + "__rs";
+    protected static final String BASE_REMOTE_REPO = "test-rs-repo";
     protected Path remoteRepoPath;
 
     @Before
@@ -397,7 +397,7 @@ public class DiskThresholdDeciderIT extends ParameterizedStaticSettingsOpenSearc
      */
     public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws Exception {
         // Skip this test when running with parameters to ensure it only runs once
-        assumeTrue("Test should only run in the default (non-parameterized) test suite", WRITABLE_WARM_INDEX_SETTING.get(settings) == true);
+        assumeTrue("Test should only run in the default (non-parameterized) test suite", WRITABLE_WARM_INDEX_SETTING.get(settings) == false);
 
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
