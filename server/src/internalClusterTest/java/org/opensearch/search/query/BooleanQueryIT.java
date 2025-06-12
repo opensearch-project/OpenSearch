@@ -267,9 +267,9 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
         // Check a rewritten terms query behaves as expected
         List<Integer> excludedValues = new ArrayList<>();
-        excludedValues.add(randomFrom(statusToDocCountMap.keySet()));
+        excludedValues.add(excludedValue);
         int secondExcludedValue = randomFrom(statusToDocCountMap.keySet());
-        expectedHitCount = totalDocs - statusToDocCountMap.get(excludedValues.get(0));
+        expectedHitCount = totalDocs - statusToDocCountMap.get(excludedValue);
         if (secondExcludedValue != excludedValue) {
             excludedValues.add(secondExcludedValue);
             expectedHitCount -= statusToDocCountMap.get(secondExcludedValue);
