@@ -59,6 +59,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update FipsMode check to catch NoSuchMethodError ([#18427](https://github.com/opensearch-project/OpenSearch/pull/18427))
 
 
+- Add segments codec check in UpgradeRequest to select segments for upgrade ([#17491](https://github.com/opensearch-project/OpenSearch/pull/17491))
+
 ### Dependencies
 - Update Apache Lucene from 10.1.0 to 10.2.1 ([#17961](https://github.com/opensearch-project/OpenSearch/pull/17961))
 - Bump `com.google.code.gson:gson` from 2.12.1 to 2.13.1 ([#17923](https://github.com/opensearch-project/OpenSearch/pull/17923), [#18266](https://github.com/opensearch-project/OpenSearch/pull/18266))
