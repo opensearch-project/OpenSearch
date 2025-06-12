@@ -34,37 +34,28 @@ tasks.withType(JacocoReport).configureEach {
   }
 }
 
-// Enhance jacoco report tasks to include all test types
+// Enhance jacocoTestReport task to include all test types
 allprojects {
   plugins.withId('jacoco') {
-    // Configure both jacocoTestReport and testCodeCoverageReport tasks
-    tasks.matching { it.name == 'jacocoTestReport' || it.name == 'testCodeCoverageReport' }.configureEach {
-      // Collect execution data files from all available test tasks
+    tasks.matching { it.name == 'jacocoTestReport' }.configureEach {
       def executionDataFiles = []
       def sourceSetsList = []
-      
       if (tasks.findByName('test')) {
         executionDataFiles.add("$buildDir/jacoco/test.exec")
         sourceSetsList.add(sourceSets.test)
       }
-
       if (tasks.findByName('internalClusterTest')) {
         executionDataFiles.add("$buildDir/jacoco/internalClusterTest.exec")
         sourceSetsList.add(sourceSets.internalClusterTest)
       }
-
       if (tasks.findByName('javaRestTest')) {
         executionDataFiles.add("$buildDir/jacoco/javaRestTest.exec")
         sourceSetsList.add(sourceSets.javaRestTest)
       }
-      
-      // Set execution data and source sets
       if (!executionDataFiles.isEmpty()) {
         executionData.setFrom(files(executionDataFiles).filter { it.exists() })
         sourceSets(*sourceSetsList)
       }
-
-      // Only run if at least one execution data file exists
       onlyIf {
         file("$buildDir/jacoco/test.exec").exists() ||
           file("$buildDir/jacoco/internalClusterTest.exec").exists() ||
@@ -73,7 +64,6 @@ allprojects {
     }
   }
 }
-
 
 if (System.getProperty("tests.coverage")) {
   reporting {
@@ -87,5 +77,14 @@ if (System.getProperty("tests.coverage")) {
   // Attach code coverage report task to Gradle check task
   project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
     dependsOn tasks.named('testCodeCoverageReport', JacocoReport)
+  }
+  
+  // To include javaRestTest in code coverage
+  allprojects {
+    plugins.withId('opensearch.java-rest-test') {
+      rootProject.tasks.named('testCodeCoverageReport').configure {
+        dependsOn tasks.named('javaRestTest')
+      }
+    }
   }
 }
