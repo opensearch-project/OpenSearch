@@ -65,6 +65,7 @@ import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -590,7 +591,24 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 return context.nowInMillis();
             };
             Query query = builder.apply(nowSupplier);
-            return nowUsed[0] ? new DateRangeIncludingNowQuery(query) : query;
+            if (nowUsed[0]) {
+                // If query is searchable, it will be of type ApproximateScoreQuery
+                if (query instanceof ApproximateScoreQuery) {
+                    // To access ApproximateScoreQuery methods
+                    ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) query;
+                    Query originalQuery = approxQuery.getOriginalQuery();
+                    ApproximateQuery approximateQuery = approxQuery.getApproximationQuery();
+
+                    Query wrappedOriginalQuery = new DateRangeIncludingNowQuery(originalQuery);
+
+                    return new ApproximateScoreQuery(wrappedOriginalQuery, approximateQuery);
+                } else {
+                    return new DateRangeIncludingNowQuery(query);
+                }
+            }
+
+            return query;
+//            return nowUsed[0] ? new DateRangeIncludingNowQuery(query) : query;
         }
 
         public long parseToLong(Object value, boolean roundUp, @Nullable ZoneId zone, DateMathParser dateParser, LongSupplier now) {
