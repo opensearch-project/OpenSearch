@@ -54,7 +54,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         Arrays.stream(values).forEach(state::add);
 
         // the number of centroids is defined as <= the number of samples inserted
-        assertTrue(state.centroids().size() <= values.length);
+        assertTrue(state.centroidCount() <= values.length);
         return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, metadata);
     }
 
@@ -66,7 +66,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         double max = Double.NEGATIVE_INFINITY;
         long totalCount = 0;
         for (InternalTDigestPercentileRanks ranks : inputs) {
-            if (ranks.state.centroids().isEmpty()) {
+            if (ranks.state.centroidCount() == 0) {
                 // quantiles would return NaN
                 continue;
             }
