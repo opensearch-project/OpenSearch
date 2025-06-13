@@ -65,7 +65,6 @@ import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
-import org.opensearch.search.approximate.ApproximateQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -596,12 +595,11 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 if (query instanceof ApproximateScoreQuery) {
                     // To access ApproximateScoreQuery methods
                     ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) query;
-                    Query originalQuery = approxQuery.getOriginalQuery();
-                    ApproximateQuery approximateQuery = approxQuery.getApproximationQuery();
 
-                    Query wrappedOriginalQuery = new DateRangeIncludingNowQuery(originalQuery);
-
-                    return new ApproximateScoreQuery(wrappedOriginalQuery, approximateQuery);
+                    return new ApproximateScoreQuery(
+                        new DateRangeIncludingNowQuery(approxQuery.getOriginalQuery()),
+                        approxQuery.getApproximationQuery()
+                    );
                 } else {
                     return new DateRangeIncludingNowQuery(query);
                 }
