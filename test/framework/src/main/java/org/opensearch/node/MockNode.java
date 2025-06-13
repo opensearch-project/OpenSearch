@@ -37,6 +37,7 @@ import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.MockInternalClusterInfoService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -215,6 +216,7 @@ public class MockNode extends Node {
     protected TransportService newTransportService(
         Settings settings,
         Transport transport,
+        @Nullable Transport streamTransport,
         ThreadPool threadPool,
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
@@ -230,6 +232,7 @@ public class MockNode extends Node {
             return super.newTransportService(
                 settings,
                 transport,
+                streamTransport,
                 threadPool,
                 interceptor,
                 localNodeFactory,
@@ -241,6 +244,7 @@ public class MockNode extends Node {
             return new MockTransportService(
                 settings,
                 transport,
+                streamTransport,
                 threadPool,
                 interceptor,
                 localNodeFactory,
