@@ -43,6 +43,8 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -52,6 +54,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.junit.annotations.TestLogging;
 
@@ -125,7 +129,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertTrue(reroute.compareAndSet(false, true));
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(null);
-            }
+            },
+            () -> 5.0
         ) {
 
             @Override
@@ -187,7 +192,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertTrue(reroute.compareAndSet(false, true));
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(null);
-            }
+            },
+            () -> 5.0
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
@@ -228,7 +234,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
                 assertTrue(listenerReference.compareAndSet(null, listener));
-            }
+            },
+            () -> 5.0
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
@@ -369,7 +376,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(clusterState);
-            }
+            },
+            () -> 5.0
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
@@ -431,7 +439,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(clusterStateWithBlocks);
-            }
+            },
+            () -> 5.0
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
@@ -544,7 +553,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             timeSupplier,
-            (reason, priority, listener) -> listener.onResponse(clusterStateRef.get())
+            (reason, priority, listener) -> listener.onResponse(clusterStateRef.get()),
+            () -> 5.0
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
@@ -696,7 +706,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
                 assertTrue(reroute.compareAndSet(false, true));
                 assertThat(priority, equalTo(Priority.HIGH));
                 listener.onResponse(null);
-            }
+            },
+            () -> 5.0
         ) {
 
             @Override
@@ -773,7 +784,8 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             currentTime::get,
             (reason, priority, listener) -> {
                 listener.onResponse(null);
-            }
+            },
+            () -> 5.0
         ) {
 
             @Override
@@ -823,6 +835,243 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         // Block will be removed if any nodes is no longer breaching high watermark.
         assertEquals(countBlocksCalled.get(), 0);
         assertEquals(countUnblockBlocksCalled.get(), 1);
+    }
+
+    public void testWarmNodeLowStageWatermarkBreach() {
+        AllocationService allocation = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("remote_index")
+                    .settings(
+                        settings(Version.CURRENT).put("index.store.type", "remote_snapshot")
+                            .put("index.routing.allocation.require._id", "warm_node")
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("remote_index")).build();
+
+        DiscoveryNode warmNode = newNode("warm_node", Collections.singleton(DiscoveryNodeRole.WARM_ROLE));
+
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .nodes(DiscoveryNodes.builder().add(warmNode))
+                .build(),
+            allocation
+        );
+
+        AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
+        AtomicBoolean reroute = new AtomicBoolean(false);
+
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            Settings.EMPTY,
+            () -> clusterState,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> {
+                assertTrue(reroute.compareAndSet(false, true));
+                assertThat(priority, equalTo(Priority.HIGH));
+                listener.onResponse(null);
+            },
+            () -> 2.0  // dataToFileCacheSizeRatio = 2
+        ) {
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
+                assertTrue(readOnly);
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+
+        // Test warm node exceeding low stage watermark
+        // Total addressable space = dataToFileCacheSizeRatio * nodeCacheSize = 2.0 * 100 = 200
+        // High stage threshold (50%) = 200 * 0.15 = 30
+        // Free space = 28 < 30, so should exceed low stage
+        Map<String, DiskUsage> diskUsages = new HashMap<>();
+        diskUsages.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 8));
+
+        Map<String, AggregateFileCacheStats> fileCacheStats = new HashMap<>();
+        fileCacheStats.put("warm_node", createAggregateFileCacheStats(100));
+
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[remote_index][0][p]", 172L);
+        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), fileCacheStats);
+
+        monitor.onNewInfo(clusterInfo);
+
+        // Should not mark remote indices read-only due to low stage breach
+        // and should not trigger reroute
+        assertNull(indicesToMarkReadOnly.get());
+        assertFalse(reroute.get());
+    }
+
+    public void testWarmNodeHighStageWatermarkBreach() {
+        AllocationService allocation = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("remote_index")
+                    .settings(
+                        settings(Version.CURRENT).put("index.store.type", "remote_snapshot")
+                            .put("index.routing.allocation.require._id", "warm_node")
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("remote_index")).build();
+
+        DiscoveryNode warmNode = newNode("warm_node", Collections.singleton(DiscoveryNodeRole.WARM_ROLE));
+
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .nodes(DiscoveryNodes.builder().add(warmNode))
+                .build(),
+            allocation
+        );
+
+        AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
+        AtomicBoolean reroute = new AtomicBoolean(false);
+
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            Settings.EMPTY,
+            () -> clusterState,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> {
+                assertTrue(reroute.compareAndSet(false, true));
+                assertThat(priority, equalTo(Priority.HIGH));
+                listener.onResponse(null);
+            },
+            () -> 2.0  // dataToFileCacheSizeRatio = 2
+        ) {
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
+                assertTrue(readOnly);
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+
+        // Test warm node exceeding high stage watermark
+        // Total addressable space = dataToFileCacheSizeRatio * nodeCacheSize = 2.0 * 100 = 200
+        // High stage threshold (10%) = 200 * 0.1 = 20
+        // Free space = 18 < 20, so should exceed high stage
+        Map<String, DiskUsage> diskUsages = new HashMap<>();
+        diskUsages.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 8));
+
+        Map<String, AggregateFileCacheStats> fileCacheStats = new HashMap<>();
+        fileCacheStats.put("warm_node", createAggregateFileCacheStats(100));
+
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[remote_index][0][p]", 182L);
+        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), fileCacheStats);
+
+        monitor.onNewInfo(clusterInfo);
+
+        // Should not mark remote indices read-only due to High stage breach
+        // but should trigger reroute
+        assertNull(indicesToMarkReadOnly.get());
+        assertTrue(reroute.get());
+    }
+
+    public void testWarmNodeFloodStageWatermarkBreach() {
+        AllocationService allocation = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("remote_index")
+                    .settings(
+                        settings(Version.CURRENT).put("index.store.type", "remote_snapshot")
+                            .put("index.routing.allocation.require._id", "warm_node")
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("remote_index")).build();
+
+        DiscoveryNode warmNode = newNode("warm_node", Collections.singleton(DiscoveryNodeRole.WARM_ROLE));
+
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .nodes(DiscoveryNodes.builder().add(warmNode))
+                .build(),
+            allocation
+        );
+
+        AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
+
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            Settings.EMPTY,
+            () -> clusterState,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> listener.onResponse(null),
+            () -> 2.0  // dataToFileCacheSizeRatio = 2
+        ) {
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
+                assertTrue(readOnly);
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+
+        // Test warm node exceeding flood stage watermark
+        // Total addressable space = dataToFileCacheSizeRatio * nodeCacheSize = 2.0 * 100 = 200
+        // Flood stage threshold (5%) = 200 * 0.05 = 10
+        // Free space = 8 < 10, so should exceed flood stage
+        Map<String, DiskUsage> diskUsages = new HashMap<>();
+        diskUsages.put("warm_node", new DiskUsage("warm_node", "warm_node", "/foo/bar", 200, 8));
+
+        Map<String, AggregateFileCacheStats> fileCacheStats = new HashMap<>();
+        fileCacheStats.put("warm_node", createAggregateFileCacheStats(100));
+
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[remote_index][0][p]", 192L);
+        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), fileCacheStats);
+
+        monitor.onNewInfo(clusterInfo);
+
+        // Should mark remote indices read-only due to flood stage breach
+        assertNotNull(indicesToMarkReadOnly.get());
+        assertTrue(indicesToMarkReadOnly.get().contains("remote_index"));
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor, final Map<String, DiskUsage> diskUsages) throws IllegalAccessException {
@@ -903,6 +1152,50 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
     ) {
         return new ClusterInfo(diskUsages, null, null, null, reservedSpace, Map.of());
+    }
+
+    private static AggregateFileCacheStats createAggregateFileCacheStats(long totalCacheSize) {
+        FileCacheStats overallStats = new FileCacheStats(
+            0,
+            totalCacheSize,
+            0,
+            0,
+            0,
+            0,
+            0,
+            AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS
+        );
+        FileCacheStats fullStats = new FileCacheStats(
+            0,
+            totalCacheSize,
+            0,
+            0,
+            0,
+            0,
+            0,
+            AggregateFileCacheStats.FileCacheStatsType.FULL_FILE_STATS
+        );
+        FileCacheStats blockStats = new FileCacheStats(
+            0,
+            totalCacheSize,
+            0,
+            0,
+            0,
+            0,
+            0,
+            AggregateFileCacheStats.FileCacheStatsType.BLOCK_FILE_STATS
+        );
+        FileCacheStats pinnedStats = new FileCacheStats(
+            0,
+            totalCacheSize,
+            0,
+            0,
+            0,
+            0,
+            0,
+            AggregateFileCacheStats.FileCacheStatsType.PINNED_FILE_STATS
+        );
+        return new AggregateFileCacheStats(System.currentTimeMillis(), overallStats, fullStats, blockStats, pinnedStats);
     }
 
 }
