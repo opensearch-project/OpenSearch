@@ -16,11 +16,32 @@ import org.opensearch.protobufs.QueryContainer;
  * Utility class for converting Protocol Buffer query representations to OpenSearch QueryBuilder objects.
  * This class provides methods to parse different types of query containers and transform them
  * into their corresponding OpenSearch QueryBuilder implementations for search operations.
+ * <p>
+ * Supported query types include:
+ * <ul>
+ *   <li>MatchAll - Returns all documents</li>
+ *   <li>MatchNone - Returns no documents</li>
+ *   <li>Term - Exact term matching</li>
+ *   <li>Terms - Multiple terms matching</li>
+ *   <li>KNN - K-nearest neighbors vector search</li>
+ * </ul>
  */
 public class AbstractQueryBuilderProtoUtils {
 
+    private static QueryBuilderProtoConverterRegistry registry;
+
     private AbstractQueryBuilderProtoUtils() {
         // Utility class, no instances
+    }
+
+    /**
+     * Sets the registry to use for query conversion.
+     * This method should be called during plugin initialization.
+     *
+     * @param registry The registry to use
+     */
+    public static void setRegistry(QueryBuilderProtoConverterRegistry registry) {
+        AbstractQueryBuilderProtoUtils.registry = registry;
     }
 
     /**
@@ -34,22 +55,16 @@ public class AbstractQueryBuilderProtoUtils {
      * @throws UnsupportedOperationException if the query type is not supported
      */
     public static QueryBuilder parseInnerQueryBuilderProto(QueryContainer queryContainer) throws UnsupportedOperationException {
-        QueryBuilder result;
-
-        if (queryContainer.hasMatchAll()) {
-            result = MatchAllQueryBuilderProtoUtils.fromProto(queryContainer.getMatchAll());
-        } else if (queryContainer.hasMatchNone()) {
-            result = MatchNoneQueryBuilderProtoUtils.fromProto(queryContainer.getMatchNone());
-        } else if (queryContainer.getTermCount() > 0) {
-            result = TermQueryBuilderProtoUtils.fromProto(queryContainer.getTermMap());
-        } else if (queryContainer.hasTerms()) {
-            result = TermsQueryBuilderProtoUtils.fromProto(queryContainer.getTerms());
-        }
-        // TODO add more query types
-        else {
-            throw new UnsupportedOperationException("Search query type not supported yet.");
+        // Validate input
+        if (queryContainer == null) {
+            throw new IllegalArgumentException("Query container cannot be null");
         }
 
-        return result;
+        // If the registry is set, use it to convert the query
+        if (registry != null) {
+            return registry.fromProto(queryContainer);
+        }
+
+        throw new IllegalArgumentException("Registry must be set.");
     }
 }

@@ -28,6 +28,13 @@ import java.util.Map;
 
 public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        // Set up the registry with all built-in converters
+        QueryBuilderProtoTestUtils.setupRegistry();
+    }
+
     public void testParseInnerQueryBuilderProtoWithMatchAll() {
         // Create a QueryContainer with MatchAllQuery
         MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().build();
@@ -117,13 +124,13 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Create an empty QueryContainer (no query type specified)
         QueryContainer queryContainer = QueryContainer.newBuilder().build();
 
-        // Call parseInnerQueryBuilderProto, should throw UnsupportedOperationException
-        UnsupportedOperationException exception = expectThrows(
-            UnsupportedOperationException.class,
+        // Call parseInnerQueryBuilderProto, should throw IllegalArgumentException
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
             () -> AbstractQueryBuilderProtoUtils.parseInnerQueryBuilderProto(queryContainer)
         );
 
         // Verify the exception message
-        assertTrue("Exception message should mention 'not supported yet'", exception.getMessage().contains("not supported yet"));
+        assertTrue("Exception message should mention 'Unsupported query type'", exception.getMessage().contains("Unsupported query type"));
     }
 }
