@@ -464,7 +464,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         ApproximateQuery approximationQuery = approximateScoreQuery.getApproximationQuery();
         assertThat(approximationQuery, instanceOf(ApproximatePointRangeQuery.class));
 
-
         query = "{\n"
             + "    \"range\" : {\n"
             + "        \""
