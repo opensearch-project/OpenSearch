@@ -53,6 +53,8 @@ teardown:
   - is_false: _source.field_auto_added_by_system_ingest_processor
 ---
 "Processor injects field when index is created from matching template":
+  - skip:
+      features: allowed_warnings
   - do:
       indices.put_template:
         name: example-template
@@ -63,6 +65,8 @@ teardown:
               system_ingest_processor_trigger_field:
                 type: keyword
   - do:
+      allowed_warnings:
+        - "index [template-index-1] matches multiple legacy templates [example-template, global], composable templates will only match a single template"
       index:
         index: template-index-1
         id: 1

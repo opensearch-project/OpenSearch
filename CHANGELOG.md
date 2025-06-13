@@ -52,6 +52,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Approximation Framework Enhancement: Update the BKD traversal logic to improve the performance on skewed data ([#18439](https://github.com/opensearch-project/OpenSearch/issues/18439))
 - Support system generated ingest pipelines for bulk update operations ([#18277](https://github.com/opensearch-project/OpenSearch/pull/18277)))
 - Added FS Health Check Failure metric ([#18435](https://github.com/opensearch-project/OpenSearch/pull/18435))
+- Ability to run Code Coverage with Gradle and produce the jacoco reports locally ([#18509](https://github.com/opensearch-project/OpenSearch/issues/18509))
 - Create equivalents of JSM's AccessController in the java agent ([#18346](https://github.com/opensearch-project/OpenSearch/issues/18346))
 
 ### Changed
@@ -102,7 +103,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - DocValues-only IP field supports `terms_query` with more than 1025 IP masks ([#18357](https://github.com/opensearch-project/OpenSearch/pull/18357)
 - Fix MatrixStatsAggregator reuse when mode parameter changes ([#18242](https://github.com/opensearch-project/OpenSearch/issues/18242))
 - Replace the deprecated construction method of TopScoreDocCollectorManager with the new method ([#18395](https://github.com/opensearch-project/OpenSearch/pull/18395))
-- Fixed Approximate Framework regression with Lucene 10.2.1 by updating `intersectRight` BKD walk and `IntRef` visit method ([#18358](https://github.com/opensearch-project/OpenSearch/issues/18358
+- Fixed Approximate Framework regression with Lucene 10.2.1 by updating `intersectRight` BKD walk and `IntRef` visit method ([#18358](https://github.com/opensearch-project/OpenSearch/issues/18358))
+- Add task cancellation checks in aggregators ([#18426](https://github.com/opensearch-project/OpenSearch/pull/18426))
 
 ### Security
 
