@@ -36,9 +36,10 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.profile.AbstractProfileShardResult;
 import org.opensearch.search.profile.ProfileResult;
 
 import java.io.IOException;
@@ -55,21 +56,19 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class QueryProfileShardResult implements Writeable, ToXContentObject {
+public final class QueryProfileShardResult extends AbstractProfileShardResult {
 
     public static final String COLLECTOR = "collector";
     public static final String REWRITE_TIME = "rewrite_time";
     public static final String QUERY_ARRAY = "query";
-
-    private final List<ProfileResult> queryProfileResults;
 
     private final CollectorResult profileCollector;
 
     private final long rewriteTime;
 
     public QueryProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime, CollectorResult profileCollector) {
+        super(queryProfileResults);
         assert (profileCollector != null);
-        this.queryProfileResults = queryProfileResults;
         this.profileCollector = profileCollector;
         this.rewriteTime = rewriteTime;
     }
@@ -78,20 +77,15 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
      * Read from a stream.
      */
     public QueryProfileShardResult(StreamInput in) throws IOException {
-        int profileSize = in.readVInt();
-        queryProfileResults = new ArrayList<>(profileSize);
-        for (int j = 0; j < profileSize; j++) {
-            queryProfileResults.add(new ProfileResult(in));
-        }
-
+        super(in);
         profileCollector = new CollectorResult(in);
         rewriteTime = in.readLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(queryProfileResults.size());
-        for (ProfileResult p : queryProfileResults) {
+        out.writeVInt(profileResults.size());
+        for (ProfileResult p : profileResults) {
             p.writeTo(out);
         }
         profileCollector.writeTo(out);
@@ -99,7 +93,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     }
 
     public List<ProfileResult> getQueryResults() {
-        return Collections.unmodifiableList(queryProfileResults);
+        return Collections.unmodifiableList(profileResults);
     }
 
     public long getRewriteTime() {
@@ -114,7 +108,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray(QUERY_ARRAY);
-        for (ProfileResult p : queryProfileResults) {
+        for (ProfileResult p : profileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();

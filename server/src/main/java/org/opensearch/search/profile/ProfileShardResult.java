@@ -36,6 +36,8 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.similarity.ScriptedSimilarity;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 
@@ -83,7 +85,7 @@ public class ProfileShardResult implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(queryProfileResults.size());
-        for (QueryProfileShardResult queryShardResult : queryProfileResults) {
+        for (AbstractProfileShardResult queryShardResult : queryProfileResults) {
             queryShardResult.writeTo(out);
         }
         aggProfileShardResult.writeTo(out);

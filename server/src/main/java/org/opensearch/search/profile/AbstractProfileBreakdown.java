@@ -32,9 +32,12 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 
@@ -45,45 +48,21 @@ import static java.util.Collections.emptyMap;
  *
  * @opensearch.internal
  */
-public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
-
-    /**
-     * The accumulated timings for this query node
-     */
-    protected final Timer[] timings;
-    protected final T[] timingTypes;
-    public static final String TIMING_TYPE_COUNT_SUFFIX = "_count";
-    public static final String TIMING_TYPE_START_TIME_SUFFIX = "_start_time";
+@PublicApi(since="3.0.0")
+public abstract class AbstractProfileBreakdown {
 
     /** Sole constructor. */
-    public AbstractProfileBreakdown(Class<T> clazz) {
-        this.timingTypes = clazz.getEnumConstants();
-        timings = new Timer[timingTypes.length];
-        for (int i = 0; i < timings.length; ++i) {
-            timings[i] = new Timer();
-        }
-    }
-
-    public Timer getTimer(T timing) {
-        return timings[timing.ordinal()];
-    }
-
-    public void setTimer(T timing, Timer timer) {
-        timings[timing.ordinal()] = timer;
-    }
+    public AbstractProfileBreakdown() {}
 
     /**
-     * Build a timing count breakdown for current instance
+     * Gather important metrics for current instance
      */
-    public Map<String, Long> toBreakdownMap() {
-        Map<String, Long> map = new HashMap<>(this.timings.length * 3);
-        for (T timingType : this.timingTypes) {
-            map.put(timingType.toString(), this.timings[timingType.ordinal()].getApproximateTiming());
-            map.put(timingType + TIMING_TYPE_COUNT_SUFFIX, this.timings[timingType.ordinal()].getCount());
-            map.put(timingType + TIMING_TYPE_START_TIME_SUFFIX, this.timings[timingType.ordinal()].getEarliestTimerStartTime());
-        }
-        return Collections.unmodifiableMap(map);
-    }
+    abstract public Map<String, Long> toImportantMetricsMap();
+
+    /**
+     * Build a breakdown for current instance
+     */
+    abstract public Map<String, Long> toBreakdownMap();
 
     /**
      * Fetch extra debugging information.
@@ -92,11 +71,21 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         return emptyMap();
     }
 
-    public long toNodeTime() {
-        long total = 0;
-        for (T timingType : timingTypes) {
-            total += timings[timingType.ordinal()].getApproximateTiming();
+    /**
+     *
+     * @return a {@link BiFunction} that handles the concurrent plugin metric for the profiler
+     */
+    public BiFunction<String, Long, Long> handleConcurrentPluginMetric() {
+        throw new IllegalCallerException("must be overridden by plugin");
+    }
+
+    public Map<String, Long> filterZeros(Map<String, Long> map) {
+        Map<String, Long> filteredMap = new HashMap<>(map.size());
+        for (Map.Entry<String, Long> entry : map.entrySet()) {
+            if (entry.getValue() != 0) {
+                filteredMap.put(entry.getKey(), entry.getValue());
+            }
         }
-        return total;
+        return Collections.unmodifiableMap(filteredMap);
     }
 }

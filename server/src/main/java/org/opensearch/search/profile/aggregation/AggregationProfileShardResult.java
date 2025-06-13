@@ -34,16 +34,13 @@ package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.profile.AbstractProfileShardResult;
 import org.opensearch.search.profile.ProfileResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -55,42 +52,27 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class AggregationProfileShardResult implements Writeable, ToXContentFragment {
+public final class AggregationProfileShardResult extends AbstractProfileShardResult {
 
     public static final String AGGREGATIONS = "aggregations";
-    private final List<ProfileResult> aggProfileResults;
 
-    public AggregationProfileShardResult(List<ProfileResult> aggProfileResults) {
-        this.aggProfileResults = aggProfileResults;
+    public AggregationProfileShardResult(List<ProfileResult> abstractProfileResults) {
+        super(abstractProfileResults);
     }
 
-    /**
-     * Read from a stream.
-     */
     public AggregationProfileShardResult(StreamInput in) throws IOException {
-        int profileSize = in.readVInt();
-        aggProfileResults = new ArrayList<>(profileSize);
-        for (int j = 0; j < profileSize; j++) {
-            aggProfileResults.add(new ProfileResult(in));
-        }
+        super(in);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(aggProfileResults.size());
-        for (ProfileResult p : aggProfileResults) {
-            p.writeTo(out);
-        }
-    }
-
-    public List<ProfileResult> getProfileResults() {
-        return Collections.unmodifiableList(aggProfileResults);
+    public boolean isFragment() {
+        return true;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(AGGREGATIONS);
-        for (ProfileResult p : aggProfileResults) {
+        for (ProfileResult p : profileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();

@@ -32,7 +32,7 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.search.profile.query.QueryProfileBreakdown;
+import org.opensearch.search.profile.query.QueryTimingProfileBreakdown;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<?>, E> {
+public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown, E> {
 
     protected ArrayList<PB> breakdowns;
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
@@ -67,7 +67,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
     }
 
     /**
-     * Returns a {@link QueryProfileBreakdown} for a scoring query.  Scoring queries (e.g. those
+     * Returns a {@link QueryTimingProfileBreakdown} for a scoring query.  Scoring queries (e.g. those
      * that are past the rewrite phase and are now being wrapped by createWeight() ) follow
      * a recursive progression.  We can track the dependency tree by a simple stack
      * <p>
@@ -128,12 +128,12 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // Save our query for lookup later
         elements.add(element);
 
-        PB breakdown = createProfileBreakdown();
+        PB breakdown = createProfileBreakdown(element);
         breakdowns.add(token, breakdown);
         return breakdown;
     }
 
-    protected abstract PB createProfileBreakdown();
+    protected abstract PB createProfileBreakdown(E element);
 
     /**
      * Removes the last (e.g. most recent) value on the stack
@@ -180,18 +180,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // calculating the same times over and over...but worth the effort?
         String type = getTypeFromElement(element);
         String description = getDescriptionFromElement(element);
-        return createProfileResult(type, description, breakdown, childrenProfileResults);
-    }
-
-    protected ProfileResult createProfileResult(String type, String description, PB breakdown, List<ProfileResult> childrenProfileResults) {
-        return new ProfileResult(
-            type,
-            description,
-            breakdown.toBreakdownMap(),
-            breakdown.toDebugMap(),
-            breakdown.toNodeTime(),
-            childrenProfileResults
-        );
+        return new ProfileResult(type, description, breakdown.toBreakdownMap(), breakdown.toImportantMetricsMap(), breakdown.toDebugMap(), childrenProfileResults);
     }
 
     protected abstract String getTypeFromElement(E element);
@@ -208,6 +197,11 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         ArrayList<Integer> parentNode = tree.get(parent);
         parentNode.add(childToken);
         tree.set(parent, parentNode);
+    }
+
+    public PB getStackTop() {
+        assert stack.isEmpty() == false;
+        return breakdowns.get(stack.peekLast());
     }
 
 }

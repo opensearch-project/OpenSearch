@@ -101,7 +101,8 @@ public class SearchProfileShardResultsTests extends OpenSearchTestCase {
             // also we don't want to insert into the root object here, its just the PROFILE_FIELD itself
             Predicate<String> excludeFilter = (s) -> s.isEmpty()
                 || s.endsWith(ProfileResult.BREAKDOWN.getPreferredName())
-                || s.endsWith(ProfileResult.DEBUG.getPreferredName());
+                || s.endsWith(ProfileResult.DEBUG.getPreferredName())
+                || s.endsWith(ProfileResult.METRICS.getPreferredName());
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {
             mutated = originalBytes;

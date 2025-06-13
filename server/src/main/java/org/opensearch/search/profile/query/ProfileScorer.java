@@ -35,7 +35,7 @@ package org.opensearch.search.profile.query;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.Timer;
 
 import java.io.IOException;
@@ -54,15 +54,15 @@ final class ProfileScorer extends Scorer {
     private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
         setMinCompetitiveScoreTimer;
 
-    ProfileScorer(Scorer scorer, AbstractProfileBreakdown<QueryTimingType> profile) throws IOException {
+    ProfileScorer(Scorer scorer, AbstractTimingProfileBreakdown profile) {
         this.scorer = scorer;
-        scoreTimer = profile.getTimer(QueryTimingType.SCORE);
-        nextDocTimer = profile.getTimer(QueryTimingType.NEXT_DOC);
-        advanceTimer = profile.getTimer(QueryTimingType.ADVANCE);
-        matchTimer = profile.getTimer(QueryTimingType.MATCH);
-        shallowAdvanceTimer = profile.getTimer(QueryTimingType.SHALLOW_ADVANCE);
-        computeMaxScoreTimer = profile.getTimer(QueryTimingType.COMPUTE_MAX_SCORE);
-        setMinCompetitiveScoreTimer = profile.getTimer(QueryTimingType.SET_MIN_COMPETITIVE_SCORE);
+        scoreTimer = profile.getTimer(QueryTimingType.SCORE.toString());
+        nextDocTimer = profile.getTimer(QueryTimingType.NEXT_DOC.toString());
+        advanceTimer = profile.getTimer(QueryTimingType.ADVANCE.toString());
+        matchTimer = profile.getTimer(QueryTimingType.MATCH.toString());
+        shallowAdvanceTimer = profile.getTimer(QueryTimingType.SHALLOW_ADVANCE.toString());
+        computeMaxScoreTimer = profile.getTimer(QueryTimingType.COMPUTE_MAX_SCORE.toString());
+        setMinCompetitiveScoreTimer = profile.getTimer(QueryTimingType.SET_MIN_COMPETITIVE_SCORE.toString());
     }
 
     @Override
