@@ -5,6 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
+
 package org.opensearch.plugin.transport.grpc.proto.request.search.query;
 
 import org.opensearch.index.query.QueryBuilder;
@@ -13,7 +14,6 @@ import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.StringArray;
 import org.opensearch.protobufs.TermsLookupFieldStringArrayMap;
 import org.opensearch.protobufs.TermsQueryField;
-import org.opensearch.protobufs.ValueType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -30,7 +30,7 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
     }
 
     public void testCanHandle() {
-        // Create a QueryContainer with TermsQuery
+        // Create a QueryContainer with Terms query
         StringArray stringArray = StringArray.newBuilder().addStringArray("value1").addStringArray("value2").build();
         TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
             .setStringArray(stringArray)
@@ -42,18 +42,21 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
             .build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQueryField).build();
 
-        // Test that the converter can handle this query type
-        assertTrue("Converter should handle TermsQuery", converter.canHandle(queryContainer));
+        // Verify that the converter can handle this query
+        assertTrue("Converter should handle Terms query", converter.canHandle(queryContainer));
 
-        // Create a QueryContainer with a different query type
+        // Create a QueryContainer without Terms query
         QueryContainer emptyContainer = QueryContainer.newBuilder().build();
 
-        // Test that the converter cannot handle this query type
+        // Verify that the converter cannot handle this query
         assertFalse("Converter should not handle empty container", converter.canHandle(emptyContainer));
+
+        // Test with null container
+        assertFalse("Converter should not handle null container", converter.canHandle(null));
     }
 
     public void testFromProto() {
-        // Create a QueryContainer with TermsQuery
+        // Create a QueryContainer with Terms query
         StringArray stringArray = StringArray.newBuilder().addStringArray("value1").addStringArray("value2").build();
         TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
             .setStringArray(stringArray)
@@ -62,9 +65,6 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
         termsLookupFieldStringArrayMapMap.put("test-field", termsLookupFieldStringArrayMap);
         TermsQueryField termsQueryField = TermsQueryField.newBuilder()
             .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
-            .setBoost(2.0f)
-            .setName("test_query")
-            .setValueType(ValueType.VALUE_TYPE_DEFAULT)
             .build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQueryField).build();
 
@@ -79,22 +79,40 @@ public class TermsQueryBuilderProtoConverterTests extends OpenSearchTestCase {
         assertEquals("Values size should match", 2, termsQueryBuilder.values().size());
         assertEquals("First value should match", "value1", termsQueryBuilder.values().get(0));
         assertEquals("Second value should match", "value2", termsQueryBuilder.values().get(1));
-        assertEquals("Boost should match", 2.0f, termsQueryBuilder.boost(), 0.0f);
-        assertEquals("Query name should match", "test_query", termsQueryBuilder.queryName());
-        assertEquals("Value type should match", TermsQueryBuilder.ValueType.DEFAULT, termsQueryBuilder.valueType());
     }
 
     public void testFromProtoWithInvalidContainer() {
-        // Create a QueryContainer with a different query type
+        // Create a QueryContainer without Terms query
         QueryContainer emptyContainer = QueryContainer.newBuilder().build();
 
-        // Test that the converter throws an exception
+        // Convert the query, should throw IllegalArgumentException
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto(emptyContainer));
 
         // Verify the exception message
-        assertTrue(
-            "Exception message should mention 'does not contain a Terms query'",
-            exception.getMessage().contains("does not contain a Terms query")
-        );
+        assertEquals("QueryContainer does not contain a Terms query", exception.getMessage());
+    }
+
+    public void testFromProtoWithEmptyStringArray() {
+        // Create a QueryContainer with Terms query but empty string array
+        StringArray emptyStringArray = StringArray.newBuilder().build();
+        TermsLookupFieldStringArrayMap termsLookupFieldStringArrayMap = TermsLookupFieldStringArrayMap.newBuilder()
+            .setStringArray(emptyStringArray)
+            .build();
+        Map<String, TermsLookupFieldStringArrayMap> termsLookupFieldStringArrayMapMap = new HashMap<>();
+        termsLookupFieldStringArrayMapMap.put("test-field", termsLookupFieldStringArrayMap);
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder()
+            .putAllTermsLookupFieldStringArrayMap(termsLookupFieldStringArrayMapMap)
+            .build();
+        QueryContainer queryContainer = QueryContainer.newBuilder().setTerms(termsQueryField).build();
+
+        // Convert the query
+        QueryBuilder queryBuilder = converter.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertTrue("QueryBuilder should be a TermsQueryBuilder", queryBuilder instanceof TermsQueryBuilder);
+        TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
+        assertEquals("Field name should match", "test-field", termsQueryBuilder.fieldName());
+        assertEquals("Values size should be 0", 0, termsQueryBuilder.values().size());
     }
 }

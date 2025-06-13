@@ -82,4 +82,54 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         // Verify the exception message
         assertTrue("Exception message should mention 'Unsupported query type'", exception.getMessage().contains("Unsupported query type"));
     }
+
+    public void testFromProtoWithNullQueryContainer() {
+        // Call fromProto with null, should throw IllegalArgumentException
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> registry.fromProto(null));
+
+        // Verify the exception message
+        assertEquals("Query container cannot be null", exception.getMessage());
+    }
+
+    public void testRegisterNullConverter() {
+        // Register a null converter
+        registry.registerConverter(null);
+
+        // Create a QueryContainer with MatchAllQuery
+        MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().build();
+        QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(matchAllQuery).build();
+
+        // Convert the query, should throw IllegalArgumentException since no converter is registered
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> registry.fromProto(queryContainer));
+
+        // Verify the exception message
+        assertTrue("Exception message should mention 'Unsupported query type'", exception.getMessage().contains("Unsupported query type"));
+    }
+
+    public void testLoadExternalConverters() {
+        // Create a registry that will load external converters
+        QueryBuilderProtoConverterRegistry registryWithExternalConverters = new QueryBuilderProtoConverterRegistry() {
+            @Override
+            protected void registerBuiltInConverters() {
+                // Don't register any built-in converters
+            }
+
+            @Override
+            protected void loadExternalConverters() {
+                // Register a converter manually to simulate external loading
+                registerConverter(new MatchAllQueryBuilderProtoConverter());
+            }
+        };
+
+        // Create a QueryContainer with MatchAllQuery
+        MatchAllQuery matchAllQuery = MatchAllQuery.newBuilder().build();
+        QueryContainer queryContainer = QueryContainer.newBuilder().setMatchAll(matchAllQuery).build();
+
+        // Convert the query
+        QueryBuilder queryBuilder = registryWithExternalConverters.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertTrue("QueryBuilder should be a MatchAllQueryBuilder", queryBuilder instanceof MatchAllQueryBuilder);
+    }
 }

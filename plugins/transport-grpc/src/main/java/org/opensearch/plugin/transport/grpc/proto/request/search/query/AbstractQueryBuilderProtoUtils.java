@@ -45,6 +45,16 @@ public class AbstractQueryBuilderProtoUtils {
     }
 
     /**
+     * Gets the current registry.
+     * This method is primarily for testing purposes.
+     *
+     * @return The current registry
+     */
+    public static QueryBuilderProtoConverterRegistry getRegistry() {
+        return registry;
+    }
+
+    /**
      * Parse a query from its Protocol Buffer representation.
      * Similar to {@link AbstractQueryBuilder#parseInnerQueryBuilder(XContentParser)}, this method
      * determines the query type from the Protocol Buffer container and delegates to the appropriate
