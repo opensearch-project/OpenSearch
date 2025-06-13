@@ -30,6 +30,12 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateMathParser;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.opensearch.index.mapper.DateFieldMapper.Resolution;
+import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -962,6 +968,85 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
+    public void testDateRangeIncludingNowQueryApproximation() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+
+                DateFieldType dateFieldType = new DateFieldType("@timestamp");
+                long minute = 60 * 1000L;
+
+                long currentTime = System.currentTimeMillis();
+                long startTimestamp = currentTime - (48 * 60 * minute); // Start 48 hours ago
+
+                // Create 10000 documents with 1 minute intervals
+                for (int i = 0; i < 10000; i++) {
+                    long timestamp = startTimestamp + (i * minute);
+
+                    iw.addDocument(asList(new LongPoint("@timestamp", timestamp), new NumericDocValuesField("@timestamp", timestamp)));
+                }
+
+                iw.flush();
+                iw.forceMerge(1);
+                try (IndexReader reader = iw.getReader()) {
+                    IndexSearcher searcher = new IndexSearcher(reader);
+
+                    testApproximateVsExactDateQuery(searcher, "@timestamp", "now-1h", "now", 50, dims);
+
+                    testApproximateVsExactDateQuery(searcher, "@timestamp", "now-1d", "now", 50, dims);
+
+                    testApproximateVsExactDateQuery(searcher, "@timestamp", "now-30m", "now+30m", 50, dims);
+
+                }
+            }
+        }
+    }
+
+    private void testApproximateVsExactDateQuery(
+        IndexSearcher searcher,
+        String field,
+        String lowerBound,
+        String upperBound,
+        int size,
+        int dims
+    ) throws IOException {
+        // Parse date expressions to milliseconds
+        DateFormatter formatter = DateFieldMapper.getDefaultDateTimeFormatter();
+        DateMathParser parser = formatter.toDateMathParser();
+        long nowInMillis = System.currentTimeMillis();
+
+        long lower = Resolution.MILLISECONDS.convert(parser.parse(lowerBound, () -> nowInMillis));
+        long upper = Resolution.MILLISECONDS.convert(parser.parse(upperBound, () -> nowInMillis));
+
+        Query exactQuery = LongPoint.newRangeQuery(field, lower, upper);
+
+        // Wrap with DateRangeIncludingNowQuery if using "now"
+        if (lowerBound.contains("now") || upperBound.contains("now")) {
+            exactQuery = new DateRangeIncludingNowQuery(exactQuery);
+
+            assertTrue(
+                "Query should be wrapped in DateRangeIncludingNowQuery when using 'now'",
+                exactQuery instanceof DateRangeIncludingNowQuery
+            );
+
+            exactQuery = ((DateRangeIncludingNowQuery) exactQuery).getQuery();
+        }
+
+        ApproximatePointRangeQuery approximateQuery = new ApproximatePointRangeQuery(
+            field,
+            pack(new long[] { lower }).bytes,
+            pack(new long[] { upper }).bytes,
+            1,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
+        approximateQuery.setSize(size);
+
+        TopDocs exactDocs = searcher.search(exactQuery, size);
+        TopDocs approxDocs = searcher.search(approximateQuery, size);
+
+        verifyRangeQueries(searcher, exactQuery, approxDocs, exactDocs, field, lower, upper, size, dims);
+    }
+
     private void testApproximateVsExactQuery(IndexSearcher searcher, String field, long lower, long upper, int size, int dims)
         throws IOException {
         // Test with approximate query
@@ -978,6 +1063,21 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         Query exactQuery = numericType.rangeQuery(field, lower, upper);
         TopDocs approxDocs = searcher.search(approxQuery, size);
         TopDocs exactDocs = searcher.search(exactQuery, size);
+
+        verifyRangeQueries(searcher, exactQuery, approxDocs, exactDocs, field, lower, upper, size, dims);
+    }
+
+    private void verifyRangeQueries(
+        IndexSearcher searcher,
+        Query exactQuery,
+        TopDocs approxDocs,
+        TopDocs exactDocs,
+        String field,
+        long lower,
+        long upper,
+        int size,
+        int dims
+    ) throws IOException {
         // Verify approximate query returns correct number of results
         assertTrue("Approximate query should return at most " + size + " docs", approxDocs.scoreDocs.length <= size);
         // If exact query returns fewer docs than size, approximate should match
