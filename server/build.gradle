@@ -100,6 +100,10 @@ dependencies {
   annotationProcessor libs.log4jcore
   annotationProcessor project(':libs:opensearch-common')
 
+  // jackson core databind for JSON utilities
+  api libs.jackson.annotation
+  api libs.jackson.databind
+
   // jna
   api libs.jna
 
