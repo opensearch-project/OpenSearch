@@ -10,6 +10,10 @@ on:
 
 jobs:
   call-build-workflow:
+    permissions:
+      actions: read
+      id-token: write
+      contents: read
     uses: ./.github/workflows/5_builderpackage_indexer.yml
     secrets: inherit
     with:

@@ -69,6 +69,10 @@ on:
 
 jobs:
   call-build-workflow:
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
     uses: ./.github/workflows/5_builderpackage_indexer.yml
     with:
       revision: ${{ inputs.revision }}
