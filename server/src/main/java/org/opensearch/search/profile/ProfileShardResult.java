@@ -37,6 +37,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
+import org.opensearch.search.profile.fetch.FetchProfileShardResult;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 
 import java.io.IOException;
@@ -56,14 +57,19 @@ public class ProfileShardResult implements Writeable {
 
     private final AggregationProfileShardResult aggProfileShardResult;
 
+    private final FetchProfileShardResult fetchProfileResult;
+
     private NetworkTime networkTime;
 
     public ProfileShardResult(
         List<QueryProfileShardResult> queryProfileResults,
         AggregationProfileShardResult aggProfileShardResult,
+        FetchProfileShardResult fetchProfileResult,
+
         NetworkTime networkTime
     ) {
         this.aggProfileShardResult = aggProfileShardResult;
+        this.fetchProfileResult = fetchProfileResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.networkTime = networkTime;
     }
@@ -77,6 +83,7 @@ public class ProfileShardResult implements Writeable {
         }
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
         this.aggProfileShardResult = new AggregationProfileShardResult(in);
+        this.fetchProfileResult = new FetchProfileShardResult(in);
         this.networkTime = new NetworkTime(in);
     }
 
@@ -87,6 +94,7 @@ public class ProfileShardResult implements Writeable {
             queryShardResult.writeTo(out);
         }
         aggProfileShardResult.writeTo(out);
+        fetchProfileResult.writeTo(out);
         networkTime.writeTo(out);
     }
 
@@ -96,6 +104,10 @@ public class ProfileShardResult implements Writeable {
 
     public AggregationProfileShardResult getAggregationProfileResults() {
         return aggProfileShardResult;
+    }
+
+    public FetchProfileShardResult getFetchProfileResult() {
+        return fetchProfileResult;
     }
 
     public NetworkTime getNetworkTime() {
