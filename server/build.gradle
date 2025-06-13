@@ -100,6 +100,10 @@ dependencies {
   annotationProcessor libs.log4jcore
   annotationProcessor project(':libs:opensearch-common')
 
+  // jackson core databind for JSON utilities
+  implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
+  implementation 'com.fasterxml.jackson.core:jackson-annotations:2.18.2'
+
   // jna
   api libs.jna
 
