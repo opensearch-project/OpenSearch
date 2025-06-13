@@ -31,6 +31,12 @@ public interface RemoteWritableEntityManager {
      */
     void readAsync(String component, AbstractClusterMetadataWriteableBlobEntity entity, ActionListener<RemoteReadResult> listener);
 
+    void readAsyncWithMetrics(
+        String component,
+        AbstractClusterMetadataWriteableBlobEntity entity,
+        ActionListener<ReadBlobWithMetrics<RemoteReadResult>> listener
+    );
+
     /**
      * Performs an asynchronous write operation for the specified component and entity.
      *

@@ -97,7 +97,8 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
             blobStoreRepository,
             blobStoreTransferService,
             writableRegistry(),
-            threadPool
+            threadPool,
+            clusterSettings
         );
     }
 
