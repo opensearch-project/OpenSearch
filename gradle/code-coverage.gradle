@@ -71,20 +71,17 @@ if (System.getProperty("tests.coverage")) {
       testCodeCoverageReport(JacocoCoverageReport) {
         testSuiteName = "test"
       }
+      testCodeCoverageReportJavaRestTest(JacocoCoverageReport) {
+        testSuiteName = "javaRestTest"
+      }
     }
   }
 
   // Attach code coverage report task to Gradle check task
   project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
-    dependsOn tasks.named('testCodeCoverageReport', JacocoReport)
-  }
-  
-  // To include javaRestTest in code coverage
-  allprojects {
-    plugins.withId('opensearch.java-rest-test') {
-      rootProject.tasks.named('testCodeCoverageReport').configure {
-        dependsOn tasks.named('javaRestTest')
-      }
-    }
+    dependsOn(
+      tasks.named('testCodeCoverageReport', JacocoReport),
+      tasks.named('testCodeCoverageReportJavaRestTest', JacocoReport)
+    )
   }
 }
