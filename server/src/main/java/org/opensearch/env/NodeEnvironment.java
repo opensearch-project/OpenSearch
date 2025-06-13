@@ -389,7 +389,7 @@ public final class NodeEnvironment implements Closeable {
             }
 
             if (DiscoveryNode.isWarmNode(settings) == false) {
-                ensureNoFileCacheData(fileCacheNodePath);
+                ensureNoFileCacheData(fileCacheNodePath, settings);
             }
 
             this.nodeMetadata = loadNodeMetadata(settings, logger, nodePaths);
@@ -1204,8 +1204,8 @@ public final class NodeEnvironment implements Closeable {
     /**
      * Throws an exception if cache exists on a non-warm node.
      */
-    private void ensureNoFileCacheData(final NodePath fileCacheNodePath) throws IOException {
-        List<Path> cacheDataPaths = collectFileCacheDataPath(fileCacheNodePath);
+    private void ensureNoFileCacheData(final NodePath fileCacheNodePath, final Settings settings) throws IOException {
+        List<Path> cacheDataPaths = collectFileCacheDataPath(fileCacheNodePath, settings);
         if (cacheDataPaths.isEmpty() == false) {
             final String message = String.format(
                 Locale.ROOT,
@@ -1278,12 +1278,22 @@ public final class NodeEnvironment implements Closeable {
      * Collect the path containing cache data in the indicated cache node path.
      * The returned paths will point to the shard data folder.
      */
-    public static List<Path> collectFileCacheDataPath(NodePath fileCacheNodePath) throws IOException {
+    public static List<Path> collectFileCacheDataPath(NodePath fileCacheNodePath, Settings settings) throws IOException {
         // Structure is: <file cache path>/<index uuid>/<shard id>/...
         List<Path> indexSubPaths = new ArrayList<>();
-        Path fileCachePath = fileCacheNodePath.fileCachePath;
-        if (Files.isDirectory(fileCachePath)) {
-            try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(fileCachePath)) {
+        // Process file cache path
+        processDirectory(fileCacheNodePath.fileCachePath, indexSubPaths);
+        if (DiscoveryNode.isDedicatedWarmNode(settings)) {
+            // Process <indices>/... path only for warm nodes.
+            processDirectory(fileCacheNodePath.indicesPath, indexSubPaths);
+        }
+
+        return indexSubPaths;
+    }
+
+    private static void processDirectory(Path directoryPath, List<Path> indexSubPaths) throws IOException {
+        if (Files.isDirectory(directoryPath)) {
+            try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(directoryPath)) {
                 for (Path indexPath : indexStream) {
                     if (Files.isDirectory(indexPath)) {
                         try (Stream<Path> shardStream = Files.list(indexPath)) {
@@ -1293,8 +1303,6 @@ public final class NodeEnvironment implements Closeable {
                 }
             }
         }
-
-        return indexSubPaths;
     }
 
     /**
