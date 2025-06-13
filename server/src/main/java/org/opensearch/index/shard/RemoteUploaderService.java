@@ -52,6 +52,9 @@ import java.util.stream.Collectors;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILES;
 
+/**
+ * RemoteUploaderService for uploading the files to remote store.
+ */
 public class RemoteUploaderService {
 
     private final Logger logger = LogManager.getLogger(RemoteUploaderService.class);
