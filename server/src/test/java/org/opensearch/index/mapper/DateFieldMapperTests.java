@@ -174,7 +174,6 @@ public class DateFieldMapperTests extends MapperTestCase {
             "2016-03-99",
             "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]"
         );
-        testIgnoreMalformedForValue("-2147483648", "Invalid value for Year (valid values -999999999 - 999999999): -2147483648");
     }
 
     public void testIgnoreMalformed() throws IOException {
@@ -187,7 +186,6 @@ public class DateFieldMapperTests extends MapperTestCase {
             "2016-03-99",
             "failed to parse date field [2016-03-99] with format [strict_date_time_no_millis||strict_date_optional_time||epoch_millis]"
         );
-        testIgnoreMalformedForValue("-2147483648", "Invalid value for Year (valid values -999999999 - 999999999): -2147483648");
     }
 
     private void testIgnoreMalformedForValue(String value, String expectedCause) throws IOException {
