@@ -8,7 +8,7 @@
 
 package org.opensearch.search.startree.filter;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.HashSet;
 import java.util.List;
@@ -18,7 +18,7 @@ import java.util.Set;
 /**
  * Container for intermediate/consolidated dimension filters that will be applied for a query in star tree traversal.
  */
-@ExperimentalApi
+@PublicApi(since = "2.18.0")
 public class StarTreeFilter {
 
     private final Map<String, List<DimensionFilter>> dimensionFilterMap;
