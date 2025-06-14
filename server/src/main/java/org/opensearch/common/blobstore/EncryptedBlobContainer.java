@@ -202,9 +202,8 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobVersions(String blobName) throws IOException {
-        Map<String, BlobMetadata> versionMap = blobContainer.listBlobVersions(blobName);
-        // Convert each version's metadata to encrypted metadata
+    public Map<String, BlobMetadata> listBlobVersions(String blobName, int limit) throws IOException {
+        Map<String, BlobMetadata> versionMap = blobContainer.listBlobVersions(blobName, limit);
         return versionMap.entrySet()
             .stream()
             .collect(

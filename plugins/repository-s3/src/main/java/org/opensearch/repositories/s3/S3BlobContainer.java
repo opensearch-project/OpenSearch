@@ -101,7 +101,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -421,6 +421,15 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
     @Override
     public Map<String, BlobMetadata> listBlobVersions(String blobName) throws IOException {
+        return listBlobVersions(blobName, -1);
+    }
+
+    @Override
+    public Map<String, BlobMetadata> listBlobVersions(String blobName, int limit) throws IOException {
+        if (limit < 0 && limit != -1) {
+            throw new IllegalArgumentException("limit should be a non-negative value or -1 for no limit");
+        }
+
         final String key = buildKey(blobName);
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             ListObjectVersionsRequest request = ListObjectVersionsRequest.builder()
@@ -428,32 +437,26 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 .prefix(key)
                 .delimiter("/")
                 .expectedBucketOwner(blobStore.expectedBucketOwner())
+                .maxKeys(limit == -1 ? null : Math.min(limit, 1000))
                 .build();
 
-            Map<String, BlobMetadata> versions = new HashMap<>();
-            for (ListObjectVersionsResponse response : executeVersionListing(clientReference, request)) {
-                for (ObjectVersion version : response.versions()) {
-                    if (version.key().equals(key)) {
-                        BlobMetadata metadata = new PlainBlobMetadata(blobName, version.size()) {
-                            @Override
-                            public String versionId() {
-                                return version.versionId();
-                            }
+            Map<String, BlobMetadata> versions = executeVersionListing(clientReference, request, limit).stream()
+                .flatMap(response -> response.versions().stream())
+                .filter(version -> version.key().equals(key))
+                .collect(
+                    Collectors.toMap(
+                        ObjectVersion::versionId,
+                        version -> createVersionMetadata(blobName, version),
+                        (v1, v2) -> v1,
+                        () -> new LinkedHashMap<>(limit == -1 ? 16 : Math.min(limit, 16))
+                    )
+                );
 
-                            @Override
-                            public String eTag() {
-                                return version.eTag() == null ? "" : version.eTag().replaceAll("\"", "");
-                            }
-
-                            @Override
-                            public long lastModified() {
-                                return version.lastModified() == null ? 0L : version.lastModified().toEpochMilli();
-                            }
-                        };
-
-                        versions.put(version.versionId(), metadata);
-                    }
-                }
+            if (limit != -1 && versions.size() > limit) {
+                return versions.entrySet()
+                    .stream()
+                    .limit(limit)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> v1, LinkedHashMap::new));
             }
 
             return versions;
@@ -473,12 +476,36 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         }
     }
 
-    private List<ListObjectVersionsResponse> executeVersionListing(AmazonS3Reference clientReference, ListObjectVersionsRequest request) {
+    private BlobMetadata createVersionMetadata(String blobName, ObjectVersion version) {
+        return new PlainBlobMetadata(blobName, version.size()) {
+            @Override
+            public String versionId() {
+                return version.versionId();
+            }
+
+            @Override
+            public String eTag() {
+                return version.eTag() == null ? "" : version.eTag().replaceAll("\"", "");
+            }
+
+            @Override
+            public long lastModified() {
+                return version.lastModified() == null ? 0L : version.lastModified().toEpochMilli();
+            }
+        };
+    }
+
+    private List<ListObjectVersionsResponse> executeVersionListing(
+        AmazonS3Reference clientReference,
+        ListObjectVersionsRequest request,
+        int limit
+    ) {
         return SocketAccess.doPrivileged(() -> {
             final List<ListObjectVersionsResponse> results = new ArrayList<>();
             String keyMarker = null;
             String versionIdMarker = null;
             boolean isTruncated;
+            int totalVersions = 0;
 
             do {
                 final ListObjectVersionsRequest paginatedRequest;
@@ -490,6 +517,12 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
                 final ListObjectVersionsResponse response = clientReference.get().listObjectVersions(paginatedRequest);
                 results.add(response);
+
+                totalVersions += (int) response.versions().stream().filter(v -> v.key().equals(request.prefix())).count();
+
+                if (limit != -1 && totalVersions >= limit) {
+                    break;
+                }
 
                 keyMarker = response.nextKeyMarker();
                 versionIdMarker = response.nextVersionIdMarker();
@@ -514,6 +547,8 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 .build();
 
             return SocketAccess.doPrivileged(() -> clientReference.get().getObject(getRequest));
+        } catch (NoSuchKeyException e) {
+            throw new NoSuchFileException("Blob [" + blobName + "] version [" + versionId + "] not found");
         } catch (S3Exception e) {
             if (e.statusCode() == 404) {
                 throw new NoSuchFileException("Blob [" + blobName + "] version [" + versionId + "] not found");
@@ -538,16 +573,22 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         }
 
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            long rangeEnd = Math.addExact(position, length - 1);
-            GetObjectRequest getRequest = GetObjectRequest.builder()
-                .bucket(blobStore.bucket())
-                .key(buildKey(blobName))
-                .versionId(versionId)
-                .range("bytes=" + position + "-" + rangeEnd)
-                .expectedBucketOwner(blobStore.expectedBucketOwner())
-                .build();
+            try {
+                long rangeEnd = Math.addExact(position, length - 1);
+                GetObjectRequest getRequest = GetObjectRequest.builder()
+                    .bucket(blobStore.bucket())
+                    .key(buildKey(blobName))
+                    .versionId(versionId)
+                    .range("bytes=" + position + "-" + rangeEnd)
+                    .expectedBucketOwner(blobStore.expectedBucketOwner())
+                    .build();
 
-            return SocketAccess.doPrivileged(() -> clientReference.get().getObject(getRequest));
+                return SocketAccess.doPrivileged(() -> clientReference.get().getObject(getRequest));
+            } catch (ArithmeticException e) {
+                throw new IllegalArgumentException("Position and length values too large", e);
+            }
+        } catch (NoSuchKeyException e) {
+            throw new NoSuchFileException("Blob [" + blobName + "] version [" + versionId + "] not found");
         } catch (S3Exception e) {
             if (e.statusCode() == 404) {
                 throw new NoSuchFileException("Blob [" + blobName + "] version [" + versionId + "] not found");
