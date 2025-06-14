@@ -327,37 +327,52 @@ public interface BlobContainer {
     }
 
     /**
-     * Lists all versions of a specific blob in the container.
+     * Lists versions of a specific blob in the container, up to a given limit.
      * @param blobName The name of the blob
-     * @return Map of version IDs to their metadata
-     * @throws IOException if there were any failures in reading from the container
-     * @throws BlobStoreException if the underlying store has versioning disabled or encounters errors
+     * @param limit Maximum number of versions to return, or -1 for no limit
+     * @return Map of version IDs to their metadata (in insertion order of versions)
+     * @throws IOException if there were any failures reading from the container
+     * @throws BlobStoreException if versioning is disabled or underlying store errors
      */
-    default Map<String, BlobMetadata> listBlobVersions(String blobName) throws IOException {
-        throw new UnsupportedOperationException("listBlobVersions is not implemented yet");
+    default Map<String, BlobMetadata> listBlobVersions(String blobName, int limit) throws IOException {
+        throw new UnsupportedOperationException("listBlobVersions(blobName, limit) not implemented");
     }
 
     /**
-     * Lists all versions of a specific blob in the container, sorted by last modified time (newest first).
+     * Lists versions of a specific blob in the container, up to a given limit.
      * @param blobName The name of the blob
-     * @return List of blob metadata objects sorted by last modified time
-     * @throws IOException if there were any failures in reading from the container
-     * @throws BlobStoreException if the underlying store has versioning disabled or encounters errors
+     * @return Map of version IDs to their metadata (in insertion order of versions)
+     * @throws IOException if there were any failures reading from the container
+     * @throws BlobStoreException if versioning is disabled or underlying store errors
      */
-    default List<BlobMetadata> listBlobVersionsSorted(String blobName) throws IOException {
-        return new ArrayList<>(listBlobVersions(blobName).values()).stream()
-            .sorted(Comparator.comparing(BlobMetadata::lastModified).reversed())
+    default Map<String, BlobMetadata> listBlobVersions(String blobName) throws IOException {
+        throw new UnsupportedOperationException("listBlobVersions(blobName, limit) not implemented");
+    }
+
+    /**
+     * Lists versions of a specific blob in the container, sorted by last modified time.
+     * @param blobName The name of the blob
+     * @param limit Maximum number of versions to return, or -1 for no limit
+     * @return List of blob metadata objects (newest first)
+     * @throws IOException if there were any failures reading from the container
+     * @throws BlobStoreException if versioning is disabled or underlying store errors
+     */
+    default List<BlobMetadata> listBlobVersionsSorted(String blobName, int limit) throws IOException {
+        return listBlobVersions(blobName, limit).values()
+            .stream()
+            .sorted(Comparator.comparingLong(BlobMetadata::lastModified).reversed())
             .collect(Collectors.toList());
     }
 
     /**
-     * Lists all versions of a specific blob in the container asynchronously.
+     * Asynchronously lists versions of a specific blob, up to a given limit.
      * @param blobName The name of the blob
-     * @param listener The listener to be notified upon request completion
+     * @param limit Maximum number of versions to return, or -1 for no limit
+     * @param listener The listener to be notified upon completion
      */
-    default void listBlobVersions(String blobName, ActionListener<Map<String, BlobMetadata>> listener) {
+    default void listBlobVersions(String blobName, int limit, ActionListener<Map<String, BlobMetadata>> listener) {
         try {
-            listener.onResponse(listBlobVersions(blobName));
+            listener.onResponse(listBlobVersions(blobName, limit));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -366,11 +381,12 @@ public interface BlobContainer {
     /**
      * Lists all versions of a specific blob in the container asynchronously, sorted by last modified time.
      * @param blobName The name of the blob
-     * @param listener The listener to be notified upon request completion
+     * @param limit Maximum number of versions to return, or -1 for no limit
+     * @param listener The listener to be notified upon completion
      */
-    default void listBlobVersionsSorted(String blobName, ActionListener<List<BlobMetadata>> listener) {
+    default void listBlobVersionsSorted(String blobName, int limit, ActionListener<List<BlobMetadata>> listener) {
         try {
-            listener.onResponse(listBlobVersionsSorted(blobName));
+            listener.onResponse(listBlobVersionsSorted(blobName, limit));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -418,7 +434,7 @@ public interface BlobContainer {
     }
 
     /**
-     * Gets metadata for a specific version of a blob without retrieving its content.
+     * Gets metadata for a specific version without downloading content.
      * @param blobName The name of the blob
      * @param versionId The version ID to retrieve metadata for
      * @return Metadata for the specified version
@@ -430,10 +446,10 @@ public interface BlobContainer {
     }
 
     /**
-     * Gets metadata for a specific version of a blob asynchronously without retrieving its content.
+     * Asynchronously retrieves metadata for a specific version.
      * @param blobName The name of the blob
      * @param versionId The version ID to retrieve metadata for
-     * @param listener The listener to be notified upon request completion
+     * @param listener The listener to be notified upon completion
      */
     default void headBlobVersion(String blobName, String versionId, ActionListener<BlobMetadata> listener) {
         try {
