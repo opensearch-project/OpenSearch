@@ -292,7 +292,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         };
     }
 
-    @Override
     protected AsyncMultiStreamBlobContainer createVersionedBlobContainer(
         final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
