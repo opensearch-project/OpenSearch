@@ -10,6 +10,7 @@ package org.opensearch.plugin.kafka;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
@@ -17,6 +18,7 @@ import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeInges
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.common.settings.Settings;
@@ -35,6 +37,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -623,6 +627,126 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .getPollingIngestStats();
             return stats.getConsumerStats().totalDuplicateMessageSkippedCount() == 3;
         });
+    }
+
+    public void testRemoteSnapshotRestore() throws Exception {
+        String snapshotRepositoryName = "test-snapshot-repo";
+        String snapshotName = "snapshot-1";
+
+        // Step 1: Setup index and data
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+        createIndexWithDefaultSettings(1, 1);
+        ensureGreen(indexName);
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        refresh(indexName);
+        waitForSearchableDocs(2, Arrays.asList(nodeA, nodeB));
+
+        // Step 2: Register snapshot repository
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(snapshotRepositoryName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", false))
+        );
+
+        // Step 3: Take snapshot
+        flush(indexName);
+        CreateSnapshotResponse snapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepositoryName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertTrue(snapshotResponse.getSnapshotInfo().successfulShards() > 0);
+
+        // validate total polled count is 2
+        PollingIngestStats stats1 = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertEquals(2, stats1.getConsumerStats().totalPolledCount());
+
+        // Step 4: Delete Index
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+        waitForState(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setIndices(indexName).get().getState();
+            return state.getRoutingTable().hasIndex(indexName) == false && state.getMetadata().hasIndex(indexName) == false;
+        });
+        produceData("3", "name3", "24");
+        produceData("4", "name4", "20");
+
+        // Step 5: Restore Index from Snapshot
+        client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepositoryName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        ensureGreen(indexName);
+
+        // Step 6: Verify index is restored and resumes ingestion from the 3rd message
+        refresh(indexName);
+        waitForSearchableDocs(4, Arrays.asList(nodeA, nodeB));
+        assertHitCount(client().prepareSearch(indexName).get(), 4);
+
+        // after index is restored, it should only poll remaining 2 messages
+        PollingIngestStats stats2 = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertEquals(2, stats2.getConsumerStats().totalPolledCount());
+        assertEquals(0, stats2.getMessageProcessorStats().totalVersionConflictsCount());
+    }
+
+    public void testIndexRelocation() throws Exception {
+        // Step 1: Create 2 nodes
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        // Step 2: Create index on nodeA
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.param.auto.offset.reset", "earliest")
+                .put("index.routing.allocation.require._name", nodeA)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+        ensureGreen(indexName);
+        assertTrue(nodeA.equals(primaryNodeName(indexName)));
+
+        // Step 3: Write documents and verify
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        refresh(indexName);
+        waitForSearchableDocs(2, List.of(nodeA));
+        flush(indexName);
+
+        // Step 4: Relocate index to nodeB
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", nodeB))
+                .get()
+        );
+
+        // Step 5: Wait for relocation to complete
+        waitForState(() -> nodeB.equals(primaryNodeName(indexName)));
+
+        // Step 6: Ensure index is searchable on nodeB and can resume ingestion
+        ensureGreen(indexName);
+        refresh(indexName);
+        waitForSearchableDocs(2, List.of(nodeB));
+        produceData("3", "name3", "24");
+        produceData("4", "name4", "20");
+        waitForSearchableDocs(4, List.of(nodeB));
     }
 
     private void verifyRemoteStoreEnabled(String node) {
