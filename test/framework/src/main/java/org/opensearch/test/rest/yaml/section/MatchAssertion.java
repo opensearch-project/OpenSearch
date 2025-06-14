@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.test.NotEqualMessageBuilder;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
@@ -44,6 +45,7 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.closeTo;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -57,14 +59,54 @@ import static org.junit.Assert.assertThat;
 public class MatchAssertion extends Assertion {
     public static MatchAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
-        Tuple<String, Object> stringObjectTuple = ParserUtils.parseTuple(parser);
-        return new MatchAssertion(location, stringObjectTuple.v1(), stringObjectTuple.v2());
+        String field = null;
+        Object expectedValue = null;
+        Double epsilon = null;
+
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY
+                    || token == XContentParser.Token.VALUE_NULL) {
+                    if ("epsilon".equals(currentFieldName)) {
+                        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                            epsilon = parser.doubleValue();
+                        } else {
+                            throw new IllegalArgumentException("epsilon must be a number");
+                        }
+                    } else {
+                        field = currentFieldName;
+                        expectedValue = XContentParserUtils.parseFieldsValue(parser);
+                    }
+                }
+            }
+        } else {
+            // simple match: { field: value }
+            Tuple<String, Object> stringObjectTuple = ParserUtils.parseTuple(parser);
+            field = stringObjectTuple.v1();
+            expectedValue = stringObjectTuple.v2();
+        }
+
+        if (field == null) {
+            throw new IllegalArgumentException("match assertion must have a field to match");
+        }
+
+        return new MatchAssertion(location, field, expectedValue, epsilon);
     }
 
     private static final Logger logger = LogManager.getLogger(MatchAssertion.class);
+    private final Double epsilon;
 
     public MatchAssertion(XContentLocation location, String field, Object expectedValue) {
+        this(location, field, expectedValue, null);
+    }
+
+    public MatchAssertion(XContentLocation location, String field, Object expectedValue, Double epsilon) {
         super(location, field, expectedValue);
+        this.epsilon = epsilon;
     }
 
     @Override
@@ -97,16 +139,36 @@ public class MatchAssertion extends Assertion {
         }
         assertNotNull("field [" + getField() + "] is null", actualValue);
 
+        if (this.epsilon != null && this.epsilon < 0.0) {
+            throw new IllegalArgumentException("epsilon must be non-negative, but was: " + this.epsilon);
+        }
+
         if (actualValue.getClass().equals(safeClass(expectedValue)) == false) {
             if (actualValue instanceof Number && expectedValue instanceof Number) {
-                // Double 1.0 is equal to Integer 1
-                assertThat(
-                    "field [" + getField() + "] doesn't match the expected value",
-                    ((Number) actualValue).doubleValue(),
-                    equalTo(((Number) expectedValue).doubleValue())
-                );
+                if (epsilon != null) {
+                    assertThat(
+                        "field [" + getField() + "] doesn't match the expected value within epsilon " + epsilon,
+                        ((Number) actualValue).doubleValue(),
+                        closeTo(((Number) expectedValue).doubleValue(), epsilon)
+                    );
+                } else {
+                    assertThat(
+                        "field [" + getField() + "] doesn't match the expected value",
+                        ((Number) actualValue).doubleValue(),
+                        equalTo(((Number) expectedValue).doubleValue())
+                    );
+                }
                 return;
             }
+        }
+
+        if (epsilon != null && actualValue instanceof Number && expectedValue instanceof Number) {
+            assertThat(
+                "field [" + getField() + "] doesn't match the expected value within epsilon " + epsilon,
+                ((Number) actualValue).doubleValue(),
+                closeTo(((Number) expectedValue).doubleValue(), epsilon)
+            );
+            return;
         }
 
         if (expectedValue.equals(actualValue) == false) {
