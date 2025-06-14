@@ -292,6 +292,100 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         };
     }
 
+    @Override
+    protected AsyncMultiStreamBlobContainer createVersionedBlobContainer(
+        final @Nullable Integer maxRetries,
+        final @Nullable TimeValue readTimeout,
+        final @Nullable Boolean disableChunkedEncoding,
+        final @Nullable ByteSizeValue bufferSize
+    ) {
+        final Settings.Builder clientSettings = Settings.builder();
+        final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+
+        final InetSocketAddress address = httpServer.getAddress();
+        final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
+        clientSettings.put(REGION.getConcreteSettingForNamespace(clientName).getKey(), "region");
+
+        if (maxRetries != null) {
+            clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
+        }
+        if (readTimeout != null) {
+            clientSettings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), readTimeout);
+        }
+        if (disableChunkedEncoding != null) {
+            clientSettings.put(DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace(clientName).getKey(), disableChunkedEncoding);
+        }
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "access");
+        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "secret");
+        clientSettings.setSecureSettings(secureSettings);
+        service.refreshAndClearCache(S3ClientSettings.load(clientSettings.build(), configPath()));
+        asyncService.refreshAndClearCache(S3ClientSettings.load(clientSettings.build(), configPath()));
+
+        final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
+            "repository",
+            S3Repository.TYPE,
+            Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build()
+        );
+
+        AsyncExecutorContainer asyncExecutorContainer = new AsyncExecutorContainer(
+            futureCompletionService,
+            streamReaderService,
+            transferNIOGroup
+        );
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
+        return new S3BlobContainer(
+            BlobPath.cleanPath(),
+            new S3BlobStore(
+                service,
+                asyncService,
+                true,
+                "bucket",
+                bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
+                S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
+                S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+                BULK_DELETE_SIZE.get(Settings.EMPTY),
+                repositoryMetadata,
+                new AsyncTransferManager(
+                    S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
+                    asyncExecutorContainer.getStreamReader(),
+                    asyncExecutorContainer.getStreamReader(),
+                    asyncExecutorContainer.getStreamReader(),
+                    new TransferSemaphoresHolder(
+                        3,
+                        Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
+                        5,
+                        TimeUnit.MINUTES,
+                        genericStatsMetricPublisher
+                    )
+                ),
+                asyncExecutorContainer,
+                asyncExecutorContainer,
+                asyncExecutorContainer,
+                normalPrioritySizeBasedBlockingQ,
+                lowPrioritySizeBasedBlockingQ,
+                genericStatsMetricPublisher,
+                SERVER_SIDE_ENCRYPTION_TYPE_SETTING.getDefault(Settings.EMPTY),
+                SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING.getDefault(Settings.EMPTY),
+                SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.getDefault(Settings.EMPTY),
+                SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.getDefault(Settings.EMPTY),
+                EXPECTED_BUCKET_OWNER_SETTING.getDefault(Settings.EMPTY)
+            )
+        ) {
+            @Override
+            public InputStream readBlobVersion(String blobName, String versionId) throws IOException {
+                return new AssertingInputStream(super.readBlobVersion(blobName, versionId), blobName);
+            }
+
+            @Override
+            public InputStream readBlobVersion(String blobName, String versionId, long position, long length) throws IOException {
+                return new AssertingInputStream(super.readBlobVersion(blobName, versionId, position, length), blobName, position, length);
+            }
+        };
+    }
+
     public void writeBlobWithRetriesHelper(Map<String, String> metadata) throws Exception {
         final int maxRetries = randomInt(5);
         final CountDown countDown = new CountDown(maxRetries + 1);

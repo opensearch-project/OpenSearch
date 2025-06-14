@@ -713,10 +713,10 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         assertNotNull("Repository should provide blob container", container);
 
         try {
-            Map<String, BlobMetadata> versions = container.listBlobVersions("test-metadata");
+            Map<String, BlobMetadata> versions = container.listBlobVersions("test-metadata", 1);
             assertNotNull("Version listing should not return null", versions);
 
-            List<BlobMetadata> sortedVersions = container.listBlobVersionsSorted("test-metadata");
+            List<BlobMetadata> sortedVersions = container.listBlobVersionsSorted("test-metadata", 1);
             assertNotNull("Sorted version listing should not return null", sortedVersions);
 
             if (sortedVersions.size() > 1) {

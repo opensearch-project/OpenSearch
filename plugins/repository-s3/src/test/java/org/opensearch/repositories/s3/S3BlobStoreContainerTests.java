@@ -89,7 +89,6 @@ import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Assert;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -1092,7 +1091,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         when(mockS3Client.listObjectVersions(any(ListObjectVersionsRequest.class))).thenReturn(mockResponse);
 
-        Map<String, BlobMetadata> result = blobContainer.listBlobVersions("test-metadata");
+        Map<String, BlobMetadata> result = blobContainer.listBlobVersions("test-metadata", -1);
         assertEquals(1, result.size());
         assertTrue("Should contain live version", result.containsKey("v1"));
         assertFalse("Should not contain delete marker", result.containsKey("v2"));
@@ -1101,6 +1100,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals("test-metadata", version.name());
         assertEquals(100L, version.length());
         assertEquals("etag1", version.eTag());
+
+        Map<String, BlobMetadata> limitedResult = blobContainer.listBlobVersions("test-metadata", 2);
+        assertEquals(1, limitedResult.size());
+        assertTrue("Should contain live version with limit", limitedResult.containsKey("v1"));
     }
 
     public void testListBlobVersionsExactKeyMatch() throws IOException {
@@ -1151,7 +1154,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         when(mockS3Client.listObjectVersions(any(ListObjectVersionsRequest.class))).thenReturn(mockResponse);
 
-        Map<String, BlobMetadata> result = blobContainer.listBlobVersions("metadata");
+        Map<String, BlobMetadata> result = blobContainer.listBlobVersions("metadata", -1);
         assertEquals(2, result.size());
         assertTrue("Should contain exact match v1", result.containsKey("v1"));
         assertFalse("Should not contain prefix match v2", result.containsKey("v2"));
@@ -1165,8 +1168,13 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         BlobMetadata v4 = result.get("v4");
         assertEquals("metadata", v4.name());
         assertEquals(250L, v4.length());
+
+        Map<String, BlobMetadata> limitedResult = blobContainer.listBlobVersions("metadata", 1);
+        assertEquals(1, limitedResult.size());
+        assertTrue("Limited result should contain the first exact match", limitedResult.containsKey("v1"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testReadBlobVersionRangeBehavior() throws IOException {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
@@ -1176,50 +1184,52 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.clientReference()).thenReturn(mockClientRef);
         when(mockClientRef.get()).thenReturn(mockS3Client);
 
-        // Instead of mocking a final ResponseInputStream, construct a real instance
         GetObjectResponse actualResponse = GetObjectResponse.builder().contentLength(50L).build();
         ResponseInputStream<GetObjectResponse> realStream = new ResponseInputStream<>(
             actualResponse,
-            AbortableInputStream.create(new ByteArrayInputStream(new byte[10])) // just a small dummy stream
+            AbortableInputStream.create(new ByteArrayInputStream(new byte[10]))
         );
 
         ArgumentCaptor<GetObjectRequest> requestCaptor = ArgumentCaptor.forClass(GetObjectRequest.class);
         when(mockS3Client.getObject(requestCaptor.capture())).thenReturn(realStream);
 
-        // Partial read
         InputStream result = blobContainer.readBlobVersion("test-blob", "vA", 100, 50);
-        Assert.assertSame("Should return the real stream", realStream, result);
+        assertSame("Should return the real stream", realStream, result);
 
         GetObjectRequest capturedRequest = requestCaptor.getValue();
-        Assert.assertEquals("vA", capturedRequest.versionId());
-        Assert.assertEquals("bytes=100-149", capturedRequest.range());
-        Assert.assertTrue("Key should end with test-blob", capturedRequest.key().endsWith("test-blob"));
+        assertEquals("vA", capturedRequest.versionId());
+        assertEquals("bytes=100-149", capturedRequest.range());
+        assertTrue("Key should end with test-blob", capturedRequest.key().endsWith("test-blob"));
 
-        // Zero-length read returns ByteArrayInputStream
         InputStream emptyResult = blobContainer.readBlobVersion("test-blob", "vB", 100, 0);
-        Assert.assertTrue("Zero length read should return ByteArrayInputStream", emptyResult instanceof ByteArrayInputStream);
-        Assert.assertEquals("Should have no data", -1, emptyResult.read());
+        assertTrue("Zero length read should return ByteArrayInputStream", emptyResult instanceof ByteArrayInputStream);
+        assertEquals("Should have no data", -1, emptyResult.read());
 
-        // Negative position
         IllegalArgumentException ex1 = assertThrows(
             IllegalArgumentException.class,
             () -> blobContainer.readBlobVersion("test-blob", "vC", -1, 50)
         );
-        Assert.assertTrue(ex1.getMessage().contains("position must be non-negative"));
+        assertTrue(ex1.getMessage().contains("position must be non-negative"));
 
-        // Negative length
         IllegalArgumentException ex2 = assertThrows(
             IllegalArgumentException.class,
             () -> blobContainer.readBlobVersion("test-blob", "vC", 0, -10)
         );
-        Assert.assertTrue(ex2.getMessage().contains("length must be non-negative"));
+        assertTrue(ex2.getMessage().contains("length must be non-negative"));
 
-        // Null versionId
         IllegalArgumentException ex3 = assertThrows(
             IllegalArgumentException.class,
             () -> blobContainer.readBlobVersion("test-blob", null, 0, 50)
         );
-        Assert.assertTrue(ex3.getMessage().contains("versionId must not be null"));
+        assertTrue(ex3.getMessage().contains("versionId must not be null"));
+
+        when(mockS3Client.getObject(any(GetObjectRequest.class))).thenThrow(new ArithmeticException("Overflow"));
+
+        IllegalArgumentException ex4 = assertThrows(
+            IllegalArgumentException.class,
+            () -> blobContainer.readBlobVersion("test-blob", "vD", Long.MAX_VALUE - 10, 20)
+        );
+        assertTrue(ex4.getMessage().contains("Position and length values too large"));
     }
 
     public void testNullSafetyInMetadataCreation() throws IOException {
@@ -1231,7 +1241,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(blobStore.clientReference()).thenReturn(mockClientRef);
         when(mockClientRef.get()).thenReturn(mockS3Client);
 
-        // Test listBlobVersions with null ETag and lastModified
         ObjectVersion versionWithNulls = ObjectVersion.builder()
             .key("test-blob")
             .versionId("v1")
@@ -1244,9 +1253,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             .versions(versionWithNulls)
             .isTruncated(false)
             .build();
+
         when(mockS3Client.listObjectVersions(any(ListObjectVersionsRequest.class))).thenReturn(mockResponse);
 
-        Map<String, BlobMetadata> result = blobContainer.listBlobVersions("test-blob");
+        Map<String, BlobMetadata> result = blobContainer.listBlobVersions("test-blob", -1);
         assertEquals(1, result.size());
 
         BlobMetadata metadata = result.get("v1");
@@ -1256,8 +1266,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(100L, metadata.length());
         assertEquals("v1", metadata.versionId());
 
-        // Test headBlobVersion with null ETag and lastModified
         HeadObjectResponse responseWithNulls = HeadObjectResponse.builder().contentLength(200L).eTag(null).lastModified(null).build();
+
         when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenReturn(responseWithNulls);
 
         BlobMetadata headResult = blobContainer.headBlobVersion("test-blob", "v1");
@@ -1266,6 +1276,54 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals("test-blob", headResult.name());
         assertEquals(200L, headResult.length());
         assertEquals("v1", headResult.versionId());
+    }
+
+    public void testListBlobVersionsWithLimit() throws IOException {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+
+        final AmazonS3Reference mockClientRef = mock(AmazonS3Reference.class);
+        final S3Client mockS3Client = mock(S3Client.class);
+        when(blobStore.clientReference()).thenReturn(mockClientRef);
+        when(mockClientRef.get()).thenReturn(mockS3Client);
+
+        List<ObjectVersion> testVersions = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            testVersions.add(
+                ObjectVersion.builder()
+                    .key("test-blob")
+                    .versionId("v" + i)
+                    .size(100L * i)
+                    .eTag("\"etag" + i + "\"")
+                    .lastModified(Instant.now().minusSeconds(i * 60))
+                    .build()
+            );
+        }
+
+        ListObjectVersionsResponse mockResponse = ListObjectVersionsResponse.builder().versions(testVersions).isTruncated(false).build();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> blobContainer.listBlobVersions("test-blob", -2));
+        assertTrue(ex.getMessage().contains("limit should be a non-negative value or -1"));
+
+        when(mockS3Client.listObjectVersions(any(ListObjectVersionsRequest.class))).thenReturn(mockResponse);
+
+        Map<String, BlobMetadata> fullResult = blobContainer.listBlobVersions("test-blob", -1);
+        assertEquals(5, fullResult.size());
+
+        Map<String, BlobMetadata> limitedResult = blobContainer.listBlobVersions("test-blob", 3);
+        assertEquals(3, limitedResult.size());
+
+        Map<String, BlobMetadata> emptyResult = blobContainer.listBlobVersions("test-blob", 0);
+        assertEquals(0, emptyResult.size());
+
+        ArgumentCaptor<ListObjectVersionsRequest> requestCaptor = ArgumentCaptor.forClass(ListObjectVersionsRequest.class);
+        when(mockS3Client.listObjectVersions(requestCaptor.capture())).thenReturn(mockResponse);
+
+        blobContainer.listBlobVersions("test-blob", 500);
+        assertEquals(Integer.valueOf(500), requestCaptor.getValue().maxKeys());
+
+        blobContainer.listBlobVersions("test-blob", 1500);
+        assertEquals(Integer.valueOf(1000), requestCaptor.getValue().maxKeys()); // Should cap at 1000
     }
 
     public void testListBlobsByPrefix() throws IOException {

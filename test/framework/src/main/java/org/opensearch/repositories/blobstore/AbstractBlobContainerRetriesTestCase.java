@@ -39,6 +39,7 @@ import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.HttpStatus;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Streams;
@@ -97,6 +98,13 @@ public abstract class AbstractBlobContainerRetriesTestCase extends OpenSearchTes
     protected abstract Class<? extends Exception> unresponsiveExceptionType();
 
     protected abstract BlobContainer createBlobContainer(
+        @Nullable Integer maxRetries,
+        @Nullable TimeValue readTimeout,
+        @Nullable Boolean disableChunkedEncoding,
+        @Nullable ByteSizeValue bufferSize
+    );
+
+    protected abstract AsyncMultiStreamBlobContainer createVersionedBlobContainer(
         @Nullable Integer maxRetries,
         @Nullable TimeValue readTimeout,
         @Nullable Boolean disableChunkedEncoding,
