@@ -25,6 +25,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteResponse;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
@@ -666,6 +668,115 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     public boolean containsFile(String localFilename, String checksum) {
         return segmentsUploadedToRemoteStore.containsKey(localFilename)
             && segmentsUploadedToRemoteStore.get(localFilename).checksum.equals(checksum);
+    }
+
+    /**
+     * Uploads segment metadata to the remote store.
+     * If versioned metadata is enabled, this will write to a fixed filename "segment_metadata"
+     * and use the provided version identifier for conditional upload. Otherwise, it uses the legacy dynamic filename approach.
+     *
+     * @param segmentFiles Collection of segment file names.
+     * @param segmentInfosSnapshot Snapshot of SegmentInfos.
+     * @param storeDirectory Local directory to create temporary metadata file.
+     * @param translogGeneration Current translog generation.
+     * @param replicationCheckpoint Current replication checkpoint.
+     * @param nodeId ID of the current node.
+     * @param versionIdentifier Version identifier of the previous metadata version for conditional PUT (If-Match). Null if it's the first write or not applicable.
+     * @param responseListener Listener to be notified with the ConditionalWriteResponse of the newly uploaded metadata.
+     * @throws IOException if an I/O error occurs.
+     */
+    public void uploadMetadata(
+        Collection<String> segmentFiles,
+        SegmentInfos segmentInfosSnapshot,
+        Directory storeDirectory,
+        long translogGeneration,
+        ReplicationCheckpoint replicationCheckpoint,
+        String nodeId,
+        @Nullable String versionIdentifier,
+        ActionListener<ConditionalWriteResponse> responseListener
+    ) throws IOException {
+        synchronized (this) {
+            final String metadataFilename;
+            long currentUploadCounter = metadataUploadCounter.incrementAndGet();
+
+            metadataFilename = "segment_metadata";
+
+            ConditionalWriteOptions options;
+            if (versionIdentifier != null && !versionIdentifier.isEmpty()) {
+                options = ConditionalWriteOptions.ifMatch(versionIdentifier);
+            } else {
+                options = ConditionalWriteOptions.none();
+            }
+
+            try {
+                try (IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT)) {
+                    Map<String, Integer> segmentToLuceneVersion = getSegmentToLuceneVersion(segmentFiles, segmentInfosSnapshot);
+                    Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentsMap = new HashMap<>();
+                    for (String file : segmentFiles) {
+                        if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                            RemoteSegmentStoreDirectory.UploadedSegmentMetadata segmentMetadata = segmentsUploadedToRemoteStore.get(file);
+                            Integer luceneVersion = segmentToLuceneVersion.get(segmentMetadata.originalFilename);
+                            if (luceneVersion != null) {
+                                segmentMetadata.setWrittenByMajor(luceneVersion);
+                            }
+                            uploadedSegmentsMap.put(file, segmentMetadata);
+                        } else {
+                            throw new NoSuchFileException(
+                                "Metadata for segment file [" + file + "] not found in segmentsUploadedToRemoteStore."
+                            );
+                        }
+                    }
+                    ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
+                    segmentInfosSnapshot.write(
+                        new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos")
+                    );
+                    byte[] segmentInfoSnapshotByteArray = byteBuffersIndexOutput.toArrayCopy();
+
+                    RemoteSegmentMetadata remoteSegmentMetadata = new RemoteSegmentMetadata(
+                        uploadedSegmentsMap,
+                        segmentInfoSnapshotByteArray,
+                        replicationCheckpoint,
+                        translogGeneration,
+                        currentUploadCounter,
+                        nodeId
+                    );
+                    metadataStreamWrapper.writeStream(indexOutput, remoteSegmentMetadata);
+                }
+                storeDirectory.sync(Collections.singleton(metadataFilename));
+
+                final String remoteTargetFilename = "segment_metadata";
+
+                remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, remoteTargetFilename, IOContext.DEFAULT, () -> {
+                    try {
+                        postUpload(
+                            storeDirectory,
+                            metadataFilename,
+                            remoteTargetFilename,
+                            getChecksumOfLocalFile(storeDirectory, metadataFilename)
+                        );
+                    } catch (IOException e) {
+                        throw new RuntimeException("Exception in segment postUpload for file " + metadataFilename, e);
+                    }
+                }, ActionListener.wrap(response -> {
+                    try {
+                        responseListener.onResponse(response);
+                    } finally {
+                        tryAndDeleteLocalFile(metadataFilename, storeDirectory);
+                    }
+                }, ex -> {
+                    try {
+                        responseListener.onFailure(ex);
+                    } finally {
+                        tryAndDeleteLocalFile(metadataFilename, storeDirectory);
+                    }
+                }), options);
+
+            } catch (Exception e) {
+                tryAndDeleteLocalFile(metadataFilename, storeDirectory);
+                responseListener.onFailure(e);
+                throw e;
+            }
+        }
     }
 
     /**
