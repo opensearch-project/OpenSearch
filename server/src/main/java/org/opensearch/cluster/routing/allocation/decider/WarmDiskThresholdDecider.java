@@ -38,8 +38,10 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.allocation.DiskThresholdEvaluator;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.cluster.routing.allocation.WarmNodeDiskThresholdEvaluator;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -91,12 +93,14 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
     private final FileCacheSettings fileCacheSettings;
     private final DiskThresholdSettings diskThresholdSettings;
     private final boolean enableForSingleDataNode;
+    private final DiskThresholdEvaluator diskThresholdEvaluator;
 
     public WarmDiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.fileCacheSettings = new FileCacheSettings(settings, clusterSettings);
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         assert Version.CURRENT.major < 9 : "remove enable_for_single_data_node in 9";
         this.enableForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
+        this.diskThresholdEvaluator = new WarmNodeDiskThresholdEvaluator(diskThresholdSettings, fileCacheSettings::getRemoteDataRatio);
     }
 
     @Override
@@ -125,7 +129,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
         final long currentNodeRemoteShardSize = calculateCurrentNodeRemoteShardSize(node, allocation, false);
         final long freeSpace = Math.max(totalAddressableSpace - currentNodeRemoteShardSize, 0);
         final long freeSpaceAfterAllocation = Math.max(freeSpace - shardSize, 0);
-        final long freeSpaceLowThreshold = calculateFreeSpaceLowThreshold(diskThresholdSettings, totalAddressableSpace);
+        final long freeSpaceLowThreshold = diskThresholdEvaluator.getFreeSpaceLowThreshold(totalAddressableSpace);
 
         final ByteSizeValue freeSpaceLowThresholdInByteSize = new ByteSizeValue(freeSpaceLowThreshold);
         final ByteSizeValue freeSpaceInByteSize = new ByteSizeValue(freeSpace);
@@ -185,7 +189,7 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
         final long currentNodeRemoteShardSize = calculateCurrentNodeRemoteShardSize(node, allocation, true);
         final long freeSpace = Math.max(totalAddressableSpace - currentNodeRemoteShardSize, 0);
 
-        final long freeSpaceHighThreshold = calculateFreeSpaceHighThreshold(diskThresholdSettings, totalAddressableSpace);
+        final long freeSpaceHighThreshold = diskThresholdEvaluator.getFreeSpaceHighThreshold(totalAddressableSpace);
 
         final ByteSizeValue freeSpaceHighThresholdInByteSize = new ByteSizeValue(freeSpaceHighThreshold);
         final ByteSizeValue freeSpaceInByteSize = new ByteSizeValue(freeSpace);
@@ -214,42 +218,6 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
             "there is enough remote addressable space on this node for the shard to remain, free: [%s]",
             freeSpaceInByteSize
         );
-    }
-
-    private long calculateFreeSpaceLowThreshold(DiskThresholdSettings diskThresholdSettings, long totalAddressableSpace) {
-        // Check for percentage-based threshold
-        double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdLow();
-        if (percentageThreshold > 0) {
-            return (long) (totalAddressableSpace * percentageThreshold / 100.0);
-        }
-
-        // Check for absolute bytes threshold
-        final double dataToFileCacheSizeRatio = fileCacheSettings.getRemoteDataRatio();
-        ByteSizeValue bytesThreshold = diskThresholdSettings.getFreeBytesThresholdLow();
-        if (bytesThreshold != null && bytesThreshold.getBytes() > 0) {
-            return bytesThreshold.getBytes() * (long) dataToFileCacheSizeRatio;
-        }
-
-        // Default fallback
-        return 0;
-    }
-
-    private long calculateFreeSpaceHighThreshold(DiskThresholdSettings diskThresholdSettings, long totalAddressableSpace) {
-        // Check for percentage-based threshold
-        double percentageThreshold = diskThresholdSettings.getFreeDiskThresholdHigh();
-        if (percentageThreshold > 0) {
-            return (long) (totalAddressableSpace * percentageThreshold / 100.0);
-        }
-
-        // Check for absolute bytes threshold
-        final double dataToFileCacheSizeRatio = fileCacheSettings.getRemoteDataRatio();
-        ByteSizeValue bytesThreshold = diskThresholdSettings.getFreeBytesThresholdHigh();
-        if (bytesThreshold != null && bytesThreshold.getBytes() > 0) {
-            return bytesThreshold.getBytes() * (long) dataToFileCacheSizeRatio;
-        }
-
-        // Default fallback
-        return 0;
     }
 
     private long calculateCurrentNodeRemoteShardSize(RoutingNode node, RoutingAllocation allocation, boolean subtractLeavingShards) {
