@@ -22,6 +22,8 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
+import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteResponse;
 import org.opensearch.common.blobstore.exception.CorruptFileException;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -372,6 +374,34 @@ public class RemoteDirectory extends Directory {
             return true;
         }
         return false;
+    }
+
+    public void copyFrom(
+        Directory from,
+        String src,
+        String dest,
+        IOContext context,
+        Runnable postUploadRunner,
+        ActionListener<ConditionalWriteResponse> responseListener,
+        ConditionalWriteOptions options
+    ) throws IOException {
+        try (IndexInput input = from.openInput(src, context)) {
+
+            blobContainer.writeBlobConditionally(
+                dest,
+                new InputStreamIndexInput(input, input.length()),
+                input.length(),
+                false,
+                options,
+                ActionListener.wrap(response -> {
+                    postUploadRunner.run();
+                    responseListener.onResponse(response);
+                }, responseListener::onFailure)
+            );
+        } catch (Exception e) {
+            responseListener.onFailure(e);
+            throw e;
+        }
     }
 
     private void uploadBlob(
