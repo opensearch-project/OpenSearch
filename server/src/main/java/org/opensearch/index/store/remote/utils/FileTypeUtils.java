@@ -19,6 +19,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 public class FileTypeUtils {
 
     public static String BLOCK_FILE_IDENTIFIER = "_block_";
+    public static String INDICES_FOLDER_IDENTIFIER = "index";
 
     public static boolean isTempFile(String name) {
         return name.endsWith(".tmp");
