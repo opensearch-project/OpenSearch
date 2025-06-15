@@ -33,23 +33,17 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
                 "test_scoped_agg",
                 new LinkedHashMap<>(),
                 new HashMap<>(),
-                10847417L,
+                new HashMap<>(),
                 List.of(
                     new ProfileResult(
                         "GlobalOrdinalsStringTermsAggregator",
                         "test_terms",
                         new LinkedHashMap<>(),
                         new HashMap<>(),
-                        3359835L,
-                        List.of(),
-                        1490667L,
-                        1180123L,
-                        1240676L
+                        new HashMap<>(),
+                        List.of()
                     )
-                ),
-                94582L,
-                18667L,
-                211749L
+                )
             )
         );
         tree.add(
@@ -58,23 +52,17 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
                 "test_scoped_agg",
                 new LinkedHashMap<>(),
                 new HashMap<>(),
-                10776655L,
+                new HashMap<>(),
                 List.of(
                     new ProfileResult(
                         "GlobalOrdinalsStringTermsAggregator",
                         "test_terms",
                         new LinkedHashMap<>(),
                         new HashMap<>(),
-                        3359567L,
-                        List.of(),
-                        1390554L,
-                        1180321L,
-                        1298776L
+                        new HashMap<>(),
+                        List.of()
                     )
-                ),
-                94560L,
-                11237L,
-                236440L
+                )
             )
         );
         // Global Aggregation
@@ -84,11 +72,8 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
                 "test_global_agg",
                 new LinkedHashMap<>(),
                 new HashMap<>(),
-                19631335L,
-                List.of(),
-                563002L,
-                142210L,
-                1216631L
+                new HashMap<>(),
+                List.of()
             )
         );
         tree.add(
@@ -97,11 +82,8 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
                 "test_global_agg",
                 new LinkedHashMap<>(),
                 new HashMap<>(),
-                19634567L,
-                List.of(),
-                563333L,
-                146783L,
-                1496600L
+                new HashMap<>(),
+                List.of()
             )
         );
         return tree;
@@ -143,7 +125,7 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
         Map<String, Long> statsMap = new HashMap<>();
         ConcurrentAggregationProfiler.buildBreakdownStatsMap(
             statsMap,
-            new ProfileResult("NumericTermsAggregator", "desc", Map.of("initialize", 100L), Map.of(), 130L, List.of()),
+            new ProfileResult("NumericTermsAggregator", "desc", Map.of("initialize", 100L), Map.of(), Map.of(), List.of()),
             "initialize"
         );
         assertTrue(statsMap.containsKey("max_initialize"));
@@ -154,7 +136,7 @@ public class ConcurrentAggregationProfilerTests extends OpenSearchTestCase {
         assertEquals(100L, (long) statsMap.get("avg_initialize"));
         ConcurrentAggregationProfiler.buildBreakdownStatsMap(
             statsMap,
-            new ProfileResult("NumericTermsAggregator", "desc", Map.of("initialize", 50L), Map.of(), 120L, List.of()),
+            new ProfileResult("NumericTermsAggregator", "desc", Map.of("initialize", 50L), Map.of(), Map.of(), List.of()),
             "initialize"
         );
         assertEquals(100L, (long) statsMap.get("max_initialize"));

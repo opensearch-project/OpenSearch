@@ -42,7 +42,12 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
 
     @Override
     public Collector newCollector() throws IOException {
-        final Collector collector = createCollector(aggProvider.apply(context));
+        final Collector collector;
+        try {
+            collector = createCollector(aggProvider.apply(context));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         // For Aggregations we should not have a NO_OP_Collector
         assert collector != BucketCollector.NO_OP_COLLECTOR;
         return collector;
@@ -68,7 +73,7 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
         return new AggregationReduceableSearchResult(internalAggregations);
     }
 
-    static Collector createCollector(List<Aggregator> collectors) throws IOException {
+    static Collector createCollector(List<Aggregator> collectors) throws Exception {
         Collector collector = MultiBucketCollector.wrap(collectors);
         ((BucketCollector) collector).preCollection();
         return collector;

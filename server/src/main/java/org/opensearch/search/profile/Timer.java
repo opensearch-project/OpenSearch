@@ -32,6 +32,8 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /** Helps measure how much time is spent running some methods.
  *  The {@link #start()} and {@link #stop()} methods should typically be called
  *  in a try/finally clause with {@link #start()} being called right before the
@@ -48,6 +50,7 @@ package org.opensearch.search.profile;
  *
  *  @opensearch.internal
  */
+@PublicApi(since="3.0.0")
 public class Timer {
 
     private boolean doTiming;

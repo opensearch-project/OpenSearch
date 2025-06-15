@@ -10,7 +10,8 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
-import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.apache.lucene.search.Query;
+import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
 
 import java.util.List;
@@ -23,35 +24,22 @@ import java.util.Map;
  */
 public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
 
-    @Override
-    protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new ConcurrentQueryProfileBreakdown();
+    private final Map<Class<? extends Query>,  Class<? extends AbstractTimingProfileBreakdown>> pluginBreakdownClasses;
+
+    public ConcurrentQueryProfileTree(Map<Class<? extends Query>, Class<? extends AbstractTimingProfileBreakdown>> breakdowns) {
+        this.pluginBreakdownClasses = breakdowns;
     }
 
     @Override
-    protected ProfileResult createProfileResult(
-        String type,
-        String description,
-        ContextualProfileBreakdown<QueryTimingType> breakdown,
-        List<ProfileResult> childrenProfileResults
-    ) {
-        assert breakdown instanceof ConcurrentQueryProfileBreakdown;
-        final ConcurrentQueryProfileBreakdown concurrentBreakdown = (ConcurrentQueryProfileBreakdown) breakdown;
-        return new ProfileResult(
-            type,
-            description,
-            concurrentBreakdown.toBreakdownMap(),
-            concurrentBreakdown.toDebugMap(),
-            concurrentBreakdown.toNodeTime(),
-            childrenProfileResults,
-            concurrentBreakdown.getMaxSliceNodeTime(),
-            concurrentBreakdown.getMinSliceNodeTime(),
-            concurrentBreakdown.getAvgSliceNodeTime()
-        );
+    protected AbstractQueryTimingProfileBreakdown createProfileBreakdown(Query query) {
+        if(pluginBreakdownClasses != null && pluginBreakdownClasses.get(query.getClass()) != null) {
+            return new ConcurrentQueryTimingProfileBreakdown(pluginBreakdownClasses.get(query.getClass()));
+        }
+        return new ConcurrentQueryTimingProfileBreakdown(null);
     }
 
     /**
-     * For concurrent query case, when there are nested queries (with children), then the {@link ConcurrentQueryProfileBreakdown} created
+     * For concurrent query case, when there are nested queries (with children), then the {@link ConcurrentQueryTimingProfileBreakdown} created
      * for the child queries weight doesn't have the association of collector to leaves. This is because child query weights are not
      * exposed by the {@link org.apache.lucene.search.Weight} interface. So after all the collection is happened and before the result
      * tree is created we need to pass the association from parent to the child breakdowns. This will be then used to create the
@@ -62,9 +50,9 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
     @Override
     public List<ProfileResult> getTree() {
         for (Integer root : roots) {
-            final ContextualProfileBreakdown<QueryTimingType> parentBreakdown = breakdowns.get(root);
-            assert parentBreakdown instanceof ConcurrentQueryProfileBreakdown;
-            final Map<Collector, List<LeafReaderContext>> parentCollectorToLeaves = ((ConcurrentQueryProfileBreakdown) parentBreakdown)
+            final AbstractTimingProfileBreakdown parentBreakdown = breakdowns.get(root);
+            assert parentBreakdown instanceof ConcurrentQueryTimingProfileBreakdown;
+            final Map<Collector, List<LeafReaderContext>> parentCollectorToLeaves = ((ConcurrentQueryTimingProfileBreakdown) parentBreakdown)
                 .getSliceCollectorsToLeaves();
             // update all the children with the parent collectorToLeaves association
             updateCollectorToLeavesForChildBreakdowns(root, parentCollectorToLeaves);
@@ -82,7 +70,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
         final List<Integer> children = tree.get(parentToken);
         if (children != null) {
             for (Integer currentChild : children) {
-                final ContextualProfileBreakdown<QueryTimingType> currentChildBreakdown = breakdowns.get(currentChild);
+                final AbstractQueryTimingProfileBreakdown currentChildBreakdown = breakdowns.get(currentChild);
                 currentChildBreakdown.associateCollectorsToLeaves(collectorToLeaves);
                 updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves);
             }
