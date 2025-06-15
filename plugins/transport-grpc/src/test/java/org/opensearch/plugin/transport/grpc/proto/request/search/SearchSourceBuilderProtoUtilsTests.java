@@ -11,6 +11,7 @@ package org.opensearch.plugin.transport.grpc.proto.request.search;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.plugin.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
 import org.opensearch.protobufs.FieldValue;
@@ -45,6 +46,8 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         mockRegistry = mock(NamedWriteableRegistry.class);
+        // Set up the registry with all built-in converters
+        QueryBuilderProtoTestUtils.setupRegistry();
     }
 
     public void testParseProtoWithFrom() throws IOException {
