@@ -5313,7 +5313,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         // We need to call RemoteSegmentStoreDirectory.init() in order to get latest metadata of the files that
         // are uploaded to the remote segment store.
-        RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init(eTagReference);
+        RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
 
         // Update our ETag field with the captured value (if any)
         if (eTagReference.get() != null) {
