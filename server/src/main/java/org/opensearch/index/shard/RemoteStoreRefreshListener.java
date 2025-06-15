@@ -17,6 +17,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.GroupedActionListener;
@@ -413,14 +415,51 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {
             long translogFileGeneration = translogGeneration.translogFileGeneration;
-            remoteDirectory.uploadMetadata(
-                localSegmentsPostRefresh,
-                segmentInfosSnapshot,
-                storeDirectory,
-                translogFileGeneration,
-                replicationCheckpoint,
-                indexShard.getNodeId()
-            );
+
+            final String cachedETag = indexShard.getMetadataETag();
+
+            ActionListener<String> etagListener = new ActionListener<>() {
+                @Override
+                public void onResponse(String newETag) {
+                    if (newETag == null || newETag.isEmpty()) {
+                        logger.warn("Received null or empty ETag");
+                        return;
+                    }
+                    if (cachedETag != null && cachedETag.equals(newETag)) {
+                        logger.debug("New ETag matches cached ETag. No update necessary.");
+                        return;
+                    }
+                    // Update the local cached metadata ETag.
+                    indexShard.updateMetadataETag(newETag);
+                    logger.debug("Updated metadata ETag to: {}", newETag);
+                }
+
+                @Override
+                public void onFailure(Exception ex) {
+                    OpenSearchException rootCause = (OpenSearchException) ExceptionsHelper.unwrap(ex, OpenSearchException.class);
+                    if (rootCause != null && "stale_primary_shard".equals(rootCause.getMessage())) {
+                        indexShard.clearMetadataETag();
+                        indexShard.failShard("Primary shard is stale", ex);
+                    } else {
+                        logger.error("Metadata upload failed", ex);
+                    }
+                }
+            };
+            try {
+                remoteDirectory.uploadMetadata(
+                    localSegmentsPostRefresh,
+                    segmentInfosSnapshot,
+                    storeDirectory,
+                    translogFileGeneration,
+                    replicationCheckpoint,
+                    indexShard.getNodeId(),
+                    cachedETag,
+                    etagListener
+                );
+            } catch (IOException e) {
+                etagListener.onFailure(e);
+                throw e;
+            }
         }
     }
 
