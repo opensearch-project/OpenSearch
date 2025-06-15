@@ -416,28 +416,28 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         } else {
             long translogFileGeneration = translogGeneration.translogFileGeneration;
 
-            final String cachedETag = indexShard.getMetadataETag();
+            final String cachedVersionIdentifier = indexShard.getMetadataETag();
 
-            ActionListener<String> etagListener = new ActionListener<>() {
+            ActionListener<ConditionalWriteResponse> responseListener = new ActionListener<>() {
                 @Override
-                public void onResponse(String newETag) {
-                    if (newETag == null || newETag.isEmpty()) {
-                        logger.warn("Received null or empty ETag");
+                public void onResponse(ConditionalWriteResponse response) {
+                    String newVersionIdentifier = response.getVersionIdentifier();
+                    if (newVersionIdentifier == null || newVersionIdentifier.isEmpty()) {
+                        logger.warn("Received null or empty version identifier");
                         return;
                     }
-                    if (cachedETag != null && cachedETag.equals(newETag)) {
-                        logger.debug("New ETag matches cached ETag. No update necessary.");
+                    if (cachedVersionIdentifier != null && cachedVersionIdentifier.equals(newVersionIdentifier)) {
+                        logger.debug("New version identifier matches cached version. No update necessary.");
                         return;
                     }
-                    // Update the local cached metadata ETag.
-                    indexShard.updateMetadataETag(newETag);
-                    logger.debug("Updated metadata ETag to: {}", newETag);
+                    indexShard.updateMetadataETag(newVersionIdentifier);
+                    logger.debug("Updated metadata version identifier to: {}", newVersionIdentifier);
                 }
 
                 @Override
                 public void onFailure(Exception ex) {
                     OpenSearchException rootCause = (OpenSearchException) ExceptionsHelper.unwrap(ex, OpenSearchException.class);
-                    if (rootCause != null && "stale_primary_shard".equals(rootCause.getMessage())) {
+                    if (rootCause != null && "Precondition Failed : Etag Mismatch".equals(rootCause.getMessage())) {
                         indexShard.clearMetadataETag();
                         indexShard.failShard("Primary shard is stale", ex);
                     } else {
@@ -445,6 +445,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     }
                 }
             };
+
             try {
                 remoteDirectory.uploadMetadata(
                     localSegmentsPostRefresh,
@@ -453,11 +454,11 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     translogFileGeneration,
                     replicationCheckpoint,
                     indexShard.getNodeId(),
-                    cachedETag,
-                    etagListener
+                    cachedVersionIdentifier,
+                    responseListener
                 );
             } catch (IOException e) {
-                etagListener.onFailure(e);
+                responseListener.onFailure(e);
                 throw e;
             }
         }
