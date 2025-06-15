@@ -15,7 +15,6 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -51,20 +50,8 @@ public class NodesResourceUsageStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("resource_usage_stats");
         for (String nodeId : nodeIdToResourceUsageStatsMap.keySet()) {
-            builder.startObject(nodeId);
             NodeResourceUsageStats resourceUsageStats = nodeIdToResourceUsageStatsMap.get(nodeId);
-            if (resourceUsageStats != null) {
-                builder.field("timestamp", resourceUsageStats.timestamp);
-                builder.field("cpu_utilization_percent", String.format(Locale.ROOT, "%.1f", resourceUsageStats.cpuUtilizationPercent));
-                builder.field(
-                    "memory_utilization_percent",
-                    String.format(Locale.ROOT, "%.1f", resourceUsageStats.memoryUtilizationPercent)
-                );
-                if (resourceUsageStats.getIoUsageStats() != null) {
-                    builder.field("io_usage_stats", resourceUsageStats.getIoUsageStats());
-                }
-            }
-            builder.endObject();
+            resourceUsageStats.toXContent(builder, params);
         }
         builder.endObject();
         return builder;
