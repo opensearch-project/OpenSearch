@@ -182,8 +182,7 @@ final class QueryAnalyzer {
         @Override
         public QueryVisitor getSubVisitor(Occur occur, Query parent) {
             if (parent instanceof ApproximateScoreQuery) {
-                ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) parent;
-                if (approxQuery.getOriginalQuery() instanceof DateRangeIncludingNowQuery) {
+                if (((ApproximateScoreQuery) parent).getOriginalQuery() instanceof DateRangeIncludingNowQuery) {
                     terms.add(Result.UNKNOWN);
                     return QueryVisitor.EMPTY_VISITOR;
                 }
