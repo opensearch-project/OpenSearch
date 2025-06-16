@@ -33,12 +33,14 @@
 package org.opensearch.action.admin.indices.create;
 
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -54,7 +56,9 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportCreateIndexAction extends TransportClusterManagerNodeAction<CreateIndexRequest, CreateIndexResponse> {
+public class TransportCreateIndexAction extends TransportClusterManagerNodeAction<CreateIndexRequest, CreateIndexResponse>
+    implements
+        TransportIndicesResolvingAction<CreateIndexRequest> {
 
     private final MetadataCreateIndexService createIndexService;
     private final MappingTransformerRegistry mappingTransformerRegistry;
@@ -115,7 +119,7 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
             cause = "api";
         }
 
-        final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+        final String indexName = resolveIndexName(request);
 
         final String finalCause = cause;
         final ActionListener<String> mappingTransformListener = ActionListener.wrap(transformedMappings -> {
@@ -143,4 +147,12 @@ public class TransportCreateIndexAction extends TransportClusterManagerNodeActio
         mappingTransformerRegistry.applyTransformers(request.mappings(), null, mappingTransformListener);
     }
 
+    @Override
+    public ResolvedIndices resolveIndices(CreateIndexRequest request) {
+        return ResolvedIndices.of(resolveIndexName(request));
+    }
+
+    private String resolveIndexName(CreateIndexRequest request) {
+        return indexNameExpressionResolver.resolveDateMathExpression(request.index());
+    }
 }

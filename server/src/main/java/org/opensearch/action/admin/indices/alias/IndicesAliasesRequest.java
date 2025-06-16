@@ -35,6 +35,7 @@ package org.opensearch.action.admin.indices.alias;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.AliasesRequest;
+import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.cluster.metadata.AliasAction;
@@ -76,7 +77,7 @@ import static org.opensearch.core.xcontent.ObjectParser.fromList;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements ToXContentObject {
+public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements ToXContentObject, CompositeIndicesRequest {
 
     private List<AliasActions> allAliasActions = new ArrayList<>();
     private String origin = "";
