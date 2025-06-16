@@ -36,12 +36,14 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.CountDown;
@@ -55,6 +57,7 @@ import org.opensearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -67,7 +70,9 @@ public abstract class TransportBroadcastReplicationAction<
     Request extends BroadcastRequest<Request>,
     Response extends BroadcastResponse,
     ShardRequest extends ReplicationRequest<ShardRequest>,
-    ShardResponse extends ReplicationResponse> extends HandledTransportAction<Request, Response> {
+    ShardResponse extends ReplicationResponse> extends HandledTransportAction<Request, Response>
+    implements
+        TransportIndicesResolvingAction<Request> {
 
     private final TransportReplicationAction replicatedBroadcastShardAction;
     private final ClusterService clusterService;
@@ -138,6 +143,15 @@ public abstract class TransportBroadcastReplicationAction<
         }
     }
 
+    @Override
+    public ResolvedIndices resolveIndices(Request request) {
+        return resolveIndices(request, clusterService.state());
+    }
+
+    private ResolvedIndices resolveIndices(Request request, ClusterState clusterState) {
+        return ResolvedIndices.of(indexNameExpressionResolver.concreteIndexNames(clusterState, request));
+    }
+
     protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
         ShardRequest shardRequest = newShardRequest(request, shardId);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
@@ -149,7 +163,7 @@ public abstract class TransportBroadcastReplicationAction<
      */
     protected List<ShardId> shards(Request request, ClusterState clusterState) {
         List<ShardId> shardIds = new ArrayList<>();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+        Set<String> concreteIndices = resolveIndices(request, clusterState).local().names();
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = clusterState.metadata().getIndices().get(index);
             if (indexMetadata != null) {

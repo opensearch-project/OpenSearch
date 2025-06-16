@@ -33,12 +33,14 @@
 package org.opensearch.action.admin.indices.settings.get;
 
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.regex.Regex;
@@ -61,7 +63,9 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class TransportGetSettingsAction extends TransportClusterManagerNodeReadAction<GetSettingsRequest, GetSettingsResponse> {
+public class TransportGetSettingsAction extends TransportClusterManagerNodeReadAction<GetSettingsRequest, GetSettingsResponse>
+    implements
+        TransportIndicesResolvingAction<GetSettingsRequest> {
 
     private final SettingsFilter settingsFilter;
     private final IndexScopedSettings indexScopedSettings;
@@ -112,7 +116,7 @@ public class TransportGetSettingsAction extends TransportClusterManagerNodeReadA
 
     @Override
     protected void clusterManagerOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
-        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        Index[] concreteIndices = resolveIndicesAsArray(request, state);
         final Map<String, Settings> indexToSettingsBuilder = new HashMap<>();
         final Map<String, Settings> indexToDefaultSettingsBuilder = new HashMap<>();
         for (Index concreteIndex : concreteIndices) {
@@ -140,5 +144,14 @@ public class TransportGetSettingsAction extends TransportClusterManagerNodeReadA
             }
         }
         listener.onResponse(new GetSettingsResponse(indexToSettingsBuilder, indexToDefaultSettingsBuilder));
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(GetSettingsRequest request) {
+        return ResolvedIndices.of(resolveIndicesAsArray(request, clusterService.state()));
+    }
+
+    private Index[] resolveIndicesAsArray(GetSettingsRequest request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteIndices(clusterState, request);
     }
 }

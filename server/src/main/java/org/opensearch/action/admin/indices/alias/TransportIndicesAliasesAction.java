@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -48,6 +49,7 @@ import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.regex.Regex;
@@ -68,6 +70,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -76,7 +79,9 @@ import static java.util.Collections.unmodifiableList;
  *
  * @opensearch.internal
  */
-public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAction<IndicesAliasesRequest, AcknowledgedResponse> {
+public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAction<IndicesAliasesRequest, AcknowledgedResponse>
+    implements
+        TransportIndicesResolvingAction<IndicesAliasesRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
 
@@ -131,72 +136,15 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
         final IndicesAliasesRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
-    ) {
+    ) throws Exception {
 
         // Expand the indices names
         List<IndicesAliasesRequest.AliasActions> actions = request.aliasActions();
-        List<AliasAction> finalActions = new ArrayList<>();
-        // Resolve all the AliasActions into AliasAction instances and gather all the aliases
-        Set<String> aliases = new HashSet<>();
-        for (IndicesAliasesRequest.AliasActions action : actions) {
-            final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(
-                state,
-                request.indicesOptions(),
-                false,
-                action.indices()
-            );
-            for (Index concreteIndex : concreteIndices) {
-                IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(concreteIndex.getName());
-                assert indexAbstraction != null : "invalid cluster metadata. index [" + concreteIndex.getName() + "] was not found";
-                if (indexAbstraction.getParentDataStream() != null) {
-                    throw new IllegalArgumentException(
-                        "The provided expressions ["
-                            + String.join(",", action.indices())
-                            + "] match a backing index belonging to data stream ["
-                            + indexAbstraction.getParentDataStream().getName()
-                            + "]. Data streams and their backing indices don't support aliases."
-                    );
-                }
-            }
-            final Optional<Exception> maybeException = requestValidators.validateRequest(request, state, concreteIndices);
-            if (maybeException.isPresent()) {
-                listener.onFailure(maybeException.get());
-                return;
-            }
-
-            Collections.addAll(aliases, action.getOriginalAliases());
-            for (final Index index : concreteIndices) {
-                switch (action.actionType()) {
-                    case ADD:
-                        for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
-                            finalActions.add(
-                                new AliasAction.Add(
-                                    index.getName(),
-                                    alias,
-                                    action.filter(),
-                                    action.indexRouting(),
-                                    action.searchRouting(),
-                                    action.writeIndex(),
-                                    action.isHidden()
-                                )
-                            );
-                        }
-                        break;
-                    case REMOVE:
-                        for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
-                            finalActions.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
-                        }
-                        break;
-                    case REMOVE_INDEX:
-                        finalActions.add(new AliasAction.RemoveIndex(index.getName()));
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
-                }
-            }
-        }
+        List<AliasAction> finalActions = resolvedAliasActions(request, state, true);
         if (finalActions.isEmpty() && false == actions.isEmpty()) {
-            throw new AliasesNotFoundException(aliases.toArray(new String[0]));
+            throw new AliasesNotFoundException(
+                actions.stream().flatMap(a -> Arrays.stream(a.getOriginalAliases())).collect(Collectors.toSet()).toArray(new String[0])
+            );
         }
         request.aliasActions().clear();
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(unmodifiableList(finalActions))
@@ -215,6 +163,97 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
                 listener.onFailure(t);
             }
         });
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(IndicesAliasesRequest request) {
+        try {
+            Set<String> indices = new HashSet<>();
+
+            for (AliasAction aliasAction : resolvedAliasActions(request, clusterService.state(), false)) {
+                if (aliasAction instanceof AliasAction.Add addAliasAction) {
+                    indices.add(addAliasAction.getIndex());
+                    indices.add(addAliasAction.getAlias());
+                } else if (aliasAction instanceof AliasAction.Remove removeAliasAction) {
+                    indices.add(removeAliasAction.getIndex());
+                    indices.add(removeAliasAction.getAlias());
+                } else if (aliasAction instanceof AliasAction.RemoveIndex removeIndexAction) {
+                    // TODO special action
+                    indices.add(removeIndexAction.getIndex());
+                }
+            }
+
+            return ResolvedIndices.of(indices);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            // This should not happen if validate=false is passed to resolvedAliasActions()
+            throw new RuntimeException(e);
+        }
+    }
+
+    private List<AliasAction> resolvedAliasActions(IndicesAliasesRequest request, ClusterState state, boolean validate) throws Exception {
+        List<AliasAction> result = new ArrayList<>();
+        // Resolve all the AliasActions into AliasAction instances and gather all the aliases
+        for (IndicesAliasesRequest.AliasActions action : request.aliasActions()) {
+            final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(
+                state,
+                request.indicesOptions(),
+                false,
+                action.indices()
+            );
+            if (validate) {
+                for (Index concreteIndex : concreteIndices) {
+                    IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(concreteIndex.getName());
+                    assert indexAbstraction != null : "invalid cluster metadata. index [" + concreteIndex.getName() + "] was not found";
+                    if (indexAbstraction.getParentDataStream() != null) {
+                        throw new IllegalArgumentException(
+                            "The provided expressions ["
+                                + String.join(",", action.indices())
+                                + "] match a backing index belonging to data stream ["
+                                + indexAbstraction.getParentDataStream().getName()
+                                + "]. Data streams and their backing indices don't support aliases."
+                        );
+                    }
+                }
+                final Optional<Exception> maybeException = requestValidators.validateRequest(request, state, concreteIndices);
+                if (maybeException.isPresent()) {
+                    throw maybeException.get();
+                }
+            }
+
+            for (final Index index : concreteIndices) {
+                switch (action.actionType()) {
+                    case ADD:
+                        for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
+                            result.add(
+                                new AliasAction.Add(
+                                    index.getName(),
+                                    alias,
+                                    action.filter(),
+                                    action.indexRouting(),
+                                    action.searchRouting(),
+                                    action.writeIndex(),
+                                    action.isHidden()
+                                )
+                            );
+                        }
+                        break;
+                    case REMOVE:
+                        for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
+                            result.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
+                        }
+                        break;
+                    case REMOVE_INDEX:
+                        result.add(new AliasAction.RemoveIndex(index.getName()));
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
+                }
+            }
+        }
+
+        return result;
     }
 
     private static String[] concreteAliases(IndicesAliasesRequest.AliasActions action, Metadata metadata, String concreteIndex) {
@@ -255,4 +294,5 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
             return action.aliases();
         }
     }
+
 }

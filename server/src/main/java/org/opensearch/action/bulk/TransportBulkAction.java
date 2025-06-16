@@ -924,7 +924,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      *
      * @opensearch.internal
      */
-    private static class ConcreteIndices {
+    static class ConcreteIndices {
         private final ClusterState state;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final Map<String, Index> indices = new HashMap<>();
