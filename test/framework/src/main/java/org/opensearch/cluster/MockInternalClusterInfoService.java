@@ -152,11 +152,11 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             super(
                 delegate.getNodeLeastAvailableDiskUsages(),
                 delegate.getNodeMostAvailableDiskUsages(),
-                delegate.getNodeResourceUsageStats(),
                 delegate.shardSizes,
                 delegate.routingToDataPath,
                 delegate.reservedSpace,
-                delegate.nodeFileCacheStats
+                delegate.nodeFileCacheStats,
+                delegate.getNodeResourceUsageStats()
             );
         }
 

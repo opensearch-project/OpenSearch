@@ -219,11 +219,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         return new ClusterInfo(
             leastAvailableSpaceUsages,
             mostAvailableSpaceUsages,
-            nodeResourceUsageStats,
             indicesStatsSummary.shardSizes,
             indicesStatsSummary.shardRoutingToDataPath,
             indicesStatsSummary.reservedSpace,
-            nodeFileCacheStats
+            nodeFileCacheStats,
+            nodeResourceUsageStats
         );
     }
 

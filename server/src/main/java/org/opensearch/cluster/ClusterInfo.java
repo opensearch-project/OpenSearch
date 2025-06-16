@@ -65,12 +65,12 @@ import java.util.Set;
 public class ClusterInfo implements ToXContentFragment, Writeable {
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
-    private final Map<String, NodeResourceUsageStats> nodeResourceUsageStats;
     final Map<String, Long> shardSizes;  // pkg-private for testing only
     public static final ClusterInfo EMPTY = new ClusterInfo();
     final Map<ShardRouting, String> routingToDataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
     final Map<String, AggregateFileCacheStats> nodeFileCacheStats;
+    private final Map<String, NodeResourceUsageStats> nodeResourceUsageStats;
     private long avgTotalBytes;
     private long avgFreeByte;
 
@@ -91,30 +91,25 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public ClusterInfo(
         final Map<String, DiskUsage> leastAvailableSpaceUsage,
         final Map<String, DiskUsage> mostAvailableSpaceUsage,
-        final Map<String, NodeResourceUsageStats> nodeResourceUsageStats,
         final Map<String, Long> shardSizes,
         final Map<ShardRouting, String> routingToDataPath,
         final Map<NodeAndPath, ReservedSpace> reservedSpace,
-        final Map<String, AggregateFileCacheStats> nodeFileCacheStats
+        final Map<String, AggregateFileCacheStats> nodeFileCacheStats,
+        final Map<String, NodeResourceUsageStats> nodeResourceUsageStats
     ) {
         this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
         this.shardSizes = shardSizes;
         this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
-        this.nodeResourceUsageStats = nodeResourceUsageStats;
         this.routingToDataPath = routingToDataPath;
         this.reservedSpace = reservedSpace;
         this.nodeFileCacheStats = nodeFileCacheStats;
+        this.nodeResourceUsageStats = nodeResourceUsageStats;
         calculateAvgFreeAndTotalBytes(mostAvailableSpaceUsage);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
         Map<String, DiskUsage> leastMap = in.readMap(StreamInput::readString, DiskUsage::new);
         Map<String, DiskUsage> mostMap = in.readMap(StreamInput::readString, DiskUsage::new);
-        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
-            this.nodeResourceUsageStats = in.readMap(StreamInput::readString, NodeResourceUsageStats::new);
-        } else {
-            this.nodeResourceUsageStats = Map.of();
-        }
         Map<String, Long> sizeMap = in.readMap(StreamInput::readString, StreamInput::readLong);
         Map<ShardRouting, String> routingMap = in.readMap(ShardRouting::new, StreamInput::readString);
         Map<NodeAndPath, ReservedSpace> reservedSpaceMap;
@@ -129,6 +124,12 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             this.nodeFileCacheStats = in.readMap(StreamInput::readString, AggregateFileCacheStats::new);
         } else {
             this.nodeFileCacheStats = Map.of();
+        }
+
+        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+            this.nodeResourceUsageStats = in.readMap(StreamInput::readString, NodeResourceUsageStats::new);
+        } else {
+            this.nodeResourceUsageStats = Map.of();
         }
 
         calculateAvgFreeAndTotalBytes(mostAvailableSpaceUsage);
@@ -169,14 +170,14 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
-            out.writeMap(this.nodeResourceUsageStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        }
         out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> out.writeLong(v == null ? -1 : v));
         out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         out.writeMap(this.reservedSpace, (o, v) -> v.writeTo(o), (o, v) -> v.writeTo(o));
         if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
             out.writeMap(this.nodeFileCacheStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+            out.writeMap(this.nodeResourceUsageStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
     }
 
@@ -200,7 +201,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
                         }
                     }
                     builder.endObject(); // end "most_available"
-                    builder.startObject("resource_usage_stats");
+                    builder.startObject("node_resource_usage_stats");
                     {
                         nodeResourceUsageStats.get(c.getKey()).toXContent(builder, params);
                     }
