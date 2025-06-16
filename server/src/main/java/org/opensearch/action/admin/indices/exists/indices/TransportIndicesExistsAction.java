@@ -34,11 +34,13 @@ package org.opensearch.action.admin.indices.exists.indices;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -54,7 +56,9 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportIndicesExistsAction extends TransportClusterManagerNodeReadAction<IndicesExistsRequest, IndicesExistsResponse> {
+public class TransportIndicesExistsAction extends TransportClusterManagerNodeReadAction<IndicesExistsRequest, IndicesExistsResponse>
+    implements
+        TransportIndicesResolvingAction<IndicesExistsRequest> {
 
     @Inject
     public TransportIndicesExistsAction(
@@ -118,5 +122,11 @@ public class TransportIndicesExistsAction extends TransportClusterManagerNodeRea
             exists = false;
         }
         listener.onResponse(new IndicesExistsResponse(exists));
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(IndicesExistsRequest request) {
+        // TODO this is likely not correct
+        return ResolvedIndices.of(indexNameExpressionResolver.resolveExpressions(clusterService.state(), request.indices()));
     }
 }

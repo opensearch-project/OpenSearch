@@ -10,6 +10,8 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -27,7 +29,9 @@ import java.util.stream.Collectors;
 /**
  * Transport action for deleting point in time searches - supports deleting list and all point in time searches
  */
-public class TransportDeletePitAction extends HandledTransportAction<DeletePitRequest, DeletePitResponse> {
+public class TransportDeletePitAction extends HandledTransportAction<DeletePitRequest, DeletePitResponse>
+    implements
+        TransportIndicesResolvingAction<DeletePitRequest> {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final PitService pitService;
 
@@ -48,11 +52,24 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
      */
     @Override
     protected void doExecute(Task task, DeletePitRequest request, ActionListener<DeletePitResponse> listener) {
-        if (request.getPitIds().size() == 1 && "_all".equals(request.getPitIds().get(0))) {
+        if (isAllPitsRequest(request)) {
             deleteAllPits(listener);
         } else {
             deletePits(listener, request);
         }
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(DeletePitRequest request) {
+        if (isAllPitsRequest(request)) {
+            return ResolvedIndices.all();
+        } else {
+            return ResolvedIndices.of(this.pitService.getIndicesForPitsFlat(request.getPitIds()));
+        }
+    }
+
+    private boolean isAllPitsRequest(DeletePitRequest request) {
+        return request.getPitIds().size() == 1 && "_all".equals(request.getPitIds().get(0));
     }
 
     /**

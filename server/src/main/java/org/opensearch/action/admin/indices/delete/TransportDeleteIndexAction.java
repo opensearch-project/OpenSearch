@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -44,6 +45,7 @@ import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -55,15 +57,15 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * Delete index action.
  *
  * @opensearch.internal
  */
-public class TransportDeleteIndexAction extends TransportClusterManagerNodeAction<DeleteIndexRequest, AcknowledgedResponse> {
+public class TransportDeleteIndexAction extends TransportClusterManagerNodeAction<DeleteIndexRequest, AcknowledgedResponse>
+    implements
+        TransportIndicesResolvingAction<DeleteIndexRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexAction.class);
 
@@ -120,15 +122,15 @@ public class TransportDeleteIndexAction extends TransportClusterManagerNodeActio
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        final Set<Index> concreteIndices = new HashSet<>(Arrays.asList(indexNameExpressionResolver.concreteIndices(state, request)));
-        if (concreteIndices.isEmpty()) {
+        Index[] concreteIndices = resolveIndicesAsArray(request, state);
+        if (concreteIndices.length == 0) {
             listener.onResponse(new AcknowledgedResponse(true));
             return;
         }
 
         DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
             .clusterManagerNodeTimeout(request.clusterManagerNodeTimeout())
-            .indices(concreteIndices.toArray(new Index[0]));
+            .indices(concreteIndices);
 
         deleteIndexService.deleteIndices(deleteRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
@@ -139,9 +141,18 @@ public class TransportDeleteIndexAction extends TransportClusterManagerNodeActio
 
             @Override
             public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to delete indices [{}]", concreteIndices), t);
+                logger.debug(() -> new ParameterizedMessage("failed to delete indices [{}]", Arrays.asList(concreteIndices)), t);
                 listener.onFailure(t);
             }
         });
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(DeleteIndexRequest request) {
+        return ResolvedIndices.of(resolveIndicesAsArray(request, clusterService.state()));
+    }
+
+    private Index[] resolveIndicesAsArray(DeleteIndexRequest request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteIndices(clusterState, request);
     }
 }
