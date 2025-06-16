@@ -191,7 +191,7 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             randomBoolean(),
             randomNonNegativeLong(),
             docStatusStats,
-            randomNonNegativeLong()
+            randomLong()
         );
 
         return new IndexingStats(stats);
