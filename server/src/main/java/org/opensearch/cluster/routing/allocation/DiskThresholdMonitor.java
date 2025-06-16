@@ -125,12 +125,7 @@ public class DiskThresholdMonitor {
         this.rerouteService = rerouteService;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
-        DiskThresholdEvaluator hotNodeEvaluator = new HotNodeDiskThresholdEvaluator(diskThresholdSettings);
-        DiskThresholdEvaluator warmNodeEvaluator = new WarmNodeDiskThresholdEvaluator(
-            diskThresholdSettings,
-            dataToFileCacheSizeRatioSupplier
-        );
-        this.nodeDiskEvaluator = new NodeDiskEvaluator(hotNodeEvaluator, warmNodeEvaluator);
+        this.nodeDiskEvaluator = new NodeDiskEvaluator(diskThresholdSettings, dataToFileCacheSizeRatioSupplier);
         this.dataToFileCacheSizeRatioSupplier = dataToFileCacheSizeRatioSupplier;
     }
 
@@ -185,12 +180,13 @@ public class DiskThresholdMonitor {
 
             // Only for Dedicated Warm Nodes
             final boolean isWarmNode = REMOTE_CAPABLE.equals(getNodePool(routingNode));
+            nodeDiskEvaluator.setNodeType(isWarmNode);
             if (isWarmNode) {
                 // Create DiskUsage for Warm Nodes based on total Addressable Space
                 usage = getWarmDiskUsage(usage, info, routingNode, state);
             }
 
-            if (nodeDiskEvaluator.isNodeExceedingFloodStageWatermark(usage, isWarmNode)) {
+            if (nodeDiskEvaluator.isNodeExceedingFloodStageWatermark(usage)) {
 
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
@@ -213,7 +209,7 @@ public class DiskThresholdMonitor {
                 continue;
             }
 
-            if (nodeDiskEvaluator.isNodeExceedingHighWatermark(usage, isWarmNode)) {
+            if (nodeDiskEvaluator.isNodeExceedingHighWatermark(usage)) {
 
                 if (routingNode != null) { // might be temporarily null if the ClusterInfoService and the ClusterService are out of step
                     for (ShardRouting routing : routingNode) {
@@ -232,7 +228,7 @@ public class DiskThresholdMonitor {
                 Math.max(0L, usage.getFreeBytes() - reservedSpace)
             );
 
-            if (nodeDiskEvaluator.isNodeExceedingHighWatermark(usageWithReservedSpace, isWarmNode)) {
+            if (nodeDiskEvaluator.isNodeExceedingHighWatermark(usageWithReservedSpace)) {
 
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
@@ -250,7 +246,7 @@ public class DiskThresholdMonitor {
                     );
                 }
 
-            } else if (nodeDiskEvaluator.isNodeExceedingLowWatermark(usage, isWarmNode)) {
+            } else if (nodeDiskEvaluator.isNodeExceedingLowWatermark(usage)) {
 
                 nodesOverHighThresholdAndRelocating.remove(node);
 
@@ -331,7 +327,8 @@ public class DiskThresholdMonitor {
                     }
 
                     boolean isNodeWarm = REMOTE_CAPABLE.equals(getNodePool(routingNode));
-                    if (nodeDiskEvaluator.isNodeExceedingHighWatermark(usageIncludingRelocations, isNodeWarm)) {
+                    nodeDiskEvaluator.setNodeType(isNodeWarm);
+                    if (nodeDiskEvaluator.isNodeExceedingHighWatermark(usageIncludingRelocations)) {
 
                         nodesOverHighThresholdAndRelocating.remove(diskUsage.getNodeId());
                         logger.warn(
