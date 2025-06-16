@@ -991,18 +991,18 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 try (IndexReader reader = iw.getReader()) {
                     IndexSearcher searcher = new IndexSearcher(reader);
 
-                    testApproximateVsExactDateQuery(searcher, "@timestamp", "now-1h", "now", 50, dims);
+                    testApproximateVsExactQuery(searcher, "@timestamp", "now-1h", "now", 50, dims);
 
-                    testApproximateVsExactDateQuery(searcher, "@timestamp", "now-1d", "now", 50, dims);
+                    testApproximateVsExactQuery(searcher, "@timestamp", "now-1d", "now", 50, dims);
 
-                    testApproximateVsExactDateQuery(searcher, "@timestamp", "now-30m", "now+30m", 50, dims);
+                    testApproximateVsExactQuery(searcher, "@timestamp", "now-30m", "now+30m", 50, dims);
 
                 }
             }
         }
     }
 
-    private void testApproximateVsExactDateQuery(
+    private void testApproximateVsExactQuery(
         IndexSearcher searcher,
         String field,
         String lowerBound,
