@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Target version (e.g. 4.12.0)'
+        description: 'Target version (e.g. 1.2.3)'
         default: ''
         required: false
         type: string
@@ -15,7 +15,7 @@ on:
         required: false
         type: string
       date:
-        description: 'Version release date (e.g. Mon Jan 02 2025)'
+        description: 'Version release date (yyyy-mm-dd, e.g. 2025-04-13)'
         default: ''
         required: false
         type: string
@@ -31,7 +31,7 @@ on:
 jobs:
   bump:
     name: Repository bumper
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
       pull-requests: write
@@ -74,7 +74,7 @@ jobs:
         with:
           # Using workflow-specific GITHUB_TOKEN because currently CI_WAZUHCI_BUMPER_TOKEN
           # doesn't have all the necessary permissions
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ env.GH_TOKEN }}
 
       - name: Determine branch name
         id: vars
@@ -132,12 +132,12 @@ jobs:
       - name: Merge pull request
         run: |
           # Any checks for the PR are bypassed since the branch is expected to be functional (i.e. the bump process does not introduce any bugs)
-          gh pr merge "${{ steps.create_pr.outputs.pull_request_url }}" --squash
+          gh pr merge "${{ steps.create_pr.outputs.pull_request_url }}" --squash --admin
 
       - name: Show logs
         run: |
           echo "Bump complete."
           echo "Branch: ${{ steps.vars.outputs.branch_name }}"
-          echo "PR: https://github.com/${{ github.repository }}/pull/${{ steps.create_pr.outputs.pull_request_number }}"
+          echo "PR: ${{ steps.create_pr.outputs.pull_request_url }}"
           echo "Bumper scripts logs:"
           cat ${BUMP_LOG_PATH}/repository_bumper*log

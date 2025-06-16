@@ -1,0 +1,28 @@
+---
+name: wazuh-groups
+fields:
+  base:
+    fields:
+      tags: []
+      "@timestamp": {}
+  agent:
+    fields:
+      id: {}
+      name: {}
+      version: {}
+      host:
+        fields:
+          architecture: {}
+          ip: {}
+  group:
+    fields:
+      id: {}
+      name: {}
+      description: {}
+      id_signed: {}
+      uuid: {}
+      is_hidden: {}
+      users: {}
+  wazuh:
+    fields: "*"
+

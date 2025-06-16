@@ -1,0 +1,40 @@
+---
+- name: group
+  title: Group
+  type: group
+  group: 2
+  description: >
+    Inventory user's group custom fields.
+  fields:
+    - name: description
+      type: match_only_text
+      level: custom
+      description: >
+        Description of the group.
+    - name: id_signed
+      type: long
+      level: custom
+      description: >
+        A signed int64 version of the group's ID.
+    - name: uuid
+      type: keyword
+      level: custom
+      description: >
+        Unique group ID.
+    - name: is_hidden
+      type: boolean
+      level: custom
+      description: >
+        IsHidden attribute set in OpenDirectory.
+    - name: users
+      type: keyword
+      level: custom
+      description: >
+        List of users that belong to the group.
+      normalize:
+        - array
+    - name: id
+      type: unsigned_long
+      level: custom
+      description: >
+        Unsigned int64 group ID.

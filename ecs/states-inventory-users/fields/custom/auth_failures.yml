@@ -1,0 +1,22 @@
+---
+- name: auth_failures
+  title: Authentication Failures
+  type: group
+  group: 2
+  reusable:
+    top_level: false
+    expected:
+      - { at: user, as: auth_failures }
+  description: >
+    Wazuh failed login tracking information.
+  fields:
+    - name: count
+      type: integer
+      level: custom
+      description: >
+        Number of failed authentication attempts.
+    - name: timestamp
+      type: date
+      level: custom
+      description: >
+        Timestamp of the last authentication failure.

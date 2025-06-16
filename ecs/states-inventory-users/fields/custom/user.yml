@@ -1,0 +1,67 @@
+---
+- name: user
+  title: User
+  type: group
+  group: 2
+  description: >
+    Wazuh user custom fields.
+  fields:
+    - name: home
+      type: keyword
+      level: custom
+      description: >
+        Home directory of the user.
+    - name: shell
+      type: keyword
+      level: custom
+      description: >
+        Shell used by the user.
+    - name: type
+      type: keyword
+      level: custom
+      description: >
+        Type of user (e.g., "system", "regular").
+    - name: created
+      type: date
+      level: custom
+      description: >
+        Datetime when the user was created.
+    - name: groups
+      type: keyword
+      level: custom
+      description: >
+        List of groups the user belongs to.
+      normalize:
+        - array
+    - name: uid_signed
+      type: long
+      level: custom
+      description: >
+        Signed user ID.
+    - name: uuid
+      type: keyword
+      level: custom
+      description: >
+        UUID of the user.
+    - name: is_hidden
+      type: boolean
+      level: custom
+      description: >
+        Whether the user is hidden.
+    - name: is_remote
+      type: boolean
+      level: custom
+      description: >
+        Whether the user is remote.
+    - name: roles
+      type: keyword
+      level: custom
+      description: >
+        Roles assigned to the user.
+      normalize:
+        - array
+    - name: last_login
+      type: date
+      level: custom
+      description: >
+        Date of the last login.

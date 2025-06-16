@@ -1,0 +1,21 @@
+---
+- name: wazuh
+  title: Wazuh
+  description: >
+    Wazuh Inc. custom fields
+  fields:
+    - name: cluster.name
+      type: keyword
+      level: custom
+      description: >
+        Wazuh cluster name.
+    - name: cluster.node
+      type: keyword
+      level: custom
+      description: >
+        Wazuh cluster node name.
+    - name: schema.version
+      type: keyword
+      level: custom
+      description: >
+        Wazuh schema version.

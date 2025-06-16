@@ -1,0 +1,22 @@
+---
+- name: group
+  title: Group
+  group: 2
+  type: group
+  reusable:
+    top_level: false
+    expected:
+      - { at: user, as: group }
+  description: >
+    Wazuh-specific custom group fields.
+  fields:
+    - name: id
+      type: unsigned_long
+      level: custom
+      description: >
+        Group ID.
+    - name: id_signed
+      type: long
+      level: custom
+      description: >
+        Signed group ID.

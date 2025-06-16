@@ -1,0 +1,64 @@
+---
+name: wazuh-users
+fields:
+  base:
+    fields:
+      tags: []
+      "@timestamp": {}
+  agent:
+    fields:
+      id: {}
+      name: {}
+      version: {}
+      host:
+        fields:
+          architecture: {}
+          ip: {}
+  user:
+    fields:
+      id: {}
+      name: {}
+      full_name: {}
+      home: {}
+      shell: {}
+      type: {}
+      created: {}
+      group:
+        fields:
+          id: {}
+          id_signed: {}
+      groups: {}
+      uid_signed: {}
+      uuid: {}
+      is_hidden: {}
+      is_remote: {}
+      password:
+        fields:
+          status: {}
+          hash_algorithm: {}
+          last_change: {}
+          min_days_between_changes: {}
+          max_days_between_changes: {}
+          warning_days_before_expiration: {}
+          inactive_days: {}
+          expiration_date: {}
+          last_set_time: {}
+      auth_failures:
+        fields:
+          count: {}
+          timestamp: {}
+      roles: {}
+      last_login: {}
+  host:
+    fields:
+      ip: {}
+  process:
+    fields:
+      pid: {}
+  login:
+    fields:
+      status: {}
+      type: {}
+      tty: {}
+  wazuh:
+    fields: "*"

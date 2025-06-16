@@ -1,5 +1,10 @@
 ---
 - name: interface
+  reusable:
+    top_level: true
+    expected:
+      - observer.ingress
+      - observer.egress
   title: Interface
   type: group
   group: 2

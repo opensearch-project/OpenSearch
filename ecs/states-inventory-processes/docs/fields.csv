@@ -7,9 +7,7 @@ ECS_Version,Indexed,Field_Set,Field,Type,Level,Normalization,Example,Description
 8.11.0,true,process,process.args,keyword,extended,array,"[""/usr/bin/ssh"", ""-l"", ""user"", ""10.0.0.16""]",Array of process arguments.
 8.11.0,true,process,process.args_count,long,extended,,4,Length of the process.args array.
 8.11.0,true,process,process.command_line,keyword,extended,,/usr/bin/ssh -l user 10.0.0.16,Full command line that started the process.
-8.11.0,true,process,process.command_line.text,keyword,extended,,/usr/bin/ssh -l user 10.0.0.16,Full command line that started the process.
 8.11.0,true,process,process.name,keyword,extended,,ssh,Process name.
-8.11.0,true,process,process.name.text,keyword,extended,,ssh,Process name.
 8.11.0,true,process,process.parent.pid,long,core,,4242,Process id.
 8.11.0,true,process,process.pid,long,core,,4242,Process id.
 8.11.0,true,process,process.start,date,extended,,2016-05-23T08:05:34.853Z,The time the process started.

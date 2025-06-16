@@ -25,7 +25,7 @@ function usage() {
     echo "Usage: $0 <version> <stage> <date>"
     echo "  version:  The new version to set in VERSION.json (e.g., 4.5.0)"
     echo "  stage:    The new stage to set in VERSION.json (alpha, beta, rc, stable)"
-    echo "  date:     The date to set in the changelog (e.g., 'Mon Jan 02 2025')"
+    echo "  date:     The date to set in the changelog (e.g., '2025-04-13')"
     exit 1
 }
 
@@ -100,10 +100,28 @@ function validate_inputs() {
         exit 1
     fi
 
-    if ! [[ $date =~ ^[A-Za-z]{3}\ [A-Za-z]{3}\ [0-9]{1,2}\ [0-9]{4}$ ]]; then
+    if ! [[ $date =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
         log "Error: Invalid date format $date."
         exit 1
     fi
+}
+
+# ====
+# Changes the date format to the format used in the changelog files
+# ====
+function normalize_date() {
+    local input_date="$1"
+    local normalized=""
+
+    if date --version >/dev/null 2>&1; then
+        # GNU date (Linux)
+        normalized=$(LC_TIME=en_US.UTF-8 date -d "$input_date" +"%a %b %d %Y")
+    else
+        # BSD date (macOS)
+        normalized=$(LC_TIME=en_US.UTF-8 date -jf "%Y-%m-%d" "$input_date" +"%a %b %d %Y")
+    fi
+
+    echo "$normalized"
 }
 
 # ====
@@ -166,7 +184,6 @@ function update_rpm_changelog() {
             }
             END {
                 for (i = 1; i <= NR; i++) print lines[i]
-                if (updated) print ""
             }
         ' "$spec_file" >"${spec_file}.tmp" && mv "${spec_file}.tmp" "$spec_file"
 
@@ -208,6 +225,7 @@ function main() {
     navigate_to_project_root
     check_jq_installed
     validate_inputs "$version" "$stage" "$date"
+    date=$(normalize_date "$date")
     update_version_file "$version" "$stage"
     update_rpm_changelog "$version" "$date"
 

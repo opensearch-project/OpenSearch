@@ -17,10 +17,7 @@ fields:
   host:
     fields:
       memory:
-        fields:
-          total: {}
-          free: {}
-          used: {}
+        fields: "*"
       cpu:
         fields:
           name: {}

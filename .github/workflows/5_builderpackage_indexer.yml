@@ -338,12 +338,12 @@ jobs:
         with:
           aws-region: "us-east-1"
           role-to-assume: ${{ secrets.AWS_IAM_OVA_ROLE }}
-          role-session-name: "OVA-Builder"
+          role-session-name: "5_package_builder_indexer"
 
       - name: Setup RPM environment
         if: ${{ matrix.distribution == 'rpm' }}
         run: |
-          bash build-scripts/rpm_setup_enviroment.sh ${{ matrix.architecture }}
+          bash build-scripts/rpm_setup_environment.sh ${{ matrix.architecture }} ${{ github.run_id }}
 
           ansible_host=$(grep 'ansible_host:' /tmp/inventory.yaml | sed 's/.*: *//') 
           ansible_port=$(grep 'ansible_port:' /tmp/inventory.yaml | sed 's/.*: *//') 
@@ -391,6 +391,15 @@ jobs:
           sudo yum localinstall "/home/${{ steps.setup_rpm_env.outputs.ansible_user }}/${{ steps.package.outputs.name }}" -y
           EOF
 
+          # Check if the indexer is running
+          indexer_running=$(${{ steps.setup_rpm_env.outputs.ssh_command }} 'systemctl is-active --quiet wazuh-indexer && echo 1 || echo 0')
+          if [[ "$indexer_running" == "1" ]]; then
+            echo "The indexer is running after the update, but it should not be."
+            exit 1
+          else
+            echo "The indexer is not running after the update, as expected."
+          fi
+
       - name: Test RPM package update without stopping the indexer
         if: ${{ matrix.distribution == 'rpm' && (matrix.architecture == 'x64' || (needs.setup.outputs.previous_version >= '4.12' && matrix.architecture == 'arm64'))}}
         run: |
@@ -404,6 +413,15 @@ jobs:
           sudo bash /home/${{ steps.setup_rpm_env.outputs.ansible_user }}/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
           sudo yum localinstall "/home/${{ steps.setup_rpm_env.outputs.ansible_user }}/${{ steps.package.outputs.name }}" -y
           EOF
+
+          # Check if the indexer is running
+          indexer_running=$(${{ steps.setup_rpm_env.outputs.ssh_command }} 'systemctl is-active --quiet wazuh-indexer && echo 1 || echo 0')
+          if [[ "$indexer_running" == "0" ]]; then
+            echo "The indexer is not running after the update, but it should be."
+            exit 1
+          else
+            echo "The indexer is running after the update, as expected."
+          fi
 
       - name: Destroy Allocator Machine
         if: ${{ matrix.distribution == 'rpm' }}
@@ -468,7 +486,7 @@ jobs:
           echo "::notice::S3 sha512 URI: ${s3uri}"
 
       - name: On failure delete Allocator Machine
-        if: ${{ matrix.distribution == 'rpm' && failure() }}
+        if: ${{ matrix.distribution == 'rpm' && (failure() || cancelled()) }}
         run: |
           cd wazuh-automation/deployability
           python3 modules/allocation/main.py --action delete --track-output /tmp/track.yaml

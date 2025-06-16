@@ -10,14 +10,12 @@ ECS_Version,Indexed,Field_Set,Field,Type,Level,Normalization,Example,Description
 8.11.0,true,host,host.os.codename,keyword,custom,,,OS codename
 8.11.0,true,host,host.os.distribution.release,keyword,custom,,,Distribution-specific release information
 8.11.0,true,host,host.os.full,keyword,extended,,Mac OS Mojave,"Operating system name, including the version or code name."
-8.11.0,true,host,host.os.full.text,keyword,extended,,Mac OS Mojave,"Operating system name, including the version or code name."
 8.11.0,true,host,host.os.kernel.name,keyword,custom,,,System kernel name
 8.11.0,true,host,host.os.kernel.release,keyword,custom,,,Kernel release version
 8.11.0,true,host,host.os.kernel.version,keyword,custom,,,Kernel version
 8.11.0,true,host,host.os.major,keyword,custom,,,Major version number
 8.11.0,true,host,host.os.minor,keyword,custom,,,Minor version number
 8.11.0,true,host,host.os.name,keyword,extended,,Mac OS X,"Operating system name, without the version."
-8.11.0,true,host,host.os.name.text,keyword,extended,,Mac OS X,"Operating system name, without the version."
 8.11.0,true,host,host.os.patch,keyword,custom,,,Patch level of the OS
 8.11.0,true,host,host.os.platform,keyword,extended,,darwin,"Operating system platform (such centos, ubuntu, windows)."
 8.11.0,true,host,host.os.type,keyword,extended,,macos,"Which commercial OS family (one of: linux, macos, unix, windows, ios or android)."

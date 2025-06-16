@@ -1,0 +1,23 @@
+---
+- name: login
+  title: Login
+  group: 2
+  type: group
+  description: >
+    Fields describing user login activity.
+  fields:
+    - name: status
+      type: boolean
+      level: custom
+      description: >
+        Whether the login was successful or the user is currently logged in.
+    - name: type
+      type: keyword
+      level: custom
+      description: >
+        Type of login session. Example values: "user", "system", "remote".
+    - name: tty
+      type: keyword
+      level: custom
+      description: >
+        Terminal associated with the login session (e.g., pts/1).

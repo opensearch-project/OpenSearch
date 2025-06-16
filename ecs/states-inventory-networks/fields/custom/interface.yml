@@ -1,0 +1,7 @@
+---
+- name: interface
+  reusable:
+    top_level: true
+    expected:
+      - observer.ingress
+      - observer.egress

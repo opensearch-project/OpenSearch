@@ -1,0 +1,39 @@
+{
+    "index_patterns": [
+        "wazuh-states-inventory-users*"
+    ],
+    "priority": 1,
+    "template": {
+        "settings": {
+            "index": {
+                "number_of_shards": "1",
+                "number_of_replicas": "0",
+                "auto_expand_replicas": "0-1",
+                "refresh_interval": "5s",
+                "query.default_field": [
+                    "user.id",
+                    "user.name",
+                    "user.home",
+                    "user.type",
+                    "user.created",
+                    "user.groups",
+                    "user.uuid",
+                    "user.auth_failures.timestamp",
+                    "user.auth_failures.count",
+                    "user.group.id_signed",
+                    "user.login.status",
+                    "user.login.type",
+                    "user.login.tty",
+                    "user.password.status",
+                    "user.password.last_change",
+                    "user.password.expiration_date",
+                    "user.password.last_set_time",
+                    "user.roles",
+                    "user.last_login",
+                    "process.pid",
+                    "host.ip"
+                ]
+            }
+        }
+    }
+}

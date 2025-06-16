@@ -10,11 +10,15 @@ on:
     paths-ignore:
       - '**.md'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   call-build-workflow:
     permissions:
       actions: read
-    uses: ./.github/workflows/5_builderpackage_indexer.yml
+    uses: ./.github/workflows/6_builderpackage_indexer.yml
     secrets: inherit
     with:
       id: ${{ github.ref }}

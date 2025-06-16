@@ -1,0 +1,16 @@
+ECS_Version,Indexed,Field_Set,Field,Type,Level,Normalization,Example,Description
+8.11.0,true,agent,agent.host.architecture,keyword,core,,x86_64,Operating system architecture.
+8.11.0,true,agent,agent.host.ip,ip,core,array,,Host ip addresses.
+8.11.0,true,agent,agent.id,keyword,core,,8a4f500d,Unique identifier of this agent.
+8.11.0,true,agent,agent.name,keyword,core,,foo,Custom name of the agent.
+8.11.0,true,agent,agent.version,keyword,core,,6.0.0-rc2,Version of the agent.
+8.11.0,true,group,group.description,keyword,custom,,,Description of the group.
+8.11.0,true,group,group.id,unsigned_long,custom,,,Unsigned int64 group ID.
+8.11.0,true,group,group.id_signed,long,custom,,,A signed int64 version of the group's ID.
+8.11.0,true,group,group.is_hidden,boolean,custom,,,IsHidden attribute set in OpenDirectory.
+8.11.0,true,group,group.name,keyword,extended,,,Name of the group.
+8.11.0,true,group,group.users,keyword,custom,array,,List of users that belong to the group.
+8.11.0,true,group,group.uuid,keyword,custom,,,Unique group ID.
+8.11.0,true,wazuh,wazuh.cluster.name,keyword,custom,,,Wazuh cluster name.
+8.11.0,true,wazuh,wazuh.cluster.node,keyword,custom,,,Wazuh cluster node name.
+8.11.0,true,wazuh,wazuh.schema.version,keyword,custom,,,Wazuh schema version.

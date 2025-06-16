@@ -12,7 +12,6 @@ ECS_Version,Indexed,Field_Set,Field,Type,Level,Normalization,Example,Description
 8.11.0,true,interface,interface.state,keyword,custom,,,State of the network interface.
 8.11.0,true,network,network.transport,keyword,core,,tcp,Protocol Name corresponding to the field `iana_number`.
 8.11.0,true,process,process.name,keyword,extended,,ssh,Process name.
-8.11.0,true,process,process.name.text,keyword,extended,,ssh,Process name.
 8.11.0,true,process,process.pid,long,core,,4242,Process id.
 8.11.0,true,source,source.ip,ip,core,,,IP address of the source.
 8.11.0,true,source,source.port,long,core,,,Port of the source.

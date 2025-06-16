@@ -13,7 +13,6 @@ ECS_Version,Indexed,Field_Set,Field,Type,Level,Normalization,Example,Description
 8.11.0,true,file,file.mtime,date,extended,,,Last time the file content was modified.
 8.11.0,true,file,file.owner,keyword,extended,,alice,File owner's username.
 8.11.0,true,file,file.path,keyword,extended,,/home/alice/example.png,"Full path to the file, including the file name."
-8.11.0,true,file,file.path.text,keyword,extended,,/home/alice/example.png,"Full path to the file, including the file name."
 8.11.0,true,file,file.size,long,extended,,16384,File size in bytes.
 8.11.0,true,file,file.uid,keyword,extended,,1001,The user ID (UID) or security identifier (SID) of the file owner.
 8.11.0,true,wazuh,wazuh.cluster.name,keyword,custom,,,Wazuh cluster name.

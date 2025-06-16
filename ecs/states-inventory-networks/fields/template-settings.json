@@ -8,10 +8,18 @@
       "index": {
         "number_of_shards": "1",
         "number_of_replicas": "0",
+        "auto_expand_replicas": "0-1",
         "refresh_interval": "5s",
         "query.default_field": [
+          "agent.id",
+          "agent.name",
+          "agent.version",
+          "agent.host.ip",
+          "interface.name",
           "network.ip",
-          "network.name"
+          "network.name",
+          "wazuh.cluster.name",
+          "wazuh.cluster.node"
         ]
       }
     }

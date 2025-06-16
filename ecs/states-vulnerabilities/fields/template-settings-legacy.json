@@ -6,17 +6,33 @@
       "codec": "best_compression",
       "number_of_shards": "1",
       "number_of_replicas": "0",
+      "auto_expand_replicas": "0-1",
       "refresh_interval": "5s",
       "query.default_field": [
+        "agent.host.architecture",
+        "agent.host.ip",
         "agent.id",
-        "host.os.full",
-        "host.os.version",
+        "agent.name",
+        "agent.version",
+        "package.architecture",
+        "package.category",
+        "package.description",
+        "package.installed",
+        "package.multiarch",
         "package.name",
+        "package.path",
+        "package.priority",
+        "package.size",
+        "package.source",
+        "package.type",
+        "package.vendor",
         "package.version",
         "vulnerability.id",
         "vulnerability.description",
         "vulnerability.severity",
-        "wazuh.cluster.name"
+        "wazuh.cluster.name",
+        "wazuh.cluster.node",
+        "wazuh.schema.version"
       ]
     }
   }
