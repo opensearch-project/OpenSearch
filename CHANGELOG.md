@@ -42,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Backport packaging improvements [(#906)](https://github.com/wazuh/wazuh-indexer/pull/906)
 - Apply Lintian overrides [(#908)](https://github.com/wazuh/wazuh-indexer/pull/908)
 - Add noninteractive option for DEB packages testing [(#914)](https://github.com/wazuh/wazuh-indexer/pull/914)
+- Migrate smoke tests from Allocator to docker [(#931)](https://github.com/wazuh/wazuh-indexer/pull/931)
 - Migrate builder workflows from [(#930)](https://github.com/wazuh/wazuh-indexer/pull/930)
 
 ### Deprecated

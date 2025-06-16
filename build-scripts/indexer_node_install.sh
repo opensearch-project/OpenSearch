@@ -116,9 +116,15 @@ chown -R wazuh-indexer:wazuh-indexer /etc/wazuh-indexer/certs
 # =====
 # Reload systemd daemon and start the service
 # =====
-systemctl daemon-reload
-systemctl enable wazuh-indexer
-systemctl start wazuh-indexer
+if command -v apt-get &> /dev/null; then
+    systemctl daemon-reload
+    systemctl enable wazuh-indexer
+    systemctl start wazuh-indexer
+else
+    chkconfig --add wazuh-indexer
+    service wazuh-indexer start
+fi
+
 
 # =====
 # Initialize indexer security
