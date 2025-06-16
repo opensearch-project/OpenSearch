@@ -1002,14 +1002,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
-    private void testApproximateVsExactQuery(
-        IndexSearcher searcher,
-        String field,
-        String lowerBound,
-        String upperBound,
-        int size,
-        int dims
-    ) throws IOException {
+    private void testApproximateVsExactQuery(IndexSearcher searcher, String field, String lowerBound, String upperBound, int size, int dims)
+        throws IOException {
         // Parse date expressions to milliseconds
         DateFormatter formatter = DateFieldMapper.getDefaultDateTimeFormatter();
         DateMathParser parser = formatter.toDateMathParser();
