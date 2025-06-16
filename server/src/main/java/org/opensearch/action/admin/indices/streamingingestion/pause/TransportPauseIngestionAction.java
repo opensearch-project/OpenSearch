@@ -15,12 +15,14 @@ import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngest
 import org.opensearch.action.admin.indices.streamingingestion.state.UpdateIngestionStateResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataStreamingIngestionStateService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -38,7 +40,9 @@ import java.util.Arrays;
  *
  * @opensearch.experimental
  */
-public class TransportPauseIngestionAction extends TransportClusterManagerNodeAction<PauseIngestionRequest, PauseIngestionResponse> {
+public class TransportPauseIngestionAction extends TransportClusterManagerNodeAction<PauseIngestionRequest, PauseIngestionResponse>
+    implements
+        TransportIndicesResolvingAction<PauseIngestionRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportPauseIngestionAction.class);
 
@@ -106,7 +110,7 @@ public class TransportPauseIngestionAction extends TransportClusterManagerNodeAc
         final ClusterState state,
         final ActionListener<PauseIngestionResponse> listener
     ) throws Exception {
-        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        final Index[] concreteIndices = resolveIndicesAsArray(request, state);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new PauseIngestionResponse(true, false, new IngestionStateShardFailure[0], ""));
             return;
@@ -143,5 +147,14 @@ public class TransportPauseIngestionAction extends TransportClusterManagerNodeAc
                 }
             }
         );
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(PauseIngestionRequest request) {
+        return ResolvedIndices.of(resolveIndicesAsArray(request, clusterService.state()));
+    }
+
+    private Index[] resolveIndicesAsArray(PauseIngestionRequest request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteIndices(clusterState, request);
     }
 }

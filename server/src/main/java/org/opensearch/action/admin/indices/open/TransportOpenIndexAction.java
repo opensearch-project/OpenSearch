@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
@@ -44,6 +45,7 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -60,7 +62,9 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TransportOpenIndexAction extends TransportClusterManagerNodeAction<OpenIndexRequest, OpenIndexResponse> {
+public class TransportOpenIndexAction extends TransportClusterManagerNodeAction<OpenIndexRequest, OpenIndexResponse>
+    implements
+        TransportIndicesResolvingAction<OpenIndexRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportOpenIndexAction.class);
 
@@ -119,7 +123,7 @@ public class TransportOpenIndexAction extends TransportClusterManagerNodeAction<
         final ClusterState state,
         final ActionListener<OpenIndexResponse> listener
     ) {
-        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        final Index[] concreteIndices = resolveIndicesAsArray(request, state);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new OpenIndexResponse(true, true));
             return;
@@ -142,5 +146,14 @@ public class TransportOpenIndexAction extends TransportClusterManagerNodeAction<
                 listener.onFailure(t);
             }
         });
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(OpenIndexRequest request) {
+        return ResolvedIndices.of(resolveIndicesAsArray(request, clusterService.state()));
+    }
+
+    private Index[] resolveIndicesAsArray(OpenIndexRequest request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteIndices(clusterState, request);
     }
 }

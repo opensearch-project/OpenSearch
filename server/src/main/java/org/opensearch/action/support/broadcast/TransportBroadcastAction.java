@@ -38,9 +38,11 @@ import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.FailAwareWeightedRouting;
@@ -73,7 +75,9 @@ public abstract class TransportBroadcastAction<
     Request extends BroadcastRequest<Request>,
     Response extends BroadcastResponse,
     ShardRequest extends BroadcastShardRequest,
-    ShardResponse extends BroadcastShardResponse> extends HandledTransportAction<Request, Response> {
+    ShardResponse extends BroadcastShardResponse> extends HandledTransportAction<Request, Response>
+    implements
+        TransportIndicesResolvingAction<Request> {
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
@@ -105,6 +109,15 @@ public abstract class TransportBroadcastAction<
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncBroadcastAction(task, request, listener).start();
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(Request request) {
+        return ResolvedIndices.of(indexNameExpressionResolver.concreteIndexNames(clusterService.state(), request));
+    }
+
+    protected ResolvedIndices resolveIndices(Request request, ClusterState clusterState) {
+        return ResolvedIndices.of(indexNameExpressionResolver.concreteIndexNames(clusterState, request));
     }
 
     protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
@@ -154,7 +167,7 @@ public abstract class TransportBroadcastAction<
                 throw blockException;
             }
             // update to concrete indices
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+            String[] concreteIndices = resolveIndices(request, clusterState).local().namesAsArray();
             blockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (blockException != null) {
                 throw blockException;

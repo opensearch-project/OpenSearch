@@ -39,6 +39,7 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardsObserver;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -47,6 +48,7 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -77,7 +79,9 @@ import static org.opensearch.cluster.service.ClusterManagerTask.ROLLOVER_INDEX;
  *
  * @opensearch.internal
  */
-public class TransportRolloverAction extends TransportClusterManagerNodeAction<RolloverRequest, RolloverResponse> {
+public class TransportRolloverAction extends TransportClusterManagerNodeAction<RolloverRequest, RolloverResponse>
+    implements
+        TransportIndicesResolvingAction<RolloverRequest> {
 
     private final MetadataRolloverService rolloverService;
     private final ActiveShardsObserver activeShardsObserver;
@@ -260,6 +264,29 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         });
     }
 
+    @Override
+    public ResolvedIndices resolveIndices(RolloverRequest rolloverRequest) {
+        try {
+            MetadataRolloverService.RolloverResult preResult = rolloverService.rolloverClusterState(
+                clusterService.state(),
+                rolloverRequest.getRolloverTarget(),
+                rolloverRequest.getNewIndexName(),
+                rolloverRequest.getCreateIndexRequest(),
+                Collections.emptyList(),
+                true,
+                true
+            );
+
+            return ResolvedIndices.of(preResult.sourceIndexName, preResult.rolloverIndexName);
+        } catch (Exception e) {
+            // Exceptions are mostly occurring due to validation errors (e.g. non-existing indices).
+            // These are not propagated to the caller because it should be still
+            // the clusterManagerOperation() that should report these failures.
+            // Instead, we return a basic result which still allows privilege evaluation.
+            return ResolvedIndices.ofNonNull(rolloverRequest.getNewIndexName(), rolloverRequest.getRolloverTarget());
+        }
+    }
+
     static Map<String, Boolean> evaluateConditions(
         final Collection<Condition<?>> conditions,
         @Nullable final DocsStats docsStats,
@@ -291,4 +318,5 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
             return evaluateConditions(conditions, docsStats, metadata);
         }
     }
+
 }

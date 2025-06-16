@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -45,6 +46,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -63,7 +65,9 @@ import java.util.stream.Stream;
  *
  * @opensearch.internal
  */
-public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAction<UpdateSettingsRequest, AcknowledgedResponse> {
+public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAction<UpdateSettingsRequest, AcknowledgedResponse>
+    implements
+        TransportIndicesResolvingAction<UpdateSettingsRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
 
@@ -158,7 +162,7 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        final Index[] concreteIndices = resolveIndicesAsArray(request, state);
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
             concreteIndices
         )
@@ -179,5 +183,14 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
                 listener.onFailure(t);
             }
         });
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(UpdateSettingsRequest request) {
+        return ResolvedIndices.of(resolveIndicesAsArray(request, clusterService.state()));
+    }
+
+    private Index[] resolveIndicesAsArray(UpdateSettingsRequest request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteIndices(clusterState, request);
     }
 }

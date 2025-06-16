@@ -35,11 +35,13 @@ package org.opensearch.action.support.single.instance;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -76,7 +78,7 @@ import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.EXCLUD
  */
 public abstract class TransportInstanceSingleOperationAction<
     Request extends InstanceShardOperationRequest<Request>,
-    Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
+    Response extends ActionResponse> extends HandledTransportAction<Request, Response> implements TransportIndicesResolvingAction<Request> {
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -106,6 +108,22 @@ public abstract class TransportInstanceSingleOperationAction<
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncSingleAction(request, listener).start();
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(Request request) {
+        if (request.concreteIndex() != null) {
+            return ResolvedIndices.of(request.concreteIndex());
+        } else {
+            try {
+                // TODO shall we possibly also set request.concreteIndex here?
+                return ResolvedIndices.of(indexNameExpressionResolver.concreteWriteIndex(clusterService.state(), request).getName());
+            } catch (IndexNotFoundException e) {
+                // We just return the original unresolved expression. The error we encountered here will
+                // be encountered again in the doStart() method
+                return ResolvedIndices.of(request.index());
+            }
+        }
     }
 
     protected abstract String executor(ShardId shardId);
