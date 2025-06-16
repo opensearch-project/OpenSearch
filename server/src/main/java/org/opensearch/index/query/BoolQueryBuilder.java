@@ -555,7 +555,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     private boolean rewriteMustClausesToFilter(BoolQueryBuilder newBuilder, QueryRewriteContext queryRewriteContext) {
-        // If we have must clauses which return the same score for all matching documents, like term queries or numeric ranges,
+        // If we have must clauses which return the same score for all matching documents, like numeric term queries or ranges,
         // moving them from must clauses to filter clauses improves performance in some cases.
         // This works because it can let Lucene use MaxScoreCache to skip non-competitive docs.
         boolean changed = false;
