@@ -6,12 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry;
+package org.opensearch.test.telemetry;
 
 import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.tags.Tags;
 
-import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -24,13 +24,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TestInMemoryCounter implements Counter {
 
     private AtomicInteger counterValue = new AtomicInteger(0);
-    private ConcurrentHashMap<HashMap<String, ?>, Double> counterValueForTags = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Map<String, ?>, Double> counterValueForTags = new ConcurrentHashMap<>();
 
+    /**
+     * Constructor.
+     */
+    public TestInMemoryCounter() {}
+
+    /**
+     * returns the counter value.
+     * @return
+     */
     public Integer getCounterValue() {
         return this.counterValue.get();
     }
 
-    public ConcurrentHashMap<HashMap<String, ?>, Double> getCounterValueForTags() {
+    /**
+     * returns the counter value tags
+     * @return
+     */
+    public ConcurrentHashMap<Map<String, ?>, Double> getCounterValueForTags() {
         return this.counterValueForTags;
     }
 
@@ -41,12 +54,12 @@ public class TestInMemoryCounter implements Counter {
 
     @Override
     public synchronized void add(double value, Tags tags) {
-        HashMap<String, ?> hashMap = (HashMap<String, ?>) tags.getTagsMap();
-        if (counterValueForTags.get(hashMap) == null) {
-            counterValueForTags.put(hashMap, value);
+        Map<String, ?> tagsMap = tags.getTagsMap();
+        if (counterValueForTags.get(tagsMap) == null) {
+            counterValueForTags.put(tagsMap, value);
         } else {
-            value = counterValueForTags.get(hashMap) + value;
-            counterValueForTags.put(hashMap, value);
+            value = counterValueForTags.get(tagsMap) + value;
+            counterValueForTags.put(tagsMap, value);
         }
     }
 }

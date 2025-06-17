@@ -116,7 +116,8 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
                     // We have existing filters for this dimension
                     // Get the appropriate mapper for this dimension
                     DimensionFilterMapper mapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-                        context.mapperService().fieldType(dimension)
+                        context.mapperService().fieldType(dimension),
+                        context
                     );
                     if (mapper == null) {
                         return null; // Unsupported field type
@@ -156,7 +157,6 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
                 }
             }
         }
-
         return new StarTreeFilter(dimensionToFilters);
     }
 
@@ -168,9 +168,8 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
         if (shouldClauses.isEmpty()) {
             return null;
         }
-
-        // First, validate all SHOULD clauses are for same dimension
         String commonDimension = null;
+        // First, validate all SHOULD clauses are for same dimension
         Map<String, List<DimensionFilter>> dimensionToFilters = new HashMap<>();
         for (QueryBuilder clause : shouldClauses) {
             StarTreeFilter clauseFilter;
@@ -198,9 +197,15 @@ public class BoolStarTreeFilterProvider implements StarTreeFilterProvider {
             }
 
             // Simply collect all filters - StarTreeTraversal will handle OR operation
-            dimensionToFilters.computeIfAbsent(dimension, k -> new ArrayList<>()).addAll(clauseFilter.getFiltersForDimension(dimension));
+            dimensionToFilters.computeIfAbsent(commonDimension, k -> new ArrayList<>())
+                .addAll(clauseFilter.getFiltersForDimension(dimension));
         }
-        return new StarTreeFilter(dimensionToFilters);
+
+        DimensionFilterMapper mapper = DimensionFilterMapper.Factory.fromMappedFieldType(
+            context.mapperService().fieldType(commonDimension),
+            context
+        );
+        return new StarTreeFilter(Map.of(commonDimension, mapper.getFinalDimensionFilters(dimensionToFilters.get(commonDimension))));
     }
 
     private List<QueryBuilder> getCombinedMustAndFilterClauses(BoolQueryBuilder boolQuery) {
