@@ -343,7 +343,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                 );
 
                 // only modify the start/end time of the TimingType if the slice used the timer
-                if(sliceBreakdownTypeCount > 0L) {
+                if (sliceBreakdownTypeCount > 0L) {
                     // query start/end time for a TimingType is min/max of start/end time across slices for that TimingType
                     queryTimingTypeEndTime = Math.max(
                         queryTimingTypeEndTime,
