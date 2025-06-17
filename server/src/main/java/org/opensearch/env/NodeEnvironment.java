@@ -1291,6 +1291,11 @@ public final class NodeEnvironment implements Closeable {
         return indexSubPaths;
     }
 
+    @Deprecated(forRemoval = true)
+    public static List<Path> collectFileCacheDataPath(NodePath fileCacheNodePath) throws IOException {
+        return collectFileCacheDataPath(fileCacheNodePath, Settings.EMPTY);
+    }
+
     private static void processDirectory(Path directoryPath, List<Path> indexSubPaths) throws IOException {
         if (Files.isDirectory(directoryPath)) {
             try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(directoryPath)) {

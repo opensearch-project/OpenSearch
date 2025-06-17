@@ -429,8 +429,6 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
                     .append(entry.getValue().refCount)
                     .append(" , Weight: ")
                     .append(entry.getValue().weight)
-                    .append(" , Pinned: ")
-                    .append(entry.getValue().pinned)
                     .append(" ]\n");
             }
             if (allFiles.length() > 1) {
