@@ -257,8 +257,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     query
                 );
             } else if (expectedFieldName.equals(INT_FIELD_NAME)) {
-                assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+                assertThat(query, instanceOf(ApproximateScoreQuery.class));
+                Query approximationQuery = ((ApproximateScoreQuery) query).getApproximationQuery();
+                assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
+                Query originalQuery = ((ApproximateScoreQuery) query).getOriginalQuery();
+                assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
+                query = ((IndexOrDocValuesQuery) originalQuery).getIndexQuery();
                 assertThat(query, instanceOf(PointRangeQuery.class));
                 Integer min = (Integer) queryBuilder.from();
                 Integer max = (Integer) queryBuilder.to();
