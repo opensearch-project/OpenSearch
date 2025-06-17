@@ -47,6 +47,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
@@ -271,6 +272,7 @@ public final class IndexModule {
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
      */
+    @InternalApi
     public IndexModule(
         final IndexSettings indexSettings,
         final AnalysisRegistry analysisRegistry,
@@ -299,6 +301,7 @@ public final class IndexModule {
         this.compositeIndexSettings = compositeIndexSettings;
     }
 
+    @InternalApi
     public IndexModule(
         final IndexSettings indexSettings,
         final AnalysisRegistry analysisRegistry,
