@@ -44,6 +44,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.node.Node;
 import org.opensearch.node.NodeResourceUsageStats;
 
 import java.io.IOException;
@@ -202,7 +203,10 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
                     }
                     builder.endObject(); // end "most_available"
                     builder.startObject("node_resource_usage_stats");
-                    nodeResourceUsageStats.get(c.getKey()).toXContent(builder, params);
+                    NodeResourceUsageStats resourceUsageStats = nodeResourceUsageStats.get(c.getKey());
+                    if(resourceUsageStats != null) {
+                        resourceUsageStats.toXContent(builder, params);
+                    }
                     builder.endObject();
                 }
                 builder.endObject(); // end $nodename
