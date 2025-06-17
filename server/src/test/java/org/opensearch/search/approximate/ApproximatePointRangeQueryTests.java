@@ -1002,6 +1002,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
+    // This method can be used to test both DateRangeQueries and DateRangeIncludingNowQueries
     private void testApproximateVsExactQuery(IndexSearcher searcher, String field, String lowerBound, String upperBound, int size, int dims)
         throws IOException {
         // Parse date expressions to milliseconds
