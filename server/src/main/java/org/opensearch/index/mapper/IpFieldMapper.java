@@ -39,6 +39,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.sandbox.search.DocValuesMultiRangeQuery;
 import org.apache.lucene.sandbox.search.MultiRangeQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -178,6 +179,28 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         return new Builder(n, ignoreMalformedByDefault, c.indexVersionCreated());
     });
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        checkStoredAndDocValuesForDerivedSource();
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Considerations:
+     *    1. When using doc values, for multi value field, result would be deduplicated and in sorted order
+     *    2. When using stored field, order and duplicate values would be preserved
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(
+            mappedFieldType,
+            new SortedSetDocValuesFetcher(mappedFieldType, simpleName()),
+            new StoredFieldFetcher(mappedFieldType, simpleName())
+        );
+    }
+
     /**
      * Field type for IP fields
      *
@@ -277,14 +300,109 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            Tuple<List<InetAddress>, List<String>> ipsMasks = splitIpsAndMasks(values);
-            List<Query> combiner = new ArrayList<>();
-            convertIps(ipsMasks.v1(), combiner);
-            convertMasks(ipsMasks.v2(), context, combiner);
-            if (combiner.size() == 1) {
-                return combiner.get(0);
+
+            List<InetAddress> concreteIPs = new ArrayList<>();
+            List<PointRangeQuery> masks = new ArrayList<>();
+            parseIps(values, concreteIPs, masks);
+
+            if (!isSearchable()) {
+                return hasDocValues() ? docValuesTermsQuery(concreteIPs, masks) : new MatchNoDocsQuery("never happened");
             }
-            return new ConstantScoreQuery(union(combiner));
+
+            if (!hasDocValues()) {
+                return indexTermsQuery(concreteIPs, masks);
+            }
+
+            // Both searchable and doc values available - create composite query
+            return new IndexOrDocValuesQuery(indexTermsQuery(concreteIPs, masks), docValuesTermsQuery(concreteIPs, masks));
+        }
+
+        private void parseIps(List<?> values, List<InetAddress> concreteIPs, List<PointRangeQuery> masks) {
+            for (Object value : values) {
+                if (value instanceof InetAddress) {
+                    concreteIPs.add((InetAddress) value);
+                    continue;
+                }
+
+                String strVal = value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
+
+                if (strVal.contains("/")) {
+                    Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(strVal);
+                    masks.add((PointRangeQuery) InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2()));
+                } else {
+                    concreteIPs.add(InetAddresses.forString(strVal));
+                }
+            }
+        }
+
+        private Query indexTermsQuery(List<InetAddress> concreteIPs, List<PointRangeQuery> masks) {
+            List<Query> queries = new ArrayList<>();
+            addConcreteIpQuery(concreteIPs, queries);
+            addMaskQueries(masks, queries);
+
+            return combineQueries(queries);
+        }
+
+        private void addConcreteIpQuery(List<InetAddress> ips, List<Query> queries) {
+            if (ips.isEmpty()) return;
+
+            queries.add(
+                ips.size() == 1
+                    ? InetAddressPoint.newExactQuery(name(), ips.getFirst())
+                    : InetAddressPoint.newSetQuery(name(), ips.toArray(new InetAddress[0]))
+            );
+        }
+
+        private void addMaskQueries(List<PointRangeQuery> masks, List<Query> queries) {
+            if (masks.isEmpty()) return;
+
+            if (masks.size() == 1) {
+                queries.add(masks.getFirst());
+            } else {
+                MultiIpRangeQueryBuilder multiRange = new MultiIpRangeQueryBuilder(name());
+                masks.forEach(q -> multiRange.add(q.getLowerPoint(), q.getUpperPoint()));
+                queries.add(multiRange.build());
+            }
+        }
+
+        private Query combineQueries(List<Query> queries) {
+            return switch (queries.size()) {
+                case 0 -> new MatchNoDocsQuery();
+                case 1 -> queries.getFirst();
+                default -> new ConstantScoreQuery(union(queries));
+            };
+        }
+
+        private Query docValuesTermsQuery(List<InetAddress> concreteIPs, List<PointRangeQuery> masks) {
+            List<BytesRef> ipsBytes = concreteIPs.stream().map(addr -> new BytesRef(InetAddressPoint.encode(addr))).toList();
+
+            if (ipsBytes.isEmpty() && masks.isEmpty()) {
+                return new MatchNoDocsQuery();
+            }
+            if (masks.isEmpty()) {
+                if (ipsBytes.size() == 1) {
+                    return SortedSetDocValuesField.newSlowExactQuery(name(), ipsBytes.getFirst());
+                } else {
+                    return SortedSetDocValuesField.newSlowSetQuery(name(), ipsBytes);
+                }
+            } else {
+                if (masks.size() == 1 && ipsBytes.isEmpty()) {
+                    return SortedSetDocValuesField.newSlowRangeQuery(
+                        name(),
+                        new BytesRef(masks.getFirst().getLowerPoint()),
+                        new BytesRef(masks.getFirst().getUpperPoint()),
+                        true,
+                        true
+                    );
+                } else {
+                    DocValuesMultiRangeQuery.SortedSetStabbingBuilder builder = new DocValuesMultiRangeQuery.SortedSetStabbingBuilder(
+                        name()
+                    );
+                    masks.forEach(q -> builder.add(new BytesRef(q.getLowerPoint()), new BytesRef(q.getUpperPoint())));
+                    ipsBytes.forEach(builder::add);
+                    return builder.build();
+                }
+            }
         }
 
         private Query union(List<Query> combiner) {
@@ -293,83 +411,6 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 bqb.add(q, BooleanClause.Occur.SHOULD);
             }
             return bqb.build();
-        }
-
-        private void convertIps(List<InetAddress> inetAddresses, List<Query> sink) {
-            if (!inetAddresses.isEmpty() && (isSearchable() || hasDocValues())) {
-                Query pointsQuery = null;
-                if (isSearchable()) {
-                    pointsQuery = inetAddresses.size() == 1
-                        ? InetAddressPoint.newExactQuery(name(), inetAddresses.iterator().next())
-                        : InetAddressPoint.newSetQuery(name(), inetAddresses.toArray(new InetAddress[0]));
-                }
-                Query dvQuery = null;
-                if (hasDocValues()) {
-                    List<BytesRef> set = new ArrayList<>(inetAddresses.size());
-                    for (final InetAddress address : inetAddresses) {
-                        set.add(new BytesRef(InetAddressPoint.encode(address)));
-                    }
-                    if (set.size() == 1) {
-                        dvQuery = SortedSetDocValuesField.newSlowExactQuery(name(), set.iterator().next());
-                    } else {
-                        dvQuery = SortedSetDocValuesField.newSlowSetQuery(name(), set);
-                    }
-                }
-                final Query out;
-                if (isSearchable() && hasDocValues()) {
-                    out = new IndexOrDocValuesQuery(pointsQuery, dvQuery);
-                } else {
-                    out = isSearchable() ? pointsQuery : dvQuery;
-                }
-                sink.add(out);
-            }
-        }
-
-        private void convertMasks(List<String> masks, QueryShardContext context, List<Query> sink) {
-            if (!masks.isEmpty() && (isSearchable() || hasDocValues())) {
-                MultiIpRangeQueryBuilder multiRange = null;
-                for (String mask : masks) {
-                    final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(mask);
-                    PointRangeQuery query = (PointRangeQuery) InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
-                    if (isSearchable()) { // even there is DV we don't go with it, since we can't guess clauses limit
-                        if (multiRange == null) {
-                            multiRange = new MultiIpRangeQueryBuilder(name());
-                        }
-                        multiRange.add(query.getLowerPoint(), query.getUpperPoint());
-                    } else { // it may hit clauses limit sooner or later
-                        Query dvRange = SortedSetDocValuesField.newSlowRangeQuery(
-                            name(),
-                            new BytesRef(query.getLowerPoint()),
-                            new BytesRef(query.getUpperPoint()),
-                            true,
-                            true
-                        );
-                        sink.add(dvRange);
-                    }
-                }
-                // never IndexOrDocValuesQuery() since we can't guess clauses limit
-                if (multiRange != null) {
-                    sink.add(multiRange.build());
-                }
-            }
-        }
-
-        private static Tuple<List<InetAddress>, List<String>> splitIpsAndMasks(List<?> values) {
-            List<InetAddress> concreteIPs = new ArrayList<>();
-            List<String> masks = new ArrayList<>();
-            for (final Object value : values) {
-                if (value instanceof InetAddress) {
-                    concreteIPs.add((InetAddress) value);
-                } else {
-                    final String strVal = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-                    if (strVal.contains("/")) {
-                        masks.add(strVal);
-                    } else {
-                        concreteIPs.add(InetAddresses.forString(strVal));
-                    }
-                }
-            }
-            return Tuple.tuple(concreteIPs, masks);
         }
 
         @Override

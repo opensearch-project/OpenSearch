@@ -40,6 +40,7 @@ import java.util.function.Function;
  */
 public class ApproximatePointRangeQuery extends ApproximateQuery {
     public static final Function<byte[], String> LONG_FORMAT = bytes -> Long.toString(LongPoint.decodeDimension(bytes, 0));
+
     private int size;
 
     private SortOrder sortOrder;
@@ -162,10 +163,6 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     @Override
                     public void visit(int docID) {
                         // it is possible that size < 1024 and docCount < size but we will continue to count through all the 1024 docs
-                        // and collect less, but it won't hurt performance
-                        if (docCount[0] >= size) {
-                            return;
-                        }
                         adder.add(docID);
                         docCount[0]++;
                     }
@@ -177,9 +174,8 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
 
                     @Override
                     public void visit(IntsRef ref) {
-                        for (int i = 0; i < ref.length; i++) {
-                            adder.add(ref.ints[ref.offset + i]);
-                        }
+                        adder.add(ref);
+                        docCount[0] += ref.length;
                     }
 
                     @Override
@@ -248,108 +244,93 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
             // custom intersect visitor to walk the left of the tree
             public void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
-                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] >= size) {
                     return;
                 }
-                switch (r) {
-                    case CELL_OUTSIDE_QUERY:
-                        // This cell is fully outside the query shape: stop recursing
-                        break;
-                    case CELL_INSIDE_QUERY:
-                        // If the cell is fully inside, we keep moving to child until we reach a point where we can no longer move or when
-                        // we have sufficient doc count. We first move down and then move to the left child
-                        if (pointTree.moveToChild() && docCount[0] < size) {
-                            do {
-                                intersectLeft(visitor, pointTree, docCount);
-                            } while (pointTree.moveToSibling() && docCount[0] < size);
-                            pointTree.moveToParent();
-                        } else {
-                            // we're at the leaf node, if we're under the size, visit all the docIds in this node.
-                            if (docCount[0] < size) {
-                                pointTree.visitDocIDs(visitor);
-                            }
-                        }
-                        break;
-                    case CELL_CROSSES_QUERY:
-                        // The cell crosses the shape boundary, or the cell fully contains the query, so we fall
-                        // through and do full filtering:
-                        if (pointTree.moveToChild() && docCount[0] < size) {
-                            do {
-                                intersectLeft(visitor, pointTree, docCount);
-                            } while (pointTree.moveToSibling() && docCount[0] < size);
-                            pointTree.moveToParent();
-                        } else {
-                            // TODO: we can assert that the first value here in fact matches what the pointTree
-                            // claimed?
-                            // Leaf node; scan and filter all points in this block:
-                            if (docCount[0] < size) {
-                                pointTree.visitDocValues(visitor);
-                            }
-                        }
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unreachable code");
+                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
+                if (r == PointValues.Relation.CELL_OUTSIDE_QUERY) {
+                    return;
                 }
+                // Handle leaf nodes
+                if (pointTree.moveToChild() == false) {
+                    if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
+                        pointTree.visitDocIDs(visitor);
+                    } else {
+                        // CELL_CROSSES_QUERY
+                        pointTree.visitDocValues(visitor);
+                    }
+                    return;
+                }
+                // For CELL_INSIDE_QUERY, check if we can skip right child
+                if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
+                    long leftSize = pointTree.size();
+                    long needed = size - docCount[0];
+
+                    if (leftSize >= needed) {
+                        // Process only left child
+                        intersectLeft(visitor, pointTree, docCount);
+                        pointTree.moveToParent();
+                        return;
+                    }
+                }
+                // We need both children - now clone right
+                PointValues.PointTree rightChild = null;
+                if (pointTree.moveToSibling()) {
+                    rightChild = pointTree.clone();
+                    pointTree.moveToParent();
+                    pointTree.moveToChild();
+                }
+                // Process both children: left first, then right if needed
+                intersectLeft(visitor, pointTree, docCount);
+                if (docCount[0] < size && rightChild != null) {
+                    intersectLeft(visitor, rightChild, docCount);
+                }
+                pointTree.moveToParent();
             }
 
-            // custom intersect visitor to walk the right of tree
+            // custom intersect visitor to walk the right of tree (from rightmost leaf going left)
             public void intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] docCount)
                 throws IOException {
-                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] >= size) {
                     return;
                 }
-                switch (r) {
-                    case CELL_OUTSIDE_QUERY:
-                        // This cell is fully outside the query shape: stop recursing
-                        break;
-
-                    case CELL_INSIDE_QUERY:
-                        // If the cell is fully inside, we keep moving right as long as the point tree size is over our size requirement
-                        if (pointTree.size() > size && docCount[0] < size && moveRight(pointTree)) {
-                            intersectRight(visitor, pointTree, docCount);
-                            pointTree.moveToParent();
-                        }
-                        // if point tree size is no longer over, we have to go back one level where it still was over and the intersect left
-                        else if (pointTree.size() <= size && docCount[0] < size) {
-                            pointTree.moveToParent();
-                            intersectLeft(visitor, pointTree, docCount);
-                        }
-                        // if we've reached leaf, it means out size is under the size of the leaf, we can just collect all docIDs
-                        else {
-                            // Leaf node; scan and filter all points in this block:
-                            if (docCount[0] < size) {
-                                pointTree.visitDocIDs(visitor);
-                            }
-                        }
-                        break;
-                    case CELL_CROSSES_QUERY:
-                        // If the cell is fully inside, we keep moving right as long as the point tree size is over our size requirement
-                        if (pointTree.size() > size && docCount[0] < size && moveRight(pointTree)) {
-                            intersectRight(visitor, pointTree, docCount);
-                            pointTree.moveToParent();
-                        }
-                        // if point tree size is no longer over, we have to go back one level where it still was over and the intersect left
-                        else if (pointTree.size() <= size && docCount[0] < size) {
-                            pointTree.moveToParent();
-                            intersectLeft(visitor, pointTree, docCount);
-                        }
-                        // if we've reached leaf, it means out size is under the size of the leaf, we can just collect all doc values
-                        else {
-                            // Leaf node; scan and filter all points in this block:
-                            if (docCount[0] < size) {
-                                pointTree.visitDocValues(visitor);
-                            }
-                        }
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unreachable code");
+                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
+                if (r == PointValues.Relation.CELL_OUTSIDE_QUERY) {
+                    return;
                 }
-            }
-
-            public boolean moveRight(PointValues.PointTree pointTree) throws IOException {
-                return pointTree.moveToChild() && pointTree.moveToSibling();
+                // Handle leaf nodes
+                if (pointTree.moveToChild() == false) {
+                    if (r == PointValues.Relation.CELL_INSIDE_QUERY) {
+                        pointTree.visitDocIDs(visitor);
+                    } else {
+                        // CELL_CROSSES_QUERY
+                        pointTree.visitDocValues(visitor);
+                    }
+                    return;
+                }
+                // Internal node - get left child reference (we're at left child initially)
+                PointValues.PointTree leftChild = pointTree.clone();
+                // Move to right child if it exists
+                boolean hasRightChild = pointTree.moveToSibling();
+                // For CELL_INSIDE_QUERY, check if we can skip left child
+                if (r == PointValues.Relation.CELL_INSIDE_QUERY && hasRightChild) {
+                    long rightSize = pointTree.size();
+                    long needed = size - docCount[0];
+                    if (rightSize >= needed) {
+                        // Right child has all we need - only process right
+                        intersectRight(visitor, pointTree, docCount);
+                        pointTree.moveToParent();
+                        return;
+                    }
+                }
+                // Process both children: right first (for DESC), then left if needed
+                if (hasRightChild) {
+                    intersectRight(visitor, pointTree, docCount);
+                }
+                if (docCount[0] < size) {
+                    intersectRight(visitor, leftChild, docCount);
+                }
+                pointTree.moveToParent();
             }
 
             @Override
@@ -367,7 +348,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     if (sortOrder == null || sortOrder.equals(SortOrder.ASC)) {
                         return new ScorerSupplier() {
 
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, pointRangeQuery.getField());
+                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                             final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
@@ -395,7 +376,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                         size += deletedDocs;
                         return new ScorerSupplier() {
 
-                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, pointRangeQuery.getField());
+                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values);
                             final PointValues.IntersectVisitor visitor = getIntersectVisitor(result, docCount);
                             long cost = -1;
 
@@ -449,7 +430,11 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
         if (context.from() + context.size() == 0) {
             this.setSize(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
         } else {
-            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo() + 1));
+            // We add +1 to ensure we collect at least one more document than required. This guarantees correct relation value:
+            // - If we find exactly trackTotalHitsUpTo docs: relation = EQUAL_TO
+            // - If we find > trackTotalHitsUpTo docs: relation = GREATER_THAN_OR_EQUAL_TO
+            // With +1, we will consistently get GREATER_THAN_OR_EQUAL_TO relation.
+            this.setSize(Math.max(context.from() + context.size(), context.trackTotalHitsUpTo()) + 1);
         }
         if (context.request() != null && context.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(context.request().source());

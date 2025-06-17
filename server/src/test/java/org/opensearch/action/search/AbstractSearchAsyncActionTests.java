@@ -49,7 +49,6 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -67,7 +66,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
-import org.opensearch.transport.TransportException;
 import org.junit.After;
 import org.junit.Before;
 
@@ -138,7 +136,6 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             controlled,
             false,
             false,
-            false,
             expected,
             resourceUsage,
             new SearchShardIterator(null, null, Collections.emptyList(), null)
@@ -151,7 +148,6 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         ActionListener<SearchResponse> listener,
         final boolean controlled,
         final boolean failExecutePhaseOnShard,
-        final boolean throw4xxExceptionOnShard,
         final boolean catchExceptionWhenExecutePhaseOnShard,
         final AtomicLong expected,
         final TaskResourceUsage resourceUsage,
@@ -221,11 +217,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                 final SearchActionListener<SearchPhaseResult> listener
             ) {
                 if (failExecutePhaseOnShard) {
-                    if (throw4xxExceptionOnShard) {
-                        listener.onFailure(new TransportException(new TaskCancelledException(shardIt.shardId().toString())));
-                    } else {
-                        listener.onFailure(new ShardNotFoundException(shardIt.shardId()));
-                    }
+                    listener.onFailure(new ShardNotFoundException(shardIt.shardId()));
                 } else {
                     if (catchExceptionWhenExecutePhaseOnShard) {
                         try {
@@ -593,7 +585,6 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             false,
             true,
             false,
-            false,
             new AtomicLong(),
             new TaskResourceUsage(randomLong(), randomLong()),
             shards
@@ -608,62 +599,6 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
         assertSame(searchResponse.getHits(), internalSearchResponse.hits());
         assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
-    }
-
-    public void testSkipInValidRetryInMultiReplicas() throws InterruptedException {
-        final Index index = new Index("test", UUID.randomUUID().toString());
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicBoolean fail = new AtomicBoolean(true);
-
-        List<String> targetNodeIds = List.of("n1", "n2", "n3");
-        final SearchShardIterator[] shards = IntStream.range(2, 4)
-            .mapToObj(i -> new SearchShardIterator(null, new ShardId(index, i), targetNodeIds, null, null, null))
-            .toArray(SearchShardIterator[]::new);
-
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-        searchRequest.setMaxConcurrentShardRequests(1);
-
-        final ArraySearchPhaseResults<SearchPhaseResult> queryResult = new ArraySearchPhaseResults<>(shards.length);
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
-            searchRequest,
-            queryResult,
-            new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(SearchResponse response) {
-
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (fail.compareAndExchange(true, false)) {
-                        try {
-                            throw new RuntimeException("Simulated exception");
-                        } finally {
-                            executor.submit(() -> latch.countDown());
-                        }
-                    }
-                }
-            },
-            false,
-            true,
-            true,
-            false,
-            new AtomicLong(),
-            new TaskResourceUsage(randomLong(), randomLong()),
-            shards
-        );
-        action.run();
-        assertTrue(latch.await(1, TimeUnit.SECONDS));
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, action.buildShardFailures(), null, null);
-        assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
-        assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
-        assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
-        assertSame(searchResponse.getHits(), internalSearchResponse.hits());
-        assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
-        for (int i = 0; i < shards.length; i++) {
-            assertEquals(targetNodeIds.size() - 1, shards[i].remaining());
-        }
     }
 
     public void testOnShardSuccessPhaseDoneFailure() throws InterruptedException {
@@ -695,7 +630,6 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                     executor.submit(() -> latch.countDown());
                 }
             },
-            false,
             false,
             false,
             false,
@@ -749,7 +683,6 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                     }
                 }
             },
-            false,
             false,
             false,
             catchExceptionWhenExecutePhaseOnShard,

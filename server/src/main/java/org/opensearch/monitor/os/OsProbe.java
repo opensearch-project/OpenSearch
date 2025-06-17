@@ -89,12 +89,12 @@ public class OsProbe {
     private static final Method getSystemCpuLoad;
 
     static {
-        getFreePhysicalMemorySize = getMethod("getFreePhysicalMemorySize");
-        getTotalPhysicalMemorySize = getMethod("getTotalPhysicalMemorySize");
+        getFreePhysicalMemorySize = getMethod("getFreeMemorySize");
+        getTotalPhysicalMemorySize = getMethod("getTotalMemorySize");
         getFreeSwapSpaceSize = getMethod("getFreeSwapSpaceSize");
         getTotalSwapSpaceSize = getMethod("getTotalSwapSpaceSize");
         getSystemLoadAverage = getMethod("getSystemLoadAverage");
-        getSystemCpuLoad = getMethod("getSystemCpuLoad");
+        getSystemCpuLoad = getMethod("getCpuLoad");
     }
 
     /**

@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -42,7 +43,6 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.CopyOnWriteHashMap;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -446,13 +446,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Map<String, Object> compositeNode,
             ParserContext parserContext
         ) {
-            if (!FeatureFlags.isEnabled(FeatureFlags.STAR_TREE_INDEX_SETTING)) {
-                throw new IllegalArgumentException(
-                    "star tree index is under an experimental feature and can be activated only by enabling "
-                        + FeatureFlags.STAR_TREE_INDEX_SETTING.getKey()
-                        + " feature flag in the JVM options"
-                );
-            }
             if (StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.get(parserContext.getSettings()) == false) {
                 throw new IllegalArgumentException(
                     String.format(
@@ -911,4 +904,22 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     }
 
+    @Override
+    public void canDeriveSource() {
+        if (!this.enabled.value() || this.nested.isNested()) {
+            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled/nested");
+        }
+        for (final Mapper mapper : this.mappers.values()) {
+            mapper.canDeriveSource();
+        }
+    }
+
+    @Override
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        builder.startObject(simpleName());
+        for (final Mapper mapper : this.mappers.values()) {
+            mapper.deriveSource(builder, leafReader, docId);
+        }
+        builder.endObject();
+    }
 }

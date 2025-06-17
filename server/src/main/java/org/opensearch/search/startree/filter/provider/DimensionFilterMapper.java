@@ -21,9 +21,11 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.compositeindex.datacube.DimensionDataType;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
 import org.opensearch.search.startree.filter.MatchNoneFilter;
@@ -63,19 +65,10 @@ public interface DimensionFilterMapper {
     /**
      * Generates @{@link RangeMatchDimFilter} from Range query input.
      * @param mappedFieldType:
-     * @param rawLow:
-     * @param rawHigh:
-     * @param includeLow:
-     * @param includeHigh:
+     * @param rangeQuery:
      * @return :
      */
-    DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    );
+    DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery);
 
     /**
      * Called during conversion from parsedUserInput to segmentOrdinal for every segment.
@@ -92,8 +85,57 @@ public interface DimensionFilterMapper {
         DimensionFilter.MatchType matchType
     );
 
+    /**
+     * Compares two values of the same type.
+     * @param v1 first object
+     * @param v2 second object
+     * @return :
+     */
+    int compareValues(Object v1, Object v2);
+
+    /**
+     * Checks if a value falls within a range.
+     * Default implementation for regular types.
+     */
+    default boolean isValueInRange(Object value, Object low, Object high, boolean includeLow, boolean includeHigh) {
+        if (low != null) {
+            int comparison = compareValues(value, low);
+            if (comparison < 0 || (comparison == 0 && !includeLow)) {
+                return false;
+            }
+        }
+
+        if (high != null) {
+            int comparison = compareValues(value, high);
+            if (comparison > 0 || (comparison == 0 && !includeHigh)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    default boolean isValidRange(Object low, Object high, boolean includeLow, boolean includeHigh) {
+        if (low == null || high == null) {
+            return true;
+        }
+        int comparison = compareValues(low, high);
+        return comparison < 0 || (comparison == 0 && includeLow && includeHigh);
+    }
+
     default Comparator<Long> comparator() {
         return DimensionDataType.LONG::compare;
+    }
+
+    default boolean resolveUsingSubDimension() {
+        return false;
+    }
+
+    default String getSubDimensionFieldEffective(String subDimensionField1, String subDimensionField2) {
+        return null;
+    }
+
+    default List<DimensionFilter> getFinalDimensionFilters(List<DimensionFilter> filters) {
+        return filters;
     }
 
     /**
@@ -122,8 +164,11 @@ public interface DimensionFilterMapper {
             new UnsignedLongFieldMapperNumeric()
         );
 
-        public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType) {
+        public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType, SearchContext searchContext) {
             if (mappedFieldType != null) {
+                if (DateFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName())) {
+                    return new StarDateFieldMapper(searchContext);
+                }
                 return DIMENSION_FILTER_MAPPINGS.get(mappedFieldType.typeName());
             }
             return null;
@@ -144,6 +189,14 @@ abstract class NumericMapper implements DimensionFilterMapper {
         // Casting to long ensures that all numeric fields have been converted to equivalent long at request parsing time.
         return Optional.of((long) value);
     }
+
+    @Override
+    public int compareValues(Object v1, Object v2) {
+        if (!(v1 instanceof Long) || !(v2 instanceof Long)) {
+            throw new IllegalArgumentException("Expected Long values for numeric comparison");
+        }
+        return Long.compare((Long) v1, (Long) v2);
+    }
 }
 
 abstract class NumericNonDecimalMapper extends NumericMapper {
@@ -159,27 +212,27 @@ abstract class NumericNonDecimalMapper extends NumericMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    ) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
 
-        Long parsedLow = rawLow == null ? defaultMinimum() : numberFieldType.numberType().parse(rawLow, true).longValue();
-        Long parsedHigh = rawHigh == null ? defaultMaximum() : numberFieldType.numberType().parse(rawHigh, true).longValue();
+        Long parsedLow = rangeQuery.from() == null
+            ? defaultMinimum()
+            : numberFieldType.numberType().parse(rangeQuery.from(), true).longValue();
+        Long parsedHigh = rangeQuery.to() == null
+            ? defaultMaximum()
+            : numberFieldType.numberType().parse(rangeQuery.to(), true).longValue();
 
         boolean lowerTermHasDecimalPart = hasDecimalPart(parsedLow);
-        if ((lowerTermHasDecimalPart == false && includeLow == false) || (lowerTermHasDecimalPart && signum(parsedLow) > 0)) {
+        if ((lowerTermHasDecimalPart == false && rangeQuery.includeLower() == false)
+            || (lowerTermHasDecimalPart && signum(parsedLow) > 0)) {
             if (parsedLow.equals(defaultMaximum())) {
                 return new MatchNoneFilter();
             }
             ++parsedLow;
         }
         boolean upperTermHasDecimalPart = hasDecimalPart(parsedHigh);
-        if ((upperTermHasDecimalPart == false && includeHigh == false) || (upperTermHasDecimalPart && signum(parsedHigh) < 0)) {
+        if ((upperTermHasDecimalPart == false && rangeQuery.includeUpper() == false)
+            || (upperTermHasDecimalPart && signum(parsedHigh) < 0)) {
             if (parsedHigh.equals(defaultMinimum())) {
                 return new MatchNoneFilter();
             }
@@ -235,6 +288,29 @@ class UnsignedLongFieldMapperNumeric extends NumericNonDecimalMapper {
         return DimensionDataType.UNSIGNED_LONG::compare;
     }
 
+    @Override
+    public int compareValues(Object v1, Object v2) {
+        if (!(v1 instanceof Long) || !(v2 instanceof Long)) {
+            throw new IllegalArgumentException("Expected Long values for unsigned comparison");
+        }
+        return Long.compareUnsigned((Long) v1, (Long) v2);
+    }
+
+    @Override
+    public boolean isValueInRange(Object value, Object low, Object high, boolean includeLow, boolean includeHigh) {
+        long v = (Long) value;
+        long l = low != null ? (Long) low : 0L;
+        long h = high != null ? (Long) high : -1L; // -1L is max unsigned
+
+        if (Long.compareUnsigned(l, h) > 0) {
+            return (Long.compareUnsigned(v, l) > 0 || (Long.compareUnsigned(v, l) == 0 && includeLow))
+                || (Long.compareUnsigned(v, h) < 0 || (Long.compareUnsigned(v, h) == 0 && includeHigh));
+        }
+
+        // Normal case
+        return super.isValueInRange(value, low, high, includeLow, includeHigh);
+    }
+
 }
 
 abstract class NumericDecimalFieldMapper extends NumericMapper {
@@ -250,26 +326,20 @@ abstract class NumericDecimalFieldMapper extends NumericMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    ) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
         Number l = Long.MIN_VALUE;
         Number u = Long.MAX_VALUE;
-        if (rawLow != null) {
-            l = numberFieldType.numberType().parse(rawLow, false);
-            if (includeLow == false) {
+        if (rangeQuery.from() != null) {
+            l = numberFieldType.numberType().parse(rangeQuery.from(), false);
+            if (rangeQuery.includeLower() == false) {
                 l = getNextHigh(l);
             }
             l = convertToDocValues(l);
         }
-        if (rawHigh != null) {
-            u = numberFieldType.numberType().parse(rawHigh, false);
-            if (includeHigh == false) {
+        if (rangeQuery.to() != null) {
+            u = numberFieldType.numberType().parse(rangeQuery.to(), false);
+            if (rangeQuery.includeUpper() == false) {
                 u = getNextLow(u);
             }
             u = convertToDocValues(u);
@@ -349,20 +419,14 @@ class KeywordFieldMapper implements DimensionFilterMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    ) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
         return new RangeMatchDimFilter(
             mappedFieldType.name(),
-            parseRawKeyword(mappedFieldType.name(), rawLow, keywordFieldType),
-            parseRawKeyword(mappedFieldType.name(), rawHigh, keywordFieldType),
-            includeLow,
-            includeHigh
+            parseRawKeyword(mappedFieldType.name(), rangeQuery.from(), keywordFieldType),
+            parseRawKeyword(mappedFieldType.name(), rangeQuery.to(), keywordFieldType),
+            rangeQuery.includeLower(),
+            rangeQuery.includeUpper()
         );
     }
 
@@ -436,4 +500,11 @@ class KeywordFieldMapper implements DimensionFilterMapper {
         return parsedValue;
     }
 
+    @Override
+    public int compareValues(Object v1, Object v2) {
+        if (!(v1 instanceof BytesRef) || !(v2 instanceof BytesRef)) {
+            throw new IllegalArgumentException("Expected BytesRef values for keyword comparison");
+        }
+        return ((BytesRef) v1).compareTo((BytesRef) v2);
+    }
 }

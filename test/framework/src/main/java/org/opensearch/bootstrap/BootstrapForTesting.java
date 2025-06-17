@@ -46,6 +46,7 @@ import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.fips.FipsMode;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.plugins.PluginInfo;
 import org.junit.Assert;
@@ -135,6 +136,9 @@ public class BootstrapForTesting {
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
+        if (FipsMode.CHECK.isFipsEnabled()) {
+            SecurityProviderManager.removeNonCompliantFipsProviders();
+        }
 
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
@@ -172,6 +176,7 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases, "plugin-classloader", "org.opensearch.plugins.ExtendedPluginsClassLoader");
                     addClassCodebase(codebases, "opensearch-nio", "org.opensearch.nio.ChannelFactory");
                     addClassCodebase(codebases, "opensearch-rest-client", "org.opensearch.client.RestClient");
+                    addClassCodebase(codebases, "opensearch-ssl-config", "org.opensearch.common.ssl.SslKeyConfig");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 // Allow modules to define own test policy in ad-hoc fashion (if needed) that is not really applicable to other modules

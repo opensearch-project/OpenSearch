@@ -211,7 +211,10 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
     public void testMultipleSlowLoggersUseSingleLog4jLogger() {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
-        SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"));
+        IndexService index1 = createIndex("index-1");
+        IndexService index2 = createIndex("index-2");
+
+        SearchContext ctx1 = searchContextWithSourceAndTask(index1);
         IndexSettings settings1 = new IndexSettings(
             createIndexMetadata(SlowLogLevel.WARN, "index-1", UUIDs.randomBase64UUID()),
             Settings.EMPTY
@@ -219,7 +222,7 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
         SearchSlowLog log1 = new SearchSlowLog(settings1);
         int numberOfLoggersBefore = context.getLoggers().size();
 
-        SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"));
+        SearchContext ctx2 = searchContextWithSourceAndTask(index2);
         IndexSettings settings2 = new IndexSettings(
             createIndexMetadata(SlowLogLevel.TRACE, "index-2", UUIDs.randomBase64UUID()),
             Settings.EMPTY

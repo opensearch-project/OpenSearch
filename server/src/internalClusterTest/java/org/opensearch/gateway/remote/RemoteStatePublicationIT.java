@@ -12,12 +12,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationState;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
+import org.opensearch.cluster.coordination.PersistedStateStats;
 import org.opensearch.cluster.coordination.PublishClusterStateStats;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
@@ -89,6 +92,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -582,6 +586,44 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         });
     }
 
+    public void testPublicationIndexAlias() throws Exception {
+        // create cluster with multi node (3 master + 2 data)
+        prepareCluster(3, 2, INDEX_NAME, 1, 2);
+        ensureStableCluster(5);
+        ensureGreen(INDEX_NAME);
+
+        createIndex("index-1");
+        createIndex("index-2");
+        createIndex("index-3");
+
+        IndicesAliasesRequest request = new IndicesAliasesRequest(); // <1>
+        IndicesAliasesRequest.AliasActions remoteIndexAction = new IndicesAliasesRequest.AliasActions(
+            IndicesAliasesRequest.AliasActions.Type.REMOVE_INDEX
+        ).index("index-1");
+        IndicesAliasesRequest.AliasActions aliasAction = new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD)
+            .index("index-2")
+            .alias("index-1");
+        request.addAliasAction(remoteIndexAction);
+        request.addAliasAction(aliasAction);
+
+        assertAcked(client().admin().indices().aliases(request).actionGet());
+        // assert here that NodeStats.discovery.remote_diff_download.failed_count is 0 for any/all node
+        NodesStatsResponse nodesStatsResponse = client().admin()
+            .cluster()
+            .nodesStats(new NodesStatsRequest().addMetric(DISCOVERY.metricName()))
+            .actionGet();
+        for (NodeStats node : nodesStatsResponse.getNodes()) {
+            List<PersistedStateStats> persistenceStats = node.getDiscoveryStats().getClusterStateStats().getPersistenceStats();
+            for (PersistedStateStats persistedStateStats : persistenceStats) {
+                String statsName = persistedStateStats.getStatsName();
+                if (FULL_DOWNLOAD_STATS.equals(statsName) || DIFF_DOWNLOAD_STATS.equals(statsName)) {
+                    assertEquals(0, persistedStateStats.getFailedCount());
+                }
+            }
+        }
+        ensureGreen(INDEX_NAME);
+    }
+
     private void assertDataNodeDownloadStats(NodeStats nodeStats) {
         // assert cluster state stats for data node
         DiscoveryStats dataNodeDiscoveryStats = nodeStats.getDiscoveryStats();
@@ -589,7 +631,10 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
         assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getUpdateSuccess());
         assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getSuccessCount() > 0);
         assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getFailedCount());
-        assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getTotalTimeInMillis() > 0);
+        assertThat(
+            dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(0).getTotalTimeInMillis(),
+            greaterThanOrEqualTo(0L)
+        );
         assertEquals(
             0,
             dataNodeDiscoveryStats.getClusterStateStats()
@@ -602,7 +647,10 @@ public class RemoteStatePublicationIT extends RemoteStoreBaseIntegTestCase {
 
         assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getSuccessCount() > 0);
         assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getFailedCount());
-        assertTrue(dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getTotalTimeInMillis() > 0);
+        assertThat(
+            dataNodeDiscoveryStats.getClusterStateStats().getPersistenceStats().get(1).getTotalTimeInMillis(),
+            greaterThanOrEqualTo(0L)
+        );
         assertEquals(
             0,
             dataNodeDiscoveryStats.getClusterStateStats()

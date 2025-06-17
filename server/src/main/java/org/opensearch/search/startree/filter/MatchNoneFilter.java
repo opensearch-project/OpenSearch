@@ -19,6 +19,7 @@ import org.opensearch.search.startree.StarTreeNodeCollector;
  */
 @ExperimentalApi
 public class MatchNoneFilter implements DimensionFilter {
+
     @Override
     public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
         // Nothing to do as we won't match anything.
@@ -32,5 +33,10 @@ public class MatchNoneFilter implements DimensionFilter {
     @Override
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
         return false;
+    }
+
+    @Override
+    public String getDimensionName() {
+        return null;
     }
 }

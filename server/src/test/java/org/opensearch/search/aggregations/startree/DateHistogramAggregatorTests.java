@@ -28,7 +28,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -49,8 +48,6 @@ import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregat
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +55,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Random;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.index.codec.composite912.datacube.startree.AbstractStarTreeDVFormatTests.topMapping;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
@@ -69,7 +65,6 @@ import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCase {
-    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
     private static final String TIMESTAMP_FIELD = "@timestamp";
     private static final MappedFieldType TIMESTAMP_FIELD_TYPE = new DateFieldMapper.DateFieldType(TIMESTAMP_FIELD);
 
@@ -78,16 +73,6 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         FIELD_NAME,
         NumberFieldMapper.NumberType.LONG
     );
-
-    @Before
-    public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-    }
-
-    @After
-    public void teardown() throws IOException {
-        fflock.close();
-    }
 
     protected Codec getCodec() {
         final Logger testLogger = LogManager.getLogger(MetricAggregatorTests.class);
@@ -163,7 +148,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
         supportedDimensions.put(
             new NumericDimension(SIZE),
-            new NumberFieldMapper.NumberFieldType(STATUS, NumberFieldMapper.NumberType.INTEGER)
+            new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.INTEGER)
         );
         supportedDimensions.put(
             new DateDimension(
@@ -325,7 +310,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             b.startObject("properties");
             b.startObject("@timestamp");
             b.field("type", "date");
-            b.field("format", "strict_date_optional_time||epoch_second");
+            b.field("format", "strict_date_optional_time||epoch_millis");
             b.endObject();
             b.startObject("message");
             b.field("type", "keyword");

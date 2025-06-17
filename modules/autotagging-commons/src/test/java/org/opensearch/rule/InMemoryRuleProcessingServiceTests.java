@@ -13,6 +13,7 @@ import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
+import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -26,7 +27,11 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        sut = new InMemoryRuleProcessingService(WLMFeatureType.WLM, DefaultAttributeValueStore::new);
+        AttributeValueStoreFactory attributeValueStoreFactory = new AttributeValueStoreFactory(
+            WLMFeatureType.WLM,
+            DefaultAttributeValueStore::new
+        );
+        sut = new InMemoryRuleProcessingService(attributeValueStoreFactory);
     }
 
     public void testAdd() {
@@ -97,6 +102,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
 
     private static Rule getRule(Set<String> attributeValues, String label) {
         return new Rule(
+            randomAlphaOfLength(5),
             "test description",
             Map.of(TestAttribute.TEST_ATTRIBUTE, attributeValues),
             WLMFeatureType.WLM,
@@ -124,7 +130,7 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         WLM;
 
         static {
-            WLM.registerFeatureType();
+            AutoTaggingRegistry.registerFeatureType(WLM);
         }
 
         @Override
@@ -135,11 +141,6 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         @Override
         public Map<String, Attribute> getAllowedAttributesRegistry() {
             return Map.of("test_attribute", TestAttribute.TEST_ATTRIBUTE);
-        }
-
-        @Override
-        public void registerFeatureType() {
-            AutoTaggingRegistry.registerFeatureType(WLM);
         }
     }
 

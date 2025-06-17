@@ -15,12 +15,14 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FilePermission;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
@@ -54,6 +56,17 @@ public class FileInterceptorIntegTests {
                 Permissions permissions = new Permissions();
                 permissions.add(new FilePermission(System.getProperty("user.dir") + "/-", "read,write,delete"));
                 return permissions;
+            }
+
+            @Override
+            public boolean implies(ProtectionDomain domain, Permission permission) {
+                final PermissionCollection pc = getPermissions(domain);
+
+                if (pc == null) {
+                    return false;
+                }
+
+                return pc.implies(permission);
             }
         };
         AgentPolicy.setPolicy(policy);
@@ -241,6 +254,59 @@ public class FileInterceptorIntegTests {
 
             // Verify deletion
             assertFalse("File should not exist after deletion", Files.exists(tempPath));
+
+        } finally {
+            // Cleanup in case test fails
+            Files.deleteIfExists(tempPath);
+        }
+    }
+
+    @Test
+    public void testReadAllLines() throws Exception {
+        Path tmpDir = getTestDir();
+        Path tempPath = tmpDir.resolve("test-readAllLines-" + randomAlphaOfLength(8) + ".txt");
+
+        try {
+            // Create a file with some content
+            String content = "test content";
+            Files.write(tempPath, content.getBytes(StandardCharsets.UTF_8));
+
+            // Verify file exists before deletion
+            assertTrue("File should exist before deletion", Files.exists(tempPath));
+            assertEquals("File should have correct content", content, Files.readString(tempPath, StandardCharsets.UTF_8));
+
+            // Test delete operation - FileInterceptor should intercept this
+            String line = Files.readAllLines(tempPath).getFirst();
+
+            // Verify readAllLines
+            assertEquals("File contents should be returned", "test content", line);
+
+        } finally {
+            // Cleanup in case test fails
+            Files.deleteIfExists(tempPath);
+        }
+    }
+
+    @Test
+    public void testNewOutputStream() throws Exception {
+        Path tmpDir = getTestDir();
+        Path tempPath = tmpDir.resolve("test-readAllLines-" + randomAlphaOfLength(8) + ".txt");
+
+        try {
+            // Create an empty file
+            String content = "";
+            Files.write(tempPath, content.getBytes(StandardCharsets.UTF_8));
+
+            // Verify file exists before deletion
+            assertTrue("File should exist before deletion", Files.exists(tempPath));
+            assertEquals("File should have correct content", content, Files.readString(tempPath, StandardCharsets.UTF_8));
+
+            // Test for new OutputStream
+            try (OutputStream os = Files.newOutputStream(tempPath)) {
+                os.write("test content".getBytes(StandardCharsets.UTF_8));
+            }
+            String line = Files.readAllLines(tempPath).getFirst();
+            assertEquals("File contents should be returned", "test content", line);
 
         } finally {
             // Cleanup in case test fails

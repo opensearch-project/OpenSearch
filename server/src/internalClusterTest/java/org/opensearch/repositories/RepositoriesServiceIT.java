@@ -44,6 +44,7 @@ import org.opensearch.transport.client.Client;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -149,9 +150,10 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
             repoSettings
         );
 
-        String snapshotName = "test-snapshot";
+        final AtomicInteger snapshotCount = new AtomicInteger();
         Runnable createSnapshot = () -> {
-            logger.info("--> begining snapshot");
+            String snapshotName = "snapshot-" + snapshotCount.incrementAndGet();
+            logger.info("--> beginning snapshot for " + snapshotName);
             client().admin()
                 .cluster()
                 .prepareCreateSnapshot(repositoryName, snapshotName)
@@ -172,16 +174,20 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         });
         thread.start();
 
-        logger.info("--> begin to reset repository");
-        repoSettings = Settings.builder().put("location", randomRepoPath()).put("max_snapshot_bytes_per_sec", "300mb");
-        OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
-            client().admin().cluster(),
-            repositoryName,
-            FsRepository.TYPE,
-            true,
-            repoSettings
-        );
-        logger.info("--> finish to reset repository");
+        try {
+            logger.info("--> begin to reset repository");
+            repoSettings = Settings.builder().put("location", randomRepoPath()).put("max_snapshot_bytes_per_sec", "300mb");
+            OpenSearchIntegTestCase.putRepositoryWithNoSettingOverrides(
+                client().admin().cluster(),
+                repositoryName,
+                FsRepository.TYPE,
+                true,
+                repoSettings
+            );
+            logger.info("--> finish to reset repository");
+        } catch (IllegalStateException e) {
+            assertThat(e, hasToString(containsString(("trying to modify or unregister repository that is currently used"))));
+        }
 
         // after updating repository, snapshot should be success
         createSnapshot.run();

@@ -260,6 +260,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING,
                 StarTreeIndexSettings.STAR_TREE_MAX_BASE_METRICS_SETTING,
                 StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING,
+                StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING,
 
                 IndexSettings.INDEX_CONTEXT_CREATED_VERSION,
                 IndexSettings.INDEX_CONTEXT_CURRENT_VERSION,
@@ -273,9 +274,15 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_MAX_POLL_SIZE,
                 IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT,
                 IndexMetadata.INGESTION_SOURCE_NUM_PROCESSOR_THREADS_SETTING,
+                IndexMetadata.INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING,
 
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,
+
+                // Settings for Auto Force Merge
+                IndexSettings.INDEX_AUTO_FORCE_MERGES_ENABLED,
+                // Setting for derived source feature
+                IndexSettings.INDEX_DERIVED_SOURCE_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

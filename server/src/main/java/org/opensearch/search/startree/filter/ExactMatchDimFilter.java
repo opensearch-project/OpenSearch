@@ -50,7 +50,8 @@ public class ExactMatchDimFilter implements DimensionFilter {
             starTreeValues.getStarTreeField().getDimensionsOrder()
         );
         this.dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-            searchContext.mapperService().fieldType(dimensionName)
+            searchContext.mapperService().fieldType(dimensionName),
+            searchContext
         );
 
         for (Object rawValue : rawValues) {
@@ -83,5 +84,14 @@ public class ExactMatchDimFilter implements DimensionFilter {
     @Override
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
         return convertedOrdinals.contains(ordinal);
+    }
+
+    public List<Object> getRawValues() {
+        return rawValues;
+    }
+
+    @Override
+    public String getDimensionName() {
+        return dimensionName;
     }
 }

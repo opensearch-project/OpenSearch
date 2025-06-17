@@ -39,6 +39,8 @@ plugins {
   id('me.champeau.gradle.japicmp') version '0.4.6'
 }
 
+apply from: "$rootDir/gradle/fips.gradle"
+
 publishing {
   publications {
     nebula(MavenPublication) {
@@ -122,6 +124,7 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
   }
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -341,7 +344,8 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
-            'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
+            'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
+            'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException'
     )
 }
 

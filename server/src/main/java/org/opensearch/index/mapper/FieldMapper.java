@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -213,6 +214,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected MappedFieldType mappedFieldType;
     protected MultiFields multiFields;
     protected CopyTo copyTo;
+    protected DerivedFieldGenerator derivedFieldGenerator;
 
     protected FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
@@ -224,6 +226,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.mappedFieldType = mappedFieldType;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
+        this.derivedFieldGenerator = derivedFieldGenerator();
     }
 
     @Override
@@ -570,6 +573,93 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected abstract String contentType();
+
+    /**
+     * Method to create derived source generator for this field mapper, it is illegal to enable the
+     * derived source feature and not implement this method for a field mapper
+     */
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return null;
+    }
+
+    protected void setDerivedFieldGenerator(DerivedFieldGenerator derivedFieldGenerator) {
+        this.derivedFieldGenerator = derivedFieldGenerator;
+    }
+
+    protected DerivedFieldGenerator getDerivedFieldGenerator() {
+        return this.derivedFieldGenerator;
+    }
+
+    /**
+     * Method to determine, if it is possible to derive source for this field using field mapping parameters.
+     * DerivedFieldGenerator should be set for which derived source feature is supported, this behaviour can be
+     * overridden at a Mapper level by implementing this method
+     */
+    @Override
+    public void canDeriveSource() {
+        if (this.copyTo() != null && !this.copyTo().copyToFields().isEmpty()) {
+            throw new UnsupportedOperationException("Unable to derive source for fields with copy_to parameter set");
+        }
+        canDeriveSourceInternal();
+        if (getDerivedFieldGenerator() == null) {
+            throw new UnsupportedOperationException(
+                "Derive source is not supported for field [" + name() + "] with field " + "type [" + fieldType().typeName() + "]"
+            );
+        }
+    }
+
+    /**
+     * Must be overridden for each mapper for which derived source feature is supported
+     */
+    protected void canDeriveSourceInternal() {
+        throw new UnsupportedOperationException(
+            "Derive source is not supported for field [" + name() + "] with field " + "type [" + fieldType().typeName() + "]"
+        );
+    }
+
+    /**
+     * Validates if doc values is enabled for a field or not
+     */
+    void checkDocValuesForDerivedSource() {
+        if (!mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with doc values disabled");
+        }
+    }
+
+    /**
+     * Validates if stored field is enabled for a field or not
+     */
+    void checkStoredForDerivedSource() {
+        if (!mappedFieldType.isStored()) {
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with store disabled");
+        }
+    }
+
+    /**
+     * Validates if doc_values or stored field is enabled for a field or not
+     */
+    void checkStoredAndDocValuesForDerivedSource() {
+        if (!mappedFieldType.isStored() && !mappedFieldType.hasDocValues()) {
+            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with stored and " + "docValues disabled");
+        }
+    }
+
+    /**
+     * Method used for deriving source and building it to XContentBuilder object
+     * <p>
+     * Considerations:
+     *  1. If "null_value" is defined in field mapping and if ingested doc contains "null" field value then derived
+     *     source will contain "null_value" as a displayed field value instead of null and if "null_value" is not
+     *     defined in mapping then field itself will not be present in derived source
+     *
+     * @param builder - builder to store the derived source filed
+     * @param leafReader - leafReader to read data from
+     * @param docId - docId for which we want to derive the source
+     */
+    @Override
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        derivedFieldGenerator.generate(builder, leafReader, docId);
+    }
 
     /**
      * Multi field implementation used across field mappers
