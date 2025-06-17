@@ -110,13 +110,6 @@ public class FeatureFlags {
     );
 
     /**
-     * Gates the functionality of star tree index, which improves the performance of search
-     * aggregations.
-     */
-    public static final String STAR_TREE_INDEX = FEATURE_FLAG_PREFIX + "composite_index.star_tree.enabled";
-    public static final Setting<Boolean> STAR_TREE_INDEX_SETTING = Setting.boolSetting(STAR_TREE_INDEX, false, Property.NodeScope);
-
-    /**
      * Gates the functionality of application based configuration templates.
      */
     public static final String APPLICATION_BASED_CONFIGURATION_TEMPLATES = FEATURE_FLAG_PREFIX + "application_templates.enabled";
@@ -154,7 +147,6 @@ public class FeatureFlags {
                 put(TELEMETRY_SETTING, TELEMETRY_SETTING.getDefault(Settings.EMPTY));
                 put(DATETIME_FORMATTER_CACHING_SETTING, DATETIME_FORMATTER_CACHING_SETTING.getDefault(Settings.EMPTY));
                 put(WRITABLE_WARM_INDEX_SETTING, WRITABLE_WARM_INDEX_SETTING.getDefault(Settings.EMPTY));
-                put(STAR_TREE_INDEX_SETTING, STAR_TREE_INDEX_SETTING.getDefault(Settings.EMPTY));
                 put(
                     APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
                     APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING.getDefault(Settings.EMPTY)

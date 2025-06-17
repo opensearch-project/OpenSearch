@@ -14,6 +14,11 @@ import java.util.Map;
  * Abstract base class for batch system generated processors.
  *
  * System processors should not be used in the regular ingest pipelines.
+ * System ingest processors MUST handle the partial doc update case gracefully. System ingest processors support
+ * bulk update operations which may pass in partial docs not containing all fields a full doc should. This means
+ * system ingest processors MUST add additional validations to handle missing field cases, or else bulk updates
+ * targeting indexes with mappings that trigger system ingest processors will fail.
+ * See https://github.com/opensearch-project/OpenSearch/issues/18276 for more details.
  *
  * @opensearch.internal
  */
@@ -33,6 +38,7 @@ public abstract class AbstractBatchingSystemProcessor extends AbstractBatchingPr
      * Since the processor config is generated based on the index config so the batch size info should also be defined
      * as part of it. And different processors can have their own logic to decide the batch size so let each
      * implementation of the newProcessor to handle it.
+     *
      *
      * @opensearch.internal
      */

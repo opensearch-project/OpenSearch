@@ -28,11 +28,14 @@ import org.opensearch.rule.action.GetRuleAction;
 import org.opensearch.rule.action.TransportCreateRuleAction;
 import org.opensearch.rule.action.TransportDeleteRuleAction;
 import org.opensearch.rule.action.TransportGetRuleAction;
+import org.opensearch.rule.action.TransportUpdateRuleAction;
+import org.opensearch.rule.action.UpdateRuleAction;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.rest.RestCreateRuleAction;
 import org.opensearch.rule.rest.RestDeleteRuleAction;
 import org.opensearch.rule.rest.RestGetRuleAction;
+import org.opensearch.rule.rest.RestUpdateRuleAction;
 import org.opensearch.rule.spi.RuleFrameworkExtension;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.FixedExecutorBuilder;
@@ -78,7 +81,8 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
         return List.of(
             new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class),
             new ActionPlugin.ActionHandler<>(DeleteRuleAction.INSTANCE, TransportDeleteRuleAction.class),
-            new ActionPlugin.ActionHandler<>(CreateRuleAction.INSTANCE, TransportCreateRuleAction.class)
+            new ActionPlugin.ActionHandler<>(CreateRuleAction.INSTANCE, TransportCreateRuleAction.class),
+            new ActionPlugin.ActionHandler<>(UpdateRuleAction.INSTANCE, TransportUpdateRuleAction.class)
         );
     }
 
@@ -92,7 +96,7 @@ public class RuleFrameworkPlugin extends Plugin implements ExtensiblePlugin, Act
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestGetRuleAction(), new RestDeleteRuleAction(), new RestCreateRuleAction());
+        return List.of(new RestGetRuleAction(), new RestDeleteRuleAction(), new RestCreateRuleAction(), new RestUpdateRuleAction());
     }
 
     @Override
