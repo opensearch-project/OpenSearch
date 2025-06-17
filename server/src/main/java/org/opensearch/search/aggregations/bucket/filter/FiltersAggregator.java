@@ -200,6 +200,7 @@ public class FiltersAggregator extends BucketsAggregator {
             owningBucketOrds,
             keys.length + (showOtherBucket ? 1 : 0),
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
+                checkCancelled();
                 if (offsetInOwningOrd < keys.length) {
                     return new InternalFilters.InternalBucket(keys[offsetInOwningOrd], docCount, subAggregationResults, keyed);
                 }

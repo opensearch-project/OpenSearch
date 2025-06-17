@@ -17,15 +17,18 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Locale;
 
+import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
+
 public class XContentRuleParserTests extends OpenSearchTestCase {
     public static final String VALID_JSON = String.format(Locale.ROOT, """
         {
+            "id": "%s",
             "description": "%s",
             "mock_feature_type": "feature value",
             "mock_attribute_one": ["attribute_value_one", "attribute_value_two"],
             "updated_at": "%s"
         }
-        """, RuleTestUtils.DESCRIPTION_ONE, Instant.now().toString());
+        """, _ID_ONE, RuleTestUtils.DESCRIPTION_ONE, Instant.now().toString());
 
     private static final String INVALID_JSON = """
         {

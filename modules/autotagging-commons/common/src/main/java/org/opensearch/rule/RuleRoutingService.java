@@ -9,6 +9,10 @@
 package org.opensearch.rule;
 
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.rule.action.CreateRuleRequest;
+import org.opensearch.rule.action.CreateRuleResponse;
+import org.opensearch.rule.action.UpdateRuleRequest;
+import org.opensearch.rule.action.UpdateRuleResponse;
 
 /**
  * Interface that handles rule routing logic
@@ -22,4 +26,11 @@ public interface RuleRoutingService {
      * @param listener listener to handle the final response
      */
     void handleCreateRuleRequest(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener);
+
+    /**
+     * Handles a update rule request by routing it to the appropriate node.
+     * @param request the update rule request
+     * @param listener listener to handle the final response
+     */
+    void handleUpdateRuleRequest(UpdateRuleRequest request, ActionListener<UpdateRuleResponse> listener);
 }

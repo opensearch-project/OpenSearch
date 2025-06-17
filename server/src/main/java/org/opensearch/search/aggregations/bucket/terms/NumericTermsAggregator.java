@@ -67,7 +67,7 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
-import org.opensearch.search.startree.StarTreeTraversalUtil;
+import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
@@ -136,7 +136,6 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
                     int valuesCount = values.docValueCount();
-
                     long previous = Long.MAX_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
                         long val = values.nextValue();
@@ -169,28 +168,23 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         return false;
     }
 
+    @Override
+    public List<DimensionFilter> getDimensionFilters() {
+        return StarTreeQueryHelper.collectDimensionFilters(new MatchAllFilter(fieldName), subAggregators);
+    }
+
     public StarTreeBucketCollector getStarTreeBucketCollector(
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parent
     ) throws IOException {
-        assert parent == null;
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
         SortedNumericStarTreeValuesIterator valuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
             .getDimensionValuesIterator(fieldName);
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
-
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeTraversalUtil.getStarTreeResult(
-                starTreeValues,
-                StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
-                    context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
-                    fieldName,
-                    List.of(new MatchAllFilter(fieldName))
-                ),
-                context
-            )
+            parent == null ? StarTreeQueryHelper.getStarTreeResult(starTreeValues, context, getDimensionFilters()) : null
         ) {
             @Override
             public void setSubCollectors() throws IOException {
@@ -215,7 +209,6 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 }
 
                 for (int i = 0, count = valuesIterator.entryValueCount(); i < count; i++) {
-
                     if (docCountsIterator.advanceExact(starTreeEntry)) {
                         long metricValue = docCountsIterator.nextValue();
                         long bucketOrd = bucketOrds.add(owningBucketOrd, dimensionValue);
@@ -259,6 +252,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCounts = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                checkCancelled();
                 collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
 
@@ -300,7 +294,6 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
             }
 
             buildSubAggs(topBucketsPerOrd);
-
             InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);

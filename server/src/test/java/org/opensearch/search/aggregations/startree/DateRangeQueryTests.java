@@ -30,7 +30,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.codec.composite.composite101.Composite101Codec;
@@ -49,8 +48,6 @@ import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.InternalAggregation;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -62,7 +59,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 import static org.opensearch.search.aggregations.AggregationBuilders.range;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
@@ -72,7 +68,6 @@ import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKET
  * Tests for aggregations with date-range query
  */
 public class DateRangeQueryTests extends AggregatorTestCase {
-    private static FeatureFlags.TestUtils.FlagWriteLock fflock = null;
     private static final String TIMESTAMP_FIELD = "@timestamp";
     private static final MappedFieldType TIMESTAMP_FIELD_TYPE = new DateFieldMapper.DateFieldType(TIMESTAMP_FIELD);
 
@@ -83,16 +78,6 @@ public class DateRangeQueryTests extends AggregatorTestCase {
         NumberFieldMapper.NumberType.LONG
     );
     private static final MappedFieldType SIZE_FIELD_TYPE = new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.LONG);
-
-    @Before
-    public void setup() {
-        fflock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-    }
-
-    @After
-    public void teardown() throws IOException {
-        fflock.close();
-    }
 
     protected Codec getCodec() {
         final Logger testLogger = LogManager.getLogger(MetricAggregatorTests.class);

@@ -21,7 +21,6 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -35,8 +34,6 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettin
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesModule;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,14 +41,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
-
 /**
  * Abstract star tree doc values Lucene tests
  */
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatTestCase {
-    private static FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
     MapperService mapperService = null;
     StarTreeFieldConfiguration.StarTreeBuildMode buildMode;
 
@@ -65,16 +59,6 @@ public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatT
         parameters.add(new Object[] { StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP });
         parameters.add(new Object[] { StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP });
         return parameters;
-    }
-
-    @BeforeClass
-    public static void createMapper() {
-        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(STAR_TREE_INDEX);
-    }
-
-    @AfterClass
-    public static void clearMapper() {
-        ffLock.close();
     }
 
     @After
