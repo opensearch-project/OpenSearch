@@ -51,11 +51,11 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         ClusterInfo clusterInfo = new ClusterInfo(
             randomDiskUsage(),
             randomDiskUsage(),
-            randomNodeResourceUsageStats(),
             randomShardSizes(),
             randomRoutingToDataPath(),
             randomReservedSpace(),
-            randomFileCacheStats()
+            randomFileCacheStats(),
+            randomNodeResourceUsageStats()
         );
         BytesStreamOutput output = new BytesStreamOutput();
         clusterInfo.writeTo(output);
@@ -63,11 +63,11 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         ClusterInfo result = new ClusterInfo(output.bytes().streamInput());
         assertEquals(clusterInfo.getNodeLeastAvailableDiskUsages(), result.getNodeLeastAvailableDiskUsages());
         assertEquals(clusterInfo.getNodeMostAvailableDiskUsages(), result.getNodeMostAvailableDiskUsages());
-        assertEquals(clusterInfo.getNodeResourceUsageStats().toString(), result.getNodeResourceUsageStats().toString());
         assertEquals(clusterInfo.shardSizes, result.shardSizes);
         assertEquals(clusterInfo.routingToDataPath, result.routingToDataPath);
         assertEquals(clusterInfo.reservedSpace, result.reservedSpace);
         assertEquals(clusterInfo.getNodeFileCacheStats().size(), result.getNodeFileCacheStats().size());
+        assertEquals(clusterInfo.getNodeResourceUsageStats().toString(), result.getNodeResourceUsageStats().toString());
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

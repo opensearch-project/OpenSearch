@@ -98,7 +98,6 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
         return nodesStats.stream().map(nodeStats -> {
             final DiscoveryNode discoveryNode = nodeStats.getNode();
             final FsInfo oldFsInfo = nodeStats.getFs();
-            final NodesResourceUsageStats oldNodesResourceUsageStats = nodeStats.getResourceUsageStats();
 
             return new NodeStats(
                 discoveryNode,

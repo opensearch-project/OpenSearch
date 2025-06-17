@@ -1594,11 +1594,11 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             super(
                 leastAvailableSpaceUsage,
                 mostAvailableSpaceUsage,
-                nodeResourceUsages,
                 shardSizes,
                 null,
                 reservedSpace,
-                nodeFileCacheStats
+                nodeFileCacheStats,
+                nodeResourceUsages
             );
         }
 

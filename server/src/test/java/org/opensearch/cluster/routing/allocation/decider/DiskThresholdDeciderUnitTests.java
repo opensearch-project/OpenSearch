@@ -130,8 +130,8 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
         final ClusterInfo clusterInfo = new ClusterInfo(
             leastAvailableUsages,
             mostAvailableUsage,
-            Map.of(),
             shardSizes,
+            Map.of(),
             Map.of(),
             Map.of(),
             Map.of()
@@ -214,8 +214,8 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
         ClusterInfo clusterInfo = new ClusterInfo(
             leastAvailableUsages,
             mostAvailableUsage,
-            Map.of(),
             shardSizes,
+            Map.of(),
             Map.of(),
             Map.of(),
             Map.of()
@@ -339,9 +339,9 @@ public class DiskThresholdDeciderUnitTests extends OpenSearchAllocationTestCase 
         final ClusterInfo clusterInfo = new ClusterInfo(
             leastAvailableUsages,
             mostAvailableUsage,
-            Map.of(),
             shardSizes,
             shardRoutingMap,
+            Map.of(),
             Map.of(),
             Map.of()
         );

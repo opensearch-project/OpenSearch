@@ -281,18 +281,17 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 );
                 leastAvailableSpaceUsages = Collections.unmodifiableMap(leastAvailableUsagesBuilder);
                 mostAvailableSpaceUsages = Collections.unmodifiableMap(mostAvailableUsagesBuilder);
-
-                final Map<String, NodeResourceUsageStats> nodeResourceUsageStatsBuilder = new HashMap<>();
-                fillNodeResourceUsageStatsPerNode(logger, adjustNodesStats(nodesStatsResponse.getNodes()), nodeResourceUsageStatsBuilder);
-
-                nodeResourceUsageStats = Collections.unmodifiableMap(nodeResourceUsageStatsBuilder);
-
                 nodeFileCacheStats = Collections.unmodifiableMap(
                     nodesStatsResponse.getNodes()
                         .stream()
                         .filter(nodeStats -> nodeStats.getNode().isWarmNode())
                         .collect(Collectors.toMap(nodeStats -> nodeStats.getNode().getId(), NodeStats::getFileCacheStats))
                 );
+
+                final Map<String, NodeResourceUsageStats> nodeResourceUsageStatsBuilder = new HashMap<>();
+                fillNodeResourceUsageStatsPerNode(logger, adjustNodesStats(nodesStatsResponse.getNodes()), nodeResourceUsageStatsBuilder);
+
+                nodeResourceUsageStats = Collections.unmodifiableMap(nodeResourceUsageStatsBuilder);
             }
 
             @Override
@@ -310,6 +309,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     // we empty the usages list, to be safe - we don't know what's going on.
                     leastAvailableSpaceUsages = Map.of();
                     mostAvailableSpaceUsages = Map.of();
+                    nodeResourceUsageStats = Map.of();
                 }
             }
         });
@@ -507,11 +507,11 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 String nodeId = nodeStats.getNode().getId();
 
                 nodesResourceUsageStats = nodeStats.getResourceUsageStats();
-                if (nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap() != null) {
-                    newNodeResourceUsageStats.put(
-                        nodeId,
-                        nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap().getOrDefault(nodeId, null)
-                    );
+                Map<String, NodeResourceUsageStats> nodeResourceUsageStatsMap = nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap();
+                if (nodeResourceUsageStatsMap != null && nodeResourceUsageStatsMap.containsKey(nodeId)) {
+                    newNodeResourceUsageStats.put(nodeId, nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap().get(nodeId));
+                } else {
+                    logger.warn("No resource usage stats available for node: {}", nodeStats.getNode().getName());
                 }
 
             }

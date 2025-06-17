@@ -202,10 +202,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
                     }
                     builder.endObject(); // end "most_available"
                     builder.startObject("node_resource_usage_stats");
-                    {
-                        nodeResourceUsageStats.get(c.getKey()).toXContent(builder, params);
-                    }
-                    builder.endObject(); // end "resource_usage_statse"
+                    nodeResourceUsageStats.get(c.getKey()).toXContent(builder, params);
+                    builder.endObject();
                 }
                 builder.endObject(); // end $nodename
             }
@@ -264,6 +262,9 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         return Collections.unmodifiableMap(this.nodeFileCacheStats);
     }
 
+    /**
+     * Returns a node id to resource usage stats mapping.
+     */
     public Map<String, NodeResourceUsageStats> getNodeResourceUsageStats() {
         return Collections.unmodifiableMap(this.nodeResourceUsageStats);
     }
