@@ -342,19 +342,22 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                     (key, value) -> (value == null) ? sliceBreakdownTypeCount : sliceBreakdownTypeCount + value
                 );
 
-                // query start/end time for a TimingType is min/max of start/end time across slices for that TimingType
-                queryTimingTypeEndTime = Math.max(
-                    queryTimingTypeEndTime,
-                    sliceBreakdown.getValue().getOrDefault(sliceEndTimeForTimingType, Long.MIN_VALUE)
-                );
-                queryTimingTypeStartTime = Math.min(
-                    queryTimingTypeStartTime,
-                    sliceBreakdown.getValue().getOrDefault(sliceStartTimeForTimingType, Long.MAX_VALUE)
-                );
-                queryTimingTypeCount += sliceBreakdownTypeCount;
+                // only modify the start/end time of the TimingType if the slice used the timer
+                if(sliceBreakdownTypeCount > 0L) {
+                    // query start/end time for a TimingType is min/max of start/end time across slices for that TimingType
+                    queryTimingTypeEndTime = Math.max(
+                        queryTimingTypeEndTime,
+                        sliceBreakdown.getValue().getOrDefault(sliceEndTimeForTimingType, Long.MIN_VALUE)
+                    );
+                    queryTimingTypeStartTime = Math.min(
+                        queryTimingTypeStartTime,
+                        sliceBreakdown.getValue().getOrDefault(sliceStartTimeForTimingType, Long.MAX_VALUE)
+                    );
+                    queryTimingTypeCount += sliceBreakdownTypeCount;
+                }
             }
 
-            if (queryTimingTypeStartTime == Long.MAX_VALUE || queryTimingTypeEndTime == Long.MIN_VALUE) {
+            if (queryTimingTypeCount > 0L && (queryTimingTypeStartTime == Long.MAX_VALUE || queryTimingTypeEndTime == Long.MIN_VALUE)) {
                 throw new OpenSearchException(
                     "Unexpected timing type ["
                         + timingTypeKey
@@ -365,7 +368,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                         + "] computed across slices for profile results"
                 );
             }
-            queryBreakdownMap.put(timingTypeKey, queryTimingTypeEndTime - queryTimingTypeStartTime);
+            queryBreakdownMap.put(timingTypeKey, (queryTimingTypeCount > 0L) ? queryTimingTypeEndTime - queryTimingTypeStartTime : 0L);
             queryBreakdownMap.put(timingTypeCountKey, queryTimingTypeCount);
             queryBreakdownMap.compute(avgBreakdownTypeTime, (key, value) -> (value == null) ? 0L : value / sliceLevelBreakdowns.size());
             queryBreakdownMap.compute(avgBreakdownTypeCount, (key, value) -> (value == null) ? 0L : value / sliceLevelBreakdowns.size());
