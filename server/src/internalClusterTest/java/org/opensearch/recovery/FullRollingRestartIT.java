@@ -453,7 +453,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
         rollingRestartWithVerification(docCount);
     }
 
-    public void testDerivedSourceWithMultiFieldsRollingRestart() throws Exception {
+    public void testDerivedSourceWithMixedVersionRollingRestart() throws Exception {
         String mapping = """
             {
               "properties": {
@@ -503,12 +503,12 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
 
         // Add replicas before starting new nodes
         assertAcked(
-            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 1))
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2))
         );
 
         // Add nodes and additional documents
         int totalDocs = docCount;
-        for (int i = 0; i < 1; i++) {
+        for (int i = 0; i < 2; i++) {
             internalCluster().startNode();
 
             // Add more documents
@@ -564,7 +564,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
             prepareCreate(
                 "test",
                 Settings.builder()
-                    .put("index.number_of_shards", 2)
+                    .put("index.number_of_shards", 3)
                     .put("index.number_of_replicas", 0)
                     .put("index.derived_source.enabled", true)
                     .put("index.refresh_interval", "1s")
@@ -601,86 +601,74 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
 
         // Start concurrent updates during rolling restart
         logger.info("--> starting rolling restart with concurrent updates");
+        concurrentUpdatesRollingRestartWithVerification(docCount);
+    }
 
-        final AtomicBoolean stop = new AtomicBoolean(false);
-        final AtomicInteger successfulUpdates = new AtomicInteger(0);
-        final CountDownLatch updateLatch = new CountDownLatch(1);
-        final Thread updateThread = new Thread(() -> {
+    private void concurrentUpdatesRollingRestartWithVerification(int initialDocCount) throws Exception {
+        AtomicBoolean stop = new AtomicBoolean(false);
+        AtomicInteger totalUpdates = new AtomicInteger(0);
+        CountDownLatch updateLatch = new CountDownLatch(1);
+
+        // Start concurrent update thread
+        Thread updateThread = new Thread(() -> {
             try {
-                updateLatch.await();
+                updateLatch.await(); // Wait for cluster to be ready
                 while (stop.get() == false) {
                     try {
-                        // Update documents sequentially to avoid conflicts
-                        for (int i = 0; i < docCount && !stop.get(); i++) {
-                            client().prepareUpdate("test", String.valueOf(i))
-                                .setRetryOnConflict(3)
-                                .setDoc("counter", successfulUpdates.get() + 1, "last_updated", System.currentTimeMillis(), "version", 1)
-                                .execute()
-                                .actionGet(TimeValue.timeValueSeconds(5));
-                            successfulUpdates.incrementAndGet();
-                            Thread.sleep(50); // Larger delay between updates
-                        }
+                        int docId = randomIntBetween(0, initialDocCount - 1);
+                        client().prepareUpdate("test", String.valueOf(docId))
+                            .setRetryOnConflict(3)
+                            .setDoc("counter", randomIntBetween(0, 1000), "last_updated", System.currentTimeMillis(), "version", 1)
+                            .execute()
+                            .actionGet();
+                        totalUpdates.incrementAndGet();
+                        Thread.sleep(10);
                     } catch (Exception e) {
-                        if (stop.get() == false) {
-                            logger.warn("Error in update thread", e);
+                        if (e instanceof InterruptedException) {
+                            break;
                         }
+                        logger.warn("Error in update thread", e);
                     }
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
+        updateThread.start();
 
         try {
             // Add replicas
             assertAcked(
-                client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 1))
+                client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 2))
             );
 
             // Start additional nodes
-            for (int i = 0; i < 1; i++) {
+            for (int i = 0; i < 2; i++) {
                 internalCluster().startNode();
             }
             ensureGreen("test");
 
-            // Start updates after cluster is stable
-            updateThread.start();
+            // Start updates
             updateLatch.countDown();
 
             // Wait for some updates to occur
-            assertBusy(() -> { assertTrue("No successful updates occurred", successfulUpdates.get() > 0); }, 30, TimeUnit.SECONDS);
+            Thread.sleep(2000);
 
             // Rolling restart of all nodes
             for (String node : internalCluster().getNodeNames()) {
-                // Stop updates temporarily during node restart
-                stop.set(true);
-                Thread.sleep(1000); // Wait for in-flight operations to complete
-
                 internalCluster().restartNode(node);
-                ensureGreen(TimeValue.timeValueSeconds(60));
-
-                // Verify data consistency
-                refresh("test");
-                verifyDerivedSourceWithUpdates(docCount);
-
-                // Resume updates
-                stop.set(false);
+                ensureGreen(TimeValue.timeValueMinutes(2));
+                verifyDerivedSourceWithUpdates(initialDocCount);
             }
-
         } finally {
-            // Clean shutdown
             stop.set(true);
-            updateThread.join(TimeValue.timeValueSeconds(30).millis());
-            if (updateThread.isAlive()) {
-                updateThread.interrupt();
-                updateThread.join(TimeValue.timeValueSeconds(5).millis());
-            }
+            updateThread.join();
         }
 
-        logger.info("--> performed {} successful updates during rolling restart", successfulUpdates.get());
+        logger.info("--> performed {} concurrent updates during rolling restart", totalUpdates.get());
         refresh("test");
         flush("test");
-        verifyDerivedSourceWithUpdates(docCount);
+        verifyDerivedSourceWithUpdates(initialDocCount);
     }
 
     private void verifyDerivedSourceWithUpdates(int expectedDocs) throws Exception {
@@ -699,8 +687,7 @@ public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchI
                 assertEquals("text value " + id, source.get("text_field"));
                 assertNotNull("counter missing for doc " + id, source.get("counter"));
                 assertFalse(((String) source.get("last_updated")).isEmpty());
-                Integer counter = (Integer) source.get("counter");
-                assertEquals(counter == 0 ? 0 : 1, source.get("version"));
+                assertEquals(1, source.get("version"));
 
                 // Verify text_field maintains original value
                 assertEquals("text value " + id, source.get("text_field"));

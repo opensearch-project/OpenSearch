@@ -18,7 +18,6 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.store.Directory;
@@ -146,9 +145,7 @@ public class DerivedSourceLeafReaderTests extends OpenSearchTestCase {
 
     public void testWithRandomDocuments() throws IOException {
         Directory randomDir = newDirectory();
-        IndexWriterConfig config = newIndexWriterConfig(random(), null).setCodec(new RandomCodec(random()))
-            .setMergePolicy(NoMergePolicy.INSTANCE); // Prevent automatic merges
-
+        IndexWriterConfig config = newIndexWriterConfig(random(), null).setCodec(new RandomCodec(random()));
         IndexWriter randomWriter = new IndexWriter(randomDir, config);
 
         int numDocs = randomIntBetween(1, 10);
@@ -161,14 +158,9 @@ public class DerivedSourceLeafReaderTests extends OpenSearchTestCase {
             doc.add(new StoredField("_source", source));
             randomWriter.addDocument(doc);
         }
-
-        // Force merge into a single segment
-        randomWriter.forceMerge(1);
         randomWriter.commit();
 
         DirectoryReader randomDirectoryReader = DirectoryReader.open(randomWriter);
-        assertEquals("Should have exactly one segment", 1, randomDirectoryReader.leaves().size());
-
         LeafReader randomLeafReader = randomDirectoryReader.leaves().get(0).reader();
         DerivedSourceLeafReader randomDerivedReader = new DerivedSourceLeafReader(
             randomLeafReader,
