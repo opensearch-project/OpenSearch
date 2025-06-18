@@ -252,10 +252,11 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
 
     public void testClusterInfoServiceCollectsNodeResourceStatsInformation() throws InterruptedException {
 
-        // setting both JVM and CPU time window as ResourceUsageTracker needs atleast both of these to be ready to start collecting the
+        // setting time window as ResourceUsageTracker needs atleast both of these to be ready to start collecting the
         // moving average
         Settings.Builder settingsBuilder = Settings.builder()
             .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(5000))
             .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(1));
 
         internalCluster().startClusterManagerOnlyNode(settingsBuilder.build());
@@ -269,8 +270,8 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
             internalTestCluster.getClusterManagerName()
         );
         infoService.setUpdateFrequency(TimeValue.timeValueMillis(100));
-        // sleep for 5 seconds for ResourceUsageCollector to collect enough stats
-        Thread.sleep(5000);
+        // sleep for 6 seconds for ResourceUsageCollector to collect enough stats
+        Thread.sleep(6000);
         ClusterInfo info = infoService.refresh();
         assertNotNull("info should not be null", info);
         final Map<String, NodeResourceUsageStats> nodeResourceUsageStats = info.getNodeResourceUsageStats();
@@ -278,13 +279,14 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         assertEquals(2, nodeResourceUsageStats.size());
     }
 
-    public void testClusterInfoServiceInformationClearOnError() {
+    public void testClusterInfoServiceInformationClearOnError() throws InterruptedException {
         internalCluster().startNodes(
             2,
             // manually control publishing
             Settings.builder()
                 .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m")
                 .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
+                .put(ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(5000))
                 .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
                 .build()
         );
@@ -332,6 +334,8 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         setClusterInfoTimeout("1s");
         // timeouts shouldn't clear the info
         timeout.set(true);
+        // delay of 6 seconds as NodeResourceUsageTracker needs atleast 5 seconds to start populating stats
+        Thread.sleep(6000);
         info = infoService.refresh();
         assertNotNull("info should not be null", info);
         // node info will time out both on the request level on the count down latch. this means
