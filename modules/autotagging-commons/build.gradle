@@ -6,6 +6,8 @@
  * compatible open source license.
  */
 
+apply plugin: 'opensearch.internal-cluster-test'
+
 opensearchplugin {
   name = "rule-framework"
   description = 'OpenSearch Rule Framework plugin'
@@ -15,7 +17,17 @@ opensearchplugin {
 dependencies {
   api project("spi")
   api project("common")
+
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-core'
   }
+
+  internalClusterTestImplementation(project(":test:framework")) {
+    exclude group: 'org.opensearch', module: 'server'
+  }
+}
+
+tasks.named("internalClusterTest").configure {
+  // TODO: these run faster with C2 only because they run for so, so long
+  jvmArgs -= '-XX:TieredStopAtLevel=1'
 }
