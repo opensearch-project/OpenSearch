@@ -1,9 +1,6 @@
-# CHANGELOG
-All notable changes to this project are documented in this file.
+## 2025-06-17 Version 3.1.0 Release Notes
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See the [CONTRIBUTING guide](./CONTRIBUTING.md#Changelog) for instructions on how to add changelog entries.
-
-## [Unreleased 3.x]
+## [3.1]
 ### Added
 - Add support for linux riscv64 platform ([#18156](https://github.com/opensearch-project/OpenSearch/pull/18156))
 - [Rule based auto-tagging] Add get rule API ([#17336](https://github.com/opensearch-project/OpenSearch/pull/17336))
@@ -52,9 +49,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Approximation Framework Enhancement: Update the BKD traversal logic to improve the performance on skewed data ([#18439](https://github.com/opensearch-project/OpenSearch/issues/18439))
 - Support system generated ingest pipelines for bulk update operations ([#18277](https://github.com/opensearch-project/OpenSearch/pull/18277)))
 - Added FS Health Check Failure metric ([#18435](https://github.com/opensearch-project/OpenSearch/pull/18435))
-- Ability to run Code Coverage with Gradle and produce the jacoco reports locally ([#18509](https://github.com/opensearch-project/OpenSearch/issues/18509))
 
 ### Changed
+- Create generic DocRequest to better categorize ActionRequests ([#18269](https://github.com/opensearch-project/OpenSearch/pull/18269)))
+- Change implementation for `percentiles` aggregation for latency improvement ([#18124](https://github.com/opensearch-project/OpenSearch/pull/18124))
+- Update FipsMode check to catch NoSuchMethodError ([#18427](https://github.com/opensearch-project/OpenSearch/pull/18427))
 
 ### Dependencies
 - Update Apache Lucene from 10.1.0 to 10.2.1 ([#17961](https://github.com/opensearch-project/OpenSearch/pull/17961))
@@ -80,11 +79,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.squareup.okio:okio` from 3.10.2 to 3.12.0 ([#18468](https://github.com/opensearch-project/OpenSearch/pull/18468))
 - Bump `com.azure:azure-xml` from 1.1.0 to 1.2.0 ([#18469](https://github.com/opensearch-project/OpenSearch/pull/18469))
 - Bump `com.maxmind.db:maxmind-db` from 3.1.1 to 3.2.0 ([#18470](https://github.com/opensearch-project/OpenSearch/pull/18470))
-- Bump `stefanzweifel/git-auto-commit-action` from 5 to 6 ([#18524](https://github.com/opensearch-project/OpenSearch/pull/18524))
-
-### Deprecated
 
 ### Removed
+- [repository-s3] Removed existing ineffective `server_side_encryption` setting ([#18312](https://github.com/opensearch-project/OpenSearch/pull/18312))
 
 ### Fixed
 - Fix simultaneously creating a snapshot and updating the repository can potentially trigger an infinite loop ([#17532](https://github.com/opensearch-project/OpenSearch/pull/17532))
@@ -98,9 +95,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - DocValues-only IP field supports `terms_query` with more than 1025 IP masks ([#18357](https://github.com/opensearch-project/OpenSearch/pull/18357)
 - Fix MatrixStatsAggregator reuse when mode parameter changes ([#18242](https://github.com/opensearch-project/OpenSearch/issues/18242))
 - Replace the deprecated construction method of TopScoreDocCollectorManager with the new method ([#18395](https://github.com/opensearch-project/OpenSearch/pull/18395))
-- Fixed Approximate Framework regression with Lucene 10.2.1 by updating `intersectRight` BKD walk and `IntRef` visit method ([#18358](https://github.com/opensearch-project/OpenSearch/issues/18358
-- Add task cancellation checks in aggregators ([#18426](https://github.com/opensearch-project/OpenSearch/pull/18426))
-
-### Security
-
-[Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.1...main
+- Fixed Approximate Framework regression with Lucene 10.2.1 by updating `intersectRight` BKD walk and `IntRef` visit method ([#18358](https://github.com/opensearch-project/OpenSearch/issues/18358))
