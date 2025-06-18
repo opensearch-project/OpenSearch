@@ -449,7 +449,7 @@ public class DiskThresholdMonitor {
             diskUsage.getNodeName(),
             diskUsage.getPath(),
             totalAddressableSpace,
-            totalAddressableSpace - remoteShardSize
+            Math.max(0, totalAddressableSpace - remoteShardSize)
         );
         return warmDiskUsage;
     }

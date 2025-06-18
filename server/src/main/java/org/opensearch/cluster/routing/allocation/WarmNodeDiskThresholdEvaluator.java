@@ -47,10 +47,10 @@ public class WarmNodeDiskThresholdEvaluator implements DiskThresholdEvaluator {
     }
 
     private boolean isNodeExceedingWatermark(DiskUsage diskUsage, Function<Long, Long> thresholdFunction) {
-        if (dataToFileCacheSizeRatioSupplier.get() <= 0) {
+        long totalBytes = diskUsage.getTotalBytes();
+        if (dataToFileCacheSizeRatioSupplier.get() <= 0 || totalBytes <= 0) {
             return false;
         }
-        long totalBytes = diskUsage.getTotalBytes();
         long freeSpace = diskUsage.getFreeBytes();
         long freeSpaceThreshold = thresholdFunction.apply(totalBytes);
 
