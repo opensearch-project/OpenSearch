@@ -240,6 +240,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/user.slice/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.swap.max", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/memory.swap.current", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.max", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.current", "read";
 
