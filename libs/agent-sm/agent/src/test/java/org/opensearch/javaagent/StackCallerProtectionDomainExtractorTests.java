@@ -120,7 +120,7 @@ public class StackCallerProtectionDomainExtractorTests {
 
     @Test
     public void testStackTruncationWithOpenSearchAccessController() {
-        org.opensearch.javaagent.bootstrap.AccessController.doPrivileged(() -> {
+        org.opensearch.security.AccessController.doPrivileged(() -> {
             StackCallerProtectionDomainChainExtractor extractor = StackCallerProtectionDomainChainExtractor.INSTANCE;
             Set<ProtectionDomain> protectionDomains = (Set<ProtectionDomain>) extractor.apply(captureStackFrames().stream());
             assertEquals(1, protectionDomains.size());
@@ -151,7 +151,7 @@ public class StackCallerProtectionDomainExtractorTests {
 
     @Test
     public void testStackTruncationWithOpenSearchAccessControllerUsingSupplier() {
-        org.opensearch.javaagent.bootstrap.AccessController.doPrivileged((Supplier<Void>) () -> {
+        org.opensearch.security.AccessController.doPrivileged((Supplier<Void>) () -> {
             StackCallerProtectionDomainChainExtractor extractor = StackCallerProtectionDomainChainExtractor.INSTANCE;
             Set<ProtectionDomain> protectionDomains = (Set<ProtectionDomain>) extractor.apply(captureStackFrames().stream());
             assertEquals(1, protectionDomains.size());
@@ -183,7 +183,7 @@ public class StackCallerProtectionDomainExtractorTests {
 
     @Test
     public void testStackTruncationWithOpenSearchAccessControllerUsingCallable() throws Exception {
-        org.opensearch.javaagent.bootstrap.AccessController.doPrivilegedChecked(() -> {
+        org.opensearch.security.AccessController.doPrivilegedChecked(() -> {
             StackCallerProtectionDomainChainExtractor extractor = StackCallerProtectionDomainChainExtractor.INSTANCE;
             Set<ProtectionDomain> protectionDomains = (Set<ProtectionDomain>) extractor.apply(captureStackFrames().stream());
             assertEquals(1, protectionDomains.size());
@@ -216,15 +216,13 @@ public class StackCallerProtectionDomainExtractorTests {
     @Test
     public void testAccessControllerUsingCallableThrowsException() {
         assertThrows(IllegalArgumentException.class, () -> {
-            org.opensearch.javaagent.bootstrap.AccessController.doPrivilegedChecked(
-                () -> { throw new IllegalArgumentException("Test exception"); }
-            );
+            org.opensearch.security.AccessController.doPrivilegedChecked(() -> { throw new IllegalArgumentException("Test exception"); });
         });
     }
 
     @Test
     public void testStackTruncationWithOpenSearchAccessControllerUsingCheckedRunnable() throws IllegalArgumentException {
-        org.opensearch.javaagent.bootstrap.AccessController.doPrivilegedChecked(() -> {
+        org.opensearch.security.AccessController.doPrivilegedChecked(() -> {
             StackCallerProtectionDomainChainExtractor extractor = StackCallerProtectionDomainChainExtractor.INSTANCE;
             Set<ProtectionDomain> protectionDomains = (Set<ProtectionDomain>) extractor.apply(captureStackFrames().stream());
             assertEquals(1, protectionDomains.size());
@@ -256,9 +254,7 @@ public class StackCallerProtectionDomainExtractorTests {
     @Test
     public void testAccessControllerUsingCheckedRunnableThrowsException() {
         assertThrows(IllegalArgumentException.class, () -> {
-            org.opensearch.javaagent.bootstrap.AccessController.doPrivilegedChecked(
-                () -> { throw new IllegalArgumentException("Test exception"); }
-            );
+            org.opensearch.security.AccessController.doPrivilegedChecked(() -> { throw new IllegalArgumentException("Test exception"); });
         });
     }
 }

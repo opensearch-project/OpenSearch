@@ -28,7 +28,7 @@ public final class StackCallerProtectionDomainChainExtractor implements Function
     private static final StackWalker STACK_WALKER = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
     private static final Set<String> ACCESS_CONTROLLER_CLASSES = Set.of(
         "java.security.AccessController",
-        "org.opensearch.javaagent.bootstrap.AccessController"
+        "org.opensearch.security.AccessController"
     );
 
     private static final Set<String> DO_PRIVILEGED_METHODS = Set.of("doPrivileged", "doPrivilegedChecked");

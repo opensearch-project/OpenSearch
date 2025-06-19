@@ -14,7 +14,7 @@ dependencies {
   implementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
 
-  testImplementation project(":libs:agent-sm:agent-api")
+  testImplementation project(":libs:agent-sm:agent-policy")
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.javaagent.bootstrap;
+package org.opensearch.security;
 
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;

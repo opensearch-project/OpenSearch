@@ -7,6 +7,6 @@
  */
 
 /**
- * Java Agent Policy
+ * Classes for running code in a privileged context
  */
-package org.opensearch.javaagent.api;
+package org.opensearch.security;

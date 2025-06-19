@@ -71,7 +71,6 @@ dependencies {
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
-  api project(":libs:agent-sm:agent-api")
 
   compileOnly project(":libs:agent-sm:bootstrap")
   compileOnly project(':libs:opensearch-plugin-classloader')
