@@ -35,7 +35,13 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
@@ -49,13 +55,13 @@ public class ClusterInfoTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         ClusterInfo clusterInfo = new ClusterInfo(
-            randomDiskUsage(),
-            randomDiskUsage(),
-            randomShardSizes(),
-            randomRoutingToDataPath(),
-            randomReservedSpace(),
-            randomFileCacheStats(),
-            randomNodeResourceUsageStats()
+            randomDiskUsage(randomIntBetween(0,128)),
+            randomDiskUsage(randomIntBetween(0,128)),
+            randomShardSizes(randomIntBetween(0,128)),
+            randomRoutingToDataPath(randomIntBetween(0,18)),
+            randomReservedSpace(randomIntBetween(0,18)),
+            randomFileCacheStats(randomIntBetween(0,18)),
+            randomNodeResourceUsageStats(randomIntBetween(0,20))
         );
         BytesStreamOutput output = new BytesStreamOutput();
         clusterInfo.writeTo(output);
@@ -70,25 +76,88 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         assertEquals(clusterInfo.getNodeResourceUsageStats().toString(), result.getNodeResourceUsageStats().toString());
     }
 
-    private static Map<String, DiskUsage> randomDiskUsage() {
-        int numEntries = randomIntBetween(0, 128);
+    public void testToXContent() throws Exception {
+        ClusterInfo clusterInfo = new ClusterInfo(
+            randomDiskUsage(1),
+            randomDiskUsage(1),
+            randomShardSizes(1),
+            randomRoutingToDataPath(1),
+            randomReservedSpace(1),
+            randomFileCacheStats(1),
+            randomNodeResourceUsageStats(1)
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        clusterInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            String nodeId = parser.currentName();
+
+            // Verify node1 content
+            parser.nextToken();
+            Map<String, Object> node1 = parser.map();
+            assertNotNull(node1.get("least_available"));
+            assertNotNull(node1.get("most_available"));
+            assertNotNull(node1.get("node_resource_usage_stats"));
+
+            parser.nextToken();
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("shard_sizes", parser.currentName());
+
+            // Verify shard_sizes
+            parser.nextToken();
+            Map<String, Object> shardSizesMap = parser.map();
+
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("shard_paths", parser.currentName());
+
+            // Verify shard_paths
+            parser.nextToken();
+            Map<String, Object> shardPathsMap = parser.map();
+
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("reserved_sizes", parser.currentName());
+
+            // Verify reserved_sizes
+            assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            Map<String, Object> reservedSizeEntry = parser.map();
+            assertTrue(reservedSizeEntry.containsKey("node_id"));
+            assertTrue(reservedSizeEntry.containsKey("path"));
+
+            assertEquals(XContentParser.Token.END_ARRAY, parser.nextToken());
+
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        }
+    }
+
+    private static Map<String, DiskUsage> randomDiskUsage(int numEntries) {
         final Map<String, DiskUsage> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
+            long totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
             DiskUsage diskUsage = new DiskUsage(
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
-                randomIntBetween(0, Integer.MAX_VALUE),
-                randomIntBetween(0, Integer.MAX_VALUE)
+                totalBytes,
+                randomLongBetween(0,totalBytes)
             );
             builder.put(key, diskUsage);
         }
         return builder;
     }
 
-    private static Map<String, NodeResourceUsageStats> randomNodeResourceUsageStats() {
-        int numEntries = randomIntBetween(0, 128);
+    private static Map<String, NodeResourceUsageStats> randomNodeResourceUsageStats(int numEntries) {
         final Map<String, NodeResourceUsageStats> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
@@ -104,8 +173,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         return builder;
     }
 
-    private static Map<String, AggregateFileCacheStats> randomFileCacheStats() {
-        int numEntries = randomIntBetween(0, 16);
+    private static Map<String, AggregateFileCacheStats> randomFileCacheStats(int numEntries) {
         final Map<String, AggregateFileCacheStats> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(16);
@@ -157,8 +225,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         return builder;
     }
 
-    private static Map<String, Long> randomShardSizes() {
-        int numEntries = randomIntBetween(0, 128);
+    private static Map<String, Long> randomShardSizes(int numEntries) {
         final Map<String, Long> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
@@ -168,8 +235,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         return builder;
     }
 
-    private static Map<ShardRouting, String> randomRoutingToDataPath() {
-        int numEntries = randomIntBetween(0, 128);
+    private static Map<ShardRouting, String> randomRoutingToDataPath(int numEntries) {
         final Map<ShardRouting, String> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             ShardId shardId = new ShardId(randomAlphaOfLength(32), randomAlphaOfLength(32), randomIntBetween(0, Integer.MAX_VALUE));
@@ -179,8 +245,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         return builder;
     }
 
-    private static Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> randomReservedSpace() {
-        int numEntries = randomIntBetween(0, 128);
+    private static Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> randomReservedSpace(int numEntries) {
         final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             final ClusterInfo.NodeAndPath key = new ClusterInfo.NodeAndPath(randomAlphaOfLength(10), randomAlphaOfLength(10));
