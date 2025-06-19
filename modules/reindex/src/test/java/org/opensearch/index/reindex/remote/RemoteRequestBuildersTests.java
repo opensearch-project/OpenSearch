@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.not;
  */
 public class RemoteRequestBuildersTests extends OpenSearchTestCase {
     public void testIntialSearchPath() {
-        RemoteVersion remoteVersion = RemoteVersion.V_2_0_0;
+        RemoteVersion remoteVersion = RemoteVersion.ELASTICSEARCH_2_0_0;
         BytesReference query = new BytesArray("{}");
 
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
@@ -107,7 +107,7 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
     }
 
     private void expectBadStartRequest(SearchRequest searchRequest, String type, String bad, String failed) {
-        RemoteVersion remoteVersion = RemoteVersion.V_2_0_0;
+        RemoteVersion remoteVersion = RemoteVersion.ELASTICSEARCH_2_0_0;
         BytesReference query = new BytesArray("{}");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> initialSearch(searchRequest, query, remoteVersion));
         assertEquals(type + " containing [" + bad + "] not supported but got [" + failed + "]", e.getMessage());
@@ -118,12 +118,12 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
 
         // Test sort:_doc for versions that support it.
-        RemoteVersion remoteVersion = RemoteVersion.V_2_1_0;
+        RemoteVersion remoteVersion = RemoteVersion.ELASTICSEARCH_2_1_0;
         searchRequest.source().sort("_doc");
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(), hasEntry("sort", "_doc:asc"));
 
         // Test search_type scan for versions that don't support sort:_doc.
-        remoteVersion = RemoteVersion.V_2_0_0;
+        remoteVersion = RemoteVersion.ELASTICSEARCH_2_0_0;
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(), hasEntry("search_type", "scan"));
 
         // Test sorting by some field. Version doesn't matter.
@@ -138,7 +138,7 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
 
         // Test request without any fields
-        RemoteVersion remoteVersion = RemoteVersion.V_2_0_0;
+        RemoteVersion remoteVersion = RemoteVersion.ELASTICSEARCH_2_0_0;
         assertThat(
             initialSearch(searchRequest, query, remoteVersion).getParameters(),
             not(either(hasKey("stored_fields")).or(hasKey("fields")))
@@ -147,19 +147,19 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         // Test stored_fields for versions that support it
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         searchRequest.source().storedField("_source").storedField("_id");
-        remoteVersion = RemoteVersion.V_5_0_0;
+        remoteVersion = RemoteVersion.ELASTICSEARCH_5_0_0;
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(), hasEntry("stored_fields", "_source,_id"));
 
         // Test fields for versions that support it
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         searchRequest.source().storedField("_source").storedField("_id");
-        remoteVersion = RemoteVersion.V_2_0_0;
+        remoteVersion = RemoteVersion.ELASTICSEARCH_2_0_0;
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(), hasEntry("fields", "_source,_id"));
 
         // Test extra fields for versions that need it
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         searchRequest.source().storedField("_source").storedField("_id");
-        remoteVersion = RemoteVersion.V_1_7_5;
+        remoteVersion = RemoteVersion.ELASTICSEARCH_1_7_5;
         assertThat(
             initialSearch(searchRequest, query, remoteVersion).getParameters(),
             hasEntry("fields", "_source,_id,_parent,_routing,_ttl")
@@ -168,7 +168,7 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         // But only versions before 1.0 force _source to be in the list
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         searchRequest.source().storedField("_id");
-        remoteVersion = RemoteVersion.V_1_7_5;
+        remoteVersion = RemoteVersion.ELASTICSEARCH_1_7_5;
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(), hasEntry("fields", "_id,_parent,_routing,_ttl"));
     }
 
@@ -211,17 +211,17 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         BytesReference query = new BytesArray("{}");
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
 
-        RemoteVersion disallowVersion = RemoteVersion.V_6_3_0;
+        RemoteVersion disallowVersion = RemoteVersion.ELASTICSEARCH_6_3_0;
         Map<String, String> params = initialSearch(searchRequest, query, disallowVersion).getParameters();
         assertEquals("false", params.get(allowPartialParamName));
 
-        RemoteVersion allowVersion = RemoteVersion.V_6_0_0;
+        RemoteVersion allowVersion = RemoteVersion.ELASTICSEARCH_6_0_0;
         params = initialSearch(searchRequest, query, allowVersion).getParameters();
         assertThat(params.keySet(), not(contains(allowPartialParamName)));
     }
 
     private void assertScroll(RemoteVersion remoteVersion, Map<String, String> params, TimeValue requested) {
-        if (remoteVersion.before(RemoteVersion.V_5_0_0)) {
+        if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_5_0_0)) {
             // Versions of Elasticsearch prior to 5.0 can't parse nanos or micros in TimeValue.
             assertThat(params.get("scroll"), not(either(endsWith("nanos")).or(endsWith("micros"))));
             if (requested.getStringRep().endsWith("nanos") || requested.getStringRep().endsWith("micros")) {
@@ -234,14 +234,14 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
     }
 
     public void testInitialSearchEntity() throws IOException {
-        RemoteVersion remoteVersion = RemoteVersion.V_2_0_0;
+        RemoteVersion remoteVersion = RemoteVersion.ELASTICSEARCH_2_0_0;
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(new SearchSourceBuilder());
         String query = "{\"match_all\":{}}";
         HttpEntity entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType());
-        if (remoteVersion.onOrAfter(RemoteVersion.V_1_0_0)) {
+        if (remoteVersion.onOrAfter(RemoteVersion.ELASTICSEARCH_1_0_0)) {
             assertEquals(
                 "{\"query\":" + query + ",\"_source\":true}",
                 Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8))
@@ -274,14 +274,14 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
 
     public void testScrollParams() {
         String scroll = randomAlphaOfLength(30);
-        RemoteVersion remoteVersion = RemoteVersion.V_2_0_0;
+        RemoteVersion remoteVersion = RemoteVersion.ELASTICSEARCH_2_0_0;
         TimeValue keepAlive = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
         assertScroll(remoteVersion, scroll(scroll, keepAlive, remoteVersion).getParameters(), keepAlive);
     }
 
     public void testScrollEntity() throws IOException {
         String scroll = randomAlphaOfLength(30);
-        HttpEntity entity = scroll(scroll, timeValueMillis(between(1, 1000)), RemoteVersion.V_5_0_0).getEntity();
+        HttpEntity entity = scroll(scroll, timeValueMillis(between(1, 1000)), RemoteVersion.ELASTICSEARCH_5_0_0).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType());
         assertThat(
             Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)),
@@ -289,14 +289,14 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         );
 
         // Test with version < 2.0.0
-        entity = scroll(scroll, timeValueMillis(between(1, 1000)), RemoteVersion.V_1_7_5).getEntity();
+        entity = scroll(scroll, timeValueMillis(between(1, 1000)), RemoteVersion.ELASTICSEARCH_1_7_5).getEntity();
         assertEquals(ContentType.TEXT_PLAIN.toString(), entity.getContentType());
         assertEquals(scroll, Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
     }
 
     public void testClearScroll() throws IOException {
         String scroll = randomAlphaOfLength(30);
-        Request request = clearScroll(scroll, RemoteVersion.V_5_0_0);
+        Request request = clearScroll(scroll, RemoteVersion.ELASTICSEARCH_5_0_0);
         assertEquals(ContentType.APPLICATION_JSON.toString(), request.getEntity().getContentType());
         assertThat(
             Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8)),
@@ -305,7 +305,7 @@ public class RemoteRequestBuildersTests extends OpenSearchTestCase {
         assertThat(request.getParameters().keySet(), empty());
 
         // Test with version < 2.0.0
-        request = clearScroll(scroll, RemoteVersion.V_1_7_5);
+        request = clearScroll(scroll, RemoteVersion.ELASTICSEARCH_1_7_5);
         assertEquals(ContentType.TEXT_PLAIN.toString(), request.getEntity().getContentType());
         assertEquals(scroll, Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8)));
         assertThat(request.getParameters().keySet(), empty());

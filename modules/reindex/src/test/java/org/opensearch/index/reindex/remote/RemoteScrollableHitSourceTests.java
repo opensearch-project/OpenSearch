@@ -156,12 +156,12 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
     }
 
     public void testLookupRemoteVersion() throws Exception {
-        assertLookupRemoteVersion(RemoteVersion.V_0_20_5, "main/0_20_5.json");
-        assertLookupRemoteVersion(RemoteVersion.V_0_90_13, "main/0_90_13.json");
-        assertLookupRemoteVersion(RemoteVersion.V_1_7_5, "main/1_7_5.json");
-        assertLookupRemoteVersion(RemoteVersion.V_2_3_3, "main/2_3_3.json");
-        assertLookupRemoteVersion(RemoteVersion.V_5_0_0, "main/5_0_0_alpha_3.json");
-        assertLookupRemoteVersion(RemoteVersion.V_5_0_0, "main/with_unknown_fields.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_0_20_5, "main/0_20_5.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_0_90_13, "main/0_90_13.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_1_7_5, "main/1_7_5.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_2_3_3, "main/2_3_3.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_5_0_0, "main/5_0_0_alpha_3.json");
+        assertLookupRemoteVersion(RemoteVersion.ELASTICSEARCH_5_0_0, "main/with_unknown_fields.json");
         assertLookupRemoteVersion(RemoteVersion.OPENSEARCH_1_0_0, "main/OpenSearch_1_0_0.json");
     }
 

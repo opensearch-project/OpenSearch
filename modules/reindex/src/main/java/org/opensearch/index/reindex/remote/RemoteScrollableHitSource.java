@@ -158,7 +158,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             private void logFailure(Exception e) {
                 if (e instanceof ResponseException) {
                     ResponseException re = (ResponseException) e;
-                    if (remoteVersion.before(RemoteVersion.V_2_0_0) && re.getResponse().getStatusLine().getStatusCode() == 404) {
+                    if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_2_0_0)
+                        && re.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.debug(
                             (Supplier<?>) () -> new ParameterizedMessage(
                                 "Failed to clear scroll [{}] from pre-2.0 OpenSearch. This is normal if the request terminated "
