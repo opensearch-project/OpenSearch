@@ -24,17 +24,17 @@ public final class RemoteVersion implements Comparable<RemoteVersion> {
     private final String distribution;
 
     // Common version constants for backward compatibility
-    public static final RemoteVersion V_0_20_5 = new RemoteVersion(0, 20, 5, null);
-    public static final RemoteVersion V_0_90_13 = new RemoteVersion(0, 90, 13, null);
-    public static final RemoteVersion V_1_0_0 = new RemoteVersion(1, 0, 0, null);
-    public static final RemoteVersion V_1_7_5 = new RemoteVersion(1, 7, 5, null);
-    public static final RemoteVersion V_2_0_0 = new RemoteVersion(2, 0, 0, null);
-    public static final RemoteVersion V_2_1_0 = new RemoteVersion(2, 1, 0, null);
-    public static final RemoteVersion V_2_3_3 = new RemoteVersion(2, 3, 3, null);
-    public static final RemoteVersion V_5_0_0 = new RemoteVersion(5, 0, 0, null);
-    public static final RemoteVersion V_6_0_0 = new RemoteVersion(6, 0, 0, null);
-    public static final RemoteVersion V_6_3_0 = new RemoteVersion(6, 3, 0, null);
-    public static final RemoteVersion V_7_0_0 = new RemoteVersion(7, 0, 0, null);
+    public static final RemoteVersion ELASTICSEARCH_0_20_5 = new RemoteVersion(0, 20, 5, null);
+    public static final RemoteVersion ELASTICSEARCH_0_90_13 = new RemoteVersion(0, 90, 13, null);
+    public static final RemoteVersion ELASTICSEARCH_1_0_0 = new RemoteVersion(1, 0, 0, null);
+    public static final RemoteVersion ELASTICSEARCH_1_7_5 = new RemoteVersion(1, 7, 5, null);
+    public static final RemoteVersion ELASTICSEARCH_2_0_0 = new RemoteVersion(2, 0, 0, null);
+    public static final RemoteVersion ELASTICSEARCH_2_1_0 = new RemoteVersion(2, 1, 0, null);
+    public static final RemoteVersion ELASTICSEARCH_2_3_3 = new RemoteVersion(2, 3, 3, null);
+    public static final RemoteVersion ELASTICSEARCH_5_0_0 = new RemoteVersion(5, 0, 0, null);
+    public static final RemoteVersion ELASTICSEARCH_6_0_0 = new RemoteVersion(6, 0, 0, null);
+    public static final RemoteVersion ELASTICSEARCH_6_3_0 = new RemoteVersion(6, 3, 0, null);
+    public static final RemoteVersion ELASTICSEARCH_7_0_0 = new RemoteVersion(7, 0, 0, null);
 
     // OpenSearch versions
     public static final RemoteVersion OPENSEARCH_1_0_0 = new RemoteVersion(1, 0, 0, "opensearch");

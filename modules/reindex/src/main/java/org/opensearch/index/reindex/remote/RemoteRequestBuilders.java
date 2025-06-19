@@ -83,7 +83,7 @@ final class RemoteRequestBuilders {
         if (searchRequest.scroll() != null) {
             TimeValue keepAlive = searchRequest.scroll().keepAlive();
             // V_5_0_0
-            if (remoteVersion.before(RemoteVersion.V_5_0_0)) {
+            if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_5_0_0)) {
                 /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
                  * so we toss out that resolution, rounding up because more scroll
                  * timeout seems safer than less. */
@@ -102,7 +102,7 @@ final class RemoteRequestBuilders {
         if (searchRequest.source().sorts() != null) {
             boolean useScan = false;
             // Detect if we should use search_type=scan rather than a sort
-            if (remoteVersion.before(RemoteVersion.V_2_1_0)) {
+            if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_2_1_0)) {
                 for (SortBuilder<?> sort : searchRequest.source().sorts()) {
                     if (sort instanceof FieldSortBuilder) {
                         FieldSortBuilder f = (FieldSortBuilder) sort;
@@ -123,10 +123,10 @@ final class RemoteRequestBuilders {
                 request.addParameter("sort", sorts.toString());
             }
         }
-        if (remoteVersion.before(RemoteVersion.V_2_0_0)) {
+        if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_2_0_0)) {
             // Versions before 2.0.0 need prompting to return interesting fields. Note that timestamp isn't available at all....
             searchRequest.source().storedField("_parent").storedField("_routing").storedField("_ttl");
-            if (remoteVersion.before(RemoteVersion.V_1_0_0)) {
+            if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_1_0_0)) {
                 // Versions before 1.0.0 don't support `"_source": true` so we have to ask for the _source in a funny way.
                 if (false == searchRequest.source().storedFields().fieldNames().contains("_source")) {
                     searchRequest.source().storedField("_source");
@@ -139,11 +139,11 @@ final class RemoteRequestBuilders {
                 fields.append(',').append(searchRequest.source().storedFields().fieldNames().get(i));
             }
             // V_5_0_0
-            String storedFieldsParamName = remoteVersion.before(RemoteVersion.V_5_0_0) ? "fields" : "stored_fields";
+            String storedFieldsParamName = remoteVersion.before(RemoteVersion.ELASTICSEARCH_5_0_0) ? "fields" : "stored_fields";
             request.addParameter(storedFieldsParamName, fields.toString());
         }
 
-        if (remoteVersion.onOrAfter(RemoteVersion.V_6_3_0)) {
+        if (remoteVersion.onOrAfter(RemoteVersion.ELASTICSEARCH_6_3_0)) {
             // allow_partial_results introduced in 6.3, running remote reindex against earlier versions still silently discards RED shards.
             request.addParameter("allow_partial_search_results", "false");
         }
@@ -172,7 +172,7 @@ final class RemoteRequestBuilders {
             if (searchRequest.source().fetchSource() != null) {
                 entity.field("_source", searchRequest.source().fetchSource());
             } else {
-                if (remoteVersion.onOrAfter(RemoteVersion.V_1_0_0)) {
+                if (remoteVersion.onOrAfter(RemoteVersion.ELASTICSEARCH_1_0_0)) {
                     // Versions before 1.0 don't support `"_source": true` so we have to ask for the source as a stored field.
                     entity.field("_source", true);
                 }
@@ -227,7 +227,7 @@ final class RemoteRequestBuilders {
     static Request scroll(String scroll, TimeValue keepAlive, RemoteVersion remoteVersion) {
         Request request = new Request("POST", "/_search/scroll");
 
-        if (remoteVersion.before(RemoteVersion.V_5_0_0)) {
+        if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_5_0_0)) {
             /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
              * so we toss out that resolution, rounding up so we shouldn't end up
              * with 0s. */
@@ -235,7 +235,7 @@ final class RemoteRequestBuilders {
         }
         request.addParameter("scroll", keepAlive.getStringRep());
 
-        if (remoteVersion.before(RemoteVersion.V_2_0_0)) {
+        if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_2_0_0)) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
             request.setEntity(new StringEntity(scroll, ContentType.TEXT_PLAIN));
             return request;
@@ -253,7 +253,7 @@ final class RemoteRequestBuilders {
     static Request clearScroll(String scroll, RemoteVersion remoteVersion) {
         Request request = new Request("DELETE", "/_search/scroll");
 
-        if (remoteVersion.before(RemoteVersion.V_2_0_0)) {
+        if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_2_0_0)) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
             request.setEntity(new StringEntity(scroll, ContentType.TEXT_PLAIN));
             return request;

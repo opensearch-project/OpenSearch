@@ -14,31 +14,31 @@ public class RemoteVersionTests extends OpenSearchTestCase {
 
     public void testVersionComparison() {
         // Test before()
-        assertTrue(RemoteVersion.V_1_0_0.before(RemoteVersion.V_2_0_0));
-        assertFalse(RemoteVersion.V_1_0_0.before(RemoteVersion.V_1_0_0));
-        assertFalse(RemoteVersion.V_2_0_0.before(RemoteVersion.V_1_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_1_0_0.before(RemoteVersion.ELASTICSEARCH_2_0_0));
+        assertFalse(RemoteVersion.ELASTICSEARCH_1_0_0.before(RemoteVersion.ELASTICSEARCH_1_0_0));
+        assertFalse(RemoteVersion.ELASTICSEARCH_2_0_0.before(RemoteVersion.ELASTICSEARCH_1_0_0));
 
         // Test onOrBefore()
-        assertTrue(RemoteVersion.V_1_0_0.onOrBefore(RemoteVersion.V_2_0_0));
-        assertTrue(RemoteVersion.V_1_0_0.onOrBefore(RemoteVersion.V_1_0_0));
-        assertFalse(RemoteVersion.V_2_0_0.onOrBefore(RemoteVersion.V_1_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_1_0_0.onOrBefore(RemoteVersion.ELASTICSEARCH_2_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_1_0_0.onOrBefore(RemoteVersion.ELASTICSEARCH_1_0_0));
+        assertFalse(RemoteVersion.ELASTICSEARCH_2_0_0.onOrBefore(RemoteVersion.ELASTICSEARCH_1_0_0));
 
         // Test after()
-        assertFalse(RemoteVersion.V_1_0_0.after(RemoteVersion.V_2_0_0));
-        assertFalse(RemoteVersion.V_1_0_0.after(RemoteVersion.V_1_0_0));
-        assertTrue(RemoteVersion.V_2_0_0.after(RemoteVersion.V_1_0_0));
+        assertFalse(RemoteVersion.ELASTICSEARCH_1_0_0.after(RemoteVersion.ELASTICSEARCH_2_0_0));
+        assertFalse(RemoteVersion.ELASTICSEARCH_1_0_0.after(RemoteVersion.ELASTICSEARCH_1_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_2_0_0.after(RemoteVersion.ELASTICSEARCH_1_0_0));
 
         // Test onOrAfter()
-        assertFalse(RemoteVersion.V_1_0_0.onOrAfter(RemoteVersion.V_2_0_0));
-        assertTrue(RemoteVersion.V_1_0_0.onOrAfter(RemoteVersion.V_1_0_0));
-        assertTrue(RemoteVersion.V_2_0_0.onOrAfter(RemoteVersion.V_1_0_0));
+        assertFalse(RemoteVersion.ELASTICSEARCH_1_0_0.onOrAfter(RemoteVersion.ELASTICSEARCH_2_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_1_0_0.onOrAfter(RemoteVersion.ELASTICSEARCH_1_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_2_0_0.onOrAfter(RemoteVersion.ELASTICSEARCH_1_0_0));
 
         // Test compareTo()
-        assertTrue(RemoteVersion.V_1_0_0.compareTo(RemoteVersion.V_2_0_0) < 0);
-        assertTrue(RemoteVersion.V_2_0_0.compareTo(RemoteVersion.V_1_0_0) > 0);
+        assertTrue(RemoteVersion.ELASTICSEARCH_1_0_0.compareTo(RemoteVersion.ELASTICSEARCH_2_0_0) < 0);
+        assertTrue(RemoteVersion.ELASTICSEARCH_2_0_0.compareTo(RemoteVersion.ELASTICSEARCH_1_0_0) > 0);
 
         // Test OpenSearch vs Elasticsearch versions with same numbers
-        assertEquals(0, RemoteVersion.V_2_0_0.compareTo(RemoteVersion.OPENSEARCH_2_0_0)); // Same version numbers should be equal in
+        assertEquals(0, RemoteVersion.ELASTICSEARCH_2_0_0.compareTo(RemoteVersion.OPENSEARCH_2_0_0)); // Same version numbers should be equal in
                                                                                           // comparison
     }
 
@@ -106,15 +106,15 @@ public class RemoteVersionTests extends OpenSearchTestCase {
 
     public void testVersionConstants() {
         // Test Elasticsearch versions
-        assertEquals(0, RemoteVersion.V_0_20_5.getMajor());
-        assertEquals(20, RemoteVersion.V_0_20_5.getMinor());
-        assertEquals(5, RemoteVersion.V_0_20_5.getRevision());
-        assertEquals("elasticsearch", RemoteVersion.V_0_20_5.getDistribution());
+        assertEquals(0, RemoteVersion.ELASTICSEARCH_0_20_5.getMajor());
+        assertEquals(20, RemoteVersion.ELASTICSEARCH_0_20_5.getMinor());
+        assertEquals(5, RemoteVersion.ELASTICSEARCH_0_20_5.getRevision());
+        assertEquals("elasticsearch", RemoteVersion.ELASTICSEARCH_0_20_5.getDistribution());
 
-        assertEquals(7, RemoteVersion.V_7_0_0.getMajor());
-        assertEquals(0, RemoteVersion.V_7_0_0.getMinor());
-        assertEquals(0, RemoteVersion.V_7_0_0.getRevision());
-        assertEquals("elasticsearch", RemoteVersion.V_7_0_0.getDistribution());
+        assertEquals(7, RemoteVersion.ELASTICSEARCH_7_0_0.getMajor());
+        assertEquals(0, RemoteVersion.ELASTICSEARCH_7_0_0.getMinor());
+        assertEquals(0, RemoteVersion.ELASTICSEARCH_7_0_0.getRevision());
+        assertEquals("elasticsearch", RemoteVersion.ELASTICSEARCH_7_0_0.getDistribution());
 
         // Test OpenSearch versions
         assertEquals(1, RemoteVersion.OPENSEARCH_1_0_0.getMajor());
@@ -135,26 +135,26 @@ public class RemoteVersionTests extends OpenSearchTestCase {
 
     public void testVersionOrdering() {
         // Test chronological ordering of constants
-        assertTrue(RemoteVersion.V_0_20_5.before(RemoteVersion.V_0_90_13));
-        assertTrue(RemoteVersion.V_0_90_13.before(RemoteVersion.V_1_0_0));
-        assertTrue(RemoteVersion.V_1_0_0.before(RemoteVersion.V_1_7_5));
-        assertTrue(RemoteVersion.V_1_7_5.before(RemoteVersion.V_2_0_0));
-        assertTrue(RemoteVersion.V_2_0_0.before(RemoteVersion.V_2_1_0));
-        assertTrue(RemoteVersion.V_2_1_0.before(RemoteVersion.V_2_3_3));
-        assertTrue(RemoteVersion.V_2_3_3.before(RemoteVersion.V_5_0_0));
-        assertTrue(RemoteVersion.V_5_0_0.before(RemoteVersion.V_6_0_0));
-        assertTrue(RemoteVersion.V_6_0_0.before(RemoteVersion.V_6_3_0));
-        assertTrue(RemoteVersion.V_6_3_0.before(RemoteVersion.V_7_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_0_20_5.before(RemoteVersion.ELASTICSEARCH_0_90_13));
+        assertTrue(RemoteVersion.ELASTICSEARCH_0_90_13.before(RemoteVersion.ELASTICSEARCH_1_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_1_0_0.before(RemoteVersion.ELASTICSEARCH_1_7_5));
+        assertTrue(RemoteVersion.ELASTICSEARCH_1_7_5.before(RemoteVersion.ELASTICSEARCH_2_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_2_0_0.before(RemoteVersion.ELASTICSEARCH_2_1_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_2_1_0.before(RemoteVersion.ELASTICSEARCH_2_3_3));
+        assertTrue(RemoteVersion.ELASTICSEARCH_2_3_3.before(RemoteVersion.ELASTICSEARCH_5_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_5_0_0.before(RemoteVersion.ELASTICSEARCH_6_0_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_6_0_0.before(RemoteVersion.ELASTICSEARCH_6_3_0));
+        assertTrue(RemoteVersion.ELASTICSEARCH_6_3_0.before(RemoteVersion.ELASTICSEARCH_7_0_0));
     }
 
     public void testDistributionChecks() {
         // Test isElasticsearch()
-        assertTrue(RemoteVersion.V_7_0_0.isElasticsearch());
+        assertTrue(RemoteVersion.ELASTICSEARCH_7_0_0.isElasticsearch());
         assertFalse(RemoteVersion.OPENSEARCH_1_0_0.isElasticsearch());
 
         // Test isOpenSearch()
         assertTrue(RemoteVersion.OPENSEARCH_1_0_0.isOpenSearch());
-        assertFalse(RemoteVersion.V_7_0_0.isOpenSearch());
+        assertFalse(RemoteVersion.ELASTICSEARCH_7_0_0.isOpenSearch());
 
         // Test custom distribution
         RemoteVersion customVersion = new RemoteVersion(1, 0, 0, "custom");
@@ -247,14 +247,14 @@ public class RemoteVersionTests extends OpenSearchTestCase {
     }
 
     public void testCompareToWithNull() {
-        RemoteVersion version = RemoteVersion.V_2_0_0;
+        RemoteVersion version = RemoteVersion.ELASTICSEARCH_2_0_0;
         assertTrue(version.compareTo(null) > 0);
     }
 
     public void testVersionConstantsAreCorrect() {
         // Verify that our constants match what fromString would produce
-        assertEquals(RemoteVersion.V_2_0_0, RemoteVersion.fromString("2.0.0"));
-        assertEquals(RemoteVersion.V_7_0_0, RemoteVersion.fromString("7.0.0"));
+        assertEquals(RemoteVersion.ELASTICSEARCH_2_0_0, RemoteVersion.fromString("2.0.0"));
+        assertEquals(RemoteVersion.ELASTICSEARCH_7_0_0, RemoteVersion.fromString("7.0.0"));
         assertEquals(RemoteVersion.OPENSEARCH_1_0_0, RemoteVersion.fromString("1.0.0", "opensearch"));
         assertEquals(RemoteVersion.OPENSEARCH_2_0_0, RemoteVersion.fromString("2.0.0", "opensearch"));
     }
