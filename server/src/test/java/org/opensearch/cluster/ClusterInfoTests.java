@@ -55,13 +55,13 @@ public class ClusterInfoTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         ClusterInfo clusterInfo = new ClusterInfo(
-            randomDiskUsage(randomIntBetween(0,128)),
-            randomDiskUsage(randomIntBetween(0,128)),
-            randomShardSizes(randomIntBetween(0,128)),
-            randomRoutingToDataPath(randomIntBetween(0,18)),
-            randomReservedSpace(randomIntBetween(0,18)),
-            randomFileCacheStats(randomIntBetween(0,18)),
-            randomNodeResourceUsageStats(randomIntBetween(0,20))
+            randomDiskUsage(randomIntBetween(0, 128)),
+            randomDiskUsage(randomIntBetween(0, 128)),
+            randomShardSizes(randomIntBetween(0, 128)),
+            randomRoutingToDataPath(randomIntBetween(0, 18)),
+            randomReservedSpace(randomIntBetween(0, 18)),
+            randomFileCacheStats(randomIntBetween(0, 18)),
+            randomNodeResourceUsageStats(randomIntBetween(0, 20))
         );
         BytesStreamOutput output = new BytesStreamOutput();
         clusterInfo.writeTo(output);
@@ -150,7 +150,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 totalBytes,
-                randomLongBetween(0,totalBytes)
+                randomLongBetween(0, totalBytes)
             );
             builder.put(key, diskUsage);
         }
