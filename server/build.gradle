@@ -69,8 +69,9 @@ dependencies {
   api project(":libs:opensearch-geo")
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
-
-
+  //api files('/Users/rajivkv/DFDDClient/src/DFDDClient/build/lib/DFDDClient-1.0.jar')
+  //api fileTree(dir: '/Users/rajivkv/DFDDClient/build/DFDDClient/DFDDClient-1.0/AL2_x86_64/DEV.STD.PTHREAD/build/lib/dependencies', include: ['*.jar'])
+    api fileTree(dir: '/Users/rajivkv/DFDDClient/build/DFDDClient/DFDDClient-1.2/AL2_x86_64/DEV.STD.PTHREAD/build/lib/dependencies', include: ['*.jar'])
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
 

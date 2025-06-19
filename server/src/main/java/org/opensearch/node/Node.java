@@ -278,6 +278,7 @@ import org.opensearch.wlm.cancellation.MaximumResourceTaskSelectionStrategy;
 import org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService;
 import org.opensearch.wlm.listeners.QueryGroupRequestOperationListener;
 import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
+import s3.dfddclient.DFDDClient;
 
 import javax.net.ssl.SNIHostName;
 
@@ -310,6 +311,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import s3.stumpy.StumpyManager;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.BACKGROUND_TASK_EXECUTION_EXPERIMENTAL;
@@ -1776,8 +1778,25 @@ public class Node implements Closeable {
 
         logger.info("started");
 
+
+
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(plugin -> plugin.onNodeStarted(clusterService.localNode()));
 
+
+        StumpyManager mgr = null;
+        try {
+            System.out.println("starting stumpy manager");
+
+            mgr = new StumpyManager();
+            DFDDClient dfddClient = new DFDDClient(mgr, "localhost", 2977 , "OzoneDFDDRuntimeClique-Desktop");
+            dfddClient.addBeatingApplication("fooApp", "foo-inst1", "localhost:9200");
+
+            System.out.println("initialized addBeatingApplication");
+        } catch (IOException e) {
+            System.out.println("error stumpy manager");
+
+            throw new RuntimeException("stumpy", e);
+        }
         return this;
     }
 

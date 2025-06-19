@@ -70,6 +70,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+import s3.dfddclient.DFDDClient;
+
 import static org.opensearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
@@ -237,6 +239,7 @@ public class FollowersChecker {
         if (request.term < responder.term) {
             throw new CoordinationStateRejectedException("rejecting " + request + " since local state is " + this);
         }
+        DFDDClient dfddClient;
 
         transportService.getThreadPool().generic().execute(new AbstractRunnable() {
             @Override

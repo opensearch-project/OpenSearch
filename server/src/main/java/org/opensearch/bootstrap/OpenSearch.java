@@ -52,6 +52,8 @@ import java.security.Permission;
 import java.security.Security;
 import java.util.Arrays;
 import java.util.Locale;
+import s3.dfddclient.DFDDClient;
+import s3.stumpy.StumpyManager;
 
 /**
  * This class starts opensearch.
@@ -80,11 +82,13 @@ class OpenSearch extends EnvironmentAwareCommand {
             .availableUnless(daemonizeOption);
     }
 
+
     /**
      * Main entry point for starting opensearch
      */
     @SuppressWarnings("removal")
     public static void main(final String[] args) throws Exception {
+
         overrideDnsCachePolicyProperties();
         /*
          * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
@@ -99,6 +103,7 @@ class OpenSearch extends EnvironmentAwareCommand {
             }
 
         });
+
         LogConfigurator.registerErrorListener();
         final OpenSearch opensearch = new OpenSearch();
         int status = main(args, opensearch, Terminal.DEFAULT);

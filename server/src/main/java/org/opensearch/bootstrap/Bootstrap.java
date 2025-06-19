@@ -221,23 +221,23 @@ final class Bootstrap {
             });
         }
 
-        try {
-            // look for jar hell
-            final Logger logger = LogManager.getLogger(JarHell.class);
-            JarHell.checkJarHell(logger::debug);
-        } catch (IOException | URISyntaxException e) {
-            throw new BootstrapException(e);
-        }
-
+//        try {
+//            // look for jar hell
+//            final Logger logger = LogManager.getLogger(JarHell.class);
+//            JarHell.checkJarHell(logger::debug);
+//        } catch (IOException | URISyntaxException e) {
+//            throw new BootstrapException(e);
+//        }
+//
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
 
         // install SM after natives, shutdown hooks, etc.
-        try {
-            Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
-        } catch (IOException | NoSuchAlgorithmException e) {
-            throw new BootstrapException(e);
-        }
+//        try {
+//            Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
+//        } catch (IOException | NoSuchAlgorithmException e) {
+//            throw new BootstrapException(e);
+//        }
 
         node = new Node(environment) {
             @Override
