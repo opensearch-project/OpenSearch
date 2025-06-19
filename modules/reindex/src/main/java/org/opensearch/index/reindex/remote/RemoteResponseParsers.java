@@ -300,12 +300,14 @@ final class RemoteResponseParsers {
         a -> (RemoteVersion) a[0]
     );
     static {
-        ConstructingObjectParser<RemoteVersion, MediaType> versionParser = new ConstructingObjectParser<>("version", true, a -> {
-            String distribution = (String) a[0];
-            String number = (String) a[1];
-            String cleanNumber = number.replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "");
-            return RemoteVersion.fromString(cleanNumber, distribution);
-        });
+        ConstructingObjectParser<RemoteVersion, MediaType> versionParser = new ConstructingObjectParser<>(
+            "version",
+            true,
+            a -> RemoteVersion.fromString(
+                ((String) a[1]).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", ""),
+                a[0] != null
+            )
+        );
         versionParser.declareStringOrNull(optionalConstructorArg(), new ParseField("distribution"));
         versionParser.declareString(constructorArg(), new ParseField("number"));
         MAIN_ACTION_PARSER.declareObject(constructorArg(), versionParser, new ParseField("version"));
