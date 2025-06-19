@@ -716,11 +716,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, true)
+            SearchContext context = createContext(readerContext, request, task, true) // TODO: QB --> Query conversions are complete after this line
         ) {
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
-                loadOrExecuteQueryPhase(request, context);
+                loadOrExecuteQueryPhase(request, context); // TODO: Collectors are built in here, need the logic done by this point
                 if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     freeReaderContext(readerContext.id());
                 }
@@ -1129,6 +1129,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.size(DEFAULT_SIZE);
             }
             context.setTask(task);
+
+            context.tryEnablingEarlyTermination();
 
             // pre process
             queryPhase.preProcess(context);

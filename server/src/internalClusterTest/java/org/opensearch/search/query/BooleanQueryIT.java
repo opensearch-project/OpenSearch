@@ -10,11 +10,16 @@ package org.opensearch.search.query;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.transport.client.Requests;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -23,6 +28,7 @@ import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     public BooleanQueryIT(Settings staticSettings) {
@@ -64,10 +70,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 .setSource(intField, i, termField1, termValue1, termField2, termValue2)
                 .get();
         }
-        ensureGreen();
-        waitForRelocation();
-        forceMerge();
-        refresh();
+        afterIndexing();
 
         int lt = 80;
         int gte = 20;
@@ -113,10 +116,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         for (int day = minDay; day <= maxDay; day++) {
             client().prepareIndex("test").setSource(dateField, getDate(day, 0)).get();
         }
-        ensureGreen();
-        waitForRelocation();
-        forceMerge();
-        refresh();
+        afterIndexing();
 
         int minExcludedDay = 15;
         int maxExcludedDay = 25;
@@ -142,10 +142,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         for (int hour = 0; hour < 24; hour++) {
             client().prepareIndex("test").setSource(dateField, getDate(1, hour)).get();
         }
-        ensureGreen();
-        waitForRelocation();
-        forceMerge();
-        refresh();
+        afterIndexing();
 
         int zoneOffset = 3;
         assertHitCount(
@@ -180,10 +177,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 client().prepareIndex("test").setId(Integer.toString(i)).setSource(termField, termValue).get();
             }
         }
-        ensureGreen();
-        waitForRelocation();
-        forceMerge();
-        refresh();
+        afterIndexing();
 
         // Search excluding range 30 to 50
 
@@ -212,10 +206,7 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 client().prepareIndex("test").setId(Integer.toString(i)).setSource(intField, i).get();
             }
         }
-        ensureGreen();
-        waitForRelocation();
-        forceMerge();
-        refresh();
+        afterIndexing();
 
         // Range queries will match if ANY of the doc's values are within the range.
         // So if we exclude the range 0 to 20, we shouldn't see any of those documents returned,
@@ -229,6 +220,69 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), numDocs);
     }
 
+    public void testFilterEarlyTermination() throws Exception {
+        // TODO: I think this test may flake if we have >1 node, as then it's possible no individual segment has enough hits to allow early termination
+        int numDocs = 6_000;
+        String intField = "int_field";
+        String termField1 = "term_field1";
+        String termField2 = "term_field2";
+        List<String> termField1Values = List.of("even", "odd");
+        List<String> termField2Values = List.of("A", "B", "C");
+
+        for (int i = 0; i < numDocs; i++) {
+            String termValue1 = termField1Values.get(i % 2);
+            String termValue2 = termField2Values.get(i % 3);
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
+                .setSource(intField, i, termField1, termValue1, termField2, termValue2)
+                .get();
+        }
+        afterIndexing();
+
+        // Set trackTotalHitsUpTo to 500 rather than default 10k, so we have to index fewer docs
+        int trackTotalHitsUpTo = 500;
+
+        // A query with only filter or must_not clauses should be able to terminate early
+        /*SearchResponse response = client().prepareSearch().setTrackTotalHitsUpTo(trackTotalHitsUpTo).setQuery(boolQuery().mustNot(termQuery(termField1, "A"))).get();
+        assertTrue(response.isTerminatedEarly());*/
+
+
+        SearchResponse response = client().prepareSearch().setTrackTotalHitsUpTo(trackTotalHitsUpTo).setQuery(
+            boolQuery().mustNot(termQuery(termField1, "even"))
+                .filter(rangeQuery(intField).lte(3000))
+        ).get();
+        if (response.isTerminatedEarly() == null) {
+            int k = 0;
+        }
+        assertTrue(response.isTerminatedEarly()); // TODO: This appears to STILL flake even after force merge to 1 segment
+
+        // Queries with other clauses should not terminate early
+        /*response = client().prepareSearch().setTrackTotalHitsUpTo(trackTotalHitsUpTo).setQuery(
+            boolQuery().mustNot(termQuery(termField1, "even"))
+                .must(rangeQuery(intField).lte(3000))
+        ).get();
+        assertNull(response.isTerminatedEarly());
+
+        response = client().prepareSearch().setTrackTotalHitsUpTo(trackTotalHitsUpTo).setQuery(
+            boolQuery()
+                .must(rangeQuery(intField).lte(3000))
+                .should(termQuery(termField2, "A"))
+        ).get();
+        assertNull(response.isTerminatedEarly());*/
+
+        // Queries with aggregations shouldn't terminate early
+        // TODO
+
+        // Queries with sorting shouldn't terminate early
+        // TODO
+
+        // Queries with pagination shouldn't terminate early
+        // TODO
+
+        // Scroll queries shouldn't terminate early
+        // TODO
+    }
+
     private String padZeros(int value, int length) {
         // String.format() not allowed
         String ret = Integer.toString(value);
@@ -240,5 +294,12 @@ public class BooleanQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTe
 
     private String getDate(int day, int hour) {
         return "2016-01-" + padZeros(day, 2) + "T" + padZeros(hour, 2) + ":00:00.000";
+    }
+
+    private void afterIndexing() {
+        ensureGreen();
+        waitForRelocation();
+        forceMerge();
+        refresh();
     }
 }

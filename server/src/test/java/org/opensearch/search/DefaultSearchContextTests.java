@@ -1170,6 +1170,10 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         }
     }
 
+    public void testEarlyTermination() throws Exception {
+        // TODO
+    }
+
     private ShardSearchContextId newContextId() {
         return new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
     }
