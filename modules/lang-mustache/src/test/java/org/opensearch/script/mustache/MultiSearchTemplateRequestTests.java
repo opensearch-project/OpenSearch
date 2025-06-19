@@ -126,6 +126,7 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
             SearchRequest searchRequest = new SearchRequest(indices);
             // scroll is not supported in the current msearch or msearchtemplate api, so unset it:
             searchRequest.scroll((Scroll) null);
+            searchRequest.pipeline("pipeline");
             // batched reduce size is currently not set-able on a per-request basis as it is a query string parameter only
             searchRequest.setBatchedReduceSize(SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE);
             SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
@@ -133,6 +134,7 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
             searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
             searchTemplateRequest.setScriptType(ScriptType.INLINE);
             searchTemplateRequest.setProfile(randomBoolean());
+            searchTemplateRequest.setSearchPipeline("pipeline");
 
             Map<String, Object> scriptParams = new HashMap<>();
             scriptParams.put("field", "name");
