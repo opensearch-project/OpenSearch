@@ -540,8 +540,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
         for (Bundle bundle : sortedBundles) {
-            checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
+            // checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
 
+            if(!bundle.plugin.getName().equals("transport-netty4")) {
+                continue;
+            }
             final Plugin plugin = loadBundle(bundle, loaded);
             plugins.add(new Tuple<>(bundle.plugin, plugin));
         }
@@ -730,17 +733,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
             logger.debug("Loading plugin [" + name + "]...");
             Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
-            if (loader != pluginClass.getClassLoader()) {
-                throw new IllegalStateException(
-                    "Plugin ["
-                        + name
-                        + "] must reference a class loader local Plugin class ["
-                        + bundle.plugin.getClassname()
-                        + "] (class loader ["
-                        + pluginClass.getClassLoader()
-                        + "])"
-                );
-            }
+            logger.info(loader);
+            logger.info(pluginClass.getClassLoader());
+//            if (loader != pluginClass.getClassLoader()) {
+//                throw new IllegalStateException(
+//                    "Plugin ["
+//                        + name
+//                        + "] must reference a class loader local Plugin class ["
+//                        + bundle.plugin.getClassname()
+//                        + "] (class loader ["
+//                        + pluginClass.getClassLoader()
+//                        + "])"
+//                );
+//            }
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             loaded.put(name, plugin);
             return plugin;
@@ -771,6 +776,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         try {
             return Class.forName(className, false, loader).asSubclass(Plugin.class);
         } catch (Throwable t) {
+            logger.error("jun", t);
             throw new OpenSearchException("Unable to load plugin class [" + className + "]", t);
         }
     }

@@ -32,8 +32,10 @@
 
 package org.opensearch.cluster.metadata;
 
+import com.google.protobuf.ByteString;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,17 +65,19 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.transport.AllocationServiceInterface;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.cluster.routing.allocation.transport.AllocationServiceRemoteExtension;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.MasterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -85,10 +89,14 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
+import org.opensearch.extensions.ExtensionsManager;
+import org.opensearch.extensions.action.ExtensionActionRequest;
+import org.opensearch.extensions.action.ExtensionActionResponse;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
@@ -117,8 +125,9 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.sdk.sample.helloworld.transport.SampleRequest;
 import org.opensearch.threadpool.ThreadPool;
-
+import org.opensearch.core.common.bytes.BytesReference;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
@@ -180,7 +189,7 @@ public class MetadataCreateIndexService {
     private final Settings settings;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final AllocationService allocationService;
+    private final AllocationServiceInterface allocationService;
     private final AliasValidator aliasValidator;
     private final Environment env;
     private final IndexScopedSettings indexScopedSettings;
@@ -196,6 +205,7 @@ public class MetadataCreateIndexService {
     @Nullable
     private final RemoteStoreCustomMetadataResolver remoteStoreCustomMetadataResolver;
 
+    private ExtensionsManager extensionsManager;
     public MetadataCreateIndexService(
         final Settings settings,
         final ClusterService clusterService,
@@ -235,6 +245,48 @@ public class MetadataCreateIndexService {
             : null;
     }
 
+    public MetadataCreateIndexService(
+        final Settings settings,
+        final ClusterService clusterService,
+        final IndicesService indicesService,
+        final AllocationService allocationService,
+        final AliasValidator aliasValidator,
+        final ShardLimitValidator shardLimitValidator,
+        final Environment env,
+        final IndexScopedSettings indexScopedSettings,
+        final ThreadPool threadPool,
+        final NamedXContentRegistry xContentRegistry,
+        final SystemIndices systemIndices,
+        final boolean forbidPrivateIndexSettings,
+        final AwarenessReplicaBalance awarenessReplicaBalance,
+        final RemoteStoreSettings remoteStoreSettings,
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        ExtensionsManager extensionsManager
+    ) {
+        this.settings = settings;
+        this.clusterService = clusterService;
+        this.indicesService = indicesService;
+        this.allocationService = allocationService;
+        this.aliasValidator = aliasValidator;
+        this.env = env;
+        this.indexScopedSettings = indexScopedSettings;
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
+        this.xContentRegistry = xContentRegistry;
+        this.systemIndices = systemIndices;
+        this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
+        this.shardLimitValidator = shardLimitValidator;
+        this.awarenessReplicaBalance = awarenessReplicaBalance;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
+        Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
+        remoteStoreCustomMetadataResolver = isRemoteDataAttributePresent(settings)
+                                            ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
+                                            : null;
+        this.extensionsManager = extensionsManager;
+        this.allocationServiceRemoteExtension = new AllocationServiceRemoteExtension(extensionsManager);
+    }
+    AllocationServiceRemoteExtension allocationServiceRemoteExtension = null;
     /**
      * Add a provider to be invoked to get additional index settings prior to an index being created
      */
@@ -411,6 +463,7 @@ public class MetadataCreateIndexService {
                 }
             }
         );
+        final byte UNIT_SEPARATOR = (byte) '\u001F';
 
         clusterService.submitStateUpdateTask(
             "create-index-block [" + request.index() + "], cause [" + request.cause() + "]",
@@ -428,6 +481,25 @@ public class MetadataCreateIndexService {
                 @Override
                 public ClusterStatePublisher.ClusterStateUpdateResult executeAndReturnChangeResult(ClusterState currentState) throws Exception {
                     ClusterBlocks blocks = clusterStateCreateBlocks(currentState.blocks(), request.blocks(), currentState.getMetadata().index(request.index()));
+
+//                    logger.info("send request");
+//                    String requestClass = "org.opensearch.sdk.sample.helloworld.transport.SampleRequest";
+//                    SampleRequest request1 = new SampleRequest("hello master");
+//                    BytesStreamOutput output = new BytesStreamOutput();
+//                    request1.writeTo(output);
+//                    String expectedAction = "org.opensearch.sdk.sample.helloworld.transport.SampleAction";
+//                    byte[] response = BytesReference.toBytes(output.bytes());
+//                    byte[] requestClassBytes = requestClass.getBytes(StandardCharsets.UTF_8);
+//                    byte[] proxyRequestBytes = ByteBuffer.allocate(requestClassBytes.length + 1 + response.length)
+//                        .put(requestClassBytes)
+//                        .put(UNIT_SEPARATOR)
+//                        .put(response)
+//                        .array();
+//                    ExtensionActionRequest request = new ExtensionActionRequest(expectedAction, ByteString.copyFrom(proxyRequestBytes));
+//                    ExtensionActionResponse extensionActionResponse = extensionsManager.handleTransportRequest(request);
+//                    BytesStreamInput input = new BytesStreamInput(extensionActionResponse.getResponseBytes());
+//                    logger.info("extensionActionResponse {}", input.readString());
+//                    input.close();
                     return new ClusterStatePublisher.ClusterStateUpdateResult(blocks);
                 }
 
@@ -462,9 +534,12 @@ public class MetadataCreateIndexService {
                     return createIndexTaskKey;
                 }
 
+
                 @Override
                 public ClusterStatePublisher.ClusterStateUpdateResult executeAndReturnChangeResult(ClusterState currentState) throws Exception {
-                    ClusterState updatedRoutingState = clusterStateRoutingTable(
+
+
+                        ClusterState updatedRoutingState = clusterStateRoutingTable(
                         currentState,
                         currentState.getMetadata().index(request.index()),
                         allocationService::reroute
@@ -1452,16 +1527,18 @@ public class MetadataCreateIndexService {
         return blocks.build();
     }
 
-    static ClusterState
+    ClusterState
     clusterStateRoutingTable(ClusterState updatedState,
         IndexMetadata indexMetadata,
         BiFunction<ClusterState, String, org.opensearch.cluster.ClusterState> rerouteRoutingTable) {
         String indexName = indexMetadata.getIndex().getName();
 
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-            .addAsNew(updatedState.metadata().index(indexName));
-        updatedState = org.opensearch.cluster.ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
-        return rerouteRoutingTable.apply(updatedState, "index [" + indexName + "] created");//.routingTable();
+        ClusterState updatedRoutingState = allocationServiceRemoteExtension.reroute(updatedState,"index [" + indexName + "] created");
+        return updatedRoutingState;
+//        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
+//            .addAsNew(updatedState.metadata().index(indexName));
+//        updatedState = org.opensearch.cluster.ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
+//        return rerouteRoutingTable.apply(updatedState, "index [" + indexName + "] created");//.routingTable();
     }
     static IndexMetadata buildIndexMetadata(
         String indexName,

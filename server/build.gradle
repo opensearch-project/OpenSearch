@@ -37,7 +37,11 @@ plugins {
   id('opensearch.internal-cluster-test')
   id('opensearch.optional-dependencies')
   id('me.champeau.gradle.japicmp') version '0.4.5'
+    id("com.gradleup.shadow") version "9.0.0-beta15"
+
+
 }
+
 
 publishing {
   publications {
@@ -344,6 +348,7 @@ tasks.named("thirdPartyAudit").configure {
             'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
     )
 }
+
 
 tasks.named("dependencyLicenses").configure {
     mapping from: /jackson-.*/, to: 'jackson'

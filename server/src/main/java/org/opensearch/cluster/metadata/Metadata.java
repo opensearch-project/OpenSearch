@@ -1597,7 +1597,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 : null;
 
             buildSystemTemplatesLookup();
-
             boolean recomputeRequiredforIndicesLookups = (previousMetadata == null)
                 || (indices.equals(previousMetadata.indices) == false)
                 || (previousDataStreamMetadata != null && previousDataStreamMetadata.equals(dataStreamMetadata) == false)

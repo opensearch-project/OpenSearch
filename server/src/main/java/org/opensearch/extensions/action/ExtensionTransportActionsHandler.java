@@ -92,6 +92,10 @@ public class ExtensionTransportActionsHandler {
      * @return the extension or null if not found
      */
     public DiscoveryExtensionNode getExtension(String action) {
+        logger.info(actionToIdMap);
+        logger.info(extensionIdMap);
+
+
         String uniqueId = actionToIdMap.get(action);
         if (uniqueId == null) {
             throw new ActionNotFoundTransportException(action);
@@ -211,7 +215,7 @@ public class ExtensionTransportActionsHandler {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.debug("Transport request failed", exp);
+                    logger.info("Transport request failed", exp);
                     inProgressFuture.completeExceptionally(exp);
                 }
 
@@ -244,6 +248,7 @@ public class ExtensionTransportActionsHandler {
                 throw new RuntimeException(e.getCause());
             }
         }
+        logger.info("received response {}", extensionActionResponse);
         return extensionActionResponse;
     }
 

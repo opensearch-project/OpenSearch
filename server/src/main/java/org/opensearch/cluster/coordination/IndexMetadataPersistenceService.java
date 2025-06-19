@@ -22,17 +22,22 @@ import java.util.stream.Collectors;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RemoteMetadataRef;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater;
 
 import static org.opensearch.common.xcontent.XContentHelper.createParser;
 
@@ -60,6 +65,8 @@ public class IndexMetadataPersistenceService {
         }
         return new RemoteMetadataRef("index_metadata", tempFile.toAbsolutePath().toString());
     }
+
+
     public List<IndexMetadata> load(RemoteMetadataRef remoteMetadataRef) throws IOException {
 
         List<IndexMetadata> indexMetadata = new ArrayList<>();
@@ -82,7 +89,6 @@ public class IndexMetadataPersistenceService {
         return indexMetadata;
     }
 
-
     public static class IndexMetadataChangeEvent {
         private final String source;
 
@@ -93,6 +99,27 @@ public class IndexMetadataPersistenceService {
         private final RemoteMetadataRef oldState;
 
         public IndexMetadataChangeEvent(String source, List<IndexMetadata> state, RemoteMetadataRef oldState) {
+            this.source = source;
+            this.state = state;
+            this.oldState = oldState;
+        }
+
+        @Override
+        public String toString() {
+            return "IndexMetadataChangeEvent{" + "source='" + source + '\'' + ", state=" + state + '}';
+        }
+    }
+
+    public static class RoutingTableChangeEvent {
+        private final String source;
+
+        private final List<RoutingTable> state;
+
+        private final String event_type = "create_or_update";
+
+        private final RemoteMetadataRef oldState;
+
+        public RoutingTableChangeEvent(String source, List<RoutingTable> state, RemoteMetadataRef oldState) {
             this.source = source;
             this.state = state;
             this.oldState = oldState;

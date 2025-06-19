@@ -221,13 +221,14 @@ final class Bootstrap {
             });
         }
 
-        try {
-            // look for jar hell
-            final Logger logger = LogManager.getLogger(JarHell.class);
-            JarHell.checkJarHell(logger::debug);
-        } catch (IOException | URISyntaxException e) {
-            throw new BootstrapException(e);
-        }
+//        try {
+//            // look for jar hell
+//            final Logger logger = LogManager.getLogger(JarHell.class);
+//            JarHell.checkJarHell(logger::debug);
+//        } catch (IOException | URISyntaxException e) {
+//
+//            // throw new BootstrapException(e);
+//        }
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();

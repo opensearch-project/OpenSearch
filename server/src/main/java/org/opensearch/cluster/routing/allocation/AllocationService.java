@@ -57,6 +57,7 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.cluster.routing.allocation.transport.AllocationServiceInterface;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.gateway.GatewayAllocator;
@@ -91,7 +92,7 @@ import static org.opensearch.cluster.routing.allocation.ExistingShardsAllocator.
  *
  * @opensearch.internal
  */
-public class AllocationService {
+public class AllocationService implements IAllocationService, AllocationServiceInterface {
 
     private static final Logger logger = LogManager.getLogger(AllocationService.class);
 
@@ -162,6 +163,7 @@ public class AllocationService {
      * <p>
      * If the same instance of the {@link ClusterState} is returned, then no change has been made.</p>
      */
+    @Override
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
         assert assertInitialized();
         if (startedShards.isEmpty()) {
@@ -227,11 +229,13 @@ public class AllocationService {
     }
 
     // Used for testing
+    @Override
     public ClusterState applyFailedShard(ClusterState clusterState, ShardRouting failedShard, boolean markAsStale) {
         return applyFailedShards(clusterState, singletonList(new FailedShard(failedShard, null, null, markAsStale)), emptyList());
     }
 
     // Used for testing
+    @Override
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
         return applyFailedShards(clusterState, failedShards, emptyList());
     }
@@ -244,10 +248,9 @@ public class AllocationService {
      * <p>
      * If the same instance of ClusterState is returned, then no change has been made.</p>
      */
+    @Override
     public ClusterState applyFailedShards(
-        final ClusterState clusterState,
-        final List<FailedShard> failedShards,
-        final List<StaleShard> staleShards
+        final ClusterState clusterState, final List<FailedShard> failedShards, final List<StaleShard> staleShards
     ) {
         assert assertInitialized();
         if (staleShards.isEmpty() && failedShards.isEmpty()) {
@@ -330,6 +333,7 @@ public class AllocationService {
      * unassigned an shards that are associated with nodes that are no longer part of the cluster, potentially promoting replicas
      * if needed.
      */
+    @Override
     public ClusterState disassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
@@ -489,6 +493,7 @@ public class AllocationService {
         }
     }
 
+    @Override
     public CommandsResult reroute(final ClusterState clusterState, AllocationCommands commands, boolean explain, boolean retryFailed) {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // we don't shuffle the unassigned shards here, to try and get as close as possible to
@@ -525,6 +530,7 @@ public class AllocationService {
      * <p>
      * If the same instance of ClusterState is returned, then no change has been made.
      */
+    @Override
     public ClusterState reroute(ClusterState clusterState, String reason) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
 
@@ -544,6 +550,28 @@ public class AllocationService {
             return clusterState;
         }
         return buildResultAndLogHealthChange(clusterState, allocation, reason);
+    }
+
+    public RoutingAllocation rerouteAndGetAllocation(ClusterState clusterState, String reason) {
+        ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
+
+        RoutingNodes routingNodes = getMutableRoutingNodes(fixedClusterState);
+        // shuffle the unassigned nodes, just so we won't have things like poison failed shards
+        routingNodes.unassigned().shuffle();
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            routingNodes,
+            fixedClusterState,
+            clusterInfoService.getClusterInfo(),
+            snapshotsInfoService.snapshotShardSizes(),
+            currentNanoTime()
+        );
+        reroute(allocation);
+        return allocation;
+//        if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
+//            return clusterState;
+//        }
+//        return buildResultAndLogHealthChange(clusterState, allocation, reason);
     }
 
     private void logClusterHealthStateChange(ClusterStateHealth previousStateHealth, ClusterStateHealth newStateHealth, String reason) {
@@ -709,6 +737,8 @@ public class AllocationService {
             return shardsAllocator.decideShardAllocation(shardRouting, allocation);
         }
     }
+
+
 
     private AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting shardRouting, RoutingAllocation routingAllocation) {
         assert shardRouting.unassigned();

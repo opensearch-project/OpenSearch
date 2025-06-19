@@ -146,7 +146,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();
     private final List<Provider<File>> plugins = new ArrayList<>();
     private final List<Provider<File>> modules = new ArrayList<>();
-    private boolean extensionsEnabled = false;
+    private boolean extensionsEnabled = true;
     final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
     private final LazyPropertyMap<String, CharSequence> keystoreSettings = new LazyPropertyMap<>("Keystore", this);
     private final LazyPropertyMap<String, File> keystoreFiles = new LazyPropertyMap<>("Keystore files", this, FileEntry::new);

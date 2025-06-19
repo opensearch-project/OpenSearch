@@ -985,7 +985,9 @@ public class Node implements Closeable {
                 forbidPrivateIndexSettings,
                 awarenessReplicaBalance,
                 remoteStoreSettings,
-                repositoriesServiceReference::get
+                repositoriesServiceReference::get,
+                extensionsManager
+
             );
             pluginsService.filterPlugins(Plugin.class)
                 .forEach(

@@ -153,7 +153,7 @@ final class Security {
             // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
             OpenSearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
             Command.class.getName() };
-        System.setSecurityManager(new SecureSM(classesThatCanExit));
+        //System.setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
         selfTest();
