@@ -48,6 +48,7 @@ import java.nio.channels.SocketChannel;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.Collections;
@@ -77,13 +78,18 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
             @Override
             public Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, Transport transport) throws SSLException {
                 try {
-                    final KeyStore keyStore = KeyStore.getInstance("PKCS12");
+                    var keyStoreType = inFipsJvm() ? "BCFKS" : "JKS";
+                    var fileExtension = inFipsJvm() ? ".bcfks" : ".jks";
+                    var provider = inFipsJvm() ? "BCFIPS" : "SUN";
+                    final KeyStore keyStore = KeyStore.getInstance(keyStoreType, provider);
                     keyStore.load(
-                        SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure.jks"),
+                        SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure" + fileExtension),
                         "password".toCharArray()
                     );
 
-                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+                    var algo = inFipsJvm() ? "PKXI" : KeyManagerFactory.getDefaultAlgorithm();
+                    var jseeProvider = inFipsJvm() ? "BCJSSE" : "SunJSSE";
+                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(algo, jseeProvider);
                     keyManagerFactory.init(keyStore, "password".toCharArray());
 
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
@@ -92,8 +98,8 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
                         .build()
                         .newEngine(NettyAllocator.getAllocator());
                     return Optional.of(engine);
-                } catch (final IOException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException
-                    | CertificateException ex) {
+                } catch (final IOException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException | CertificateException
+                    | NoSuchProviderException ex) {
                     throw new SSLException(ex);
                 }
 

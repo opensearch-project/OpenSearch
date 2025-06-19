@@ -105,6 +105,15 @@ do
     openssl pkcs12 -export -out $Cert/$Cert.p12 -inkey $Cert/$Cert.key -in $Cert/$Cert.crt -name $Cert -passout pass:p12-pass
 done
 ```
+# Convert CAs to BCFKS
+
+```bash
+for n in 1 2 3
+do
+    keytool -importcert -file ca${n}/ca.crt -alias ca -keystore ca${n}/ca.bcfks -storetype BCFKS -storepass bcfks-pass -providername BCFIPS -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider -providerpath $LIB_PATH/bc-fips-2.0.0.jar -v
+    keytool -importcert -file ca${n}/ca.crt -alias ca${n} -keystore ca-all/ca.bcfks -storetype BCFKS -storepass bcfks-pass -providername BCFIPS -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider -providerpath $LIB_PATH/bc-fips-2.0.0.jar -v
+done
+```
 
 # Import Certs into single PKCS#12 keystore
 
@@ -126,6 +135,34 @@ do
             -srckeystore $Cert/$Cert.p12 -srcstoretype PKCS12 -srcstorepass p12-pass  \
             -destkeystore cert-all/certs.jks -deststoretype jks -deststorepass jks-pass
     keytool -keypasswd -keystore cert-all/certs.jks -alias $Cert -keypass p12-pass -new key-pass -storepass jks-pass
+done
+```
+
+# Import Certs into single BCFKS keystore with separate key-password
+
+```bash
+for Cert in cert1 cert2
+do
+    keytool -importkeystore -noprompt \
+            -srckeystore $Cert/$Cert.p12 \
+            -srcstoretype PKCS12 \
+            -srcstorepass p12-pass \
+            -destkeystore cert-all/certs.bcfks \
+            -deststoretype BCFKS \
+            -deststorepass bcfks-pass \
+            -providername BCFIPS \
+            -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
+            -providerpath $LIB_PATH/bc-fips-2.0.0.jar
+    keytool -keypasswd -noprompt \
+            -keystore cert-all/certs.bcfks \
+            -alias $Cert \
+            -keypass p12-pass \
+            -new bcfks-pass \
+            -storepass bcfks-pass \
+            -storetype BCFKS \
+            -providername BCFIPS \
+            -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
+            -providerpath $LIB_PATH/bc-fips-2.0.0.jar
 done
 ```
 

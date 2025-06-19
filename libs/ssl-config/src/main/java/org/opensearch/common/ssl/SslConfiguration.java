@@ -32,12 +32,15 @@
 
 package org.opensearch.common.ssl;
 
+import org.bouncycastle.crypto.CryptoServicesRegistrar;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.security.Security;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -162,8 +165,12 @@ public class SslConfiguration {
      * {@link #getSupportedProtocols() configured protocols}.
      */
     private String contextProtocol() {
-        if (supportedProtocols.isEmpty()) {
-            throw new SslConfigException("no SSL/TLS protocols have been configured");
+        if (Security.getProvider("BCFIPS") != null && CryptoServicesRegistrar.isInApprovedOnlyMode()) {
+            if (!new HashSet<>(SslConfigurationLoader.FIPS_APPROVED_PROTOCOLS).containsAll(supportedProtocols)) {
+                throw new SslConfigException(
+                    "in FIPS mode only the following SSL/TLS protocols are allowed: " + SslConfigurationLoader.FIPS_APPROVED_PROTOCOLS
+                );
+            }
         }
         for (Entry<String, String> entry : ORDERED_PROTOCOL_ALGORITHM_MAP.entrySet()) {
             if (supportedProtocols.contains(entry.getKey())) {
