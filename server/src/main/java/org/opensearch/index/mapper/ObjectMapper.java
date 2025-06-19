@@ -32,7 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -904,22 +903,4 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     }
 
-    @Override
-    public void canDeriveSource() {
-        if (!this.enabled.value() || this.nested.isNested()) {
-            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled/nested");
-        }
-        for (final Mapper mapper : this.mappers.values()) {
-            mapper.canDeriveSource();
-        }
-    }
-
-    @Override
-    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
-        builder.startObject(simpleName());
-        for (final Mapper mapper : this.mappers.values()) {
-            mapper.deriveSource(builder, leafReader, docId);
-        }
-        builder.endObject();
-    }
 }

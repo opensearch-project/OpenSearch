@@ -10,6 +10,8 @@ package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 
+import javax.security.auth.Subject;
+
 import java.lang.instrument.Instrumentation;
 import java.net.Socket;
 import java.nio.channels.FileChannel;
@@ -25,6 +27,7 @@ import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.dynamic.ClassFileLocator;
 import net.bytebuddy.dynamic.loading.ClassInjector;
 import net.bytebuddy.implementation.Implementation;
+import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.matcher.ElementMatcher.Junction;
 import net.bytebuddy.matcher.ElementMatchers;
 
@@ -89,6 +92,10 @@ public class Agent {
             Advice.to(FileInterceptor.class).on(ElementMatchers.namedOneOf(INTERCEPTED_METHODS).or(ElementMatchers.isAbstract()))
         );
 
+        final AgentBuilder.Transformer subjectTransformer = (b, typeDescription, classLoader, module, pd) -> b.method(
+            ElementMatchers.named("getSubject")
+        ).intercept(MethodDelegation.to(SubjectInterceptor.class));
+
         ClassInjector.UsingUnsafe.ofBootLoader()
             .inject(
                 Map.of(
@@ -97,12 +104,14 @@ public class Agent {
                     new TypeDescription.ForLoadedType(StackCallerClassChainExtractor.class),
                     ClassFileLocator.ForClassLoader.read(StackCallerClassChainExtractor.class),
                     new TypeDescription.ForLoadedType(AgentPolicy.class),
-                    ClassFileLocator.ForClassLoader.read(AgentPolicy.class)
+                    ClassFileLocator.ForClassLoader.read(AgentPolicy.class),
+                    new TypeDescription.ForLoadedType(SubjectInterceptor.class),
+                    ClassFileLocator.ForClassLoader.read(SubjectInterceptor.class)
                 )
             );
 
         final ByteBuddy byteBuddy = new ByteBuddy().with(Implementation.Context.Disabled.Factory.INSTANCE);
-        return new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
+        var builder = new AgentBuilder.Default(byteBuddy).with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
             .with(AgentBuilder.RedefinitionStrategy.REDEFINITION)
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
             .ignore(ElementMatchers.nameContains("$MockitoMock$")) /* ingore all Mockito mocks */
@@ -122,6 +131,13 @@ public class Agent {
                     Advice.to(RuntimeHaltInterceptor.class).on(ElementMatchers.named("halt"))
                 )
             );
+
+        // Only apply the transformation when running on JDK-24 or above
+        if (Runtime.version().feature() >= 24) {
+            builder = builder.type(ElementMatchers.is(Subject.class)).transform(subjectTransformer);
+        }
+
+        return builder;
     }
 
     private static void initAgent(Instrumentation instrumentation) throws Exception {
