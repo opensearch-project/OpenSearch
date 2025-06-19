@@ -16,11 +16,15 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.semver.expr.Caret;
 import org.opensearch.semver.expr.Equal;
 import org.opensearch.semver.expr.Expression;
+import org.opensearch.semver.expr.Range;
 import org.opensearch.semver.expr.Tilde;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static java.util.Arrays.stream;
 
@@ -31,6 +35,7 @@ import static java.util.Arrays.stream;
  *     <li>'=' Requires exact match with the range version. For example, =1.2.3 range would match only 1.2.3</li>
  *     <li>'~' Allows for patch version variability starting from the range version. For example, ~1.2.3 range would match versions greater than or equal to 1.2.3 but less than 1.3.0</li>
  *     <li>'^' Allows for patch and minor version variability starting from the range version. For example, ^1.2.3 range would match versions greater than or equal to 1.2.3 but less than 2.0.0</li>
+ *     <li>Explicit ranges: [2.0.0,3.0.0], (2.0.0,3.0.0), [2.0.0,3.0.0), (2.0.0,3.0.0]</li>
  * </ul>
  *
  * @opensearch.api
@@ -38,12 +43,19 @@ import static java.util.Arrays.stream;
 @PublicApi(since = "2.13.0")
 public class SemverRange implements ToXContentFragment {
 
+    private static final Pattern RANGE_PATTERN = Pattern.compile("([\\[\\(])([\\d.]+)\\s*,\\s*([\\d.]+)([\\]\\)])");
+
     private final Version rangeVersion;
     private final RangeOperator rangeOperator;
+    private final Expression expression;
 
     public SemverRange(final Version rangeVersion, final RangeOperator rangeOperator) {
         this.rangeVersion = rangeVersion;
         this.rangeOperator = rangeOperator;
+        this.expression = rangeOperator.expression;
+        if (this.expression == null && rangeOperator != RangeOperator.RANGE) {
+            throw new IllegalStateException("Expression cannot be null for non-RANGE operators");
+        }
     }
 
     /**
@@ -52,12 +64,33 @@ public class SemverRange implements ToXContentFragment {
      * @return a {@code SemverRange}
      */
     public static SemverRange fromString(final String range) {
+        // Check if it's a range expression
+        Matcher matcher = RANGE_PATTERN.matcher(range);
+        if (matcher.matches()) {
+            char leftBracket = matcher.group(1).charAt(0);
+            Version lowerVersion = Version.fromString(matcher.group(2));
+            Version upperVersion = Version.fromString(matcher.group(3));
+            char rightBracket = matcher.group(4).charAt(0);
+
+            boolean includeLower = leftBracket == '[';
+            boolean includeUpper = rightBracket == ']';
+
+            Range rangeExpression = new Range(lowerVersion, upperVersion, includeLower, includeUpper);
+            return new SemverRange(lowerVersion, RangeOperator.RANGE, rangeExpression);
+        }
+
         RangeOperator rangeOperator = RangeOperator.fromRange(range);
         String version = range.replaceFirst(rangeOperator.asEscapedString(), "");
         if (!Version.stringHasLength(version)) {
             throw new IllegalArgumentException("Version cannot be empty");
         }
         return new SemverRange(Version.fromString(version), rangeOperator);
+    }
+
+    private SemverRange(Version rangeVersion, RangeOperator operator, Expression customExpression) {
+        this.rangeVersion = rangeVersion;
+        this.rangeOperator = operator;
+        this.expression = customExpression;
     }
 
     /**
@@ -94,7 +127,7 @@ public class SemverRange implements ToXContentFragment {
      * @see #isSatisfiedBy(String)
      */
     public boolean isSatisfiedBy(final Version versionToEvaluate) {
-        return this.rangeOperator.expression.evaluate(this.rangeVersion, versionToEvaluate);
+        return this.expression.evaluate(this.rangeVersion, versionToEvaluate);
     }
 
     @Override
@@ -106,16 +139,29 @@ public class SemverRange implements ToXContentFragment {
             return false;
         }
         SemverRange range = (SemverRange) o;
-        return Objects.equals(rangeVersion, range.rangeVersion) && rangeOperator == range.rangeOperator;
+        return Objects.equals(rangeVersion, range.rangeVersion)
+            && rangeOperator == range.rangeOperator
+            && Objects.equals(expression, range.expression);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rangeVersion, rangeOperator);
+        return Objects.hash(rangeVersion, rangeOperator, expression);
     }
 
     @Override
     public String toString() {
+        if (rangeOperator == RangeOperator.RANGE && expression instanceof Range) {
+            Range range = (Range) expression;
+            return String.format(
+                Locale.ROOT,
+                "%s%s,%s%s",
+                range.isIncludeLower() ? "[" : "(",
+                range.getLowerBound(),
+                range.getUpperBound(),
+                range.isIncludeUpper() ? "]" : ")"
+            );
+        }
         return rangeOperator.asString() + rangeVersion;
     }
 
@@ -128,10 +174,10 @@ public class SemverRange implements ToXContentFragment {
      * A range operator.
      */
     public enum RangeOperator {
-
         EQ("=", new Equal()),
         TILDE("~", new Tilde()),
         CARET("^", new Caret()),
+        RANGE("range", null),
         DEFAULT("", new Equal());
 
         private final String operator;
