@@ -51,7 +51,7 @@ import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.geoip.IngestGeoIpModulePlugin.GeoIpCache;
-import org.opensearch.security.AccessController;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.net.InetAddress;

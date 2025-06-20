@@ -32,7 +32,7 @@ public final class StackCallerProtectionDomainChainExtractor implements Function
      */
     private static final Set<String> ACCESS_CONTROLLER_CLASSES = Set.of(
         "java.security.AccessController",
-        "org.opensearch.security.AccessController"
+        "org.opensearch.secure_sm.AccessController"
     );
 
     private static final Set<String> DO_PRIVILEGED_METHODS = Set.of("doPrivileged", "doPrivilegedChecked");

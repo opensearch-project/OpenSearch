@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.security;
+package org.opensearch.secure_sm;
 
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
