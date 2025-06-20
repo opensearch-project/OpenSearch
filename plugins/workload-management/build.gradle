@@ -9,7 +9,6 @@
  * GitHub history for details.
  */
 apply plugin: 'opensearch.opensearchplugin'
-apply plugin: 'opensearch.pluginzip'
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'

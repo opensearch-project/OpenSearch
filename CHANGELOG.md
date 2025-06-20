@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fixed
 - Add task cancellation checks in aggregators ([#18426](https://github.com/opensearch-project/OpenSearch/pull/18426))
+- Add header propagation support for `workloadGroupId` header ([#18571](https://github.com/opensearch-project/OpenSearch/pull/18571))
 
 ### Security
 

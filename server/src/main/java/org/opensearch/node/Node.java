@@ -281,10 +281,7 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
-import org.opensearch.wlm.WorkloadGroupService;
-import org.opensearch.wlm.WorkloadGroupsStateAccessor;
-import org.opensearch.wlm.WorkloadManagementSettings;
-import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
+import org.opensearch.wlm.*;
 import org.opensearch.wlm.cancellation.MaximumResourceTaskSelectionStrategy;
 import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
 import org.opensearch.wlm.listeners.WorkloadGroupRequestOperationListener;
@@ -595,6 +592,7 @@ public class Node implements Closeable {
 
             runnableTaskListener = new AtomicReference<>();
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
+            threadPool.getThreadContext().registerThreadContextStatePropagator(new WorkloadGroupThreadContextStatePropagator());
 
             final IdentityService identityService = new IdentityService(settings, threadPool, identityPlugins);
 
