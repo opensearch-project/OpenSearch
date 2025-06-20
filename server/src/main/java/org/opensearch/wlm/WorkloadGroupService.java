@@ -117,6 +117,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         activeWorkloadGroups.forEach(workloadGroup -> this.workloadGroupsStateAccessor.addNewWorkloadGroup(workloadGroup.get_id()));
         this.workloadGroupsStateAccessor.addNewWorkloadGroup(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get());
         this.clusterService.addListener(this);
+        this.threadPool.getThreadContext().registerThreadContextStatePropagator(new WorkloadGroupThreadContextStatePropagator());
     }
 
     /**
