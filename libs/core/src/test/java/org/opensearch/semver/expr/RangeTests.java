@@ -13,6 +13,15 @@ import org.opensearch.test.OpenSearchTestCase;
 
 public class RangeTests extends OpenSearchTestCase {
 
+    public void testDefaultConstructor() {
+        Range range = new Range();
+        assertEquals(Version.fromString("0.0.0"), range.getLowerBound());
+        assertEquals(Version.fromString("999.999.999"), range.getUpperBound());
+        assertTrue(range.isIncludeLower());
+        assertTrue(range.isIncludeUpper());
+
+    }
+
     public void testRangeEvaluation() {
         Version lowerBound = Version.fromString("2.3.0");
         Version upperBound = Version.fromString("2.7.0");
@@ -77,4 +86,18 @@ public class RangeTests extends OpenSearchTestCase {
         assertTrue("Should be inclusive lower", range.isIncludeLower());
         assertFalse("Should be exclusive upper", range.isIncludeUpper());
     }
+
+    public void testUpdateRangeNullCheck() {
+        Range range = new Range(
+            Version.fromString("1.0.0"),
+            Version.fromString("2.0.0"),
+            true,  // includeLower
+            true   // includeUpper
+        );
+
+        // Test that updateRange throws IllegalArgumentException for null input
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> range.updateRange(null));
+        assertEquals("Range cannot be null", ex.getMessage());
+    }
+
 }

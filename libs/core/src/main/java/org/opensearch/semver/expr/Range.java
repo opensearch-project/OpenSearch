@@ -21,6 +21,13 @@ public class Range implements Expression {
     private final boolean includeLower;
     private final boolean includeUpper;
 
+    public Range() {
+        this.lowerBound = Version.fromString("0.0.0");  // Minimum version
+        this.upperBound = Version.fromString("999.999.999"); // Maximum version
+        this.includeLower = true;  // Default to inclusive bounds
+        this.includeUpper = true;
+    }
+
     public Range(Version lowerBound, Version upperBound, boolean includeLower, boolean includeUpper) {
         if (lowerBound == null) {
             throw new IllegalArgumentException("Lower bound cannot be null");

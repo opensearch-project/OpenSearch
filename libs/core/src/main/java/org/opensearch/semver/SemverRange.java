@@ -53,9 +53,6 @@ public class SemverRange implements ToXContentFragment {
         this.rangeVersion = rangeVersion;
         this.rangeOperator = rangeOperator;
         this.expression = rangeOperator.expression;
-        if (this.expression == null && rangeOperator != RangeOperator.RANGE) {
-            throw new IllegalStateException("Expression cannot be null for non-RANGE operators");
-        }
     }
 
     /**
@@ -68,10 +65,12 @@ public class SemverRange implements ToXContentFragment {
         Matcher matcher = RANGE_PATTERN.matcher(range);
         if (matcher.matches()) {
             char leftBracket = matcher.group(1).charAt(0);
-            Version lowerVersion = Version.fromString(matcher.group(2));
-            Version upperVersion = Version.fromString(matcher.group(3));
+            String lowerVersionStr = matcher.group(2);
+            String upperVersionStr = matcher.group(3);
             char rightBracket = matcher.group(4).charAt(0);
 
+            Version lowerVersion = Version.fromString(matcher.group(2));
+            Version upperVersion = Version.fromString(matcher.group(3));
             boolean includeLower = leftBracket == '[';
             boolean includeUpper = rightBracket == ']';
 
@@ -87,7 +86,7 @@ public class SemverRange implements ToXContentFragment {
         return new SemverRange(Version.fromString(version), rangeOperator);
     }
 
-    private SemverRange(Version rangeVersion, RangeOperator operator, Expression customExpression) {
+    public SemverRange(Version rangeVersion, RangeOperator operator, Expression customExpression) {
         this.rangeVersion = rangeVersion;
         this.rangeOperator = operator;
         this.expression = customExpression;
@@ -177,7 +176,7 @@ public class SemverRange implements ToXContentFragment {
         EQ("=", new Equal()),
         TILDE("~", new Tilde()),
         CARET("^", new Caret()),
-        RANGE("range", null),
+        RANGE("range", new Range()),
         DEFAULT("", new Equal());
 
         private final String operator;
