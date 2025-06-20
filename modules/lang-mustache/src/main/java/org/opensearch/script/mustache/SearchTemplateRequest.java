@@ -83,7 +83,7 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
         if (in.readBoolean()) {
             scriptParams = in.readMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
             searchPipeline = in.readOptionalString();
         }
 
@@ -280,7 +280,7 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
         if (hasParams) {
             out.writeMap(scriptParams);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
             out.writeOptionalString(searchPipeline);
         }
     }

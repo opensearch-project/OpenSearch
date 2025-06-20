@@ -378,4 +378,77 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         assertHitCount(searchResponse.getResponse(), 5);
     }
 
+    public void testMultiSearchTemplateWithSearchPipeline() throws Exception {
+        createIndex("my-nlp-index1");
+
+        // Indexing test data
+        client().prepareIndex("my-nlp-index1")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("play_name", "zoo").endObject())
+            .get();
+        client().prepareIndex("my-nlp-index1")
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field("play_name", "hello").endObject())
+            .get();
+        client().admin().indices().prepareRefresh().get();
+
+        // Put stored templates
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutStoredScript()
+                .setId("search_template_1")
+                .setContent(
+                    new BytesArray(
+                        "{\"script\": {\"lang\": \"mustache\", \"source\": {\"query\": {\"match\": {\"play_name\": \"{{play_name}}\"}}}}}"
+                    ),
+                    MediaTypeRegistry.JSON
+                )
+        );
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutStoredScript()
+                .setId("search_template_2")
+                .setContent(
+                    new BytesArray(
+                        "{\"script\": {\"lang\": \"mustache\", \"source\": {\"query\": {\"match\": {\"play_name\": \"{{play_name}}\"}}}}}"
+                    ),
+                    MediaTypeRegistry.JSON
+                )
+        );
+
+        // Create first template request with pipeline
+        String template1 = "{"
+            + "  \"id\" : \"search_template_1\","
+            + "  \"params\": {\"play_name\": \"zoo\"},"
+            + "  \"search_pipeline\": \"my_pipeline2\""
+            + "}";
+        SearchTemplateRequest request1 = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, template1));
+        request1.setRequest(new SearchRequest("my-nlp-index1"));
+
+        // Create second template request with pipeline
+        String template2 = "{"
+            + "  \"id\" : \"search_template_2\","
+            + "  \"params\": {\"play_name\": \"hello\"},"
+            + "  \"search_pipeline\": \"my_pipeline1\""
+            + "}";
+        SearchTemplateRequest request2 = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, template2));
+        request2.setRequest(new SearchRequest("my-nlp-index1"));
+
+        // Execute both requests
+        SearchTemplateResponse response1 = client().execute(SearchTemplateAction.INSTANCE, request1).get();
+        SearchTemplateResponse response2 = client().execute(SearchTemplateAction.INSTANCE, request2).get();
+
+        assertNotNull(response1.getResponse());
+        assertNotNull(response2.getResponse());
+        assertHitCount(response1.getResponse(), 1);
+        assertHitCount(response2.getResponse(), 1);
+
+        // Verify that the pipeline names are set correctly in the request objects
+        assertEquals("my_pipeline2", request1.getSearchPipeline());
+        assertEquals("my_pipeline1", request2.getSearchPipeline());
+    }
+
 }
