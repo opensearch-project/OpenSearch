@@ -40,7 +40,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListenerResponseHandler;
@@ -2199,7 +2198,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
 
     public void testHandshakeWithIncompatVersion() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        Version version = LegacyESVersion.fromString("6.0.0");
+        Version version = Version.fromString("6.0.0");
         try (MockTransportService service = buildService("TS_C", version, Settings.EMPTY)) {
             service.start();
             service.acceptIncomingRequests();
@@ -2225,14 +2224,7 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             service.start();
             service.acceptIncomingRequests();
             TransportAddress address = service.boundAddress().publishAddress();
-            DiscoveryNode node = new DiscoveryNode(
-                "TS_TPC",
-                "TS_TPC",
-                address,
-                emptyMap(),
-                emptySet(),
-                LegacyESVersion.fromString("2.0.0")
-            );
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(), Version.fromString("2.0.0"));
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(
                 1,
