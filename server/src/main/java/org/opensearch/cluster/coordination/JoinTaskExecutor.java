@@ -465,14 +465,16 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 );
             }
             if (idxMetadata.getCreationVersion().before(supportedIndexVersion)) {
-                throw new IllegalStateException(
-                    "index "
-                        + idxMetadata.getIndex()
-                        + " version not supported: "
-                        + idxMetadata.getCreationVersion()
-                        + " minimum compatible index version is: "
-                        + supportedIndexVersion
-                );
+                if(idxMetadata.getFullyUpgradedVersion() != null && idxMetadata.getFullyUpgradedVersion().before(supportedIndexVersion)) {
+                    throw new IllegalStateException(
+                        "index "
+                            + idxMetadata.getIndex()
+                            + " version not supported: "
+                            + idxMetadata.getFullyUpgradedVersion()
+                            + " minimum compatible index version is: "
+                            + supportedIndexVersion
+                    );
+                }
             }
         }
     }

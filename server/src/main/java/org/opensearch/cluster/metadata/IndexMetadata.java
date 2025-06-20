@@ -563,6 +563,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
+    public static final String SETTING_FULLY_UPGRADED = "index.fully_upgraded";
+
+    public static final Setting<Version> SETTING_INDEX_FULLY_UPGRADED = Setting.versionSetting(
+        SETTING_FULLY_UPGRADED,
+        Version.V_EMPTY,
+        Property.IndexScope,
+        Property.PrivateIndex
+    );
+    public static final String SETTING_FULLY_UPGRADED_STRING = "index.fully_upgraded_string";
+
     public static final String SETTING_CREATION_DATE = "index.creation_date";
     /**
      * The user provided name for an index. This is the plain string provided by the user when the index was created.
@@ -836,6 +846,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public Version getCreationVersion() {
         return indexCreatedVersion;
+    }
+
+    /**
+     * Returns whether this index is fully upgraded (both metadata and segments)
+     * @return true if the index is fully upgraded, false otherwise
+     */
+    public Version getFullyUpgradedVersion() {
+        return SETTING_INDEX_FULLY_UPGRADED.get(settings);
     }
 
     /**
