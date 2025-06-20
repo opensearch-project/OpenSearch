@@ -24,7 +24,7 @@ public interface Subject {
     Principal getPrincipal();
 
     /**
-     * runAs allows the caller to run a callable function as this subject
+     * runAs allows the caller to run a {@link CheckedRunnable} as this subject
      */
     default <E extends Exception> void runAs(CheckedRunnable<E> r) throws E {
         r.run();
