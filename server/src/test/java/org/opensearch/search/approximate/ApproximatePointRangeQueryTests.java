@@ -35,7 +35,6 @@ import org.opensearch.common.time.DateMathParser;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.DateFieldMapper.Resolution;
-import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -1010,7 +1009,14 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         DateMathParser parser = formatter.toDateMathParser();
         long nowInMillis = System.currentTimeMillis();
 
-        testApproximateVsExactQuery(searcher, field, Resolution.MILLISECONDS.convert(parser.parse(lowerBound, () -> nowInMillis)), Resolution.MILLISECONDS.convert(parser.parse(upperBound, () -> nowInMillis)), size, dims);
+        testApproximateVsExactQuery(
+            searcher,
+            field,
+            Resolution.MILLISECONDS.convert(parser.parse(lowerBound, () -> nowInMillis)),
+            Resolution.MILLISECONDS.convert(parser.parse(upperBound, () -> nowInMillis)),
+            size,
+            dims
+        );
     }
 
     private void testApproximateVsExactQuery(IndexSearcher searcher, String field, long lower, long upper, int size, int dims)
