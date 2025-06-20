@@ -80,7 +80,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private volatile boolean isShuttingDown = false;
 
-    private volatile long capturedLastRefreshedCheckpoint = -3;
+    private volatile long capturedLastRefreshedCheckpoint = -1;
 
     /**
      * ThreadLocal to store the checkpoint value for each thread executing afterRefresh
@@ -209,32 +209,41 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
         this.capturedLastRefreshedCheckpoint = capturedCheckpoint;
 
-        // Increment the count before submitting the task
-        asyncOperationsInProgress.incrementAndGet();
+        // Check if this is a critical operation that needs synchronous processing
+        boolean isCloneOrCreateOperation = isCloneOrCreateOperation();
 
-        this.indexShard.getThreadPool().executor(getRemoteRefreshThreadPoolName()).execute(() -> {
+        if (isCloneOrCreateOperation) {
+            // For critical operations like clone or index creation, use synchronous processing
+            logger.debug("Using synchronous processing for critical operation");
+            threadLocalCheckpoint.set(capturedCheckpoint);
             try {
-                // Skip operation if shutdown is in progress
-                if (isShuttingDown()) {
-                    logger.debug("Skipping async operation as shutdown is in progress");
-                    return;
-                }
-
-                // Store checkpoint in ThreadLocal for this specific thread execution
-                threadLocalCheckpoint.set(capturedCheckpoint);
-                try {
-                    runAfterRefreshWithPermit(didRefresh, () -> {});
-                } finally {
-                    // Clean up ThreadLocal to prevent memory leaks
-                    threadLocalCheckpoint.remove();
-                }
+                runAfterRefreshWithPermit(didRefresh, () -> {});
             } finally {
-                // Decrement the counter and possibly signal shutdown completion
-                if (asyncOperationsInProgress.decrementAndGet() == 0 && isShuttingDown) {
-                    shutdownLatch.countDown();
-                }
+                threadLocalCheckpoint.remove();
             }
-        });
+        } else {
+            // For regular operations, use async processing
+            asyncOperationsInProgress.incrementAndGet();
+            this.indexShard.getThreadPool().executor(getRemoteRefreshThreadPoolName()).execute(() -> {
+                try {
+                    if (isShuttingDown()) {
+                        logger.debug("Skipping async operation as shutdown is in progress");
+                        return;
+                    }
+
+                    threadLocalCheckpoint.set(capturedCheckpoint);
+                    try {
+                        runAfterRefreshWithPermit(didRefresh, () -> {});
+                    } finally {
+                        threadLocalCheckpoint.remove();
+                    }
+                } finally {
+                    if (asyncOperationsInProgress.decrementAndGet() == 0 && isShuttingDown) {
+                        shutdownLatch.countDown();
+                    }
+                }
+            });
+        }
     }
 
     /**
@@ -781,6 +790,18 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
                 || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
                 || indexShard.shouldSeedRemoteStore());
+    }
+
+    /**
+     * Determines if the current operation is an index clone, snapshot restoration, or create operation that requires synchronous processing.
+     *
+     * @return true if this is a clone, snapshot restore, or create operation that requires synchronous processing
+     */
+    private boolean isCloneOrCreateOperation() {
+        return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
+            && indexShard.recoveryState() != null
+            && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
 
     /**
