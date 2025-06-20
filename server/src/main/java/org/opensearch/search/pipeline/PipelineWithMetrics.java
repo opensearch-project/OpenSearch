@@ -216,7 +216,7 @@ class PipelineWithMetrics extends Pipeline {
     }
 
     protected void beforeTransformResponse() {
-        super.beforeTransformRequest();
+        super.beforeTransformResponse();
         totalResponseMetrics.before();
         pipelineResponseMetrics.before();
     }
@@ -247,23 +247,20 @@ class PipelineWithMetrics extends Pipeline {
 
     @Override
     protected void beforeTransformPhaseResults() {
-        super.beforeTransformRequest();
-        totalRequestMetrics.before();
-        pipelineRequestMetrics.before();
+        super.beforeTransformPhaseResults();
+        totalPhaseResultsMetrics.before();
     }
 
     @Override
     protected void afterTransformPhaseResults(long timeInNanos) {
-        super.afterTransformRequest(timeInNanos);
-        totalRequestMetrics.after(timeInNanos);
-        pipelineRequestMetrics.after(timeInNanos);
+        super.afterTransformPhaseResults(timeInNanos);
+        totalPhaseResultsMetrics.after(timeInNanos);
     }
 
     @Override
     protected void onTransformPhaseResultsFailure() {
-        super.onTransformRequestFailure();
-        totalRequestMetrics.failed();
-        pipelineRequestMetrics.failed();
+        super.onTransformPhaseResultsFailure();
+        totalPhaseResultsMetrics.failed();
     }
 
     protected void beforePhaseResultsProcessor(Processor processor) {
@@ -283,6 +280,7 @@ class PipelineWithMetrics extends Pipeline {
         pipelineResponseMetrics.add(oldPipeline.pipelineResponseMetrics);
         copyProcessorMetrics(requestProcessorMetrics, oldPipeline.requestProcessorMetrics);
         copyProcessorMetrics(responseProcessorMetrics, oldPipeline.responseProcessorMetrics);
+        copyProcessorMetrics(phaseResultsProcessorMetrics, oldPipeline.phaseResultsProcessorMetrics);
     }
 
     private static <T extends Processor> void copyProcessorMetrics(
