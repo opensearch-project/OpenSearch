@@ -12,6 +12,9 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
@@ -27,6 +30,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.indices.IndicesService;
@@ -36,7 +40,9 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -49,6 +55,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
 
     protected static final String INDEX_NAME = "test-idx-1";
+    protected static final String INDEX_NAME_2 = "test-idx-2";
     protected static final int NUM_DOCS_IN_BULK = 1000;
 
     /*
@@ -171,5 +178,73 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         // leaks
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
         fileCache.prune();
+    }
+
+    public void testFullFileAndFileCacheStats() throws ExecutionException, InterruptedException {
+
+        InternalTestCluster internalTestCluster = internalCluster();
+        internalTestCluster.startClusterManagerOnlyNode();
+        internalTestCluster.startDataAndWarmNodes(1);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+
+        assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_2).setSettings(settings).get());
+
+        // Ingesting docs again before force merge
+        indexBulk(INDEX_NAME_2, NUM_DOCS_IN_BULK);
+        flushAndRefresh(INDEX_NAME_2);
+
+        // ensuring cluster is green
+        ensureGreen();
+
+        SearchResponse searchResponse = client().prepareSearch(INDEX_NAME_2).setQuery(QueryBuilders.matchAllQuery()).get();
+        // Asserting that search returns same number of docs as ingested
+        assertHitCount(searchResponse, NUM_DOCS_IN_BULK);
+
+        // Ingesting docs again before force merge
+        indexBulk(INDEX_NAME_2, NUM_DOCS_IN_BULK);
+        flushAndRefresh(INDEX_NAME_2);
+
+        FileCache fileCache = internalTestCluster.getDataNodeInstance(Node.class).fileCache();
+
+        // TODO: Make these validation more robust, when SwitchableIndexInput is implemented.
+
+        NodesStatsResponse nodesStatsResponse = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+
+        AggregateFileCacheStats fileCacheStats = nodesStatsResponse.getNodes()
+            .stream()
+            .filter(n -> n.getNode().isDataNode())
+            .toList()
+            .getFirst()
+            .getFileCacheStats();
+
+        if (Objects.isNull(fileCacheStats)) {
+            fail("File Cache Stats should not be null");
+        }
+
+        // Deleting the index (so that ref count drops to zero for all the files) and then pruning the cache to clear it to avoid any file
+        // leaks
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME_2)).get());
+        fileCache.prune();
+
+        NodesStatsResponse response = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+        int nonEmptyFileCacheNodes = 0;
+        for (NodeStats stats : response.getNodes()) {
+            AggregateFileCacheStats fcStats = stats.getFileCacheStats();
+            if (Objects.isNull(fcStats) == false) {
+                if (isFileCacheEmpty(fcStats) == false) {
+                    nonEmptyFileCacheNodes++;
+                }
+            }
+        }
+        assertEquals(0, nonEmptyFileCacheNodes);
+
+    }
+
+    private boolean isFileCacheEmpty(AggregateFileCacheStats stats) {
+        return stats.getUsed().getBytes() == 0L && stats.getActive().getBytes() == 0L;
     }
 }

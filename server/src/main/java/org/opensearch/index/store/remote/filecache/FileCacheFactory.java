@@ -55,7 +55,11 @@ public class FileCacheFactory {
                 Path key = removalNotification.getKey();
                 if (removalReason != RemovalReason.REPLACED) {
                     catchAsRuntimeException(value::close);
-                    catchAsRuntimeException(() -> Files.deleteIfExists(key));
+                    // On RESTARTED removal, we close the IndexInput but preserve the files on disk as this scenario only occurs during
+                    // tests
+                    if (removalReason != RemovalReason.RESTARTED) {
+                        catchAsRuntimeException(() -> Files.deleteIfExists(key));
+                    }
                 }
             });
     }

@@ -21,6 +21,6 @@ public class RestGetRuleActionTests extends OpenSearchTestCase {
         var routes = action.routes();
         assertEquals(2, routes.size());
         assertTrue(routes.stream().anyMatch(r -> r.getPath().equals("_rules/{featureType}/")));
-        assertTrue(routes.stream().anyMatch(r -> r.getPath().equals("_rules/{featureType}/{_id}")));
+        assertTrue(routes.stream().anyMatch(r -> r.getPath().equals("_rules/{featureType}/{id}")));
     }
 }
