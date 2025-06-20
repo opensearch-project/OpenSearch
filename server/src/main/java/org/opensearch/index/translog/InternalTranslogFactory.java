@@ -28,7 +28,8 @@ public class InternalTranslogFactory implements TranslogFactory {
         LongSupplier globalCheckpointSupplier,
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
-        BooleanSupplier startedPrimarySupplier
+        BooleanSupplier startedPrimarySupplier,
+        TranslogOperationHelper translogOperationHelper
     ) throws IOException {
 
         return new LocalTranslog(
@@ -37,7 +38,8 @@ public class InternalTranslogFactory implements TranslogFactory {
             translogDeletionPolicy,
             globalCheckpointSupplier,
             primaryTermSupplier,
-            persistedSequenceNumberConsumer
+            persistedSequenceNumberConsumer,
+            translogOperationHelper
         );
     }
 }

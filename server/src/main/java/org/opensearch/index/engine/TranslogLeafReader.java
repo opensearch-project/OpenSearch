@@ -153,7 +153,7 @@ public final class TranslogLeafReader extends LeafReader {
     );
     public static Set<String> ALL_FIELD_NAMES = Sets.newHashSet(FAKE_SOURCE_FIELD.name, FAKE_ROUTING_FIELD.name, FAKE_ID_FIELD.name);
 
-    TranslogLeafReader(Translog.Index operation, EngineConfig engineConfig) {
+    public TranslogLeafReader(Translog.Index operation, EngineConfig engineConfig) {
         this.operation = operation;
         this.engineConfig = engineConfig;
     }
