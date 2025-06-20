@@ -183,6 +183,43 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
         final BigArrays bigArrays,
+        Boolean remoteTranslogEnabled
+    ) throws IOException {
+        return create(
+            shardId,
+            translogUUID,
+            fileGeneration,
+            file,
+            channelFactory,
+            bufferSize,
+            initialMinTranslogGen,
+            initialGlobalCheckpoint,
+            globalCheckpointSupplier,
+            minTranslogGenerationSupplier,
+            primaryTerm,
+            tragedy,
+            persistedSequenceNumberConsumer,
+            bigArrays,
+            remoteTranslogEnabled,
+            TranslogOperationHelper.EMPTY
+        );
+    }
+
+    public static TranslogWriter create(
+        ShardId shardId,
+        String translogUUID,
+        long fileGeneration,
+        Path file,
+        ChannelFactory channelFactory,
+        ByteSizeValue bufferSize,
+        final long initialMinTranslogGen,
+        long initialGlobalCheckpoint,
+        final LongSupplier globalCheckpointSupplier,
+        final LongSupplier minTranslogGenerationSupplier,
+        final long primaryTerm,
+        TragicExceptionHolder tragedy,
+        final LongConsumer persistedSequenceNumberConsumer,
+        final BigArrays bigArrays,
         Boolean remoteTranslogEnabled,
         TranslogOperationHelper translogOperationHelper
     ) throws IOException {

@@ -28,6 +28,31 @@ public class InternalTranslogFactory implements TranslogFactory {
         LongSupplier globalCheckpointSupplier,
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
+        BooleanSupplier startedPrimarySupplier
+    ) throws IOException {
+
+        assert translogConfig.getIndexSettings().isDerivedSourceEnabled() == false; // For derived source supported index, primary method
+                                                                                    // must be used
+
+        return new LocalTranslog(
+            translogConfig,
+            translogUUID,
+            translogDeletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            TranslogOperationHelper.EMPTY
+        );
+    }
+
+    @Override
+    public Translog newTranslog(
+        TranslogConfig translogConfig,
+        String translogUUID,
+        TranslogDeletionPolicy translogDeletionPolicy,
+        LongSupplier globalCheckpointSupplier,
+        LongSupplier primaryTermSupplier,
+        LongConsumer persistedSequenceNumberConsumer,
         BooleanSupplier startedPrimarySupplier,
         TranslogOperationHelper translogOperationHelper
     ) throws IOException {

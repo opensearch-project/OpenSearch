@@ -8,8 +8,6 @@
 
 package org.opensearch.index.translog;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -30,12 +28,11 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
+@PublicApi(since = "3.1.0")
 public abstract class TranslogOperationHelper {
 
     public static final TranslogOperationHelper EMPTY = new TranslogOperationHelper() {
     };
-    private static final Logger logger = LogManager.getLogger(TranslogOperationHelper.class);
 
     private TranslogOperationHelper() {}
 
@@ -70,7 +67,6 @@ public abstract class TranslogOperationHelper {
     }
 
     private static BytesReference deriveSource(Translog.Index op, EngineConfig engineConfig) {
-        logger.warn("Fetching derived source for {}", op.id());
         try (TranslogLeafReader leafReader = new TranslogLeafReader(op, engineConfig)) {
             final FieldsVisitor visitor = new FieldsVisitor(true);
             leafReader.storedFields().document(0, visitor); // As reader will have only a single document, segment level doc id will be 0

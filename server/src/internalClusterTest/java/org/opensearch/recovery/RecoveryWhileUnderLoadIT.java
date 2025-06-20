@@ -533,7 +533,11 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
 
         final int totalNumDocs = scaledRandomIntBetween(200, 1000);
         for (int i = 0; i < totalNumDocs; i++) {
-            client().prepareIndex("test").setId(String.valueOf(i)).setSource("name", "test" + i, "age", i).get();
+            if (i % 2 == 0) {
+                client().prepareIndex("test").setId(String.valueOf(i)).setSource("name", "test" + i, "age", i).get();
+            } else {
+                client().prepareIndex("test").setId(String.valueOf(i)).setSource("age", i, "name", "test" + i).get();
+            }
 
             if (i % 100 == 0) {
                 // Occasionally flush to create new segments
@@ -592,10 +596,17 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
         // Index documents without refresh
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            client().prepareIndex("test")
-                .setId(String.valueOf(i))
-                .setSource("timestamp", "2023-01-01T01:20:30." + String.valueOf(i % 10).repeat(3) + "Z", "ip", "192.168.1." + i)
-                .get();
+            if (i % 2 == 0) {
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource("timestamp", "2023-01-01T01:20:30." + String.valueOf(i % 10).repeat(3) + "Z", "ip", "192.168.1." + i)
+                    .get();
+            } else {
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource("ip", "192.168.1." + i, "timestamp", "2023-01-01T01:20:30." + String.valueOf(i % 10).repeat(3) + "Z")
+                    .get();
+            }
         }
 
         // Add replica before refresh
@@ -657,11 +668,19 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
         // Index documents with immediate visibility
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            client().prepareIndex("test")
-                .setId(String.valueOf(i))
-                .setSource("coordinates", Geohash.stringEncode(40.0 + i, 75.0 + i) + i, "value", "fox_" + i + " in the field")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+            if (i % 2 == 0) {
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource("coordinates", Geohash.stringEncode(40.0 + i, 75.0 + i) + i, "value", "fox_" + i + " in the field")
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .get();
+            } else {
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource("value", "fox_" + i + " in the field", "coordinates", Geohash.stringEncode(40.0 + i, 75.0 + i) + i)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .get();
+            }
         }
 
         // Force flush to ensure documents are in segments
