@@ -35,6 +35,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
+import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
@@ -294,9 +295,10 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         public DevNullClusterInfo(
             final Map<String, DiskUsage> leastAvailableSpaceUsage,
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
+            final Map<String, NodeResourceUsageStats> nodeResourceUsages,
             final Map<String, Long> shardSizes
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, Map.of(), Map.of());
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, Map.of(), Map.of(), nodeResourceUsages);
         }
 
         @Override

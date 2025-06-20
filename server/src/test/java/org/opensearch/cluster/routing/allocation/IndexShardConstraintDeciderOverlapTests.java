@@ -17,6 +17,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.test.VersionUtils;
 
 import java.util.HashMap;
@@ -65,7 +66,7 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
         reservedSpace.put(getNodeAndDevNullPath("node_1"), getReservedSpace());
         reservedSpace.put(getNodeAndDevNullPath("node_2"), getReservedSpace());
         reservedSpace.put(getNodeAndDevNullPath("high_watermark_node_0"), getReservedSpace());
-        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, reservedSpace);
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, null, shardSizes, reservedSpace);
         ClusterInfoService cis = () -> clusterInfo;
         allocation = createAllocationService(settings, cis);
 
@@ -79,7 +80,7 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
         addIndices("big_index_", 1, 10, 0);
         final Map<String, Long> bigIndexShardSizes = new HashMap<>(shardSizes);
         clusterState.getRoutingNodes().unassigned().forEach(shard -> bigIndexShardSizes.put(shardIdentifierFromRouting(shard), 20L));
-        final ClusterInfo bigIndexClusterInfo = new DevNullClusterInfo(usages, usages, bigIndexShardSizes, reservedSpace);
+        final ClusterInfo bigIndexClusterInfo = new DevNullClusterInfo(usages, usages, null, bigIndexShardSizes, reservedSpace);
         cis = () -> bigIndexClusterInfo;
         allocation = createAllocationService(settings, cis);
 
@@ -173,10 +174,11 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
         public DevNullClusterInfo(
             final Map<String, DiskUsage> leastAvailableSpaceUsage,
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
+            final Map<String, NodeResourceUsageStats> nodeResourceUsageStats,
             final Map<String, Long> shardSizes,
             final Map<NodeAndPath, ReservedSpace> reservedSpace
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace, Map.of());
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace, Map.of(), nodeResourceUsageStats);
         }
 
         @Override
