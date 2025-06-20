@@ -1010,36 +1010,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         DateMathParser parser = formatter.toDateMathParser();
         long nowInMillis = System.currentTimeMillis();
 
-        long lower = Resolution.MILLISECONDS.convert(parser.parse(lowerBound, () -> nowInMillis));
-        long upper = Resolution.MILLISECONDS.convert(parser.parse(upperBound, () -> nowInMillis));
-
-        Query exactQuery = LongPoint.newRangeQuery(field, lower, upper);
-
-        // Wrap with DateRangeIncludingNowQuery if using "now"
-        if (lowerBound.contains("now") || upperBound.contains("now")) {
-            exactQuery = new DateRangeIncludingNowQuery(exactQuery);
-
-            assertTrue(
-                "Query should be wrapped in DateRangeIncludingNowQuery when using 'now'",
-                exactQuery instanceof DateRangeIncludingNowQuery
-            );
-
-            exactQuery = ((DateRangeIncludingNowQuery) exactQuery).getQuery();
-        }
-
-        ApproximatePointRangeQuery approximateQuery = new ApproximatePointRangeQuery(
-            field,
-            pack(new long[] { lower }).bytes,
-            pack(new long[] { upper }).bytes,
-            1,
-            ApproximatePointRangeQuery.LONG_FORMAT
-        );
-        approximateQuery.setSize(size);
-
-        TopDocs exactDocs = searcher.search(exactQuery, size);
-        TopDocs approxDocs = searcher.search(approximateQuery, size);
-
-        verifyRangeQueries(searcher, exactQuery, approxDocs, exactDocs, field, lower, upper, size, dims);
+        testApproximateVsExactQuery(searcher, field, Resolution.MILLISECONDS.convert(parser.parse(lowerBound, () -> nowInMillis)), Resolution.MILLISECONDS.convert(parser.parse(upperBound, () -> nowInMillis)), size, dims);
     }
 
     private void testApproximateVsExactQuery(IndexSearcher searcher, String field, long lower, long upper, int size, int dims)
