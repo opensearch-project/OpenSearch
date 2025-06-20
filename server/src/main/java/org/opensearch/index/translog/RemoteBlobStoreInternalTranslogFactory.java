@@ -64,6 +64,30 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         LongSupplier globalCheckpointSupplier,
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
+        BooleanSupplier startedPrimarySupplier
+    ) throws IOException {
+        assert config.getIndexSettings().isDerivedSourceEnabled() == false; // For derived source supported index, primary method must be
+                                                                            // used
+        return this.newTranslog(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            startedPrimarySupplier,
+            TranslogOperationHelper.EMPTY
+        );
+    }
+
+    @Override
+    public Translog newTranslog(
+        TranslogConfig config,
+        String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        LongSupplier globalCheckpointSupplier,
+        LongSupplier primaryTermSupplier,
+        LongConsumer persistedSequenceNumberConsumer,
         BooleanSupplier startedPrimarySupplier,
         TranslogOperationHelper translogOperationHelper
     ) throws IOException {
