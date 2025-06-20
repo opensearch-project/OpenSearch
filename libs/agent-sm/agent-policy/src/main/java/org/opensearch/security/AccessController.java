@@ -14,7 +14,8 @@ import java.util.function.Supplier;
 /**
  * A utility class that provides methods to perform actions in a privileged context.
  *
- * This class is a replacement for Java's {@code java.security.AccessController} functionality.
+ * This class is a replacement for Java's {@code java.security.AccessController} functionality which is marked for
+ * removal. All new code should use this class instead of the JDK's {@code AccessController}.
  *
  * Running code in a privileged context will ensure that the code has the necessary permissions
  * without traversing through the entire call stack. See {@code org.opensearch.javaagent.StackCallerProtectionDomainChainExtractor}
