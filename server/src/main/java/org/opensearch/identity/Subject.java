@@ -26,7 +26,7 @@ public interface Subject {
     /**
      * runAs allows the caller to run a callable function as this subject
      */
-    default <E extends Exception> void runAs(CheckedRunnable<E> r) throws Exception {
+    default <E extends Exception> void runAs(CheckedRunnable<E> r) throws E {
         r.run();
     };
 }

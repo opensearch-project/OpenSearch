@@ -41,7 +41,7 @@ public class ShiroPluginSubject implements PluginSubject {
     }
 
     @Override
-    public <E extends Exception> void runAs(CheckedRunnable<E> r) throws Exception {
+    public <E extends Exception> void runAs(CheckedRunnable<E> r) throws E {
         try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
             r.run();
         }
