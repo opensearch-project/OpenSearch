@@ -153,6 +153,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     protected final String translogUUID;
     protected final TranslogDeletionPolicy deletionPolicy;
     protected final LongConsumer persistedSequenceNumberConsumer;
+    protected final TranslogOperationHelper translogOperationHelper;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -179,7 +180,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
-        final LongConsumer persistedSequenceNumberConsumer
+        final LongConsumer persistedSequenceNumberConsumer,
+        final TranslogOperationHelper translogOperationHelper
     ) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
@@ -194,6 +196,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         writeLock = new ReleasableLock(rwl.writeLock());
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
+        this.translogOperationHelper = translogOperationHelper;
     }
 
     /** recover all translog files found on disk */
@@ -531,7 +534,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
                 tragedy,
                 persistedSequenceNumberConsumer,
                 bigArrays,
-                indexSettings.isAssignedOnRemoteNode()
+                indexSettings.isAssignedOnRemoteNode(),
+                translogOperationHelper
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
@@ -1186,6 +1190,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
      *
      * @opensearch.internal
      */
+    @PublicApi(since = "1.0.0")
     public static class Index implements Operation {
 
         public static final int FORMAT_6_0 = 8; // since 6.0.0
@@ -2096,6 +2101,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
                 throw new UnsupportedOperationException();
             },
             BigArrays.NON_RECYCLING_INSTANCE,
+            null,
             null
         );
         writer.close();

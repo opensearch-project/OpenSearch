@@ -64,7 +64,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         LongSupplier globalCheckpointSupplier,
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
-        BooleanSupplier startedPrimarySupplier
+        BooleanSupplier startedPrimarySupplier,
+        TranslogOperationHelper translogOperationHelper
     ) throws IOException {
 
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
@@ -81,7 +82,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 threadPool,
                 startedPrimarySupplier,
                 remoteTranslogTransferTracker,
-                remoteStoreSettings
+                remoteStoreSettings,
+                translogOperationHelper
             );
         } else {
             return new RemoteFsTranslog(
@@ -95,7 +97,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
                 threadPool,
                 startedPrimarySupplier,
                 remoteTranslogTransferTracker,
-                remoteStoreSettings
+                remoteStoreSettings,
+                translogOperationHelper
             );
         }
     }
