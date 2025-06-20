@@ -46,6 +46,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.TriFunction;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.BytesRefs;
@@ -80,7 +81,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -511,37 +511,60 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support DISJOINT ranges");
             }
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
-            return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
-                if (isSearchable()) {
-                    Query pointRangeQuery = LongPoint.newRangeQuery(name(), l, u);
-                    Query query;
-                    if (dvQuery != null) {
-                        query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
-                        if (context.indexSortedOnField(name())) {
-                            query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+            return dateRangeQuery(
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                timeZone,
+                parser,
+                context,
+                resolution,
+                (l, u, nowUsed) -> {
+                    Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
+                    if (isSearchable()) {
+                        Query pointRangeQuery = LongPoint.newRangeQuery(name(), l, u);
+                        Query query;
+                        if (dvQuery != null) {
+                            query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
+                            if (context.indexSortedOnField(name())) {
+                                query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                            }
+                        } else {
+                            query = pointRangeQuery;
                         }
-                    } else {
-                        query = pointRangeQuery;
+                        if (nowUsed[0]) {
+                            return new ApproximateScoreQuery(
+                                new DateRangeIncludingNowQuery(query),
+                                new ApproximatePointRangeQuery(
+                                    name(),
+                                    pack(new long[] { l }).bytes,
+                                    pack(new long[] { u }).bytes,
+                                    new long[] { l }.length,
+                                    ApproximatePointRangeQuery.LONG_FORMAT
+                                )
+                            );
+                        } else {
+                            return new ApproximateScoreQuery(
+                                query,
+                                new ApproximatePointRangeQuery(
+                                    name(),
+                                    pack(new long[] { l }).bytes,
+                                    pack(new long[] { u }).bytes,
+                                    new long[] { l }.length,
+                                    ApproximatePointRangeQuery.LONG_FORMAT
+                                )
+                            );
+                        }
                     }
-                    return new ApproximateScoreQuery(
-                        query,
-                        new ApproximatePointRangeQuery(
-                            name(),
-                            pack(new long[] { l }).bytes,
-                            pack(new long[] { u }).bytes,
-                            new long[] { l }.length,
-                            ApproximatePointRangeQuery.LONG_FORMAT
-                        )
-                    );
-                }
 
-                // Not searchable. Must have doc values.
-                if (context.indexSortedOnField(name())) {
-                    dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
+                    // Not searchable. Must have doc values.
+                    if (context.indexSortedOnField(name())) {
+                        dvQuery = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, dvQuery);
+                    }
+                    return nowUsed[0] ? new DateRangeIncludingNowQuery(dvQuery) : dvQuery;
                 }
-                return dvQuery;
-            });
+            );
         }
 
         public static Query dateRangeQuery(
@@ -553,28 +576,31 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateMathParser parser,
             QueryShardContext context,
             Resolution resolution,
-            BiFunction<Long, Long, Query> builder
+            TriFunction<Long, Long, boolean[], Query> builder
         ) {
-            return handleNow(context, nowSupplier -> {
-                long l, u;
-                if (lowerTerm == null) {
-                    l = Long.MIN_VALUE;
-                } else {
-                    l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier, resolution);
-                    if (includeLower == false) {
-                        ++l;
-                    }
+            boolean[] nowUsed = new boolean[1];
+            LongSupplier nowSupplier = () -> {
+                nowUsed[0] = true;
+                return context.nowInMillis();
+            };
+            long l, u;
+            if (lowerTerm == null) {
+                l = Long.MIN_VALUE;
+            } else {
+                l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier, resolution);
+                if (includeLower == false) {
+                    ++l;
                 }
-                if (upperTerm == null) {
-                    u = Long.MAX_VALUE;
-                } else {
-                    u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier, resolution);
-                    if (includeUpper == false) {
-                        --u;
-                    }
+            }
+            if (upperTerm == null) {
+                u = Long.MAX_VALUE;
+            } else {
+                u = parseToLong(upperTerm, includeUpper, timeZone, parser, nowSupplier, resolution);
+                if (includeUpper == false) {
+                    --u;
                 }
-                return builder.apply(l, u);
-            });
+            }
+            return builder.apply(l, u, nowUsed);
         }
 
         /**
@@ -584,28 +610,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
          * @return the result of the builder, wrapped in {@link DateRangeIncludingNowQuery} if {@code now} was used.
          */
         public static Query handleNow(QueryShardContext context, Function<LongSupplier, Query> builder) {
-            boolean[] nowUsed = new boolean[1];
-            LongSupplier nowSupplier = () -> {
-                nowUsed[0] = true;
-                return context.nowInMillis();
-            };
-            Query query = builder.apply(nowSupplier);
-            if (nowUsed[0]) {
-                // If query is searchable, it will be of type ApproximateScoreQuery
-                if (query instanceof ApproximateScoreQuery) {
-                    // To access ApproximateScoreQuery methods
-                    ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) query;
-
-                    return new ApproximateScoreQuery(
-                        new DateRangeIncludingNowQuery(approxQuery.getOriginalQuery()),
-                        approxQuery.getApproximationQuery()
-                    );
-                } else {
-                    return new DateRangeIncludingNowQuery(query);
-                }
-            }
-
-            return query;
+            return builder.apply(context::nowInMillis);
         }
 
         public long parseToLong(Object value, boolean roundUp, @Nullable ZoneId zone, DateMathParser dateParser, LongSupplier now) {
