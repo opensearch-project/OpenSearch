@@ -40,6 +40,7 @@ dependencies {
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-csv:${versions.jackson}"
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"

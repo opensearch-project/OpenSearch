@@ -40,6 +40,7 @@ import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.common.xcontent.csv.CsvXContent;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContent;
@@ -47,6 +48,10 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Locale;
+import java.util.Map;
+
+
 
 /**
  * The content type of {@link XContent}.
@@ -236,6 +241,65 @@ public enum XContentType implements MediaType {
         public XContentBuilder contentBuilder(final OutputStream os) throws IOException {
             return new XContentBuilder(CborXContent.cborXContent, os);
         }
+    },
+    /**
+     * A CSV based content type.
+     */
+    CSV(4) {
+        @Override
+        public String mediaTypeWithoutParameters() {
+            return "application/csv";
+        }
+
+        @Override
+        public String subtype() {
+            return "csv";
+        }
+        @Override
+        public XContent xContent() {
+            return CsvXContent.csvXContent;
+        }
+
+        @Override
+        public boolean detectedXContent(final byte[] bytes, int offset, int length) {
+            if (length < 3) {
+                return false;
+            }
+            // Check if there's a comma in the first few bytes (typical of CSV header row)
+            for (int i = offset; i < offset + Math.min(length, 10); i++) {
+                if (bytes[i] == ',') {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+
+        @Override
+        public boolean detectedXContent(final CharSequence content, final int length) {
+            if (length < 3) {
+                return false;
+            }
+            // Heuristic: content contains at least one comma in first few characters
+            for (int i = 0; i < Math.min(length, 10); i++) {
+                if (content.charAt(i) == ',') {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+
+        @Override
+        public XContentBuilder contentBuilder() throws IOException {
+            return CsvXContent.contentBuilder();
+        }
+
+        @Override
+        public XContentBuilder contentBuilder(final OutputStream os) throws IOException {
+            return new XContentBuilder(CsvXContent.csvXContent, os);
+        }
+
     };
 
     private int index;
@@ -247,6 +311,7 @@ public enum XContentType implements MediaType {
     public int index() {
         return index;
     }
+
 
     @Override
     public String type() {
