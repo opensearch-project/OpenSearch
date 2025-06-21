@@ -124,6 +124,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String REMOTE_STATE_READ = "remote_state_read";
         public static final String INDEX_SEARCHER = "index_searcher";
         public static final String REMOTE_STATE_CHECKSUM = "remote_state_checksum";
+        public static final String REMOTE_REFRESH_SEGMENT_SYNC = "remote_refresh_segment_sync";
     }
 
     static Set<String> scalingThreadPoolKeys = new HashSet<>(Arrays.asList("max", "core"));
@@ -201,6 +202,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_STATE_READ, ThreadPoolType.FIXED);
         map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
         map.put(Names.REMOTE_STATE_CHECKSUM, ThreadPoolType.FIXED);
+        map.put(Names.REMOTE_REFRESH_SEGMENT_SYNC, ThreadPoolType.SCALING);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -324,6 +326,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(
             Names.REMOTE_STATE_CHECKSUM,
             new FixedExecutorBuilder(settings, Names.REMOTE_STATE_CHECKSUM, ClusterStateChecksum.COMPONENT_SIZE, 1000)
+        );
+        builders.put(
+            Names.REMOTE_REFRESH_SEGMENT_SYNC,
+            new ScalingExecutorBuilder(Names.REMOTE_REFRESH_SEGMENT_SYNC, 1, halfProc, TimeValue.timeValueMinutes(5))
         );
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
