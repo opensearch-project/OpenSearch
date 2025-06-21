@@ -40,11 +40,11 @@ import org.opensearch.search.profile.AbstractInternalProfileTree;
  *
  * @opensearch.internal
  */
-public class InternalAggregationProfileTree extends AbstractInternalProfileTree<AggregationProfileBreakdown, Aggregator> {
+public class InternalAggregationProfileTree extends AbstractInternalProfileTree<AggregationTimingProfileBreakdown, Aggregator> {
 
     @Override
-    protected AggregationProfileBreakdown createProfileBreakdown() {
-        return new AggregationProfileBreakdown();
+    protected AggregationTimingProfileBreakdown createProfileBreakdown(Aggregator aggregator) {
+        return new AggregationTimingProfileBreakdown();
     }
 
     @Override

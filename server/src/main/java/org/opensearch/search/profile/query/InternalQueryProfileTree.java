@@ -32,8 +32,11 @@
 
 package org.opensearch.search.profile.query;
 
-import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.apache.lucene.search.Query;
+import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
+
+import java.util.Map;
 
 /**
  * This class returns a list of {@link ProfileResult} that can be serialized back to the client in the non-concurrent execution.
@@ -42,8 +45,17 @@ import org.opensearch.search.profile.ProfileResult;
  */
 public class InternalQueryProfileTree extends AbstractQueryProfileTree {
 
+    private final Map<Class<? extends Query>,  Class<? extends AbstractTimingProfileBreakdown>> pluginBreakdownClasses;
+
+    public InternalQueryProfileTree(Map<Class<? extends Query>, Class<? extends AbstractTimingProfileBreakdown>> breakdowns) {
+        this.pluginBreakdownClasses = breakdowns;
+    }
+
     @Override
-    protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new QueryProfileBreakdown();
+    protected AbstractQueryTimingProfileBreakdown createProfileBreakdown(Query query) {
+        if(pluginBreakdownClasses != null && pluginBreakdownClasses.get(query.getClass()) != null) {
+            return new QueryTimingProfileBreakdown(pluginBreakdownClasses.get(query.getClass()));
+        }
+        return new QueryTimingProfileBreakdown(null);
     }
 }

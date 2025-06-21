@@ -32,6 +32,8 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.List;
 
 /**
@@ -39,7 +41,8 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class AbstractProfiler<PB extends AbstractProfileBreakdown<?>, E> {
+@PublicApi(since="3.0.0")
+public abstract class AbstractProfiler<PB extends AbstractProfileBreakdown, E, SR extends AbstractProfileShardResult> {
 
     protected final AbstractInternalProfileTree<PB, E> profileTree;
 
@@ -68,5 +71,10 @@ public class AbstractProfiler<PB extends AbstractProfileBreakdown<?>, E> {
     public List<ProfileResult> getTree() {
         return profileTree.getTree();
     }
+
+    /**
+     * @return a new instance of a {@link AbstractProfileShardResult}
+     */
+    public abstract SR createProfileShardResult();
 
 }

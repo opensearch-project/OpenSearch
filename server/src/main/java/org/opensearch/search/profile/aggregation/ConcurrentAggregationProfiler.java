@@ -13,7 +13,7 @@
 
 package org.opensearch.search.profile.aggregation;
 
-import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.AbstractTimingProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
 
 import java.util.HashMap;
@@ -31,7 +31,7 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
     private static final String MAX_PREFIX = "max_";
     private static final String MIN_PREFIX = "min_";
     private static final String AVG_PREFIX = "avg_";
-    private static final String START_TIME_KEY = AggregationTimingType.INITIALIZE + AbstractProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX;
+    private static final String START_TIME_KEY = AggregationTimingType.INITIALIZE + AbstractTimingProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX;
     private static final String[] breakdownCountStatsTypes = { "build_leaf_collector_count", "collect_count" };
 
     @Override
@@ -58,12 +58,13 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         Map<String, Long> minSliceStartTimeMap = new HashMap<>();
         Map<String, Long> maxSliceEndTimeMap = new HashMap<>();
         Map<String, Long> countStatsMap = new HashMap<>();
+        Map<String, Long> importantMetrics = new HashMap<>();
         Map<String, Object> debug = new HashMap<>();
         List<ProfileResult> children = new LinkedList<>();
 
         for (ProfileResult profileResult : profileResultsAcrossSlices) {
-            long profileNodeTime = profileResult.getTime();
-            long sliceStartTime = profileResult.getTimeBreakdown().get(START_TIME_KEY);
+            long profileNodeTime = profileResult.getBreakdown().get(AbstractTimingProfileBreakdown.NODE_TIME_RAW);
+            long sliceStartTime = profileResult.getBreakdown().get(START_TIME_KEY);
 
             // Profiled total time
             maxSliceNodeEndTime = Math.max(maxSliceNodeEndTime, sliceStartTime + profileNodeTime);
@@ -82,9 +83,9 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
             // Profiled breakdown total time
             for (AggregationTimingType timingType : AggregationTimingType.values()) {
                 String breakdownTimingType = timingType.toString();
-                Long startTime = profileResult.getTimeBreakdown()
-                    .get(breakdownTimingType + AbstractProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX);
-                Long endTime = startTime + profileResult.getTimeBreakdown().get(breakdownTimingType);
+                Long startTime = profileResult.getBreakdown()
+                    .get(breakdownTimingType + AbstractTimingProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX);
+                Long endTime = startTime + profileResult.getBreakdown().get(breakdownTimingType);
                 minSliceStartTimeMap.put(
                     breakdownTimingType,
                     Math.min(minSliceStartTimeMap.getOrDefault(breakdownTimingType, Long.MAX_VALUE), startTime)
@@ -103,10 +104,10 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
             // Profiled breakdown count
             for (AggregationTimingType timingType : AggregationTimingType.values()) {
                 String breakdownType = timingType.toString();
-                String breakdownTypeCount = breakdownType + AbstractProfileBreakdown.TIMING_TYPE_COUNT_SUFFIX;
+                String breakdownTypeCount = breakdownType + AbstractTimingProfileBreakdown.TIMING_TYPE_COUNT_SUFFIX;
                 breakdown.put(
                     breakdownTypeCount,
-                    breakdown.getOrDefault(breakdownTypeCount, 0L) + profileResult.getTimeBreakdown().get(breakdownTypeCount)
+                    breakdown.getOrDefault(breakdownTypeCount, 0L) + profileResult.getBreakdown().get(breakdownTypeCount)
                 );
             }
 
@@ -146,12 +147,9 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
             type,
             description,
             breakdown,
+            importantMetrics,
             debug,
-            nodeTime,
-            reducedChildrenTree,
-            maxSliceNodeTime,
-            minSliceNodeTime,
-            avgSliceNodeTime
+            reducedChildrenTree
         );
         return List.of(reducedResult);
     }
@@ -171,13 +169,13 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         String avgBreakdownType = AVG_PREFIX + breakdownType;
         statsMap.put(
             maxBreakdownType,
-            Math.max(statsMap.getOrDefault(maxBreakdownType, Long.MIN_VALUE), result.getTimeBreakdown().get(breakdownType))
+            Math.max(statsMap.getOrDefault(maxBreakdownType, Long.MIN_VALUE), result.getBreakdown().get(breakdownType))
         );
         statsMap.put(
             minBreakdownType,
-            Math.min(statsMap.getOrDefault(minBreakdownType, Long.MAX_VALUE), result.getTimeBreakdown().get(breakdownType))
+            Math.min(statsMap.getOrDefault(minBreakdownType, Long.MAX_VALUE), result.getBreakdown().get(breakdownType))
         );
-        statsMap.put(avgBreakdownType, statsMap.getOrDefault(avgBreakdownType, 0L) + result.getTimeBreakdown().get(breakdownType));
+        statsMap.put(avgBreakdownType, statsMap.getOrDefault(avgBreakdownType, 0L) + result.getBreakdown().get(breakdownType));
     }
 
     /**
