@@ -1315,8 +1315,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         );
 
         SearchPipelineStats stats = searchPipelineService.stats();
-        assertPipelineStats(stats.getTotalRequestStats(), 4, 2);
+        assertPipelineStats(stats.getTotalRequestStats(), 2, 1);
         assertPipelineStats(stats.getTotalResponseStats(), 2, 1);
+        assertPipelineStats(stats.getTotalPhaseResultsStats(), 2, 1);
         for (SearchPipelineStats.PerPipelineStats perPipelineStats : stats.getPipelineStats()) {
             SearchPipelineStats.PipelineDetailStats detailStats = stats.getPerPipelineProcessorStats()
                 .get(perPipelineStats.getPipelineId());
@@ -1470,8 +1471,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         // when ignoreFailure enabled, the search pipelines will all succeed.
         SearchPipelineStats stats = searchPipelineService.stats();
-        assertPipelineStats(stats.getTotalRequestStats(), 4, 0);
+        assertPipelineStats(stats.getTotalRequestStats(), 2, 0);
         assertPipelineStats(stats.getTotalResponseStats(), 2, 0);
+        assertPipelineStats(stats.getTotalPhaseResultsStats(), 2, 0);
 
         for (SearchPipelineStats.PerPipelineStats perPipelineStats : stats.getPipelineStats()) {
             SearchPipelineStats.PipelineDetailStats detailStats = stats.getPerPipelineProcessorStats()

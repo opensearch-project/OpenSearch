@@ -42,6 +42,7 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
         return new SearchPipelineStats(
             new OperationStats(1, 2, 3, 4),
             new OperationStats(5, 6, 7, 8),
+            new OperationStats(9, 10, 11, 12),
             List.of(
                 new SearchPipelineStats.PerPipelineStats("p1", new OperationStats(9, 10, 11, 12), new OperationStats(13, 14, 15, 16)),
                 new SearchPipelineStats.PerPipelineStats("p2", new OperationStats(17, 18, 19, 20), new OperationStats(21, 22, 23, 24))
