@@ -8,12 +8,11 @@
 
 package org.opensearch.index.translog;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.TranslogLeafReader;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
@@ -30,6 +29,8 @@ import java.util.Objects;
  */
 @PublicApi(since = "3.1.0")
 public abstract class TranslogOperationHelper {
+
+    private static final Logger logger = LogManager.getLogger(TranslogOperationHelper.class);
 
     public static final TranslogOperationHelper EMPTY = new TranslogOperationHelper() {
     };
@@ -77,14 +78,22 @@ public abstract class TranslogOperationHelper {
     }
 
     public static boolean compareSourcesWithOrder(BytesReference source1, BytesReference source2) {
+        if (source1 == null && source2 == null) {
+            return true;
+        }
+        if (source1 == null || source2 == null) {
+            return false;
+        }
         // Convert both sources to ordered maps
-        Tuple<? extends MediaType, Map<String, Object>> map1 = XContentHelper.convertToMap(source1, true, MediaTypeRegistry.JSON);
-        Tuple<? extends MediaType, Map<String, Object>> map2 = XContentHelper.convertToMap(source2, true, MediaTypeRegistry.JSON);
+        try {
+            Map<String, Object> map1 = XContentHelper.convertToMap(source1, true).v2();
+            Map<String, Object> map2 = XContentHelper.convertToMap(source2, true).v2();
 
-        // Get the ordered maps
-        Map<String, Object> orderedMap1 = map1.v2();
-        Map<String, Object> orderedMap2 = map2.v2();
-
-        return Objects.deepEquals(orderedMap1, orderedMap2);
+            return Objects.deepEquals(map1, map2);
+        } catch (Exception e) {
+            // Invalid source
+            logger.error("Failed to convert source to map", e);
+            return false;
+        }
     }
 }

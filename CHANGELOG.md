@@ -142,5 +142,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 [Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.1...main
 ### Added
-[Derive Source] Adding back "Adding integration of derived source feature across diff paths" with fixes for IT #18565
+[Derive Source] Add integration of derived source feature across various paths like get/search/recovery #18565
 ([#18565](https://github.com/opensearch-project/OpenSearch/pull/18565))
