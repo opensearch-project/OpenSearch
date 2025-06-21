@@ -33,9 +33,11 @@
 package org.opensearch.index.shard;
 
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.metrics.MaxMetric;
 import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
 
@@ -47,6 +49,11 @@ import java.util.concurrent.TimeUnit;
  */
 final class InternalIndexingStats implements IndexingOperationListener {
     private final StatsHolder totalStats = new StatsHolder();
+    private final ThreadPool threadPool;
+
+    InternalIndexingStats(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
 
     /**
      * Returns the stats, including type specific stats. If the types are null/0 length, then nothing
@@ -74,6 +81,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
                     long took = result.getTook();
                     totalStats.indexMetric.inc(took);
                     totalStats.indexCurrent.dec();
+                    long now = threadPool.absoluteTimeInMillis();
+                    totalStats.maxLastIndexRequestTimestamp.collect(now);
                 }
                 break;
             case FAILURE:
@@ -142,6 +151,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric indexFailed = new CounterMetric();
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
+        private final MaxMetric maxLastIndexRequestTimestamp = new MaxMetric();
 
         IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
             return new IndexingStats.Stats(
@@ -155,7 +165,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 noopUpdates.count(),
                 isThrottled,
                 TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
-                new IndexingStats.Stats.DocStatusStats()
+                new IndexingStats.Stats.DocStatusStats(),
+                maxLastIndexRequestTimestamp.get()
             );
         }
     }
