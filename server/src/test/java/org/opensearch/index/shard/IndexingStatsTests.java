@@ -156,10 +156,10 @@ public class IndexingStatsTests extends OpenSearchTestCase {
 
         // Serialize with V_3_1_0 (should include the field)
         BytesStreamOutput outNew = new BytesStreamOutput();
-        outNew.setVersion(org.opensearch.Version.V_3_1_0);
+        outNew.setVersion(org.opensearch.Version.V_3_2_0);
         stats.writeTo(outNew);
         StreamInput inNew = outNew.bytes().streamInput();
-        inNew.setVersion(org.opensearch.Version.V_3_1_0);
+        inNew.setVersion(org.opensearch.Version.V_3_2_0);
         IndexingStats.Stats deserializedNew = new IndexingStats.Stats(inNew);
         assertEquals(ts, deserializedNew.getMaxLastIndexRequestTimestamp());
 
