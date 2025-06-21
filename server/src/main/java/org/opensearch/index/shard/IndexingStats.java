@@ -176,7 +176,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             noopUpdateCount = in.readVLong();
             isThrottled = in.readBoolean();
             throttleTimeInMillis = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+            if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
                 maxLastIndexRequestTimestamp = in.readLong();
             } else {
                 maxLastIndexRequestTimestamp = 0L;
@@ -324,7 +324,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeVLong(noopUpdateCount);
             out.writeBoolean(isThrottled);
             out.writeLong(throttleTimeInMillis);
-            if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+            if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
                 out.writeLong(maxLastIndexRequestTimestamp);
             }
             if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
