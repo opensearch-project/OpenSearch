@@ -52,7 +52,8 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
             translogEventListener,
             engineLifecycleAware,
             translogFactory,
-            startedPrimarySupplier
+            startedPrimarySupplier,
+            TranslogOperationHelper.EMPTY
         );
     }
 
