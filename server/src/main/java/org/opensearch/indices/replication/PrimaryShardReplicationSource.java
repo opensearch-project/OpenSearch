@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_CHECKPOINT_INFO;
+import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_MERGED_SEGMENT_FILES;
 import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES;
 
 /**
@@ -97,6 +98,39 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
             GET_SEGMENT_FILES,
             request,
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
+            new ActionListenerResponseHandler<>(listener, GetSegmentFilesResponse::new, ThreadPool.Names.GENERIC)
+        );
+    }
+
+    @Override
+    public void getMergedSegmentFiles(
+        long replicationId,
+        ReplicationCheckpoint checkpoint,
+        List<StoreFileMetadata> filesToFetch,
+        IndexShard indexShard,
+        BiConsumer<String, Long> fileProgressTracker,
+        ActionListener<GetSegmentFilesResponse> listener
+    ) {
+        final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
+            replicationId,
+            targetAllocationId,
+            targetNode,
+            filesToFetch,
+            new ReplicationCheckpoint(
+                checkpoint.getShardId(),
+                checkpoint.getPrimaryTerm(),
+                checkpoint.getSegmentsGen(),
+                checkpoint.getSegmentInfosVersion(),
+                checkpoint.getLength(),
+                checkpoint.getCodec(),
+                checkpoint.getMetadataMap()
+            )
+        );
+        transportService.sendRequest(
+            sourceNode,
+            GET_MERGED_SEGMENT_FILES,
+            request,
+            TransportRequestOptions.builder().withTimeout(recoverySettings.getMergedSegmentReplicationTimeout()).build(),
             new ActionListenerResponseHandler<>(listener, GetSegmentFilesResponse::new, ThreadPool.Names.GENERIC)
         );
     }

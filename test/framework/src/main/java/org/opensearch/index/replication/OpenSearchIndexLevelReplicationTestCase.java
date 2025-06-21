@@ -377,6 +377,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                     }
                 }
             }
+            // Update the status of the replicas in the routing table to IndexShardState.STARTED.
+            updateAllocationIDsOnPrimary();
             return started;
         }
 
