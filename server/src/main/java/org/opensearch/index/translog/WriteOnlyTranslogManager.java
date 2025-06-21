@@ -38,7 +38,8 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
         TranslogEventListener translogEventListener,
         LifecycleAware engineLifecycleAware,
         TranslogFactory translogFactory,
-        BooleanSupplier startedPrimarySupplier
+        BooleanSupplier startedPrimarySupplier,
+        TranslogOperationHelper translogOperationHelper
     ) throws IOException {
         super(
             translogConfig,
@@ -53,7 +54,7 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
             engineLifecycleAware,
             translogFactory,
             startedPrimarySupplier,
-            TranslogOperationHelper.EMPTY
+            translogOperationHelper
         );
     }
 

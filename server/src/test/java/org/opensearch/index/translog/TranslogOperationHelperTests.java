@@ -18,7 +18,6 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
-import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperServiceTestCase;
@@ -38,7 +37,6 @@ public class TranslogOperationHelperTests extends MapperServiceTestCase {
     private TranslogOperationHelper helper;
     private TranslogOperationHelper helperWithDerivedSource;
     private MapperService mapperService;
-    private DocumentMapper documentMapper;
     private DocumentMapperForType documentMapperForType;
 
     @Before
@@ -229,5 +227,74 @@ public class TranslogOperationHelperTests extends MapperServiceTestCase {
         Translog.Index op2 = new Translog.Index("1", 0, 2, source.toBytesRef().bytes);
 
         assertFalse("Operations with different primary terms should not be equal", helper.hasSameIndexOperation(op1, op2));
+    }
+
+    public void testSourceComparisonWithDifferentContentTypes() throws IOException {
+        // JSON format
+        BytesReference jsonSource = new BytesArray("{\"field\":\"value\", \"number\":1}".getBytes(StandardCharsets.UTF_8));
+
+        // YAML format
+        BytesReference yamlSource = BytesReference.bytes(
+            XContentFactory.yamlBuilder().startObject().field("field", "value").field("number", 1).endObject()
+        );
+
+        // SMILE format (binary JSON)
+        BytesReference smileSource = BytesReference.bytes(
+            XContentFactory.smileBuilder().startObject().field("field", "value").field("number", 1).endObject()
+        );
+
+        // CBOR format
+        BytesReference cborSource = BytesReference.bytes(
+            XContentFactory.cborBuilder().startObject().field("field", "value").field("number", 1).endObject()
+        );
+
+        // Test different combinations
+        assertTrue(
+            "JSON and YAML with same content should be equal",
+            TranslogOperationHelper.compareSourcesWithOrder(jsonSource, yamlSource)
+        );
+
+        assertTrue(
+            "JSON and SMILE with same content should be equal",
+            TranslogOperationHelper.compareSourcesWithOrder(jsonSource, smileSource)
+        );
+
+        assertTrue(
+            "JSON and CBOR with same content should be equal",
+            TranslogOperationHelper.compareSourcesWithOrder(jsonSource, cborSource)
+        );
+
+        assertTrue(
+            "YAML and SMILE with same content should be equal",
+            TranslogOperationHelper.compareSourcesWithOrder(yamlSource, smileSource)
+        );
+
+        assertTrue(
+            "YAML and CBOR with same content should be equal",
+            TranslogOperationHelper.compareSourcesWithOrder(yamlSource, cborSource)
+        );
+
+        assertTrue(
+            "SMILE and CBOR with same content should be equal",
+            TranslogOperationHelper.compareSourcesWithOrder(smileSource, cborSource)
+        );
+    }
+
+    public void testSourceComparisonWithNullValues() {
+        BytesReference source = new BytesArray("{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8));
+
+        assertFalse("Null and non-null sources should not be equal", TranslogOperationHelper.compareSourcesWithOrder(null, source));
+        assertFalse("Non-null and null sources should not be equal", TranslogOperationHelper.compareSourcesWithOrder(source, null));
+        assertTrue("Null sources should be equal", TranslogOperationHelper.compareSourcesWithOrder(null, null));
+    }
+
+    public void testSourceComparisonWithInvalidContent() {
+        BytesReference validJson = new BytesArray("{\"field\":\"value\"}".getBytes(StandardCharsets.UTF_8));
+        BytesReference invalidContent = new BytesArray("invalid content".getBytes(StandardCharsets.UTF_8));
+
+        assertFalse(
+            "Valid and invalid content should not be equal",
+            TranslogOperationHelper.compareSourcesWithOrder(validJson, invalidContent)
+        );
     }
 }
