@@ -17,6 +17,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.GroupedActionListener;
@@ -413,14 +415,52 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {
             long translogFileGeneration = translogGeneration.translogFileGeneration;
-            remoteDirectory.uploadMetadata(
-                localSegmentsPostRefresh,
-                segmentInfosSnapshot,
-                storeDirectory,
-                translogFileGeneration,
-                replicationCheckpoint,
-                indexShard.getNodeId()
-            );
+
+            final String cachedVersionIdentifier = indexShard.getMetadataETag();
+
+            ActionListener<ConditionalWriteResponse> responseListener = new ActionListener<>() {
+                @Override
+                public void onResponse(ConditionalWriteResponse response) {
+                    String newVersionIdentifier = response.getVersionIdentifier();
+                    if (newVersionIdentifier == null || newVersionIdentifier.isEmpty()) {
+                        logger.warn("Received null or empty version identifier");
+                        return;
+                    }
+                    if (cachedVersionIdentifier != null && cachedVersionIdentifier.equals(newVersionIdentifier)) {
+                        logger.debug("New version identifier matches cached version. No update necessary.");
+                        return;
+                    }
+                    indexShard.updateMetadataETag(newVersionIdentifier);
+                    logger.debug("Updated metadata version identifier to: {}", newVersionIdentifier);
+                }
+
+                @Override
+                public void onFailure(Exception ex) {
+                    OpenSearchException rootCause = (OpenSearchException) ExceptionsHelper.unwrap(ex, OpenSearchException.class);
+                    if (rootCause != null && "Precondition Failed : Etag Mismatch".equals(rootCause.getMessage())) {
+                        indexShard.clearMetadataETag();
+                        indexShard.failShard("Primary shard is stale", ex);
+                    } else {
+                        logger.error("Metadata upload failed", ex);
+                    }
+                }
+            };
+
+            try {
+                remoteDirectory.uploadMetadata(
+                    localSegmentsPostRefresh,
+                    segmentInfosSnapshot,
+                    storeDirectory,
+                    translogFileGeneration,
+                    replicationCheckpoint,
+                    indexShard.getNodeId(),
+                    cachedVersionIdentifier,
+                    responseListener
+                );
+            } catch (IOException e) {
+                responseListener.onFailure(e);
+                throw e;
+            }
         }
     }
 

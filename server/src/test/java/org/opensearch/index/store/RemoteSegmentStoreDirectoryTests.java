@@ -57,6 +57,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
@@ -64,6 +65,7 @@ import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFil
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.hamcrest.CoreMatchers.is;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
@@ -644,6 +646,34 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         );
     }
 
+    public void testUploadMetadataEmptyWithListener() throws IOException {
+        Directory storeDirectory = mock(Directory.class);
+        IndexOutput indexOutput = mock(IndexOutput.class);
+
+        when(storeDirectory.createOutput(eq("segment_metadata"), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
+
+        Collection<String> segmentFiles = List.of("_s1.si", "_s1.cfe", "_s3.cfs");
+
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> listener = mock(ActionListener.class);
+
+        assertThrows(
+            NoSuchFileException.class,
+            () -> remoteSegmentStoreDirectory.uploadMetadata(
+                segmentFiles,
+                segmentInfos,
+                storeDirectory,
+                34L,
+                indexShard.getLatestReplicationCheckpoint(),
+                indexShard.getNodeId(),
+                null,
+                listener
+            )
+        );
+
+        verify(listener).onFailure(any(NoSuchFileException.class));
+    }
+
     public void testUploadMetadataNonEmpty() throws IOException {
         indexDocs(142364, 5);
         flushShard(indexShard, true);
@@ -710,6 +740,184 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         for (String filename : expected.keySet()) {
             assertEquals(expected.get(filename).toString(), actual.get(filename).toString());
         }
+    }
+
+    public void testUploadMetadataNonEmptyWithListener() throws IOException {
+        indexDocs(142364, 5);
+        flushShard(indexShard, true);
+        SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
+        long primaryTerm = indexShard.getLatestReplicationCheckpoint().getPrimaryTerm();
+        String primaryTermLong = RemoteStoreUtils.invertLong(primaryTerm);
+        long generation = segInfos.getGeneration();
+        String generationLong = RemoteStoreUtils.invertLong(generation);
+        String latestMetadataFileName = "metadata__" + primaryTermLong + "__" + generationLong + "__abc";
+
+        List<String> metadataFiles = List.of(latestMetadataFileName);
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                METADATA_FILES_TO_FETCH
+            )
+        ).thenReturn(metadataFiles);
+
+        Map<String, Map<String, String>> metadataFilenameContentMapping = Map.of(
+            latestMetadataFileName,
+            getDummyMetadata("_0", (int) generation)
+        );
+        when(remoteMetadataDirectory.getBlobStream(latestMetadataFileName)).thenReturn(
+            createMetadataFileBytes(
+                metadataFilenameContentMapping.get(latestMetadataFileName),
+                indexShard.getLatestReplicationCheckpoint(),
+                segmentInfos
+            )
+        );
+
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = mock(Directory.class);
+        BytesStreamOutput output = new BytesStreamOutput();
+        IndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
+
+        when(storeDirectory.createOutput(eq("segment_metadata"), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
+
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> listener = mock(ActionListener.class);
+        String testVersionIdentifier = "test-version-123";
+
+        remoteSegmentStoreDirectory.uploadMetadata(
+            segInfos.files(true),
+            segInfos,
+            storeDirectory,
+            generation,
+            indexShard.getLatestReplicationCheckpoint(),
+            indexShard.getNodeId(),
+            testVersionIdentifier,
+            listener
+        );
+
+        ArgumentCaptor<ActionListener<ConditionalWriteResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        ArgumentCaptor<ConditionalWriteOptions> optionsCaptor = ArgumentCaptor.forClass(ConditionalWriteOptions.class);
+
+        verify(remoteMetadataDirectory).copyFrom(
+            eq(storeDirectory),
+            eq("segment_metadata"),
+            eq("segment_metadata"),
+            eq(IOContext.DEFAULT),
+            any(Runnable.class),
+            listenerCaptor.capture(),
+            optionsCaptor.capture()
+        );
+
+        ConditionalWriteOptions capturedOptions = optionsCaptor.getValue();
+        assertNotNull("ConditionalWriteOptions should not be null", capturedOptions);
+        assertTrue("Should have ifMatch condition", capturedOptions.isIfMatch());
+        assertEquals("Version identifier should match", testVersionIdentifier, capturedOptions.getVersionIdentifier());
+
+        VersionedCodecStreamWrapper<RemoteSegmentMetadata> streamWrapper = new VersionedCodecStreamWrapper<>(
+            new RemoteSegmentMetadataHandlerFactory(),
+            RemoteSegmentMetadata.CURRENT_VERSION,
+            RemoteSegmentMetadata.CURRENT_VERSION,
+            RemoteSegmentMetadata.METADATA_CODEC
+        );
+        RemoteSegmentMetadata remoteSegmentMetadata = streamWrapper.readStream(
+            new ByteArrayIndexInput("expected", BytesReference.toBytes(output.bytes()))
+        );
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> actual = remoteSegmentStoreDirectory
+            .getSegmentsUploadedToRemoteStore();
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> expected = remoteSegmentMetadata.getMetadata();
+        for (String filename : expected.keySet()) {
+            assertEquals(expected.get(filename).toString(), actual.get(filename).toString());
+        }
+    }
+
+    public void testUploadMetadataWithVersionIdentifier() throws IOException {
+        indexDocs(5000, 3);
+        flushShard(indexShard, true);
+        SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
+
+        when(remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(any(), anyInt())).thenReturn(Collections.emptyList());
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = mock(Directory.class);
+        IndexOutput indexOutput = mock(IndexOutput.class);
+        when(storeDirectory.createOutput(eq("segment_metadata"), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
+
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> listener = mock(ActionListener.class);
+        String versionIdentifier = "existing-version-abc123";
+
+        remoteSegmentStoreDirectory.uploadMetadata(
+            segInfos.files(true),
+            segInfos,
+            storeDirectory,
+            segInfos.getGeneration(),
+            indexShard.getLatestReplicationCheckpoint(),
+            indexShard.getNodeId(),
+            versionIdentifier,
+            listener
+        );
+
+        ArgumentCaptor<ConditionalWriteOptions> optionsCaptor = ArgumentCaptor.forClass(ConditionalWriteOptions.class);
+        ArgumentCaptor<ActionListener<ConditionalWriteResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+
+        verify(remoteMetadataDirectory).copyFrom(
+            eq(storeDirectory),
+            eq("segment_metadata"),
+            eq("segment_metadata"),
+            eq(IOContext.DEFAULT),
+            any(Runnable.class),
+            listenerCaptor.capture(),
+            optionsCaptor.capture()
+        );
+
+        ConditionalWriteOptions capturedOptions = optionsCaptor.getValue();
+        assertTrue("Should have ifMatch condition", capturedOptions.isIfMatch());
+        assertEquals("Version identifier should match", versionIdentifier, capturedOptions.getVersionIdentifier());
+    }
+
+    public void testUploadMetadataWithNullVersionIdentifier() throws IOException {
+        indexDocs(3000, 2);
+        flushShard(indexShard, true);
+        SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
+
+        when(remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(any(), anyInt())).thenReturn(Collections.emptyList());
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = mock(Directory.class);
+        IndexOutput indexOutput = mock(IndexOutput.class);
+        when(storeDirectory.createOutput(eq("segment_metadata"), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
+
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> listener = mock(ActionListener.class);
+
+        remoteSegmentStoreDirectory.uploadMetadata(
+            segInfos.files(true),
+            segInfos,
+            storeDirectory,
+            segInfos.getGeneration(),
+            indexShard.getLatestReplicationCheckpoint(),
+            indexShard.getNodeId(),
+            null,
+            listener
+        );
+
+        ArgumentCaptor<ConditionalWriteOptions> optionsCaptor = ArgumentCaptor.forClass(ConditionalWriteOptions.class);
+        ArgumentCaptor<ActionListener<ConditionalWriteResponse>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+
+        verify(remoteMetadataDirectory).copyFrom(
+            eq(storeDirectory),
+            eq("segment_metadata"),
+            eq("segment_metadata"),
+            eq(IOContext.DEFAULT),
+            any(Runnable.class),
+            listenerCaptor.capture(),
+            optionsCaptor.capture()
+        );
+
+        ConditionalWriteOptions capturedOptions = optionsCaptor.getValue();
+        assertFalse("Should not have ifMatch condition", capturedOptions.isIfMatch());
+        assertFalse("Should not have ifNotExists condition", capturedOptions.isIfNotExists());
+        assertNull("Version identifier should be null", capturedOptions.getVersionIdentifier());
     }
 
     public void testUploadMetadataMissingSegment() throws IOException {

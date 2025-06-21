@@ -53,14 +53,32 @@ public class RemoteSegmentMetadata {
 
     private final ReplicationCheckpoint replicationCheckpoint;
 
+    private final long translogGeneration;
+    private final long uploadCounter;
+    private final String nodeId;
+
     public RemoteSegmentMetadata(
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata,
         byte[] segmentInfosBytes,
         ReplicationCheckpoint replicationCheckpoint
     ) {
+        this(metadata, segmentInfosBytes, replicationCheckpoint, 0L, 0L, null);
+    }
+
+    public RemoteSegmentMetadata(
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata,
+        byte[] segmentInfosBytes,
+        ReplicationCheckpoint replicationCheckpoint,
+        long translogGeneration,
+        long uploadCounter,
+        String nodeId
+    ) {
         this.metadata = metadata;
         this.segmentInfosBytes = segmentInfosBytes;
         this.replicationCheckpoint = replicationCheckpoint;
+        this.translogGeneration = translogGeneration;
+        this.uploadCounter = uploadCounter;
+        this.nodeId = nodeId;
     }
 
     /**
@@ -85,6 +103,22 @@ public class RemoteSegmentMetadata {
 
     public ReplicationCheckpoint getReplicationCheckpoint() {
         return replicationCheckpoint;
+    }
+
+    public long getTranslogGeneration() {
+        return translogGeneration;
+    }
+
+    public long getUploadCounter() {
+        return uploadCounter;
+    }
+
+    public String getNodeId() {
+        return nodeId;
+    }
+
+    public long getCreationTimestamp() {
+        return replicationCheckpoint.getCreatedTimeStamp();
     }
 
     /**
@@ -121,6 +155,9 @@ public class RemoteSegmentMetadata {
         writeCheckpointToIndexOutput(replicationCheckpoint, out);
         out.writeLong(segmentInfosBytes.length);
         out.writeBytes(segmentInfosBytes, segmentInfosBytes.length);
+        out.writeLong(translogGeneration);
+        out.writeLong(uploadCounter);
+        out.writeString(nodeId != null ? nodeId : "");
     }
 
     /**
@@ -138,7 +175,31 @@ public class RemoteSegmentMetadata {
         int byteArraySize = (int) indexInput.readLong();
         byte[] segmentInfosBytes = new byte[byteArraySize];
         indexInput.readBytes(segmentInfosBytes, 0, byteArraySize);
-        return new RemoteSegmentMetadata(uploadedSegmentMetadataMap, segmentInfosBytes, replicationCheckpoint);
+        long translogGeneration = 0L;
+        long uploadCounter = 0L;
+        String nodeId = null;
+
+        if (indexInput.getFilePointer() < indexInput.length()) {
+            try {
+                translogGeneration = indexInput.readLong();
+                uploadCounter = indexInput.readLong();
+                String nodeIdString = indexInput.readString();
+                nodeId = nodeIdString.isEmpty() ? null : nodeIdString;
+            } catch (Exception e) {
+                translogGeneration = 0L;
+                uploadCounter = 0L;
+                nodeId = null;
+            }
+        }
+
+        return new RemoteSegmentMetadata(
+            uploadedSegmentMetadataMap,
+            segmentInfosBytes,
+            replicationCheckpoint,
+            translogGeneration,
+            uploadCounter,
+            nodeId
+        );
     }
 
     public static void writeCheckpointToIndexOutput(ReplicationCheckpoint replicationCheckpoint, IndexOutput out) throws IOException {
