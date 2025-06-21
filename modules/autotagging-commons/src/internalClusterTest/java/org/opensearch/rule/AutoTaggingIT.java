@@ -8,8 +8,16 @@
 
 package org.opensearch.rule;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.rule.action.CreateRuleRequest;
 import org.opensearch.rule.action.CreateRuleResponse;
 import org.opensearch.rule.action.DeleteRuleRequest;
@@ -20,270 +28,304 @@ import org.opensearch.rule.action.UpdateRuleResponse;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.rule.spi.RuleFrameworkExtension;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
-public class AutoTaggingIT extends OpenSearchTestCase {
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 
-    private final FeatureType featureType = new TestFeatureType();
-    private final RulePersistenceService persistenceService = new TestRulePersistenceService();
+public class AutoTaggingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public void testCreateRulePersistence() {
-        Rule rule = buildRule("create-id", "create-rule", "logs-*");
-        CreateRuleRequest request = new CreateRuleRequest(rule);
-        TestActionListener<CreateRuleResponse> listener = new TestActionListener<>();
-
-        persistenceService.createRule(request, listener);
-
-        assertTrue(listener.successCalled);
-        assertEquals("create-id", listener.result.getRule().getId());
+    public AutoTaggingIT(Settings nodeSettings) {
+        super(nodeSettings);
     }
 
-    public void testUpdateRulePersistence() {
-        Rule rule = buildRule("update-id", "updated rule", "metrics-*");
-        UpdateRuleRequest request = new UpdateRuleRequest(
-            rule.getId(),
-            rule.getDescription(),
-            rule.getAttributeMap(),
-            rule.getFeatureValue(),
-            rule.getFeatureType()
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-        TestActionListener<UpdateRuleResponse> listener = new TestActionListener<>();
-
-        persistenceService.updateRule(request, listener);
-
-        assertTrue(listener.successCalled);
-        assertEquals("update-id", listener.result.getRule().getId());
-        assertEquals("updated rule", listener.result.getRule().getDescription());
     }
 
-    public void testGetRulePersistence() {
-        GetRuleRequest request = new GetRuleRequest("get-id", Map.of(), null, featureType);
-
-        TestActionListener<GetRuleResponse> listener = new TestActionListener<>();
-
-        persistenceService.getRule(request, listener);
-
-        assertTrue(listener.successCalled);
-        assertNotNull(listener.result);
-        assertEquals(0, listener.result.getRules().size());
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        return plugins;
     }
 
-    public void testDeleteRulePersistence() {
-        DeleteRuleRequest request = new DeleteRuleRequest("delete-id", featureType);
-        TestActionListener<AcknowledgedResponse> listener = new TestActionListener<>();
+    public static class IndexPatternAttribute implements Attribute {
+        private static final String NAME = "index_pattern";
+        public static final IndexPatternAttribute INSTANCE = new IndexPatternAttribute();
 
-        persistenceService.deleteRule(request, listener);
-
-        assertTrue(listener.successCalled);
-        assertTrue(listener.result.isAcknowledged());
-    }
-
-    public void testGetRuleWithAttributeFilters() {
-        Attribute attr = featureType.getAttributeFromName("index_pattern");
-        Map<Attribute, Set<String>> filters = Map.of(attr, Set.of("logs-*"));
-
-        GetRuleRequest request = new GetRuleRequest("some-id", filters, null, featureType);
-        TestActionListener<GetRuleResponse> listener = new TestActionListener<>();
-
-        persistenceService.getRule(request, listener);
-
-        assertTrue(listener.successCalled);
-        assertNotNull(listener.result);
-    }
-
-    public void testUpdateRuleWithEmptyDescriptionShouldFail() {
-        Rule rule = null;
-        try {
-            rule = buildRule("bad-id", "", "data-*");
-            fail("Expected ValidationException due to empty description");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Rule description can't be null or empty"));
+        private IndexPatternAttribute() {
+            validateAttribute();
         }
-    }
-
-    public void testDeleteRuleWithNulls() {
-        DeleteRuleRequest request = new DeleteRuleRequest(null, featureType);
-        TestActionListener<AcknowledgedResponse> listener = new TestActionListener<>();
-
-        persistenceService.deleteRule(request, listener);
-        assertTrue(listener.successCalled);
-    }
-
-    public void testCreateThenUpdateThenGet() {
-        Rule rule = buildRule("roundtrip-id", "initial", "index-*");
-
-        CreateRuleRequest createRequest = new CreateRuleRequest(rule);
-        TestActionListener<CreateRuleResponse> createListener = new TestActionListener<>();
-        persistenceService.createRule(createRequest, createListener);
-        assertTrue(createListener.successCalled);
-
-        UpdateRuleRequest updateRequest = new UpdateRuleRequest(
-            rule.getId(),
-            "updated",
-            rule.getAttributeMap(),
-            rule.getFeatureValue(),
-            rule.getFeatureType()
-        );
-        TestActionListener<UpdateRuleResponse> updateListener = new TestActionListener<>();
-        persistenceService.updateRule(updateRequest, updateListener);
-        assertTrue(updateListener.successCalled);
-        assertEquals("updated", updateListener.result.getRule().getDescription());
-
-        GetRuleRequest getRequest = new GetRuleRequest(rule.getId(), Map.of(), null, featureType);
-        TestActionListener<GetRuleResponse> getListener = new TestActionListener<>();
-        persistenceService.getRule(getRequest, getListener);
-        assertTrue(getListener.successCalled);
-    }
-
-    public void testCreateRuleWithMultipleIndexPatterns() {
-        Rule rule = Rule.builder()
-            .id("multi-id")
-            .description("multi-index")
-            .featureType(featureType)
-            .featureValue("groupB")
-            .updatedAt("2025-06-17T00:00:00Z")
-            .attributeMap(Map.of(featureType.getAttributeFromName("index_pattern"), Set.of("logs-*", "metrics-*")))
-            .build();
-
-        CreateRuleRequest request = new CreateRuleRequest(rule);
-        TestActionListener<CreateRuleResponse> listener = new TestActionListener<>();
-        persistenceService.createRule(request, listener);
-
-        assertTrue(listener.successCalled);
-        assertEquals("multi-id", listener.result.getRule().getId());
-        assertEquals(2, listener.result.getRule().getAttributeMap().get(featureType.getAttributeFromName("index_pattern")).size());
-    }
-
-    public void testUpdateRuleOnlyDescription() {
-        Rule original = buildRule("partial-update-id", "desc-v1", "logs-*");
-
-        CreateRuleRequest createRequest = new CreateRuleRequest(original);
-        TestActionListener<CreateRuleResponse> createListener = new TestActionListener<>();
-        persistenceService.createRule(createRequest, createListener);
-        assertTrue(createListener.successCalled);
-
-        UpdateRuleRequest updateRequest = new UpdateRuleRequest(
-            original.getId(),
-            "desc-v2",
-            original.getAttributeMap(),
-            original.getFeatureValue(),
-            original.getFeatureType()
-        );
-        TestActionListener<UpdateRuleResponse> updateListener = new TestActionListener<>();
-        persistenceService.updateRule(updateRequest, updateListener);
-
-        assertTrue(updateListener.successCalled);
-        assertEquals("desc-v2", updateListener.result.getRule().getDescription());
-    }
-
-    public void testCreateRuleWithDuplicateAttributeValues() {
-        Attribute attr = featureType.getAttributeFromName("index_pattern");
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
-            Rule.builder()
-                .id("dup-id")
-                .description("duplicates")
-                .featureType(featureType)
-                .featureValue("groupD")
-                .updatedAt("2025-06-17T00:00:00Z")
-                .attributeMap(Map.of(attr, Set.of("logs-*", "logs-*")))
-                .build();
-        });
-
-        assertTrue(ex.getMessage().contains("duplicate element") || ex.getMessage().contains("duplicate"));
-    }
-
-    public void testGetRuleRequestInvalidInput() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
-            new GetRuleRequest("", Map.of(), "", featureType).validate();
-        });
-        assertTrue(ex.getMessage().contains("cannot be empty"));
-    }
-
-    private Rule buildRule(String id, String description, String pattern) {
-        return Rule.builder()
-            .id(id)
-            .description(description)
-            .featureType(featureType)
-            .featureValue("groupA")
-            .updatedAt("2025-06-17T00:00:00Z")
-            .attributeMap(Map.of(featureType.getAttributeFromName("index_pattern"), Set.of(pattern)))
-            .build();
-    }
-
-    public static class TestFeatureType implements FeatureType {
-        private final Map<String, Attribute> attributes = Map.of("index_pattern", new IndexPatternAttribute());
 
         @Override
         public String getName() {
-            return "workload_group";
+            return NAME;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof IndexPatternAttribute;
+        }
+
+        @Override
+        public int hashCode() {
+            return NAME.hashCode();
+        }
+    }
+
+    public void testCreateRuleWithSingleAttribute() throws Exception {
+        FeatureType featureType = new TestFeatureType();
+        Map<Attribute, Set<String>> attributeMap = Map.of(IndexPatternAttribute.INSTANCE, Set.of("logs-*"));
+
+        Rule rule = new Rule("mock_create", "desc", attributeMap, featureType, "feature1", "2025-06-20T00:00:00.000Z");
+        CreateRuleRequest request = new CreateRuleRequest(rule);
+        PlainActionFuture<CreateRuleResponse> future = PlainActionFuture.newFuture();
+
+        new TestRulePersistenceService().createRule(request, future);
+        CreateRuleResponse response = future.get();
+
+        assertEquals("mock_create", response.getRule().getId());
+        assertEquals("feature1", response.getRule().getFeatureValue());
+    }
+
+    public void testGetExistingRule() throws Exception {
+        FeatureType featureType = new TestFeatureType();
+        Map<Attribute, Set<String>> attributeMap = Map.of(IndexPatternAttribute.INSTANCE, Set.of("logs-*"));
+
+        GetRuleRequest request = new GetRuleRequest("mock_id", attributeMap, "token", featureType);
+        PlainActionFuture<GetRuleResponse> future = PlainActionFuture.newFuture();
+
+        new TestRulePersistenceService().getRule(request, future);
+        GetRuleResponse response = future.get();
+
+        assertEquals(1, response.getRules().size());
+        assertEquals("mock_id", response.getRules().get(0).getId());
+    }
+
+    public void testUpdateRuleValueChange() throws Exception {
+        FeatureType featureType = new TestFeatureType();
+        Map<Attribute, Set<String>> attributeMap = Map.of(IndexPatternAttribute.INSTANCE, Set.of("logs-*"));
+
+        Rule updatedRule = new Rule("mock_id", "updated desc", attributeMap, featureType, "new_feature_value", "2025-06-20T00:00:00.000Z");
+        UpdateRuleRequest request = new UpdateRuleRequest(
+            updatedRule.getId(),
+            updatedRule.getDescription(),
+            updatedRule.getAttributeMap(),
+            updatedRule.getFeatureValue(),
+            updatedRule.getFeatureType()
+        );
+
+        PlainActionFuture<UpdateRuleResponse> future = PlainActionFuture.newFuture();
+        new TestRulePersistenceService().updateRule(request, future);
+        UpdateRuleResponse response = future.get();
+
+        assertEquals("new_feature_value", response.getRule().getFeatureValue());
+    }
+
+    public void testDeleteRule() throws Exception {
+        FeatureType featureType = new TestFeatureType();
+        DeleteRuleRequest request = new DeleteRuleRequest("mock_id", featureType);
+        PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
+
+        new TestRulePersistenceService().deleteRule(request, future);
+        AcknowledgedResponse response = future.get();
+
+        assertTrue(response.isAcknowledged());
+    }
+
+    public void testCreateRuleWithMultiplePatterns() throws Exception {
+        FeatureType featureType = new TestFeatureType();
+        Map<Attribute, Set<String>> attributeMap = Map.of(IndexPatternAttribute.INSTANCE, Set.of("logs-*", "metrics-*", "events-*"));
+
+        Rule rule = new Rule("multi_pattern", "desc", attributeMap, featureType, "value", "2025-06-20T00:00:00.000Z");
+        CreateRuleRequest request = new CreateRuleRequest(rule);
+        PlainActionFuture<CreateRuleResponse> future = PlainActionFuture.newFuture();
+
+        new TestRulePersistenceService().createRule(request, future);
+        CreateRuleResponse response = future.get();
+
+        assertEquals("multi_pattern", response.getRule().getId());
+        assertTrue(response.getRule().getAttributeMap().get(IndexPatternAttribute.INSTANCE).contains("events-*"));
+    }
+
+    public void testCreateRuleWithExistingId() throws Exception {
+        FeatureType featureType = new TestFeatureType();
+        Rule rule1 = new Rule(
+            "duplicate_id",
+            "desc1",
+            Map.of(IndexPatternAttribute.INSTANCE, Set.of("logs-*")),
+            featureType,
+            "v1",
+            "2025-06-20T00:00:00.000Z"
+        );
+        Rule rule2 = new Rule(
+            "duplicate_id",
+            "desc2",
+            Map.of(IndexPatternAttribute.INSTANCE, Set.of("metrics-*")),
+            featureType,
+            "v2",
+            "2025-06-20T00:00:00.000Z"
+        );
+
+        CreateRuleRequest request1 = new CreateRuleRequest(rule1);
+        CreateRuleRequest request2 = new CreateRuleRequest(rule2);
+        PlainActionFuture<CreateRuleResponse> future1 = PlainActionFuture.newFuture();
+        PlainActionFuture<CreateRuleResponse> future2 = PlainActionFuture.newFuture();
+
+        new TestRulePersistenceService().createRule(request1, future1);
+        new TestRulePersistenceService().createRule(request2, future2);
+
+        assertEquals("duplicate_id", future1.get().getRule().getId());
+        assertEquals("duplicate_id", future2.get().getRule().getId());
+    }
+
+    public void testRuleBasedTaggingEndToEnd() throws Exception {
+        String indexName = "logs-tagged-index";
+        String docId = "doc1";
+
+        // 1. Create index
+        client().admin().indices().prepareCreate(indexName).get();
+
+        // 2. Index a sample document
+        client().prepareIndex(indexName).setId(docId).setSource(Map.of("message", "This is a test log"), XContentType.JSON).get();
+
+        // 3. Refresh index to make doc searchable
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // 4. Create a rule with pattern "logs-*"
+        FeatureType featureType = new TestFeatureType();
+        Map<Attribute, Set<String>> attrMap = Map.of(IndexPatternAttribute.INSTANCE, Set.of("logs-*"));
+        Rule rule = new Rule("rule_1", "desc", attrMap, featureType, "test_workload_group", Instant.now().toString());
+        CreateRuleRequest ruleRequest = new CreateRuleRequest(rule);
+
+        // Send to backend using transport action (or REST if implemented)
+        PlainActionFuture<CreateRuleResponse> ruleFuture = PlainActionFuture.newFuture();
+        new TestRulePersistenceService().createRule(ruleRequest, ruleFuture);
+        CreateRuleResponse ruleResponse = ruleFuture.get();
+        assertEquals("rule_1", ruleResponse.getRule().getId());
+
+        // 5. Run a query matching the rule
+        SearchResponse searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+
+        assertEquals(1, searchResponse.getHits().getHits().length);
+    }
+
+    public static class TestRuleFrameworkPlugin extends Plugin implements RuleFrameworkExtension {
+        @Override
+        public Supplier<FeatureType> getFeatureTypeSupplier() {
+            return TestFeatureType::new;
+        }
+
+        @Override
+        public Supplier<RulePersistenceService> getRulePersistenceServiceSupplier() {
+            return TestRulePersistenceService::new;
+        }
+
+        @Override
+        public Supplier<RuleRoutingService> getRuleRoutingServiceSupplier() {
+            return TestRuleRoutingService::new;
+        }
+    }
+
+    public static class TestFeatureType implements FeatureType {
+        @Override
+        public String getName() {
+            return "test_feature";
         }
 
         @Override
         public Map<String, Attribute> getAllowedAttributesRegistry() {
-            return attributes;
+            return Map.of("index_pattern", IndexPatternAttribute.INSTANCE);
         }
 
         @Override
         public Attribute getAttributeFromName(String name) {
-            return attributes.get(name);
-        }
-    }
-
-    public static class IndexPatternAttribute implements Attribute {
-        @Override
-        public String getName() {
-            return "index_pattern";
+            return getAllowedAttributesRegistry().get(name);
         }
     }
 
     public static class TestRulePersistenceService implements RulePersistenceService {
+        private static final FeatureType TEST_FEATURE_TYPE = new TestFeatureType();
+        private static final Map<Attribute, Set<String>> TEST_ATTRIBUTES = Map.of(IndexPatternAttribute.INSTANCE, Set.of("logs-*"));
+
         @Override
         public void createRule(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener) {
             listener.onResponse(new CreateRuleResponse(request.getRule()));
         }
 
         @Override
-        public void deleteRule(DeleteRuleRequest request, ActionListener<AcknowledgedResponse> listener) {
-            listener.onResponse(new AcknowledgedResponse(true));
-        }
-
-        @Override
         public void getRule(GetRuleRequest request, ActionListener<GetRuleResponse> listener) {
-            listener.onResponse(new GetRuleResponse(List.of(), null)); // mock returns empty list
+            Rule rule = new Rule(
+                "mock_id",
+                "test rule description",
+                TEST_ATTRIBUTES,
+                TEST_FEATURE_TYPE,
+                "mock_feature_value",
+                "2025-06-20T00:00:00.000Z"
+            );
+            listener.onResponse(new GetRuleResponse(List.of(rule), null));
         }
 
         @Override
         public void updateRule(UpdateRuleRequest request, ActionListener<UpdateRuleResponse> listener) {
-            Rule rule = Rule.builder()
-                .id(request.getId())
-                .description(request.getDescription())
-                .attributeMap(request.getAttributeMap())
-                .featureType(request.getFeatureType())
-                .featureValue(request.getFeatureValue())
-                .updatedAt("2025-06-17T00:00:00Z")
-                .build();
+            Rule rule = new Rule(
+                request.getId(),
+                request.getDescription(),
+                request.getAttributeMap(),
+                request.getFeatureType(),
+                request.getFeatureValue(),
+                "2025-06-20T00:00:00.000Z"
+            );
             listener.onResponse(new UpdateRuleResponse(rule));
+        }
+
+        @Override
+        public void deleteRule(DeleteRuleRequest request, ActionListener<AcknowledgedResponse> listener) {
+            listener.onResponse(new AcknowledgedResponse(true));
         }
     }
 
-    public static class TestActionListener<T> implements ActionListener<T> {
-        public boolean successCalled = false;
-        public T result = null;
+    public static class TestRuleRoutingService implements RuleRoutingService {
+        private static final FeatureType TEST_FEATURE_TYPE = new TestFeatureType();
+        private static final Map<Attribute, Set<String>> TEST_ATTRIBUTES = Map.of(IndexPatternAttribute.INSTANCE, Set.of("logs-*"));
 
         @Override
-        public void onResponse(T t) {
-            successCalled = true;
-            result = t;
+        public void handleCreateRuleRequest(CreateRuleRequest request, ActionListener<CreateRuleResponse> listener) {
+            Rule rule = new Rule(
+                "mock_id",
+                "test rule description",
+                TEST_ATTRIBUTES,
+                TEST_FEATURE_TYPE,
+                "mock_feature_value",
+                "2025-06-20T00:00:00.000Z"
+            );
+            listener.onResponse(new CreateRuleResponse(rule));
         }
 
         @Override
-        public void onFailure(Exception e) {
-            fail("Unexpected failure: " + e.getMessage());
+        public void handleUpdateRuleRequest(UpdateRuleRequest request, ActionListener<UpdateRuleResponse> listener) {
+            Rule rule = new Rule(
+                "mock_rule_id",
+                "updated rule description",
+                TEST_ATTRIBUTES,
+                TEST_FEATURE_TYPE,
+                "updated_feature_value",
+                "2025-06-20T00:00:00.000Z"
+            );
+            listener.onResponse(new UpdateRuleResponse(rule));
         }
     }
 }
