@@ -314,14 +314,15 @@ class Pipeline {
                                 e
                             );
                         } else {
+                            // Only track pipeline-level failure when processor failure is not ignored
+                            onTransformPhaseResultsFailure();
                             throw e;
                         }
                     }
 
                 }
             }
-        } catch (RuntimeException e) {
-            onTransformPhaseResultsFailure();
+        } catch (Exception e) {
             throw new SearchPipelineProcessingException(e);
         } finally {
             long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart);

@@ -37,17 +37,20 @@ public class SearchPipelineStats implements Writeable, ToXContentFragment {
 
     private final OperationStats totalRequestStats;
     private final OperationStats totalResponseStats;
+    private final OperationStats totalPhaseResultsStats;
     private final List<PerPipelineStats> perPipelineStats;
     private final Map<String, PipelineDetailStats> perPipelineProcessorStats;
 
     public SearchPipelineStats(
         OperationStats totalRequestStats,
         OperationStats totalResponseStats,
+        OperationStats totalPhaseResultsStats,
         List<PerPipelineStats> perPipelineStats,
         Map<String, PipelineDetailStats> perPipelineProcessorStats
     ) {
         this.totalRequestStats = totalRequestStats;
         this.totalResponseStats = totalResponseStats;
+        this.totalPhaseResultsStats = totalPhaseResultsStats;
         this.perPipelineStats = perPipelineStats;
         this.perPipelineProcessorStats = perPipelineProcessorStats;
     }
@@ -55,6 +58,7 @@ public class SearchPipelineStats implements Writeable, ToXContentFragment {
     public SearchPipelineStats(StreamInput in) throws IOException {
         this.totalRequestStats = new OperationStats(in);
         this.totalResponseStats = new OperationStats(in);
+        this.totalPhaseResultsStats = new OperationStats(in);
         int size = in.readVInt();
         List<PerPipelineStats> perPipelineStats = new ArrayList<>(size);
         Map<String, PipelineDetailStats> pipelineDetailStatsMap = new TreeMap<>();
@@ -152,6 +156,7 @@ public class SearchPipelineStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         totalRequestStats.writeTo(out);
         totalResponseStats.writeTo(out);
+        totalPhaseResultsStats.writeTo(out);
         out.writeVInt(perPipelineStats.size());
         for (PerPipelineStats pipelineStat : perPipelineStats) {
             out.writeString(pipelineStat.pipelineId);
@@ -259,6 +264,7 @@ public class SearchPipelineStats implements Writeable, ToXContentFragment {
             return new SearchPipelineStats(
                 totalRequestStats,
                 totalResponseStats,
+                totalPhaseResultsStats,
                 unmodifiableList(perPipelineStats),
                 unmodifiableMap(pipelineDetailStatsMap)
             );
@@ -399,6 +405,10 @@ public class SearchPipelineStats implements Writeable, ToXContentFragment {
 
     OperationStats getTotalResponseStats() {
         return totalResponseStats;
+    }
+
+    OperationStats getTotalPhaseResultsStats() {
+        return totalPhaseResultsStats;
     }
 
     List<PerPipelineStats> getPipelineStats() {

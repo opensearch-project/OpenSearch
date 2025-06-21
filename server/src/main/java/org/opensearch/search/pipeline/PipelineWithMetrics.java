@@ -249,18 +249,24 @@ class PipelineWithMetrics extends Pipeline {
     protected void beforeTransformPhaseResults() {
         super.beforeTransformPhaseResults();
         totalPhaseResultsMetrics.before();
+        // Phase results processing is also tracked as part of individual pipeline request processing
+        pipelineRequestMetrics.before();
     }
 
     @Override
     protected void afterTransformPhaseResults(long timeInNanos) {
         super.afterTransformPhaseResults(timeInNanos);
         totalPhaseResultsMetrics.after(timeInNanos);
+        // Phase results processing is also tracked as part of individual pipeline request processing
+        pipelineRequestMetrics.after(timeInNanos);
     }
 
     @Override
     protected void onTransformPhaseResultsFailure() {
         super.onTransformPhaseResultsFailure();
         totalPhaseResultsMetrics.failed();
+        // Phase results processing failures are also tracked as part of individual pipeline request processing
+        pipelineRequestMetrics.failed();
     }
 
     protected void beforePhaseResultsProcessor(Processor processor) {
