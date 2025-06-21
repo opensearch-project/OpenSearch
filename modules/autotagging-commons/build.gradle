@@ -25,6 +25,10 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
   }
+
+  internalClusterTestImplementation(project(":plugins:workload-management")) {
+    exclude group: 'org.opensearch', module: 'server'
+  }
 }
 
 tasks.named("internalClusterTest").configure {
