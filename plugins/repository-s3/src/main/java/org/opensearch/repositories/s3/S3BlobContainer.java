@@ -81,6 +81,7 @@ import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -99,6 +100,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -114,6 +117,7 @@ import static org.opensearch.repositories.s3.utils.SseKmsUtil.configureEncryptio
 class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamBlobContainer {
 
     private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
+    private static final long DEFAULT_OPERATION_TIMEOUT = TimeUnit.SECONDS.toSeconds(30);
 
     private final S3BlobStore blobStore;
     private final String keyPath;
@@ -400,7 +404,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
     private <T> T getFutureValue(PlainActionFuture<T> future) throws IOException {
         try {
-            return future.get();
+            return future.get(DEFAULT_OPERATION_TIMEOUT, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Future got interrupted", e);
@@ -409,6 +413,9 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 throw (IOException) e.getCause();
             }
             throw new RuntimeException(e.getCause());
+        } catch (TimeoutException e) {
+            FutureUtils.cancel(future);
+            throw new IOException("Delete operation timed out after 30 seconds", e);
         }
     }
 
