@@ -116,6 +116,7 @@ import java.util.stream.IntStream;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -124,6 +125,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -146,6 +148,42 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals("Upload request size [" + blobSize + "] can't be larger than 5gb", e.getMessage());
     }
 
+    public void testExecuteSingleUploadConditionally_BlobSizeTooLarge() {
+        final long maxSizeBytes = ByteSizeUnit.GB.toBytes(5);
+        final long blobSize = maxSizeBytes + 1;
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bufferSizeInBytes()).thenReturn(maxSizeBytes);
+
+        when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        ActionListener<ConditionalWriteResponse> dummyListener = new ActionListener<>() {
+            @Override
+            public void onResponse(ConditionalWriteResponse response) {}
+
+            @Override
+            public void onFailure(Exception e) {}
+        };
+
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> blobContainer.executeSingleUploadConditionally(
+                blobStore,
+                blobName,
+                new ByteArrayInputStream(new byte[0]),
+                blobSize,
+                null,
+                ConditionalWriteOptions.ifMatch("\"dummy-etag\""),
+                dummyListener
+            )
+        );
+
+        assertEquals("Upload request size [" + blobSize + "] can't be larger than 5gb", exception.getMessage());
+    }
+
     public void testExecuteSingleUploadBlobSizeLargerThanBufferSize() {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(1));
@@ -164,6 +202,42 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             )
         );
         assertEquals("Upload request size [2097152] can't be larger than buffer size", e.getMessage());
+    }
+
+    public void testExecuteSingleUploadConditionally_BlobSizeLargerThanBufferSize() {
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(1));
+
+        when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final long invalidBlobSize = ByteSizeUnit.MB.toBytes(2); // 2MB
+
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> blobContainer.executeSingleUploadConditionally(
+                blobStore,
+                blobName,
+                new ByteArrayInputStream(new byte[0]),
+                invalidBlobSize,
+                null,
+                ConditionalWriteOptions.ifMatch("\"dummy-etag\""),
+                new ActionListener<ConditionalWriteResponse>() {
+                    @Override
+                    public void onResponse(ConditionalWriteResponse response) {
+                        fail("Should never succeed");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail("Should throw before listener");
+                    }
+                }
+            )
+        );
+
+        assertEquals("Upload request size [2097152] can't be larger than buffer size", exception.getMessage());
     }
 
     public void testBlobExists() {
@@ -692,6 +766,519 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         } else {
             assertEquals(ServerSideEncryption.AES256, request.serverSideEncryption());
         }
+    }
+
+    public void testExecuteSingleUploadConditionallyPreconditionFailed() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+
+        final BlobPath blobPath = new BlobPath();
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.getCannedACL()).thenReturn(null);
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+        when(blobStore.expectedBucketOwner()).thenReturn(null);
+
+        final boolean useSseKms = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(randomAlphaOfLength(10));
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(randomBoolean());
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(randomAlphaOfLength(10));
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+        doNothing().when(clientReference).close();
+
+        S3Exception preconditionFailedException = (S3Exception) S3Exception.builder()
+            .message("Precondition Failed")
+            .statusCode(S3BlobContainer.HTTP_STATUS_PRECONDITION_FAILED)
+            .build();
+        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(preconditionFailedException);
+
+        final AtomicReference<Exception> capturedException = new AtomicReference<>();
+        ActionListener<ConditionalWriteResponse> realListener = ActionListener.wrap(
+            r -> fail("Should have failed"),
+            capturedException::set
+        );
+        ActionListener<ConditionalWriteResponse> responseListener = Mockito.spy(realListener);
+
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
+
+        IOException ioException = expectThrows(
+            IOException.class,
+            () -> blobContainer.executeSingleUploadConditionally(
+                blobStore,
+                blobName,
+                inputStream,
+                blobSize,
+                metadata,
+                ConditionalWriteOptions.ifMatch(eTag),
+                responseListener
+            )
+        );
+
+        assertEquals("Unable to upload object [" + blobName + "] due to ETag mismatch", ioException.getMessage());
+        assertTrue("IOException cause should be S3Exception", ioException.getCause() instanceof S3Exception);
+        assertEquals(preconditionFailedException, ioException.getCause());
+
+        verify(responseListener, never()).onResponse(any());
+
+        Exception exception = capturedException.get();
+        assertNotNull("Expected an exception to be captured", exception);
+
+        assertTrue(exception instanceof OpenSearchException);
+        OpenSearchException osException = (OpenSearchException) exception;
+
+        assertEquals("stale_primary_shard", osException.getMessage());
+
+        Throwable cause = osException.getCause();
+        assertNotNull("Should have a cause", cause);
+        assertTrue("Cause should be an S3Exception", cause instanceof S3Exception);
+        S3Exception s3Cause = (S3Exception) cause;
+        assertEquals(S3BlobContainer.HTTP_STATUS_PRECONDITION_FAILED, s3Cause.statusCode());
+        assertEquals("Precondition Failed", s3Cause.getMessage());
+        verify(clientReference).close();
+    }
+
+    public void testExecuteSingleUploadConditionallyS3Exception() {
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String etag = "\"test-etag\"";
+        final int blobSize = 100;
+
+        S3Client s3Client = mock(S3Client.class);
+        S3Exception s3Exception = (S3Exception) S3Exception.builder().message("Access Denied").statusCode(403).build();
+
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(s3Exception);
+
+        AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(clientReference.get()).thenReturn(s3Client);
+
+        S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn(1000L);
+        when(blobStore.expectedBucketOwner()).thenReturn(null);
+
+        final boolean useSseKms = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(randomAlphaOfLength(10));
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(randomBoolean());
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(randomAlphaOfLength(10));
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
+        StatsMetricPublisher metrics = new StatsMetricPublisher();
+        when(blobStore.getStatsMetricPublisher()).thenReturn(metrics);
+
+        BlobPath blobPath = new BlobPath();
+        S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        AtomicReference<Exception> capturedError = new AtomicReference<>();
+        AtomicBoolean successCalled = new AtomicBoolean(false);
+
+        ActionListener<ConditionalWriteResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(ConditionalWriteResponse response) {
+                successCalled.set(true);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                capturedError.set(e);
+            }
+        };
+
+        ByteArrayInputStream input = new ByteArrayInputStream(new byte[blobSize]);
+
+        IOException exception = expectThrows(
+            IOException.class,
+            () -> blobContainer.executeSingleUploadConditionally(
+                blobStore,
+                blobName,
+                input,
+                blobSize,
+                null,
+                ConditionalWriteOptions.ifMatch(etag),
+                listener
+            )
+        );
+
+        String expectedErrorMessage = "S3 error during upload [" + blobName + "]: Access Denied";
+        assertEquals(expectedErrorMessage, exception.getMessage());
+        assertEquals(s3Exception, exception.getCause());
+
+        verify(clientReference).close();
+        assertFalse("Success callback should not be called", successCalled.get());
+
+        Exception captured = capturedError.get();
+        assertNotNull("Error callback should receive an exception", captured);
+        assertTrue("Exception should be IOException", captured instanceof IOException);
+
+        String errorMessage = captured.getMessage();
+        assertTrue("Error should mention blob name", errorMessage.contains(blobName));
+        assertEquals("Original S3Exception should be the cause", s3Exception, captured.getCause());
+    }
+
+    public void testExecuteSingleUploadConditionallySuccess() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+        final String returnedETag = randomAlphaOfLengthBetween(8, 32);
+
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+
+        final BlobPath blobPath = new BlobPath();
+        if (randomBoolean()) {
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+        }
+
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.expectedBucketOwner()).thenReturn(null);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final boolean useSseKms = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(randomAlphaOfLength(10));
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(randomBoolean());
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(randomAlphaOfLength(10));
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
+        final StorageClass storageClass = randomFrom(StorageClass.values());
+        when(blobStore.getStorageClass()).thenReturn(storageClass);
+
+        final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
+        if (cannedAccessControlList != null) {
+            when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
+        }
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(clientReference.get()).thenReturn(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+
+        final boolean isUploadRetryEnabled = randomBoolean();
+        when(blobStore.isUploadRetryEnabled()).thenReturn(isUploadRetryEnabled);
+
+        final ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        final ArgumentCaptor<RequestBody> requestBodyArgumentCaptor = ArgumentCaptor.forClass(RequestBody.class);
+
+        when(client.putObject(putObjectRequestArgumentCaptor.capture(), requestBodyArgumentCaptor.capture())).thenReturn(
+            PutObjectResponse.builder().eTag(returnedETag).build()
+        );
+
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> responseListener = mock(ActionListener.class);
+
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
+        blobContainer.executeSingleUploadConditionally(
+            blobStore,
+            blobName,
+            inputStream,
+            blobSize,
+            metadata,
+            ConditionalWriteOptions.ifMatch(eTag),
+            responseListener
+        );
+
+        final PutObjectRequest request = putObjectRequestArgumentCaptor.getValue();
+        final RequestBody requestBody = requestBodyArgumentCaptor.getValue();
+        assertEquals(bucketName, request.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, request.key());
+        assertEquals(blobSize, request.contentLength().longValue());
+        assertEquals(storageClass, request.storageClass());
+        assertEquals(cannedAccessControlList, request.acl());
+        assertEquals(metadata, request.metadata());
+
+        assertEquals(eTag, request.ifMatch());
+
+        byte[] expectedBytes = new byte[blobSize];
+        try (InputStream is = requestBody.contentStreamProvider().newStream()) {
+            assertArrayEquals(expectedBytes, is.readAllBytes());
+        }
+
+        if (useSseKms) {
+            assertEquals(ServerSideEncryption.AWS_KMS, request.serverSideEncryption());
+            assertNotNull(request.ssekmsKeyId());
+            assertNotNull(request.ssekmsEncryptionContext());
+        } else {
+            assertEquals(ServerSideEncryption.AES256, request.serverSideEncryption());
+        }
+
+        ArgumentCaptor<ConditionalWriteResponse> responseCaptor = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+        verify(responseListener).onResponse(responseCaptor.capture());
+        assertEquals(returnedETag, responseCaptor.getValue().getVersionIdentifier());
+        verify(responseListener, never()).onFailure(any());
+
+        verify(clientReference).close();
+    }
+
+    public void testExecuteSingleUploadConditionallySdkException() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String eTag = randomAlphaOfLengthBetween(8, 32);
+
+        final Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+
+        final BlobPath blobPath = new BlobPath();
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+        when(blobStore.getCannedACL()).thenReturn(null);
+        when(blobStore.expectedBucketOwner()).thenReturn(null);
+
+        final boolean useSseKms = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(randomAlphaOfLength(10));
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(randomBoolean());
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(randomAlphaOfLength(10));
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        final SdkException sdkException = SdkException.builder().message("Generic Sdk failure").build();
+        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenThrow(sdkException);
+
+        final AtomicReference<Exception> capturedException = new AtomicReference<>();
+        // Updated listener type
+        ActionListener<ConditionalWriteResponse> realListener = ActionListener.wrap(
+            r -> fail("Should have failed for SdkException"),
+            capturedException::set
+        );
+        ActionListener<ConditionalWriteResponse> responseListener = Mockito.spy(realListener);
+
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
+
+        IOException exception = expectThrows(
+            IOException.class,
+            () -> blobContainer.executeSingleUploadConditionally(
+                blobStore,
+                blobName,
+                inputStream,
+                blobSize,
+                metadata,
+                ConditionalWriteOptions.ifMatch(eTag),
+                responseListener
+            )
+        );
+
+        assertEquals("S3 upload failed for [" + blobName + "]", exception.getMessage());
+        assertEquals(sdkException, exception.getCause());
+
+        verify(responseListener, never()).onResponse(any());
+        Exception listenerException = capturedException.get();
+        assertNotNull("Expected an exception to be captured", listenerException);
+        assertTrue("Exception should be an IOException", listenerException instanceof IOException);
+
+        IOException listenerIoException = (IOException) listenerException;
+        assertTrue("IOException message should contain the blob name", listenerIoException.getMessage().contains(blobName));
+        assertEquals(sdkException, listenerIoException.getCause());
+
+        verify(clientReference).close();
+    }
+
+    public void testExecuteSingleUploadConditionallyWithNullETag() {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String providedETag = randomAlphaOfLengthBetween(8, 32);
+
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        final BlobPath blobPath = new BlobPath();
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+        when(blobStore.getCannedACL()).thenReturn(null);
+        when(blobStore.expectedBucketOwner()).thenReturn(null);
+
+        final boolean useSseKms = randomBoolean();
+        if (useSseKms) {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+            when(blobStore.serverSideEncryptionKmsKey()).thenReturn(randomAlphaOfLength(10));
+            when(blobStore.serverSideEncryptionBucketKey()).thenReturn(randomBoolean());
+            when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(randomAlphaOfLength(10));
+        } else {
+            when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+        }
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = mock(AmazonS3Reference.class);
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        when(clientReference.get()).thenReturn(client);
+
+        when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenReturn(
+            PutObjectResponse.builder().eTag(null).build()
+        );
+
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> responseListener = mock(ActionListener.class);
+
+        IOException exception = expectThrows(IOException.class, () -> {
+            try (ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize])) {
+                blobContainer.executeSingleUploadConditionally(
+                    blobStore,
+                    blobName,
+                    inputStream,
+                    blobSize,
+                    null,
+                    ConditionalWriteOptions.ifMatch(providedETag),
+                    responseListener
+                );
+            }
+        });
+
+        String expectedMessage = "S3 upload for [" + blobName + "] returned null ETag, violating data integrity expectations";
+        assertEquals(expectedMessage, exception.getMessage());
+
+        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(responseListener).onFailure(exceptionCaptor.capture());
+        verify(responseListener, never()).onResponse(any());
+
+        Exception listenerException = exceptionCaptor.getValue();
+        assertTrue("Exception should be IOException", listenerException instanceof IOException);
+        assertTrue("Exception message should mention null ETag", listenerException.getMessage().contains("null ETag"));
+
+        verify(clientReference).close();
+    }
+
+    public void testExecuteSingleUploadConditionallyNullOrEmptyInput() throws IOException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.STANDARD);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.isUploadRetryEnabled()).thenReturn(false);
+        when(blobStore.getCannedACL()).thenReturn(null);
+        when(blobStore.expectedBucketOwner()).thenReturn(null);
+
+        when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(), blobStore);
+
+        final ByteArrayInputStream inputStreamCase1 = new ByteArrayInputStream(new byte[bufferSize]);
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> mockListenerCase1 = mock(ActionListener.class);
+
+        final S3Client client1 = mock(S3Client.class);
+        final AmazonS3Reference clientReference1 = mock(AmazonS3Reference.class);
+
+        when(blobStore.clientReference()).thenReturn(clientReference1);
+        when(clientReference1.get()).thenReturn(client1);
+        when(client1.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenReturn(
+            PutObjectResponse.builder().eTag("nullEtagTest").build()
+        );
+
+        blobContainer.executeSingleUploadConditionally(
+            blobStore,
+            blobName,
+            inputStreamCase1,
+            bufferSize,
+            null,
+            ConditionalWriteOptions.none(),
+            mockListenerCase1
+        );
+
+        ArgumentCaptor<ConditionalWriteResponse> responseCaptor1 = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+        verify(mockListenerCase1).onResponse(responseCaptor1.capture());
+        assertEquals("nullEtagTest", responseCaptor1.getValue().getVersionIdentifier());
+        verify(mockListenerCase1, never()).onFailure(any());
+        verify(clientReference1).close();
+
+        final ByteArrayInputStream inputStreamCase2 = new ByteArrayInputStream(new byte[0]);
+        @SuppressWarnings("unchecked")
+        ActionListener<ConditionalWriteResponse> mockListenerCase2 = mock(ActionListener.class);
+
+        final S3Client client2 = mock(S3Client.class);
+        final AmazonS3Reference clientReference2 = mock(AmazonS3Reference.class);
+
+        when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
+        when(blobStore.serverSideEncryptionKmsKey()).thenReturn(randomAlphaOfLength(10));
+        when(blobStore.serverSideEncryptionBucketKey()).thenReturn(randomBoolean());
+        when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(randomAlphaOfLength(10));
+
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.clientReference()).thenReturn(clientReference2);
+        when(clientReference2.get()).thenReturn(client2);
+        when(client2.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenReturn(
+            PutObjectResponse.builder().eTag("emptyMetadataETag").build()
+        );
+
+        blobContainer.executeSingleUploadConditionally(
+            blobStore,
+            blobName,
+            inputStreamCase2,
+            0,
+            Collections.emptyMap(),
+            ConditionalWriteOptions.ifMatch(""),
+            mockListenerCase2
+        );
+
+        ArgumentCaptor<ConditionalWriteResponse> responseCaptor2 = ArgumentCaptor.forClass(ConditionalWriteResponse.class);
+        verify(mockListenerCase2).onResponse(responseCaptor2.capture());
+        assertEquals("emptyMetadataETag", responseCaptor2.getValue().getVersionIdentifier());
+        verify(mockListenerCase2, never()).onFailure(any());
+        verify(clientReference2).close();
     }
 
     public void testExecuteMultipartUploadBlobSizeTooLarge() {
