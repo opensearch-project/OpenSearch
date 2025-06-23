@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Dependencies
 - Bump `stefanzweifel/git-auto-commit-action` from 5 to 6 ([#18524](https://github.com/opensearch-project/OpenSearch/pull/18524))
 - Bump Apache Lucene to 10.2.2 ([#18573](https://github.com/opensearch-project/OpenSearch/pull/18573))
+- Bump `com.google.cloud:google-cloud-storage` from 1.113.1 to 2.53.1 ([#18584](https://github.com/opensearch-project/OpenSearch/pull/18584))
 
 ### Deprecated
 
