@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 /**
- * File-based consumer for testing ingestion. Reads from ${baseDir}/${topic}/${shardId}.ndjson.
+ * File-based consumer for testing ingestion. Reads from ${baseDir}/${stream}/${shardId}.ndjson.
  */
 @SuppressForbidden(reason = "using Java file APIs for local testing purpose")
 public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset, FileMessage> {
@@ -47,8 +47,8 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
      */
     public FilePartitionConsumer(FileSourceConfig config, int shardId) {
         String baseDir = config.getBaseDirectory();
-        String topic = config.getTopic();
-        this.shardFile = new File(baseDir, topic + File.separator + shardId + ".ndjson");
+        String stream = config.getStream();
+        this.shardFile = new File(baseDir, stream + File.separator + shardId + ".ndjson");
         this.shardId = shardId;
 
         if (!shardFile.exists()) {
@@ -62,6 +62,7 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
     public List<ReadResult<FileOffset, FileMessage>> readNext(FileOffset offset, boolean includeStart, long maxMessages, int timeoutMillis)
         throws TimeoutException {
         long startLine = includeStart ? offset.getLine() : offset.getLine() + 1;
+        lastReadLine = startLine;
         return readFromFile(startLine, maxMessages);
     }
 
@@ -125,7 +126,9 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
                 new InputStreamReader(new FileInputStream(shardFile), StandardCharsets.UTF_8)
             )
         ) {
-            lineNumberReader.skip(Long.MAX_VALUE);
+            while (lineNumberReader.readLine() != null) {
+                // do nothing
+            }
             return new FileOffset(lineNumberReader.getLineNumber());
         } catch (IOException e) {
             throw new RuntimeException("Failed to compute latest pointer", e);

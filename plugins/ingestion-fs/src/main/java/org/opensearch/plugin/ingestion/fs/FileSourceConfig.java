@@ -14,10 +14,10 @@ import java.util.Map;
  * Configuration holder for file-based ingestion source.
  */
 public class FileSourceConfig {
-    private static final String TOPIC = "topic";
+    private static final String STREAM = "stream";
     private static final String BASE_DIR = "base_directory";
 
-    private final String topic;
+    private final String stream;
     private final String baseDirectory;
 
     /**
@@ -25,19 +25,19 @@ public class FileSourceConfig {
      * @param params parameters for file-based indexing
      */
     public FileSourceConfig(Map<String, Object> params) {
-        this.topic = (String) params.get(TOPIC);
+        this.stream = (String) params.get(STREAM);
         this.baseDirectory = (String) params.get(BASE_DIR);
     }
 
     /**
-     * Returns the topic name.
+     * Returns the stream name.
      */
-    public String getTopic() {
-        return topic;
+    public String getStream() {
+        return stream;
     }
 
     /**
-     * Returns the base directory in which topic and shard specific files will be present.
+     * Returns the base directory in which stream and shard specific files will be present.
      */
     public String getBaseDirectory() {
         return baseDirectory;

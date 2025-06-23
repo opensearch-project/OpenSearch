@@ -8,7 +8,7 @@ This plugin implements a custom ingestion source for the [pull-based ingestion f
 
 Each shard-specific file is expected to follow the path:
 ```
-${base_directory}/${topic}/${shard_id}.ndjson
+${base_directory}/${stream}/${shard_id}.ndjson
 ```
 
 ## Usage
@@ -16,7 +16,7 @@ ${base_directory}/${topic}/${shard_id}.ndjson
 ### 1. Prepare test data
 
 Create the `ndjson` files with sample data following the format mentioned [here](https://docs.opensearch.org/docs/latest/api-reference/document-apis/pull-based-ingestion/).
-For example, create a file `${base_directory}/test-topic/0.ndjson` with data
+For example, create a file `${base_directory}/test-stream/0.ndjson` with data
 
 ```
 {"_id":"1","_version":"1","_op_type":"index","_source":{"name":"name1", "age": 30}}
@@ -40,7 +40,7 @@ PUT /test-index
     "ingestion_source": {
       "type": "file",
       "param": {
-        "topic": "test_topic",
+        "stream": "test_stream",
         "base_directory": "path to the base directory"
       }
     },
