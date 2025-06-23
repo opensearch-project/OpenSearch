@@ -1242,12 +1242,47 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             "throwing_response",
             (pf, t, i, f, c, ctx) -> throwingResponseProcessor
         );
+        SearchPhaseResultsProcessor throwingPhaseResultsProcessor = new FakeSearchPhaseResultsProcessor(
+            "throwing_phase",
+            "1",
+            null,
+            false,
+            r -> {
+                throw new RuntimeException();
+            }
+        );
+        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseResultsProcessors = Map.of(
+            "successful_phase",
+            (pf, t, i, f, c, ctx) -> new FakeSearchPhaseResultsProcessor("successful_phase", "2", null, false, r -> {}),
+            "throwing_phase",
+            (pf, t, i, f, c, ctx) -> throwingPhaseResultsProcessor
+        );
 
-        SearchPipelineService searchPipelineService = getSearchPipelineService(requestProcessors, responseProcessors);
+        SearchPipelineService searchPipelineService = getSearchPipelineService(
+            requestProcessors,
+            responseProcessors,
+            phaseResultsProcessors
+        );
 
         SearchRequest request = new SearchRequest();
         request.source(createDefaultSearchSourceBuilder());
         SearchResponse response = createDefaultSearchResponse();
+        // setup search phase processor results
+        SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(10);
+        SearchPhaseController controller = new SearchPhaseController(
+            writableRegistry(),
+            s -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
+        QueryPhaseResultConsumer searchPhaseResults = new QueryPhaseResultConsumer(
+            searchPhaseContext.getRequest(),
+            OpenSearchExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            controller,
+            SearchProgressListener.NOOP,
+            writableRegistry(),
+            2,
+            exc -> {}
+        );
 
         syncExecutePipeline(
             searchPipelineService.resolvePipeline(request.pipeline("good_request_pipeline"), indexNameExpressionResolver),
@@ -1271,10 +1306,18 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 response
             )
         );
+        searchPipelineService.resolvePipeline(request.pipeline("good_phase_result_pipeline"), indexNameExpressionResolver)
+            .transformSearchPhaseResults(searchPhaseResults, searchPhaseContext, "query", "fetch");
+        expectThrows(
+            SearchPipelineProcessingException.class,
+            () -> searchPipelineService.resolvePipeline(request.pipeline("bad_phase_result_pipeline"), indexNameExpressionResolver)
+                .transformSearchPhaseResults(null, null, "query", "fetch")
+        );
 
         SearchPipelineStats stats = searchPipelineService.stats();
         assertPipelineStats(stats.getTotalRequestStats(), 2, 1);
         assertPipelineStats(stats.getTotalResponseStats(), 2, 1);
+        assertPipelineStats(stats.getTotalPhaseResultsStats(), 2, 1);
         for (SearchPipelineStats.PerPipelineStats perPipelineStats : stats.getPipelineStats()) {
             SearchPipelineStats.PipelineDetailStats detailStats = stats.getPerPipelineProcessorStats()
                 .get(perPipelineStats.getPipelineId());
@@ -1283,6 +1326,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     assertPipelineStats(perPipelineStats.getRequestStats(), 1, 0);
                     assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
                     assertEquals(1, detailStats.requestProcessorStats().size());
+                    assertEquals(0, detailStats.phaseResultsProcessorStats().size());
                     assertEquals(0, detailStats.responseProcessorStats().size());
                     assertEquals("successful_request:2", detailStats.requestProcessorStats().get(0).getProcessorName());
                     assertEquals("successful_request", detailStats.requestProcessorStats().get(0).getProcessorType());
@@ -1292,6 +1336,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     assertPipelineStats(perPipelineStats.getRequestStats(), 1, 1);
                     assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
                     assertEquals(1, detailStats.requestProcessorStats().size());
+                    assertEquals(0, detailStats.phaseResultsProcessorStats().size());
                     assertEquals(0, detailStats.responseProcessorStats().size());
                     assertEquals("throwing_request:1", detailStats.requestProcessorStats().get(0).getProcessorName());
                     assertEquals("throwing_request", detailStats.requestProcessorStats().get(0).getProcessorType());
@@ -1301,6 +1346,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     assertPipelineStats(perPipelineStats.getRequestStats(), 0, 0);
                     assertPipelineStats(perPipelineStats.getResponseStats(), 1, 0);
                     assertEquals(0, detailStats.requestProcessorStats().size());
+                    assertEquals(0, detailStats.phaseResultsProcessorStats().size());
                     assertEquals(1, detailStats.responseProcessorStats().size());
                     assertEquals("successful_response:4", detailStats.responseProcessorStats().get(0).getProcessorName());
                     assertEquals("successful_response", detailStats.responseProcessorStats().get(0).getProcessorType());
@@ -1310,10 +1356,29 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     assertPipelineStats(perPipelineStats.getRequestStats(), 0, 0);
                     assertPipelineStats(perPipelineStats.getResponseStats(), 1, 1);
                     assertEquals(0, detailStats.requestProcessorStats().size());
+                    assertEquals(0, detailStats.phaseResultsProcessorStats().size());
                     assertEquals(1, detailStats.responseProcessorStats().size());
                     assertEquals("throwing_response:3", detailStats.responseProcessorStats().get(0).getProcessorName());
                     assertEquals("throwing_response", detailStats.responseProcessorStats().get(0).getProcessorType());
                     assertPipelineStats(detailStats.responseProcessorStats().get(0).getStats(), 1, 1);
+                    break;
+                case "good_phase_result_pipeline":
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 1, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
+                    assertEquals(0, detailStats.requestProcessorStats().size());
+                    assertEquals(1, detailStats.phaseResultsProcessorStats().size());
+                    assertEquals("successful_phase:2", detailStats.phaseResultsProcessorStats().get(0).getProcessorName());
+                    assertEquals("successful_phase", detailStats.phaseResultsProcessorStats().get(0).getProcessorType());
+                    assertPipelineStats(detailStats.phaseResultsProcessorStats().get(0).getStats(), 1, 0);
+                    break;
+                case "bad_phase_result_pipeline":
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 1, 1);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
+                    assertEquals(0, detailStats.requestProcessorStats().size());
+                    assertEquals(1, detailStats.phaseResultsProcessorStats().size());
+                    assertEquals("throwing_phase:1", detailStats.phaseResultsProcessorStats().get(0).getProcessorName());
+                    assertEquals("throwing_phase", detailStats.phaseResultsProcessorStats().get(0).getProcessorType());
+                    assertPipelineStats(detailStats.phaseResultsProcessorStats().get(0).getStats(), 1, 1);
                     break;
             }
         }
@@ -1338,15 +1403,47 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             "throwing_response",
             (pf, t, i, f, c, ctx) -> throwingResponseProcessor
         );
+        SearchPhaseResultsProcessor throwingPhaseResultsProcessor = new FakeSearchPhaseResultsProcessor(
+            "throwing_phase",
+            "3",
+            null,
+            true,
+            r -> {
+                throw new RuntimeException();
+            }
+        );
+        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseResultsProcessorsEnableIgnoreFailure = Map.of(
+            "successful_phase",
+            (pf, t, i, f, c, ctx) -> new FakeSearchPhaseResultsProcessor("successful_phase", "4", null, true, r -> {}),
+            "throwing_phase",
+            (pf, t, i, f, c, ctx) -> throwingPhaseResultsProcessor
+        );
 
         SearchPipelineService searchPipelineService = getSearchPipelineService(
             requestProcessorsEnableIgnoreFailure,
-            responseProcessorsEnableIgnoreFailure
+            responseProcessorsEnableIgnoreFailure,
+            phaseResultsProcessorsEnableIgnoreFailure
         );
 
         SearchRequest request = new SearchRequest();
         request.source(createDefaultSearchSourceBuilder());
         SearchResponse response = createDefaultSearchResponse();
+        // setup search phase processor results
+        SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(10);
+        SearchPhaseController controller = new SearchPhaseController(
+            writableRegistry(),
+            s -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
+        QueryPhaseResultConsumer searchPhaseResults = new QueryPhaseResultConsumer(
+            searchPhaseContext.getRequest(),
+            OpenSearchExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            controller,
+            SearchProgressListener.NOOP,
+            writableRegistry(),
+            2,
+            exc -> {}
+        );
 
         syncExecutePipeline(
             searchPipelineService.resolvePipeline(request.pipeline("good_request_pipeline"), indexNameExpressionResolver),
@@ -1366,11 +1463,17 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             searchPipelineService.resolvePipeline(request.pipeline("bad_response_pipeline"), indexNameExpressionResolver),
             response
         );
+        searchPipelineService.resolvePipeline(request.pipeline("good_phase_result_pipeline"), indexNameExpressionResolver)
+            .transformSearchPhaseResults(searchPhaseResults, searchPhaseContext, "query", "fetch");
+        // Caught Exception here
+        searchPipelineService.resolvePipeline(request.pipeline("bad_phase_result_pipeline"), indexNameExpressionResolver)
+            .transformSearchPhaseResults(null, null, "query", "fetch");
 
         // when ignoreFailure enabled, the search pipelines will all succeed.
         SearchPipelineStats stats = searchPipelineService.stats();
         assertPipelineStats(stats.getTotalRequestStats(), 2, 0);
         assertPipelineStats(stats.getTotalResponseStats(), 2, 0);
+        assertPipelineStats(stats.getTotalPhaseResultsStats(), 2, 0);
 
         for (SearchPipelineStats.PerPipelineStats perPipelineStats : stats.getPipelineStats()) {
             SearchPipelineStats.PipelineDetailStats detailStats = stats.getPerPipelineProcessorStats()
@@ -1416,6 +1519,26 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     // processor stats got 1 count and 1 failed
                     assertPipelineStats(detailStats.responseProcessorStats().get(0).getStats(), 1, 1);
                     break;
+                case "good_phase_result_pipeline":
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 1, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
+                    assertEquals(0, detailStats.requestProcessorStats().size());
+                    assertEquals(1, detailStats.phaseResultsProcessorStats().size());
+                    assertEquals("successful_phase:4", detailStats.phaseResultsProcessorStats().get(0).getProcessorName());
+                    assertEquals("successful_phase", detailStats.phaseResultsProcessorStats().get(0).getProcessorType());
+                    assertPipelineStats(detailStats.phaseResultsProcessorStats().get(0).getStats(), 1, 0);
+                    break;
+                case "bad_phase_result_pipeline":
+                    // pipeline succeed when ignore failure is true
+                    assertPipelineStats(perPipelineStats.getRequestStats(), 1, 0);
+                    assertPipelineStats(perPipelineStats.getResponseStats(), 0, 0);
+                    assertEquals(0, detailStats.requestProcessorStats().size());
+                    assertEquals(1, detailStats.phaseResultsProcessorStats().size());
+                    assertEquals("throwing_phase:3", detailStats.phaseResultsProcessorStats().get(0).getProcessorName());
+                    assertEquals("throwing_phase", detailStats.phaseResultsProcessorStats().get(0).getProcessorType());
+                    // processor stats will still reflect true failure
+                    assertPipelineStats(detailStats.phaseResultsProcessorStats().get(0).getStats(), 1, 1);
+                    break;
             }
         }
 
@@ -1423,12 +1546,13 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
     private SearchPipelineService getSearchPipelineService(
         Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorsEnableIgnoreFailure,
-        Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorsEnableIgnoreFailure
+        Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorsEnableIgnoreFailure,
+        Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseResultsProcessorsEnableIgnoreFailure
     ) {
         SearchPipelineService searchPipelineService = createWithProcessors(
             requestProcessorsEnableIgnoreFailure,
             responseProcessorsEnableIgnoreFailure,
-            Collections.emptyMap()
+            phaseResultsProcessorsEnableIgnoreFailure
         );
 
         SearchPipelineMetadata metadata = new SearchPipelineMetadata(
@@ -1455,6 +1579,18 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 new PipelineConfiguration(
                     "bad_request_pipeline",
                     new BytesArray("{\"request_processors\" : [ { \"throwing_request\": {} } ] }"),
+                    MediaTypeRegistry.JSON
+                ),
+                "good_phase_result_pipeline",
+                new PipelineConfiguration(
+                    "good_phase_result_pipeline",
+                    new BytesArray("{\"phase_results_processors\" : [ { \"successful_phase\": {} } ] }"),
+                    MediaTypeRegistry.JSON
+                ),
+                "bad_phase_result_pipeline",
+                new PipelineConfiguration(
+                    "bad_phase_result_pipeline",
+                    new BytesArray("{\"phase_results_processors\" : [ { \"throwing_phase\": {} } ] }"),
                     MediaTypeRegistry.JSON
                 )
             )

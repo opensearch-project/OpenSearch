@@ -42,6 +42,7 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
         return new SearchPipelineStats(
             new OperationStats(1, 2, 3, 4),
             new OperationStats(5, 6, 7, 8),
+            new OperationStats(9, 10, 11, 12),
             List.of(
                 new SearchPipelineStats.PerPipelineStats("p1", new OperationStats(9, 10, 11, 12), new OperationStats(13, 14, 15, 16)),
                 new SearchPipelineStats.PerPipelineStats("p2", new OperationStats(17, 18, 19, 20), new OperationStats(21, 22, 23, 24))
@@ -51,6 +52,7 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
                 "p1",
                 new SearchPipelineStats.PipelineDetailStats(
                     List.of(new SearchPipelineStats.ProcessorStats("req1:a", "req1", new OperationStats(25, 26, 27, 28))),
+                    List.of(new SearchPipelineStats.ProcessorStats("pha1:a", "pha1", new OperationStats(25, 26, 27, 28))),
                     List.of(new SearchPipelineStats.ProcessorStats("rsp1:a", "rsp1", new OperationStats(29, 30, 31, 32)))
                 ),
                 "p2",
@@ -59,6 +61,7 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
                         new SearchPipelineStats.ProcessorStats("req1:a", "req1", new OperationStats(33, 34, 35, 36)),
                         new SearchPipelineStats.ProcessorStats("req2", "req2", new OperationStats(37, 38, 39, 40))
                     ),
+                    List.of(new SearchPipelineStats.ProcessorStats("pha1:a", "pha1", new OperationStats(33, 34, 35, 36))),
                     List.of()
                 )
             )
@@ -124,6 +127,19 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
             + "              }"
             + "            }"
             + "          }"
+            + "        ],"
+            + "        \"phase_results_processors\" : ["
+            + "          {"
+            + "            \"pha1:a\" : {"
+            + "              \"type\" : \"pha1\","
+            + "              \"stats\" : {"
+            + "                \"count\" : 25,"
+            + "                \"time_in_millis\" : 26,"
+            + "                \"current\" : 27,"
+            + "                \"failed\" : 28"
+            + "              }"
+            + "            }"
+            + "          }"
             + "        ]"
             + "      },"
             + "      \"p2\" : {"
@@ -163,7 +179,20 @@ public class SearchPipelineStatsTests extends OpenSearchTestCase {
             + "            }"
             + "          }"
             + "        ],"
-            + "        \"response_processors\" : [ ]"
+            + "        \"response_processors\" : [ ],"
+            + "        \"phase_results_processors\" : ["
+            + "          {"
+            + "            \"pha1:a\" : {"
+            + "              \"type\" : \"pha1\","
+            + "              \"stats\" : {"
+            + "                \"count\" : 33,"
+            + "                \"time_in_millis\" : 34,"
+            + "                \"current\" : 35,"
+            + "                \"failed\" : 36"
+            + "              }"
+            + "            }"
+            + "          }"
+            + "        ]"
             + "      }"
             + "    }"
             + "  }"

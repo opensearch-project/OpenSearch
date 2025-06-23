@@ -107,6 +107,18 @@ class Pipeline {
 
     protected void onRequestProcessorFailed(Processor processor) {}
 
+    protected void beforeTransformPhaseResults() {}
+
+    protected void afterTransformPhaseResults(long timeInNanos) {}
+
+    protected void onTransformPhaseResultsFailure() {}
+
+    protected void beforePhaseResultsProcessor(Processor processor) {}
+
+    protected void afterPhaseResultsProcessor(Processor processor, long timeInNanos) {}
+
+    protected void onPhaseResultsProcessorFailed(Processor processor) {}
+
     protected void beforeTransformResponse() {}
 
     protected void afterTransformResponse(long timeInNanos) {}
@@ -276,13 +288,22 @@ class Pipeline {
         String nextPhase,
         PipelineProcessingContext requestContext
     ) throws SearchPipelineProcessingException {
+        long pipelineStart = relativeTimeSupplier.getAsLong();
+        beforeTransformPhaseResults();
         try {
             for (SearchPhaseResultsProcessor searchPhaseResultsProcessor : searchPhaseResultsProcessors) {
+                beforePhaseResultsProcessor(searchPhaseResultsProcessor);
+                long start = relativeTimeSupplier.getAsLong();
                 if (currentPhase.equals(searchPhaseResultsProcessor.getBeforePhase().getName())
                     && nextPhase.equals(searchPhaseResultsProcessor.getAfterPhase().getName())) {
                     try {
                         searchPhaseResultsProcessor.process(searchPhaseResult, context, requestContext);
+                        long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
+                        afterPhaseResultsProcessor(searchPhaseResultsProcessor, took);
                     } catch (Exception e) {
+                        long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
+                        afterPhaseResultsProcessor(searchPhaseResultsProcessor, took);
+                        onPhaseResultsProcessorFailed(searchPhaseResultsProcessor);
                         if (searchPhaseResultsProcessor.isIgnoreFailure()) {
                             logger.warn(
                                 "The exception from search phase results processor ["
@@ -293,14 +314,19 @@ class Pipeline {
                                 e
                             );
                         } else {
+                            // Only track pipeline-level failure when processor failure is not ignored
+                            onTransformPhaseResultsFailure();
                             throw e;
                         }
                     }
 
                 }
             }
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             throw new SearchPipelineProcessingException(e);
+        } finally {
+            long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart);
+            afterTransformPhaseResults(took);
         }
     }
 
