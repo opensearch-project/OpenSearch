@@ -9,12 +9,17 @@
 package org.opensearch.plugin.ingestion.fs;
 
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.transport.client.Requests;
 import org.junit.Before;
 
 import java.io.BufferedWriter;
@@ -22,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -78,6 +84,74 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
             SearchResponse response = client().prepareSearch(index).setQuery(query).get();
             assertEquals(2, response.getHits().getTotalHits().value());
         });
+
+        PauseIngestionResponse pauseResponse = client().admin().indices().pauseIngestion(Requests.pauseIngestionRequest(index)).get();
+        assertTrue(pauseResponse.isAcknowledged());
+        assertTrue(pauseResponse.isShardsAcknowledged());
+        assertBusy(() -> {
+            GetIngestionStateResponse ingestionState = client().admin()
+                .indices()
+                .getIngestionState(Requests.getIngestionStateRequest(index))
+                .get();
+            assertEquals(0, ingestionState.getFailedShards());
+            assertTrue(
+                Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(state -> state.isPollerPaused() && state.pollerState().equalsIgnoreCase("paused"))
+            );
+        });
+
+        ResumeIngestionResponse resumeResponse = client().admin()
+            .indices()
+            .resumeIngestion(Requests.resumeIngestionRequest(index, 0, ResumeIngestionRequest.ResetSettings.ResetMode.OFFSET, "0"))
+            .get();
+        assertTrue(resumeResponse.isAcknowledged());
+        assertTrue(resumeResponse.isShardsAcknowledged());
+        assertBusy(() -> {
+            GetIngestionStateResponse ingestionState = client().admin()
+                .indices()
+                .getIngestionState(Requests.getIngestionStateRequest(index))
+                .get();
+            assertTrue(
+                Arrays.stream(ingestionState.getShardStates())
+                    .allMatch(
+                        state -> state.isPollerPaused() == false
+                            && (state.pollerState().equalsIgnoreCase("polling") || state.pollerState().equalsIgnoreCase("processing"))
+                    )
+            );
+        });
+
+        // cleanup the test index
+        client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
+    }
+
+    public void testFileIngestionOnMissingFiles() throws Exception {
+        String mappings = """
+            {
+              "properties": {
+                "name": { "type": "text" },
+                "age": { "type": "integer" }
+              }
+            }
+            """;
+
+        createIndexWithMappingSource(
+            index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "FILE")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topic)
+                .put("ingestion_source.param.base_directory", "unknown_directory")
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            mappings
+        );
+        ensureGreen(index);
+
+        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(0);
+        SearchResponse response = client().prepareSearch(index).setQuery(query).get();
+        assertEquals(0, response.getHits().getTotalHits().value());
 
         // cleanup the test index
         client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();

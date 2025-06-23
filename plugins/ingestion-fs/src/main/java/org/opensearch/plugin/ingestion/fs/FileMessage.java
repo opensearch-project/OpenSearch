@@ -15,14 +15,14 @@ import org.opensearch.index.Message;
  */
 public class FileMessage implements Message<byte[]> {
     private final byte[] payload;
-    private final long timestamp;
+    private final Long timestamp;
 
     /**
      * Create a file message.
      * @param payload Line contents from the file, as a byte array.
      * @param timestamp Millisecond timestamp for when the line was read.
      */
-    public FileMessage(byte[] payload, long timestamp) {
+    public FileMessage(byte[] payload, Long timestamp) {
         this.payload = payload;
         this.timestamp = timestamp;
     }
