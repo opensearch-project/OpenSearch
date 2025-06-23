@@ -437,9 +437,19 @@ public class SearchTemplateIT extends OpenSearchSingleNodeTestCase {
         SearchTemplateRequest request2 = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, template2));
         request2.setRequest(new SearchRequest("my-nlp-index1"));
 
+        Map<String, Object> templateParams = new HashMap<>();
+        templateParams.put("play_name", "hello");
+
+        // Create second template with SearchTemplateRequestBuilder
+        SearchTemplateResponse response2 = new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest("my-nlp-index1"))
+            .setScript("search_template_2")
+            .setScriptType(ScriptType.STORED)
+            .setScriptParams(templateParams)
+            .setSearchPipeline("my_pipeline1")
+            .get();
+
         // Execute both requests
         SearchTemplateResponse response1 = client().execute(SearchTemplateAction.INSTANCE, request1).get();
-        SearchTemplateResponse response2 = client().execute(SearchTemplateAction.INSTANCE, request2).get();
 
         assertNotNull(response1.getResponse());
         assertNotNull(response2.getResponse());
