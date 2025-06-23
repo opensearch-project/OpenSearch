@@ -244,6 +244,13 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
         }
     }
 
+    // To be used only in testing framework.
+    public void closeIndexInputReferences() {
+        for (RefCountedCache<K, V> cache : table) {
+            ((LRUCache<K, V>) cache).closeIndexInputReferences();
+        }
+    }
+
     enum SingletonWeigher implements Weigher<Object> {
         INSTANCE;
 

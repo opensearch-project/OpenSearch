@@ -20,9 +20,9 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -46,6 +46,8 @@ import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.opensearch.common.Priority;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
@@ -54,6 +56,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
@@ -64,8 +67,11 @@ import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
 import org.opensearch.search.sort.SortOrder;
@@ -75,11 +81,13 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.Requests;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -111,7 +119,6 @@ import static org.hamcrest.Matchers.is;
 /**
  * This class runs Segment Replication Integ test suite with partial locality indices (warm indices).
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18157")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
@@ -164,19 +171,11 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
 
     @After
     public void teardown() throws Exception {
-        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
-        for (String nodeName : internalCluster().getNodeNames()) {
-            FileCache fileCache = internalCluster().getInstance(Node.class, nodeName).fileCache();
-            if (fileCache != null) {
-                fileCache.clear();
-            }
-        }
         clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17526")
     public void testRestartPrimary_NoReplicas() throws Exception {
-        final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
+        final String primary = internalCluster().startWarmOnlyNodes(1).get(0);
         createIndex(INDEX_NAME);
         ensureYellow(INDEX_NAME);
 
@@ -188,11 +187,57 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         } else {
             refresh(INDEX_NAME);
         }
-        FileCache fileCache = internalCluster().getInstance(Node.class, primary).fileCache();
+        Long initialSize = internalCluster().getInstance(Node.class, primary).fileCache().size();
         internalCluster().restartNode(primary);
         ensureYellow(INDEX_NAME);
+        Long currentSize = internalCluster().getInstance(Node.class, primary).fileCache().size();
         assertDocCounts(1, primary);
-        fileCache.prune();
+        assertTrue(initialSize != 0);
+        assertTrue(currentSize != 0);
+        if (currentSize < initialSize) {
+            fail("FileCache did not initialise correctly");
+        }
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
+    }
+
+    public void testRestartPrimaryAndReplicaWithDocuments() throws Exception {
+        final String primary = internalCluster().startWarmOnlyNodes(1).get(0);
+        createIndex(INDEX_NAME);
+        ensureYellow(INDEX_NAME);
+        final String replica = internalCluster().startWarmOnlyNodes(1).get(0);
+        ensureGreen(INDEX_NAME);
+
+        assertEquals(getNodeContainingPrimaryShard().getName(), primary);
+
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex(INDEX_NAME).setId("2").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        if (randomBoolean()) {
+            flush(INDEX_NAME);
+        } else {
+            refresh(INDEX_NAME);
+        }
+        FileCache fileCache = internalCluster().getInstance(Node.class, primary).fileCache();
+        waitForSearchableDocs(2, primary, replica);
+        logger.info("---> restarting primary node");
+        internalCluster().restartNode(primary);
+
+        // check replica is promoted to primary.
+        assertEquals(getNodeContainingPrimaryShard().getName(), replica);
+        ensureGreen(INDEX_NAME);
+
+        client().prepareIndex(INDEX_NAME).setId("3").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        waitForSearchableDocs(3, primary, replica);
+
+        logger.info("---> restarting replica node");
+        internalCluster().restartNode(replica);
+        assertEquals(getNodeContainingPrimaryShard().getName(), primary);
+        ensureGreen(INDEX_NAME);
+        FileCache replicaFileCache = internalCluster().getInstance(Node.class, replica).fileCache();
+        assertTrue("FileCache should not be empty", replicaFileCache.size() > 0);
+
+        AggregateFileCacheStats aggregateStats = replicaFileCache.fileCacheStats();
+        FileCacheStats blockFileStats = aggregateStats.getBlockFileCacheStats();
+        assertTrue(blockFileStats.getTotal() > 0);
     }
 
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {
@@ -210,7 +255,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         // index another doc but don't refresh, we will ensure this is searchable once replica is promoted.
         client().prepareIndex(INDEX_NAME).setId("2").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-        FileCache fileCache1 = internalCluster().getInstance(Node.class, primary).fileCache();
         // stop the primary node - we only have one shard on here.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
@@ -234,7 +278,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         refresh(INDEX_NAME);
         waitForSearchableDocs(4, nodeC, replica);
         verifyStoreContent();
-        fileCache1.prune();
     }
 
     public void testRestartPrimary() throws Exception {
@@ -250,7 +293,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         refresh(INDEX_NAME);
 
-        FileCache fileCache = internalCluster().getInstance(Node.class, primary).fileCache();
         waitForSearchableDocs(initialDocCount, replica, primary);
         internalCluster().restartNode(primary);
         ensureGreen(INDEX_NAME);
@@ -260,7 +302,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(initialDocCount, replica, primary);
         verifyStoreContent();
-        fileCache.prune();
     }
 
     public void testCancelPrimaryAllocation() throws Exception {
@@ -417,7 +458,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
      * the new primary starts indexing from the correct maxSeqNo and replays the correct count of docs
      * from xlog.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17527")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18157")
     public void testReplicationPostDeleteAndForceMerge() throws Exception {
         final String primary = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
@@ -456,7 +497,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
             client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
         }
         // Drop the primary and wait until replica is promoted.
-        FileCache fileCache1 = internalCluster().getInstance(Node.class, primary).fileCache();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
 
@@ -475,7 +515,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         client().prepareIndex(INDEX_NAME).setId(String.valueOf(expectedMaxSeqNo + 1)).setSource("another", "doc").get();
         refresh(INDEX_NAME);
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount + 1);
-        fileCache1.clear();
     }
 
     public void testScrollWithConcurrentIndexAndSearch() throws Exception {
@@ -703,7 +742,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         // Refresh, this should trigger round of segment replication
         refresh(INDEX_NAME);
         blockFileCopy.countDown();
-        FileCache fileCache = internalCluster().getInstance(Node.class, primaryNode).fileCache();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
         ensureYellow(INDEX_NAME);
         assertBusy(() -> { assertDocCounts(docCount, replicaNode); });
@@ -719,7 +757,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
             .allocationId()
             .getId();
         assertEquals(currentAllocationID, replicaAllocationId);
-        fileCache.prune();
     }
 
     public void testCancellation() throws Exception {
@@ -890,7 +927,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
             waitForDocs(initialDocCount, indexer);
             refresh(INDEX_NAME);
             // don't wait for replication to complete, stop the primary immediately.
-            FileCache fileCache = internalCluster().getInstance(Node.class, primaryNode).fileCache();
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
             ensureYellow(INDEX_NAME);
 
@@ -906,7 +942,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
             flushAndRefresh(INDEX_NAME);
             waitForSearchableDocs(initialDocCount + 1, dataNodes);
             verifyStoreContent();
-            fileCache.prune();
         }
     }
 
@@ -967,7 +1002,7 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         assertNotEquals(replicaAfterFailure.routingEntry().allocationId().getId(), replicaShard.routingEntry().allocationId().getId());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/17527")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/18157")
     public void testPressureServiceStats() throws Exception {
         final String primaryNode = internalCluster().startDataAndWarmNodes(1).get(0);
         createIndex(INDEX_NAME);
@@ -1019,7 +1054,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
             assertTrue(replicaNode_service.nodeStats().getShardStats().isEmpty());
 
             // drop the primary, this won't hand off pressure stats between old/new primary.
-            FileCache fileCache = internalCluster().getInstance(Node.class, primaryNode).fileCache();
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
             ensureYellowAndNoInitializingShards(INDEX_NAME);
 
@@ -1063,7 +1097,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
                 final SegmentReplicationShardStats stats = shardStatsSet.stream().findFirst().get();
                 assertEquals(0, stats.getCheckpointsBehindCount());
             });
-            fileCache.prune();
         }
     }
 
@@ -1627,8 +1660,6 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
         refresh(INDEX_NAME);
         waitForSearchableDocs(1, primaryNode, replicaNode, replicaNode2);
-
-        FileCache fileCache = internalCluster().getInstance(Node.class, primaryNode).fileCache();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         IndexShard replica_1 = getIndexShard(replicaNode, INDEX_NAME);
@@ -1658,7 +1689,110 @@ public class WarmIndexSegmentReplicationIT extends SegmentReplicationBaseIT {
             assertEquals(0L, replicationStats.maxReplicationLag);
             assertEquals(0L, replicationStats.totalBytesBehind);
         });
-        fileCache.prune();
     }
 
+    public void testShardPathDeletionWhenWarmIndexRelocate() throws Exception {
+        InternalTestCluster internalTestCluster = internalCluster();
+        internalTestCluster.startClusterManagerOnlyNode();
+        String primary = internalTestCluster.startWarmOnlyNodes(1).get(0);
+
+        createIndex(INDEX_NAME);
+        ensureYellow(INDEX_NAME);
+
+        String secondWarmNode = internalTestCluster.startWarmOnlyNodes(1).get(0);
+        ensureGreen(INDEX_NAME);
+
+        String thirdWarmNode = internalTestCluster.startWarmOnlyNodes(1).get(0);
+
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").get();
+        client().prepareIndex(INDEX_NAME).setId("2").setSource("foo", "bar").get();
+
+        // Ingesting docs again before force merge
+        if (randomBoolean()) {
+            flush(INDEX_NAME);
+        } else {
+            refresh(INDEX_NAME);
+        }
+        ensureGreen();
+
+        final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
+            client().admin().indices().prepareGetSettings(INDEX_NAME).get().getIndexToSettings().get(INDEX_NAME)
+        );
+        final Index index = resolveIndex(INDEX_NAME);
+        assertWarmIndexDirectoryExistence(primary, index, true, customDataPath);
+        assertWarmIndexDirectoryExistence(secondWarmNode, index, true, customDataPath);
+        assertWarmIndexDirectoryExistence(thirdWarmNode, index, false, customDataPath);
+
+        logger.info("Relocating shard from {} to {}", primary, thirdWarmNode);
+        final Client client = client();
+        client.admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, primary, thirdWarmNode))
+            .execute()
+            .actionGet();
+
+        ClusterHealthResponse clusterHealthResponse = client.admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setTimeout(new TimeValue(5, TimeUnit.MINUTES))
+            .execute()
+            .actionGet();
+
+        if (clusterHealthResponse.isTimedOut()) {
+            logger.warn("Cluster health check timed out after relocation");
+        }
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+
+        assertWarmIndexDirectoryExistence(primary, index, false, customDataPath);
+        assertWarmIndexDirectoryExistence(secondWarmNode, index, true, customDataPath);
+        assertWarmIndexDirectoryExistence(thirdWarmNode, index, true, customDataPath);
+
+        assertDocCounts(2, secondWarmNode, thirdWarmNode);
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
+        assertBusy(() -> {
+            assertWarmIndexDirectoryExistence(secondWarmNode, index, false, customDataPath);
+            assertWarmIndexDirectoryExistence(thirdWarmNode, index, false, customDataPath);
+        });
+    }
+
+    private void assertWarmIndexDirectoryExistence(String nodeName, Index index, boolean exists, String customDataPath) throws Exception {
+        logger.debug("Checking warm index directory existence for node: {}, expected exists: {}", nodeName, exists);
+
+        final Node node = internalCluster().getInstance(Node.class, nodeName);
+        final ShardId shardId = new ShardId(index, 0);
+
+        final ShardPath shardPath = ShardPath.loadShardPath(logger, node.getNodeEnvironment(), shardId, customDataPath);
+        if (shardPath == null) {
+            logger.debug("ShardPath is null for node: {}", nodeName);
+            assertFalse(exists);
+            return;
+        }
+
+        final Path shardStatePath = shardPath.getShardStatePath();
+        final Path shardDataPath = shardPath.getDataPath();
+
+        assertBusy(() -> {
+            if (exists) {
+                logger.debug("Verifying shard paths exist for node: {}", nodeName);
+                assertTrue(Files.exists(shardStatePath));
+                assertTrue(Files.exists(shardDataPath));
+            } else {
+                logger.debug("Verifying shard paths do not exist for node: {}", nodeName);
+                assertEquals(false, Files.exists(shardStatePath));
+                assertEquals(false, Files.exists(shardDataPath));
+            }
+        });
+
+        final Path cacheDataPath = node.getNodeEnvironment().fileCacheNodePath().fileCachePath.resolve(index.getUUID());
+        final Path indicesCacheDataPath = node.getNodeEnvironment().fileCacheNodePath().indicesPath.resolve(index.getUUID());
+
+        assertBusy(() -> {
+            logger.info("Checking cache paths for node: {}", nodeName);
+            assertEquals("cache data path should not exists", false, Files.exists(cacheDataPath));
+            assertTrue("indices cache path should " + (exists ? "exist" : "not exist"), Files.exists(indicesCacheDataPath) == exists);
+        }, 30, TimeUnit.SECONDS);
+    }
 }
