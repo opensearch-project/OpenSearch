@@ -234,6 +234,10 @@ grant {
   permission java.io.FilePermission "/proc/self/cgroup", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpu", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpu/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu.max", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu.weight", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpuset.cpus", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpuset.cpus.effective", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
