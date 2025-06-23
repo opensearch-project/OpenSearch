@@ -604,7 +604,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
         } catch (S3Exception e) {
             if (e.statusCode() == HTTP_STATUS_PRECONDITION_FAILED) {
-                listener.onFailure(new OpenSearchException("stale_primary_shard", e, "Precondition Failed : Etag Mismatch", blobName));
+                listener.onFailure(new OpenSearchException("Precondition Failed : Etag Mismatch", e, blobName));
                 throw new IOException("Unable to upload object [" + blobName + "] due to ETag mismatch", e);
             } else {
                 IOException exception = new IOException(
