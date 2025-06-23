@@ -700,7 +700,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             final String metadataFilename;
             long currentUploadCounter = metadataUploadCounter.incrementAndGet();
 
-            metadataFilename = "segment_metadata";
+            metadataFilename = "metadata_segments";
 
             ConditionalWriteOptions options;
             if (versionIdentifier != null && !versionIdentifier.isEmpty()) {

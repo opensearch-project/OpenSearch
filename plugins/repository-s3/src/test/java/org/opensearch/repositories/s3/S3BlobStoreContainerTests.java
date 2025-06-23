@@ -847,7 +847,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertTrue(exception instanceof OpenSearchException);
         OpenSearchException osException = (OpenSearchException) exception;
 
-        assertEquals("stale_primary_shard", osException.getMessage());
+        assertEquals("Precondition Failed : Etag Mismatch", osException.getMessage());
 
         Throwable cause = osException.getCause();
         assertNotNull("Should have a cause", cause);

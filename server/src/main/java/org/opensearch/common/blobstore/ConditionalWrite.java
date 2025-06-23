@@ -8,6 +8,8 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.time.Instant;
 
 /**
@@ -153,6 +155,7 @@ public final class ConditionalWrite {
      * Contains the new version identifier (such as an ETag or version string) retrieved from the remote store
      * after a successful write.
      */
+    @ExperimentalApi
     public static final class ConditionalWriteResponse {
         private final String newVersionIdentifier;
 

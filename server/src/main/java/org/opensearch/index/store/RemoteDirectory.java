@@ -24,6 +24,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteOptions;
 import org.opensearch.common.blobstore.ConditionalWrite.ConditionalWriteResponse;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.exception.CorruptFileException;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -31,6 +32,7 @@ import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
@@ -158,6 +160,18 @@ public class RemoteDirectory extends Directory {
      */
     public InputStream getBlobStream(String fileName) throws IOException {
         return blobContainer.readBlob(fileName);
+    }
+
+    /**
+     * Returns stream emitted from blob object along with its metadata.
+     * Should be used with a closeable block.
+     *
+     * @param fileName Name of file
+     * @return InputStreamWithMetadata containing stream and metadata from the blob object
+     * @throws IOException if fetch of stream fails with IO error
+     */
+    public InputStreamWithMetadata getBlobStreamWithMetadata(String fileName) throws IOException {
+        return blobContainer.readBlobWithMetadata(fileName);
     }
 
     /**
