@@ -603,16 +603,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return builder.apply(l, u, nowUsed);
         }
 
-        /**
-         * Handle {@code now} in queries.
-         * @param context context from which to read the current time
-         * @param builder build the query
-         * @return the result of the builder, wrapped in {@link DateRangeIncludingNowQuery} if {@code now} was used.
-         */
-        public static Query handleNow(QueryShardContext context, Function<LongSupplier, Query> builder) {
-            return builder.apply(context::nowInMillis);
-        }
-
         public long parseToLong(Object value, boolean roundUp, @Nullable ZoneId zone, DateMathParser dateParser, LongSupplier now) {
             dateParser = dateParser == null ? dateMathParser() : dateParser;
             return parseToLong(value, roundUp, zone, dateParser, now, resolution);
