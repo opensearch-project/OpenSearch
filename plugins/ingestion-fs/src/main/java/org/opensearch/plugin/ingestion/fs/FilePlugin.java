@@ -24,6 +24,9 @@ public class FilePlugin extends Plugin implements IngestionConsumerPlugin {
      */
     public static final String TYPE = "FILE";
 
+    /**
+     * Initialize FilePlugin for file-based indexing.
+     */
     public FilePlugin() {}
 
     @SuppressWarnings("rawtypes")

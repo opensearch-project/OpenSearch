@@ -19,6 +19,9 @@ public class FileConsumerFactory implements IngestionConsumerFactory<FilePartiti
 
     private FileSourceConfig config;
 
+    /**
+     * Initialize a FileConsumerFactory for file-based indexing.
+     */
     public FileConsumerFactory() {}
 
     @Override

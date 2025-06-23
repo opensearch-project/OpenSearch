@@ -22,11 +22,18 @@ public class FileOffset implements IngestionShardPointer {
 
     private final long line;
 
+    /**
+     * Create a new file offset based on line number.
+     * @param line line number (offset)
+     */
     public FileOffset(long line) {
         assert line >= 0;
         this.line = line;
     }
 
+    /**
+     * Returns the line number (offset).
+     */
     public long getLine() {
         return line;
     }

@@ -11,17 +11,17 @@ package org.opensearch.plugin.ingestion.fs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.io.PathUtils;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
@@ -29,28 +29,32 @@ import java.util.concurrent.TimeoutException;
 /**
  * File-based consumer for testing ingestion. Reads from ${baseDir}/${topic}/${shardId}.ndjson.
  */
-@SuppressForbidden(reason = "uses user provided path to read files for local testing")
+@SuppressForbidden(reason = "using Java file APIs for local testing purpose")
 public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset, FileMessage> {
     private static final Logger logger = LogManager.getLogger(FilePartitionConsumer.class);
 
-    private final Path shardFilePath;
+    private final File shardFile;
     private final int shardId;
 
     private BufferedReader reader = null;
     private long currentLineInReader = 0;
     private long lastReadLine = -1;
 
+    /**
+     * Initialize a FilePartitionConsumer that will read messages from provided file and index documents.
+     * @param config the file source config
+     * @param shardId shard ID
+     */
     public FilePartitionConsumer(FileSourceConfig config, int shardId) {
         String baseDir = config.getBaseDirectory();
         String topic = config.getTopic();
-
-        this.shardFilePath = PathUtils.get(baseDir, topic, shardId + ".ndjson");
+        this.shardFile = new File(baseDir, topic + File.separator + shardId + ".ndjson");
         this.shardId = shardId;
 
-        if (!Files.exists(shardFilePath)) {
-            logger.warn("FilePartitionConsumer: File {} does not exist.", shardFilePath.toAbsolutePath());
+        if (!shardFile.exists()) {
+            logger.warn("FilePartitionConsumer: File {} does not exist.", shardFile.getAbsolutePath());
         } else {
-            logger.info("Initialized FilePartitionConsumer for shard {} with file: {}", shardId, shardFilePath.toAbsolutePath());
+            logger.info("Initialized FilePartitionConsumer for shard {} with file: {}", shardId, shardFile.getAbsolutePath());
         }
     }
 
@@ -69,19 +73,19 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
     private synchronized List<ReadResult<FileOffset, FileMessage>> readFromFile(long startLine, long maxLines) throws TimeoutException {
         List<ReadResult<FileOffset, FileMessage>> results = new ArrayList<>();
 
-        if (!Files.exists(shardFilePath)) {
+        if (!shardFile.exists()) {
             return results;
         }
 
         try {
             if (reader == null) {
-                reader = Files.newBufferedReader(shardFilePath, StandardCharsets.UTF_8);
+                reader = new BufferedReader(new FileReader(shardFile));
                 currentLineInReader = 0;
             }
 
             if (startLine < currentLineInReader) {
                 reader.close();
-                reader = Files.newBufferedReader(shardFilePath, StandardCharsets.UTF_8);
+                reader = new BufferedReader(new FileReader(shardFile));
                 currentLineInReader = 0;
             }
 
@@ -99,7 +103,7 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
             }
 
         } catch (IOException e) {
-            throw new RuntimeException("Failed to read from file: " + shardFilePath.toAbsolutePath(), e);
+            throw new RuntimeException("Failed to read from file: " + shardFile.getAbsolutePath(), e);
         }
 
         return results;
@@ -112,13 +116,13 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
 
     @Override
     public IngestionShardPointer latestPointer() {
-        if (!Files.exists(shardFilePath)) {
+        if (!shardFile.exists()) {
             return new FileOffset(0);
         }
 
         try (
             LineNumberReader lineNumberReader = new LineNumberReader(
-                new InputStreamReader(Files.newInputStream(shardFilePath), StandardCharsets.UTF_8)
+                new InputStreamReader(new FileInputStream(shardFile), StandardCharsets.UTF_8)
             )
         ) {
             lineNumberReader.skip(Long.MAX_VALUE);
@@ -129,7 +133,9 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
     }
 
     /**
-     * Timestamp based pointer is not supported in file mode. Defaults to earliest pointer.
+     * Timestamp-based pointer is not supported in file mode. Defaults to earliest pointer.
+     * @param timestampMillis the timestamp in milliseconds
+     * @return shard pointer
      */
     @Override
     public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
