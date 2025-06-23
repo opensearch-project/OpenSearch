@@ -289,13 +289,19 @@ class Pipeline {
         PipelineProcessingContext requestContext
     ) throws SearchPipelineProcessingException {
         long pipelineStart = relativeTimeSupplier.getAsLong();
+        boolean processorsExecuted = false;
+        boolean processorsFailed = false;
+        
+        // Always track phase results metrics to maintain consistent state
         beforeTransformPhaseResults();
+        
         try {
             for (SearchPhaseResultsProcessor searchPhaseResultsProcessor : searchPhaseResultsProcessors) {
                 beforePhaseResultsProcessor(searchPhaseResultsProcessor);
                 long start = relativeTimeSupplier.getAsLong();
                 if (currentPhase.equals(searchPhaseResultsProcessor.getBeforePhase().getName())
                     && nextPhase.equals(searchPhaseResultsProcessor.getAfterPhase().getName())) {
+                    processorsExecuted = true;
                     try {
                         searchPhaseResultsProcessor.process(searchPhaseResult, context, requestContext);
                         long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
@@ -315,6 +321,7 @@ class Pipeline {
                             );
                         } else {
                             // Only track pipeline-level failure when processor failure is not ignored
+                            processorsFailed = true;
                             onTransformPhaseResultsFailure();
                             throw e;
                         }
@@ -327,8 +334,14 @@ class Pipeline {
         } finally {
             long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart);
             afterTransformPhaseResults(took);
+            // Notify that processors actually executed for pipeline request tracking
+            if (processorsExecuted) {
+                onPhaseResultsProcessorsExecuted(took, processorsFailed);
+            }
         }
     }
+
+    protected void onPhaseResultsProcessorsExecuted(long timeInNanos, boolean failed) {}
 
     static final Pipeline NO_OP_PIPELINE = new Pipeline(
         SearchPipelineService.NOOP_PIPELINE_ID,
