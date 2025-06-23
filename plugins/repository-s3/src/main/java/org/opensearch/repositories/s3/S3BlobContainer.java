@@ -217,6 +217,47 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         });
     }
 
+    /**
+     * Writes a blob with conditional write options (metadata-less)
+     */
+    @Override
+    public void writeBlobConditionally(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        ConditionalWriteOptions options,
+        ActionListener<ConditionalWriteResponse> listener
+    ) throws IOException {
+        writeBlobWithMetadataConditionally(blobName, inputStream, blobSize, failIfAlreadyExists, null, options, listener);
+    }
+
+    /**
+     * Writes a blob along with its metadata using conditional write options for conditional PUT operations
+     */
+    @ExperimentalApi
+    @Override
+    public void writeBlobWithMetadataConditionally(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        ConditionalWriteOptions options,
+        ActionListener<ConditionalWriteResponse> listener
+    ) throws IOException {
+        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
+
+        SocketAccess.doPrivilegedIOException(() -> {
+            if (blobSize <= getLargeBlobThresholdInBytes()) {
+                executeSingleUploadConditionally(blobStore, buildKey(blobName), inputStream, blobSize, metadata, options, listener);
+            } else {
+                executeMultipartUploadConditionally(blobStore, buildKey(blobName), inputStream, blobSize, metadata, options, listener);
+            }
+            return null;
+        });
+    }
+
     @Override
     public void asyncBlobUploadConditionally(
         WriteContext writeContext,
