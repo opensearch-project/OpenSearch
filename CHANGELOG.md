@@ -44,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add noninteractive option for DEB packages testing [(#914)](https://github.com/wazuh/wazuh-indexer/pull/914)
 - Migrate smoke tests from Allocator to docker [(#931)](https://github.com/wazuh/wazuh-indexer/pull/931)
 - Migrate builder workflows from [(#930)](https://github.com/wazuh/wazuh-indexer/pull/930)
+- Rename bumper workflow file [(#986)](https://github.com/wazuh/wazuh-indexer/pull/986)
 
 ### Deprecated
 -
