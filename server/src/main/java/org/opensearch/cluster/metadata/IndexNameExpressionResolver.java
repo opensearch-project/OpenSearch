@@ -191,7 +191,7 @@ public class IndexNameExpressionResolver {
         for (ExpressionResolver resolver : customResolvers) {
             finalExpressions = resolver.resolve(context, finalExpressions);
         }
- 
+
         List<String> dataStreams = wildcardExpressionResolver.resolve(context, finalExpressions);
 
         return ((dataStreams == null) ? List.<String>of() : dataStreams).stream()

@@ -440,18 +440,17 @@ public class ClusterModule extends AbstractModule {
         return Objects.requireNonNull(allocatorSupplier.get(), "ShardsAllocator factory for [" + allocatorName + "] returned null");
     }
 
-    private static List<ExpressionResolver> getCustomResolvers(
-        List<ClusterPlugin> clusterPlugins) {
-            Map<Class, IndexNameExpressionResolver.ExpressionResolver> resolvers = new HashMap<>();
-            clusterPlugins.stream()
-                .flatMap(c -> c.getIndexNameCustomResolvers().stream())
-                .forEach(r -> addCustomResolver(resolvers, r));
+    private static List<ExpressionResolver> getCustomResolvers(List<ClusterPlugin> clusterPlugins) {
+        Map<Class, IndexNameExpressionResolver.ExpressionResolver> resolvers = new HashMap<>();
+        clusterPlugins.stream().flatMap(c -> c.getIndexNameCustomResolvers().stream()).forEach(r -> addCustomResolver(resolvers, r));
         return Collections.unmodifiableList(new ArrayList<>(resolvers.values()));
     }
- 
-    private static void addCustomResolver(Map<Class, IndexNameExpressionResolver.ExpressionResolver> resolvers,
-                                          IndexNameExpressionResolver.ExpressionResolver customResolver) {
-        if(resolvers.put(customResolver.getClass(), customResolver) != null) {
+
+    private static void addCustomResolver(
+        Map<Class, IndexNameExpressionResolver.ExpressionResolver> resolvers,
+        IndexNameExpressionResolver.ExpressionResolver customResolver
+    ) {
+        if (resolvers.put(customResolver.getClass(), customResolver) != null) {
             throw new IllegalArgumentException("Cannot specify expression resolver [" + customResolver.getClass().getName() + "] twice");
         }
     }
