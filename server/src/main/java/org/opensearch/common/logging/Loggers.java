@@ -59,7 +59,7 @@ public class Loggers {
 
     public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING = new Setting<>(
         "logger.level",
-        Level.INFO.name(),
+        Level.DEBUG.name(),
         Level::valueOf,
         Setting.Property.NodeScope
     );

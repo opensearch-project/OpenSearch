@@ -32,6 +32,7 @@
 
 package org.opensearch.common.logging;
 
+import java.io.File;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -177,11 +178,16 @@ public class LogConfigurator {
             @Override
             public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
                 if (file.getFileName().toString().equals("log4j2.properties")) {
-                    configurations.add((PropertiesConfiguration) factory.getConfiguration(context, file.toString(), file.toUri()));
+                    System.out.println("config file" + file.toFile().getAbsoluteFile());
+
+                 //   configurations.add((PropertiesConfiguration) factory.getConfiguration(context, file.toString(), file.toUri()));
                 }
                 return FileVisitResult.CONTINUE;
             }
         });
+        File fi = new File("/Users/rajivkv/opensearch-main/log4j2.properties");
+        configurations.add((PropertiesConfiguration) factory.getConfiguration(context, fi.toString(), fi.toURI()));
+
 
         if (configurations.isEmpty()) {
             throw new UserException(ExitCodes.CONFIG, "no log4j2.properties found; tried [" + configsPath + "] and its subdirectories");
@@ -199,7 +205,7 @@ public class LogConfigurator {
 
     private static void configureStatusLogger() {
         final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
-        builder.setStatusLevel(Level.ERROR);
+        builder.setStatusLevel(Level.DEBUG);
         Configurator.initialize(builder.build());
     }
 
@@ -220,6 +226,7 @@ public class LogConfigurator {
                 final Level level = s.get(settings);
                 Loggers.setLevel(LogManager.getLogger(s.getKey().substring("logger.".length())), level);
             });
+
     }
 
     /**

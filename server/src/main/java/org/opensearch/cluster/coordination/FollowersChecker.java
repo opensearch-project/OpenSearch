@@ -49,6 +49,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.Transport;
@@ -133,6 +134,8 @@ public class FollowersChecker {
     private volatile FastResponseState fastResponseState;
     private ClusterManagerMetrics clusterManagerMetrics;
 
+    private boolean followerCheckerDisabled = false;
+
     public FollowersChecker(
         Settings settings,
         ClusterSettings clusterSettings,
@@ -165,10 +168,16 @@ public class FollowersChecker {
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
             public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
-                handleDisconnectedNode(node);
+                if(followerCheckerDisabled) {
+                    handleDisconnectedNode(node);
+                }
             }
         });
         this.clusterManagerMetrics = clusterManagerMetrics;
+        followerCheckerDisabled = settings.getAsBoolean(Node.NODE_ATTRIBUTES.getKey() + "follower_check.disabled", false);
+        if (followerCheckerDisabled) {
+            logger.info("Follower check is disabled");
+        }
     }
 
     private void setFollowerCheckInterval(TimeValue followerCheckInterval) {
@@ -479,7 +488,7 @@ public class FollowersChecker {
     }
 
     /**
-     * Request to check follower.
+     * Request to check follower:.
      *
      * @opensearch.internal
      */

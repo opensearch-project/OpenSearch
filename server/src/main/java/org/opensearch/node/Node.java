@@ -311,6 +311,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import s3.dfddclient.HealthChecker;
 import s3.stumpy.StumpyManager;
 
 import static java.util.stream.Collectors.toList;
@@ -1781,23 +1782,37 @@ public class Node implements Closeable {
 
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(plugin -> plugin.onNodeStarted(clusterService.localNode()));
+        registerToDFDD(clusterService);
 
+        return this;
+    }
 
-        StumpyManager mgr = null;
+    private void registerToDFDD(ClusterService clusterService) {
+        logger.info("Registering with DFDD for health checks");
         try {
-            System.out.println("starting stumpy manager");
-
-            mgr = new StumpyManager();
+            String privateIp= clusterService.getSettings().get(Node.NODE_ATTRIBUTES.getKey() + "private_ip", "localhost");
+            StumpyManager mgr = StumpyManager.newOneThreadManager(StumpyManager.AssertionCheckFlag.DO_NOT_CHECK_THAT_ASSERTIONS_ARE_ENABLED);
             DFDDClient dfddClient = new DFDDClient(mgr, "localhost", 2977 , "OzoneDFDDRuntimeClique-Desktop");
-            dfddClient.addBeatingApplication("fooApp", "foo-inst1", "localhost:9200");
+            logger.info("Adding application {} DFDD for health checks on node {}" , clusterService.getClusterName().value(), privateIp);
+            dfddClient.addBeatingApplication(clusterService.getClusterName().value(), privateIp,
+                clusterService.getNodeName() + ":9200", new HealthChecker() {
+                    @Override
+                    public boolean isHealthy() {
+                        logger.info("DFDD health check");
+                        return true;
+                    }
 
-            System.out.println("initialized addBeatingApplication");
+                    @Override
+                    public void doneChecking() {
+
+                    }
+                }
+            );
+
         } catch (IOException e) {
-            System.out.println("error stumpy manager");
-
+            logger.error(e.getMessage(), e);
             throw new RuntimeException("stumpy", e);
         }
-        return this;
     }
 
     protected void configureNodeAndClusterIdStateListener(ClusterService clusterService) {
