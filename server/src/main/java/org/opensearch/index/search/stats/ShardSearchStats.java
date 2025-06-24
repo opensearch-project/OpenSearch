@@ -267,7 +267,8 @@ public final class ShardSearchStats implements SearchOperationListener {
                 suggestMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
                 suggestCurrent.count(),
-                searchIdleMetric.count()
+                searchIdleMetric.count(),
+                new SearchStats.Stats.SearchResponseStatusStats()
             );
         }
     }
