@@ -29,6 +29,8 @@ import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogReader;
+import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
+import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.threadpool.ThreadPool;
@@ -41,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -108,6 +111,34 @@ public class TranslogTransferManager {
 
     public ShardId getShardId() {
         return this.shardId;
+    }
+
+    /**
+     * Reads the latest N translog metadata files from remote store using filename parsing.
+     *
+     * @param count Number of metadata files to read
+     * @return Map of filename to parsed TranslogTransferMetadata
+     * @throws IOException if the fetch or parsing fails
+     */
+    public Map<String, TranslogTransferMetadata> readLatestNMetadataFiles(int count) throws IOException {
+        List<BlobMetadata> metadataFiles = transferService.listAllInSortedOrder(
+            remoteMetadataTransferPath,
+            TranslogTransferMetadata.METADATA_PREFIX,
+            count
+        );
+
+        Map<String, TranslogTransferMetadata> result = new LinkedHashMap<>();
+        for (BlobMetadata metadata : metadataFiles) {
+            String fileName = metadata.name();
+            try {
+                TranslogTransferMetadata meta = readMetadata(fileName);
+                result.put(fileName, meta);
+            } catch (Exception e) {
+                logger.error("Failed to read translog metadata file ", e);
+            }
+        }
+
+        return result;
     }
 
     public boolean transferSnapshot(TransferSnapshot transferSnapshot, TranslogTransferListener translogTransferListener)
