@@ -199,6 +199,35 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             long noopUpdateCount,
             boolean isThrottled,
             long throttleTimeInMillis,
+            DocStatusStats docStatusStats
+        ) {
+            this(
+                indexCount,
+                indexTimeInMillis,
+                indexCurrent,
+                indexFailedCount,
+                deleteCount,
+                deleteTimeInMillis,
+                deleteCurrent,
+                noopUpdateCount,
+                isThrottled,
+                throttleTimeInMillis,
+                docStatusStats,
+                0L
+            );
+        }
+
+        public Stats(
+            long indexCount,
+            long indexTimeInMillis,
+            long indexCurrent,
+            long indexFailedCount,
+            long deleteCount,
+            long deleteTimeInMillis,
+            long deleteCurrent,
+            long noopUpdateCount,
+            boolean isThrottled,
+            long throttleTimeInMillis,
             DocStatusStats docStatusStats,
             long maxLastIndexRequestTimestamp
         ) {
@@ -352,6 +381,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 getDocStatusStats().toXContent(builder, params);
             }
 
+            builder.field(Fields.MAX_LAST_INDEX_REQUEST_TIMESTAMP, maxLastIndexRequestTimestamp);
+
             return builder;
         }
 
@@ -425,6 +456,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
         static final String THROTTLED_TIME = "throttle_time";
         static final String DOC_STATUS = "doc_status";
+        static final String MAX_LAST_INDEX_REQUEST_TIMESTAMP = "max_last_index_request_timestamp";
     }
 
     @Override

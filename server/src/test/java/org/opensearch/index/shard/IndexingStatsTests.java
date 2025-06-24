@@ -105,7 +105,9 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             + counter[3]
             + ",\"5xx\":"
             + counter[4]
-            + "}}}";
+            + "},\"max_last_index_request_timestamp\":"
+            + totalStats.getMaxLastIndexRequestTimestamp()
+            + "}}";
 
         XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         xContentBuilder.startObject();
