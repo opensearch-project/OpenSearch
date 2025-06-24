@@ -10,6 +10,7 @@ package org.opensearch.arrow.flight.stream;
 
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
@@ -17,8 +18,13 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchShardTarget;
@@ -33,7 +39,9 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.channels.Channels;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -72,14 +80,79 @@ public class ArrowStreamSerializationTests extends OpenSearchTestCase {
             }
         }
     }
-    //
-    // public InternalAggregations serializeAndDeserializeOriginal() throws IOException {
-    // StringTerms original = createTestStringTerms();
+
+    public void testSerializeAndDeserializeOriginal() throws IOException {
+        StringTerms original = createTestStringTerms();
+        try (BytesStreamOutput buffer = new BytesStreamOutput()) {
+            original.writeTo(buffer);
+            NamedWriteableAwareStreamInput input = new NamedWriteableAwareStreamInput(buffer.bytes().streamInput(), registry);
+            StringTerms deser = input.readNamedWriteable(StringTerms.class, StringTerms.NAME);
+            assertEquals(String.valueOf(original), String.valueOf(deser));
+        }
+    }
+
+    public void testWriteList() throws IOException {
+        try (ArrowStreamOutput output = new ArrowStreamOutput(allocator)) {
+            List<TestWriteable> testList = Arrays.asList(new TestWriteable(1), new TestWriteable(2), new TestWriteable(3));
+
+            output.writeList(testList);
+            VectorSchemaRoot unifiedRoot = output.getUnifiedRoot();
+            try (ArrowStreamInput input = new ArrowStreamInput(unifiedRoot, registry)) {
+                List<TestWriteable> deser = input.readList(TestWriteable::new);
+            }
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+            // Create an OutputStreamChannel for Arrow IPC
+            try (ArrowStreamWriter writer = new ArrowStreamWriter(unifiedRoot, null, Channels.newChannel(baos))) {
+                // Write the schema and data
+                writer.start();
+                writer.writeBatch();
+                writer.end();
+            }
+
+            // Return the byte array
+            System.out.println(baos.toByteArray());
+            System.out.println(baos.toByteArray().length);
+        }
+    }
+
+    // public void testWriteListOriginal() throws IOException {
     // try (BytesStreamOutput buffer = new BytesStreamOutput()) {
-    // original.writeTo(buffer);
-    // StringTerms deser InternalAggregations.readFrom(buffer.bytes().streamInput());
+    // List<TestWriteable> testList = Arrays.asList(
+    // new TestWriteable(1, ),
+    // new TestWriteable(2, "second"),
+    // new TestWriteable(3, "third")
+    // );
+    // buffer.writeList(testList);
+    // NamedWriteableAwareStreamInput input = new NamedWriteableAwareStreamInput(buffer.bytes().streamInput(), registry);
+    // List<TestWriteable> deser = input.readList(TestWriteable::new);
+    // assertEquals(String.valueOf(testList), String.valueOf(deser));
+    //
     // }
     // }
+
+    static class TestWriteable implements Writeable {
+
+        private final int intValue;
+        // private final String stringValue;
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(intValue);
+            // out.writeString(stringValue);
+        }
+
+        public TestWriteable(int intValue) throws IOException {
+            this.intValue = intValue;
+            // this.stringValue = stringValue;
+        }
+
+        public TestWriteable(StreamInput in) throws IOException {
+            intValue = in.readInt();
+            // stringValue = in.readString();
+        }
+    }
 
     public void testQuerySearchResult() throws IOException {
         QuerySearchResult original = createQuerySearchResult();

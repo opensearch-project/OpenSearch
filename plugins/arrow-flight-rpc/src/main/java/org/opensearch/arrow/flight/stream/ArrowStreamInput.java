@@ -222,15 +222,15 @@ public class ArrowStreamInput extends StreamInput {
         List<T> result = new ArrayList<>();
         List<FieldVector> childVectors = vectorsByPath.getOrDefault(pathManager.getCurrentPath(), Collections.emptyList());
         int maxRows = childVectors.stream().mapToInt(FieldVector::getValueCount).min().orElse(0);
-
-        while (pathManager.getCurrentRow() < maxRows) {
+        int size = this.readInt();
+        while (pathManager.getCurrentRow() < size) {
             try {
                 result.add(reader.read(this));
-                boolean hasMore = this.readBoolean();
+                // boolean hasMore = this.readBoolean();
                 pathManager.nextRow();
-                if (!hasMore) {
-                    break;
-                }
+                // if (!hasMore) {
+                // break;
+                // }
             } catch (EOFException e) {
                 break;
             }

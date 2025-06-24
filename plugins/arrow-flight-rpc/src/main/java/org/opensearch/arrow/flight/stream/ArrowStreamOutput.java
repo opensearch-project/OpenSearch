@@ -169,7 +169,6 @@ public class ArrowStreamOutput extends StreamOutput {
         T vector = (T) roots.get(pathManager.getCurrentPath()).getVector(colOrd);
         vector.setInitialCapacity(row + 1);
         valueSetter.accept(vector, row);
-        vector.setValueCount(row + 1);
         roots.get(pathManager.getCurrentPath()).setRowCount(row + 1);
     }
 
@@ -286,12 +285,13 @@ public class ArrowStreamOutput extends StreamOutput {
     @Override
     public void writeList(List<? extends Writeable> list) throws IOException {
         pathManager.moveToChild(false);
-        for (int i = 0; i < list.size(); i++) {
-            list.get(i).writeTo(this);
-            // TODO: this boolean vector needs to go, redundant info
-            this.writeBoolean((i + 1) < list.size());
+        this.writeInt(list.size());
+        pathManager.moveToChild(false);
+        for (Writeable writeable : list) {
+            writeable.writeTo(this);
             pathManager.nextRow();
         }
+
         pathManager.moveToParent();
     }
 
