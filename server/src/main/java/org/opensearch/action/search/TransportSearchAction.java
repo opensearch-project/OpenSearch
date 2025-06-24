@@ -32,6 +32,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -69,6 +70,8 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.query.Rewriteable;
+import org.opensearch.index.search.stats.SearchStats.Stats.SearchResponseStatusStats;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.SearchShardTarget;
@@ -176,6 +179,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchPipelineService searchPipelineService;
     private final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory;
     private final Tracer tracer;
+    private final IndicesService indicesService;
 
     private final MetricsRegistry metricsRegistry;
 
@@ -198,7 +202,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         MetricsRegistry metricsRegistry,
         SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory,
         Tracer tracer,
-        TaskResourceTrackingService taskResourceTrackingService
+        TaskResourceTrackingService taskResourceTrackingService,
+        IndicesService indicesService
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -217,6 +222,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchRequestOperationsCompositeListenerFactory = searchRequestOperationsCompositeListenerFactory;
         this.tracer = tracer;
         this.taskResourceTrackingService = taskResourceTrackingService;
+        this.indicesService = indicesService;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -305,20 +311,38 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        // searchStatusStatsUpdateListener will execute the logic within the original listener but
+        // also track the response status of the searchResponse.
+        ActionListener<SearchResponse> searchStatusStatsUpdateListener;
         // only if task is of type CancellableTask and support cancellation on timeout, treat this request eligible for timeout based
         // cancellation. There may be other top level requests like AsyncSearch which is using SearchRequest internally and has it's own
         // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and set the
         // cancelAfterTimeInterval to NO_TIMEOUT and bypass this mechanism
         if (task instanceof CancellableTask) {
-            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+            ActionListener<SearchResponse> cancellationListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
                 (CancellableTask) task,
                 clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING),
                 listener,
                 e -> {}
             );
+            searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
+                cancellationListener.onResponse(searchResponse);
+                indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
+            }, (e) -> {
+                cancellationListener.onFailure(e);
+                indicesService.getSearchResponseStatusStats().inc(ExceptionsHelper.status(e));
+            });
+        } else {
+            searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
+                listener.onResponse(searchResponse);
+                indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
+            }, (e) -> {
+                listener.onFailure(e);
+                indicesService.getSearchResponseStatusStats().inc(ExceptionsHelper.status(e));
+            });
         }
-        executeRequest(task, searchRequest, this::searchAsyncAction, listener);
+        executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);
     }
 
     /**

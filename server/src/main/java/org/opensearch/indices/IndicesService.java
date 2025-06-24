@@ -132,6 +132,7 @@ import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.search.stats.SearchStats;
+import org.opensearch.index.search.stats.SearchStats.Stats.SearchResponseStatusStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -1318,6 +1319,13 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public void addDocStatusStats(final DocStatusStats stats) {
         oldShardsStats.indexingStats.getTotal().getDocStatusStats().add(stats);
+    }
+
+    /**
+     * Retrieves the current statistics for search response.
+     */
+    public SearchResponseStatusStats getSearchResponseStatusStats() {
+        return oldShardsStats.searchStats.getTotal().getSearchResponseStatusStats();
     }
 
     /**

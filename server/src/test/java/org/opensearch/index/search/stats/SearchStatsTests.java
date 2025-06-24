@@ -40,6 +40,7 @@ import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.search.stats.SearchStats.Stats;
+import org.opensearch.index.search.stats.SearchStats.Stats.SearchResponseStatusStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -58,9 +59,9 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         // let's create two dummy search stats with groups
         Map<String, Stats> groupStats1 = new HashMap<>();
         Map<String, Stats> groupStats2 = new HashMap<>();
-        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
-        SearchStats searchStats1 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats1);
-        SearchStats searchStats2 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats2);
+        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, new SearchResponseStatusStats()));
+        SearchStats searchStats1 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, new SearchResponseStatusStats()), 0, groupStats1);
+        SearchStats searchStats2 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, new SearchResponseStatusStats()), 0, groupStats2);
 
         // adding these two search stats and checking group stats are correct
         searchStats1.add(searchStats2);
