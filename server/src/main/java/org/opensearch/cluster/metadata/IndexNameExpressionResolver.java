@@ -94,10 +94,13 @@ public class IndexNameExpressionResolver {
     private final ThreadContext threadContext;
 
     public IndexNameExpressionResolver(ThreadContext threadContext) {
+        expressionResolvers = new ArrayList<>();
+        expressionResolvers.add(dateMathExpressionResolver);
+        expressionResolvers.add(wildcardExpressionResolver);
         this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
     }
 
-    public IndexNameExpressionResolver(ThreadContext threadCOntext, List<ExpressionResolver> resolvers) {
+    public IndexNameExpressionResolver(ThreadContext threadContext, List<ExpressionResolver> resolvers) {
         // Set custom resolvers to the top of the list to ensure to WildcardExpressionResolver is triggered at the end,
         // otherwise it will throw exception in case it cannot resolve any keywords which are expected to be handled
         // by custom resolvers.
