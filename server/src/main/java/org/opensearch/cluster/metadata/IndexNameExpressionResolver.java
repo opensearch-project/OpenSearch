@@ -101,7 +101,7 @@ public class IndexNameExpressionResolver {
         // Set custom resolvers to the top of the list to ensure to WildcardExpressionResolver is triggered at the end,
         // otherwise it will throw exception in case it cannot resolve any keywords which are expected to be handled
         // by custom resolvers.
-        customResolvers = resolvers;
+        customResolvers.addAll(resolvers);
         expressionResolvers = new ArrayList<>(customResolvers);
         expressionResolvers.add(dateMathExpressionResolver);
         expressionResolvers.add(wildcardExpressionResolver);
