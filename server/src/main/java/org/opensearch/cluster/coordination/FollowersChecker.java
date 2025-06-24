@@ -113,7 +113,7 @@ public class FollowersChecker {
     // the number of failed checks that must happen before the follower is considered to have failed.
     public static final Setting<Integer> FOLLOWER_CHECK_RETRY_COUNT_SETTING = Setting.intSetting(
         "cluster.fault_detection.follower_check.retry_count",
-        3,
+        1,
         1,
         Setting.Property.NodeScope
     );

@@ -107,7 +107,7 @@ public class LeaderChecker {
     // the number of failed checks that must happen before the leader is considered to have failed.
     public static final Setting<Integer> LEADER_CHECK_RETRY_COUNT_SETTING = Setting.intSetting(
         "cluster.fault_detection.leader_check.retry_count",
-        3,
+        10,
         1,
         Setting.Property.NodeScope
     );
