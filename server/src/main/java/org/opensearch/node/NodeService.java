@@ -245,8 +245,6 @@ public class NodeService implements Closeable {
         boolean cacheService,
         boolean remoteStoreNodeStats
     ) {
-        discoveryStats = discoveryStats && discovery != null;
-        clusterManagerThrottling = clusterManagerThrottling && clusterService.getClusterManagerService() != null;
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(

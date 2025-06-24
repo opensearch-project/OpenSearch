@@ -13,6 +13,7 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.action.shard.LocalShardStateAction;
+import org.opensearch.cluster.coordination.ClusterStatePublisher;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node;
@@ -25,6 +26,22 @@ import java.util.Map;
  * This is used in clusterless mode.
  */
 public class LocalClusterService extends ClusterService {
+    private static class DummyClusterManagerService extends ClusterManagerService {
+        private static final ClusterManagerThrottlingStats EMPTY_THROTTLING_STATS = new ClusterManagerThrottlingStats();
+
+        public DummyClusterManagerService(Settings settings, ClusterSettings clusterSettings) {
+            super(settings, clusterSettings, null, null);
+        }
+
+        @Override
+        public synchronized void setClusterStatePublisher(ClusterStatePublisher publisher) {}
+
+        @Override
+        public ClusterManagerThrottlingStats getThrottlingStats() {
+            return EMPTY_THROTTLING_STATS;
+        }
+    }
+
     public LocalClusterService(
         Settings settings,
         ClusterSettings clusterSettings,
@@ -34,7 +51,7 @@ public class LocalClusterService extends ClusterService {
         super(
             settings,
             clusterSettings,
-            null,
+            new DummyClusterManagerService(settings, clusterSettings),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, clusterManagerMetrics)
         );
     }
