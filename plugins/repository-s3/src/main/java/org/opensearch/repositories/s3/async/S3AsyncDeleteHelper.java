@@ -65,9 +65,12 @@ public class S3AsyncDeleteHelper {
             allDeletesFuture = allDeletesFuture.thenCompose(v -> executeSingleDeleteBatch(s3AsyncClient, blobStore, batch));
         }
 
-        return allDeletesFuture.thenApply(v -> {
-            logger.debug("Completed execution of all delete batches");
-            return null;
+        return allDeletesFuture.whenComplete((v, throwable) -> {
+            if (throwable != null) {
+                logger.error("Failed to complete delete batches execution", throwable);
+            } else {
+                logger.debug("Completed execution of all delete batches");
+            }
         });
     }
 
