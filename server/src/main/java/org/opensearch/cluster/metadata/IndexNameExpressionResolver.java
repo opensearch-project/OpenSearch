@@ -926,6 +926,11 @@ public class IndexNameExpressionResolver {
         }
     }
 
+    /**
+     * Expression resolver for index name expressions.
+     *
+     * @opensearch.internal
+     */
     @PublicApi(since = "3.1.0")
     public interface ExpressionResolver {
 
