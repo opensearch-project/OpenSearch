@@ -1350,11 +1350,11 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-            final DiscoveryModule discoveryModule;
+            final Discovery discovery;
             if (FeatureFlags.isEnabled(CLUSTERLESS_FLAG)) {
-                discoveryModule = null;
+                discovery = new LocalDiscovery(transportService, clusterService.getClusterApplierService());
             } else {
-                discoveryModule = new DiscoveryModule(
+                discovery = new DiscoveryModule(
                     settings,
                     threadPool,
                     transportService,
@@ -1373,7 +1373,7 @@ public class Node implements Closeable {
                     remoteStoreNodeService,
                     clusterManagerMetrics,
                     remoteClusterStateService
-                );
+                ).getDiscovery();
             }
             final SearchPipelineService searchPipelineService = new SearchPipelineService(
                 clusterService,
@@ -1395,10 +1395,6 @@ public class Node implements Closeable {
                 transportService.getTaskManager(),
                 taskCancellationMonitoringSettings
             );
-
-            Discovery discovery = discoveryModule == null
-                ? new LocalDiscovery(transportService, clusterService.getClusterApplierService())
-                : discoveryModule.getDiscovery();
 
             this.nodeService = new NodeService(
                 settings,
@@ -1725,9 +1721,8 @@ public class Node implements Closeable {
         nodeConnectionsService.start();
         clusterService.setNodeConnectionsService(nodeConnectionsService);
 
-        final Discovery discovery;
         injector.getInstance(GatewayService.class).start();
-        discovery = injector.getInstance(Discovery.class);
+        Discovery discovery = injector.getInstance(Discovery.class);
         discovery.setNodeConnectionsService(nodeConnectionsService);
         clusterService.getClusterManagerService().setClusterStatePublisher(discovery);
 
@@ -1802,7 +1797,6 @@ public class Node implements Closeable {
         );
 
         clusterService.addStateApplier(transportService.getTaskManager());
-
         // start after transport service so the local disco is known
         discovery.start(); // start before cluster service so that it can set initial state on ClusterApplierService
         clusterService.start();

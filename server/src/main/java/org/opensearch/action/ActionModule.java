@@ -794,6 +794,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ImportDanglingIndexAction.INSTANCE, TransportImportDanglingIndexAction.class);
         actions.register(DeleteDanglingIndexAction.INSTANCE, TransportDeleteDanglingIndexAction.class);
         actions.register(FindDanglingIndexAction.INSTANCE, TransportFindDanglingIndexAction.class);
+
         // point in time actions
         actions.register(CreatePitAction.INSTANCE, TransportCreatePitAction.class);
         actions.register(DeletePitAction.INSTANCE, TransportDeletePitAction.class);
