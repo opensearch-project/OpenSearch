@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.opensearch.cluster.metadata.DataStreamMetadata;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver.ExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
@@ -158,7 +159,7 @@ public class ClusterModule extends AbstractModule {
         this.allocationDeciders = new AllocationDeciders(deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, getCustomResolvers(clusterPlugins));
         this.allocationService = new AllocationService(
             allocationDeciders,
             shardsAllocator,
@@ -437,6 +438,22 @@ public class ClusterModule extends AbstractModule {
             throw new IllegalArgumentException("Unknown ShardsAllocator [" + allocatorName + "]");
         }
         return Objects.requireNonNull(allocatorSupplier.get(), "ShardsAllocator factory for [" + allocatorName + "] returned null");
+    }
+
+    private static List<ExpressionResolver> getCustomResolvers(
+        List<ClusterPlugin> clusterPlugins) {
+            Map<Class, IndexNameExpressionResolver.ExpressionResolver> resolvers = new HashMap<>();
+            clusterPlugins.stream()
+                .flatMap(c -> c.getIndexNameCustomResolvers().stream())
+                .forEach(r -> addCustomResolver(resolvers, r));
+        return Collections.unmodifiableList(new ArrayList<>(resolvers.values()));
+    }
+ 
+    private static void addCustomResolver(Map<Class, IndexNameExpressionResolver.ExpressionResolver> resolvers,
+                                          IndexNameExpressionResolver.ExpressionResolver customResolver) {
+        if(resolvers.put(customResolver.getClass(), customResolver) != null) {
+            throw new IllegalArgumentException("Cannot specify expression resolver [" + customResolver.getClass().getName() + "] twice");
+        }
     }
 
     public AllocationService getAllocationService() {
