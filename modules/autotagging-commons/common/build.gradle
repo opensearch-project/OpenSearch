@@ -15,6 +15,7 @@ dependencies {
   api 'org.apache.commons:commons-collections4:4.4'
   implementation project(":libs:opensearch-common")
   compileOnly project(":server")
+
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-core'
   }

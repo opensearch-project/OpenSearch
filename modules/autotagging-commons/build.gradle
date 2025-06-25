@@ -15,7 +15,6 @@ opensearchplugin {
 dependencies {
   api project("spi")
   api project("common")
-
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-core'
   }
