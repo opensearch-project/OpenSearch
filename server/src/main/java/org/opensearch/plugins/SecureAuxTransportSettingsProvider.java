@@ -36,7 +36,7 @@ public interface SecureAuxTransportSettingsProvider {
      * Additional params required for configuring ALPN.
      * @return an instance of {@link SecureAuxTransportSettingsProvider.SecureAuxTransportParameters}
      */
-    default Optional<SecureAuxTransportSettingsProvider.SecureAuxTransportParameters> parameters() {
+    default Optional<SecureAuxTransportSettingsProvider.SecureAuxTransportParameters> parameters(AuxTransport transport) {
         return Optional.empty();
     }
 

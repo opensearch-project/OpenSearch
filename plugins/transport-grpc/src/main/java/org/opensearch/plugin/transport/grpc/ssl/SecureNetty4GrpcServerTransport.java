@@ -114,7 +114,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
                 throw new SSLException("Failed to build default SSLContext for " + SecureNetty4GrpcServerTransport.class.getName(), e);
             }
         }
-        SecureAuxTransportSettingsProvider.SecureAuxTransportParameters params = provider.parameters().orElseGet(DefaultParameters::new);
+        SecureAuxTransportSettingsProvider.SecureAuxTransportParameters params = provider.parameters(this).orElseGet(DefaultParameters::new);
         ClientAuth clientAuth = ClientAuth.valueOf(params.clientAuth().orElseThrow().toUpperCase(Locale.ROOT));
         return new JdkSslContext(
             sslContext.get(),
