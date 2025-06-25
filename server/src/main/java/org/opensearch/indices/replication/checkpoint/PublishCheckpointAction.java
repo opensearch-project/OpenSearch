@@ -11,6 +11,7 @@ package org.opensearch.indices.replication.checkpoint;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
@@ -81,6 +82,11 @@ public class PublishCheckpointAction extends AbstractPublishCheckpointAction<Pub
     @Override
     protected Setting<TimeValue> getRetryTimeoutSetting() {
         return PUBLISH_CHECK_POINT_RETRY_TIMEOUT;
+    }
+
+    @Override
+    public ReplicationMode getReplicationMode(IndexShard indexShard) {
+        return super.getReplicationMode(indexShard);
     }
 
     @Override
