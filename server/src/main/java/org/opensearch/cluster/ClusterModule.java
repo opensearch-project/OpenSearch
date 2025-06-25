@@ -474,7 +474,9 @@ public class ClusterModule extends AbstractModule {
         bind(MetadataIndexTemplateService.class).asEagerSingleton();
         bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);
         bind(DelayedAllocationService.class).asEagerSingleton();
-        Class<? extends ShardStateAction> shardStateActionClass = clusterService.getShardStateActionClass();
+        @SuppressWarnings("unchecked")
+        Class<? extends ShardStateAction> shardStateActionClass = (Class<? extends ShardStateAction>) clusterService
+            .getShardStateActionClass();
         if (shardStateActionClass == ShardStateAction.class) {
             bind(ShardStateAction.class).asEagerSingleton();
         } else {
