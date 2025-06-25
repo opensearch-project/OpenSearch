@@ -419,6 +419,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ClusterApplierService clusterApplierService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
+
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
         final Settings settings = indexSettings.getSettings();
@@ -4081,12 +4082,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         if (isRemoteStoreEnabled() || isMigratingToRemote()) {
+
+            final RemoteUploaderService remoteUploaderService = new RemoteUploaderService(
+                this,
+                this.checkpointPublisher,
+                remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId()),
+                remoteStoreSettings
+            );
+
             internalRefreshListener.add(
                 new RemoteStoreRefreshListener(
                     this,
                     this.checkpointPublisher,
                     remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId()),
-                    remoteStoreSettings
+                    remoteStoreSettings,
+                    remoteUploaderService
                 )
             );
         }
