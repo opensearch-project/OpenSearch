@@ -13,7 +13,6 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.action.shard.LocalShardStateAction;
-import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.coordination.ClusterStatePublisher;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -88,7 +87,7 @@ public class LocalClusterService extends ClusterService {
     }
 
     @Override
-    public Class<? extends ShardStateAction> getShardStateActionClass() {
+    public Class<?> getShardStateActionClass() {
         return LocalShardStateAction.class;
     }
 }
