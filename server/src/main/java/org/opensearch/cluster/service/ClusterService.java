@@ -379,7 +379,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     /**
      * @return the class to use to handle shard state actions. Subclasses may provide a different implementation.
      */
-    public Class<? extends ShardStateAction> getShardStateActionClass() {
+    public Class<?> getShardStateActionClass() {
         return ShardStateAction.class;
     }
 }
