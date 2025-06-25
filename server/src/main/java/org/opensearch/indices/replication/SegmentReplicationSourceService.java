@@ -11,6 +11,7 @@ package org.opensearch.indices.replication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.RateLimiter;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
@@ -21,6 +22,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
@@ -35,6 +37,7 @@ import org.opensearch.indices.recovery.MultiChunkTransfer;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
 import org.opensearch.indices.replication.common.ReplicationTimer;
+import org.opensearch.indices.replication.common.SegmentReplicationTransportRequest;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
@@ -46,6 +49,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * Service class that handles segment replication requests from replica shards.
@@ -124,19 +128,11 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         public void messageReceived(CheckpointInfoRequest request, TransportChannel channel, Task task) throws Exception {
             final ReplicationTimer timer = new ReplicationTimer();
             timer.start();
-            final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = new RemoteSegmentFileChunkWriter(
-                request.getReplicationId(),
-                recoverySettings,
-                new RetryableTransportClient(
-                    transportService,
-                    request.getTargetNode(),
-                    recoverySettings.internalActionRetryTimeout(),
-                    logger
-                ),
-                request.getCheckpoint().getShardId(),
+            final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = getRemoteSegmentFileChunkWriter(
                 SegmentReplicationTargetService.Actions.FILE_CHUNK,
-                new AtomicLong(0),
-                (throttleTime) -> {},
+                request,
+                request.getCheckpoint().getShardId(),
+                recoverySettings.internalActionRetryTimeout(),
                 recoverySettings::replicationRateLimiter
             );
             final SegmentReplicationSourceHandler handler = ongoingSegmentReplications.prepareForReplication(
@@ -193,20 +189,12 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 throw new IllegalStateException(String.format(Locale.ROOT, "%s is not a started primary shard", shardId));
             }
 
-            RemoteSegmentFileChunkWriter mergedSegmentFileChunkWriter = new RemoteSegmentFileChunkWriter(
-                request.getReplicationId(),
-                indexShard.getRecoverySettings(),
-                new RetryableTransportClient(
-                    transportService,
-                    request.getTargetNode(),
-                    indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout(),
-                    logger
-                ),
-                request.getCheckpoint().getShardId(),
+            RemoteSegmentFileChunkWriter mergedSegmentFileChunkWriter = getRemoteSegmentFileChunkWriter(
                 SegmentReplicationTargetService.Actions.MERGED_SEGMENT_FILE_CHUNK,
-                new AtomicLong(0),
-                (throttleTime) -> {},
-                indexShard.getRecoverySettings()::mergedSegmentReplicationRateLimiter
+                request,
+                request.getCheckpoint().getShardId(),
+                recoverySettings.getMergedSegmentReplicationTimeout(),
+                recoverySettings::mergedSegmentReplicationRateLimiter
             );
 
             SegmentFileTransferHandler mergedSegmentFileTransferHandler = new SegmentFileTransferHandler(
@@ -239,6 +227,25 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 );
             transfer.start();
         }
+    }
+
+    private RemoteSegmentFileChunkWriter getRemoteSegmentFileChunkWriter(
+        String action,
+        SegmentReplicationTransportRequest request,
+        ShardId shardId,
+        TimeValue retryTimeout,
+        Supplier<RateLimiter> rateLimiterSupplier
+    ) {
+        return new RemoteSegmentFileChunkWriter(
+            request.getReplicationId(),
+            recoverySettings,
+            new RetryableTransportClient(transportService, request.getTargetNode(), retryTimeout, logger),
+            shardId,
+            action,
+            new AtomicLong(0),
+            (throttleTime) -> {},
+            rateLimiterSupplier
+        );
     }
 
     @Override
