@@ -378,6 +378,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
     private final ClusterApplierService clusterApplierService;
+    private final MetadataETagCache metadataETagCache;
 
     @InternalApi
     public IndexShard(
@@ -509,9 +510,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkpointPublisher = checkpointPublisher;
         this.remoteStore = remoteStore;
         this.translogFactorySupplier = translogFactorySupplier;
-        this.isTimeSeriesIndex = (mapperService == null || mapperService.documentMapper() == null)
-            ? false
-            : mapperService.documentMapper().mappers().containsTimeStampField();
+        this.isTimeSeriesIndex = mapperService != null
+            && mapperService.documentMapper() != null
+            && mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
@@ -524,6 +525,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshInterval = refreshInterval;
         this.refreshMutex = Objects.requireNonNull(refreshMutex);
         this.clusterApplierService = clusterApplierService;
+        this.metadataETagCache = new MetadataETagCache();
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
@@ -679,6 +681,101 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public RemoteStoreFileDownloader getFileDownloader() {
         return fileDownloader;
+    }
+
+    /**
+     * Initiates a non-conditional metadata upload to the remote store,
+     * typically after primary promotion to claim/confirm ownership.
+     * This method prepares necessary parameters, clears the local ETag to ensure a
+     * non-conditional upload via the RemoteStoreRefreshListener's uploadMetadata mechanism,
+     * and handles local error conditions for initiating the call. The actual asynchronous
+     * upload and subsequent ETag update on IndexShard are handled by the
+     * RemoteStoreRefreshListener's internal logic.
+     */
+    private void initiateRemoteMetadataUpload() {
+        String previousETag = getMetadataETag();
+
+        try {
+            clearMetadataETag();
+
+            RemoteStoreRefreshListener remoteListener = null;
+            if (!this.internalRefreshListener.isEmpty()) {
+                for (ReferenceManager.RefreshListener listener : this.internalRefreshListener) {
+                    if (listener instanceof RemoteStoreRefreshListener) {
+                        remoteListener = (RemoteStoreRefreshListener) listener;
+                        break;
+                    }
+                }
+            }
+
+            if (remoteListener == null) {
+                if (previousETag != null) {
+                    updateMetadataETag(previousETag);
+                }
+                return; // Cannot proceed without the listener.
+            }
+            // Prepare parameters
+            final Collection<String> localSegments;
+            final SegmentInfos segmentInfosFromSnapshot;
+            final ReplicationCheckpoint replicationCheckpoint;
+            // final Engine currentEngine = getEngine(); // Not strictly needed here if listener sets all userData
+
+            // This try-catch is for parameter preparation.
+            // If it fails, the outer catch (Exception generalException) will handle ETag restoration.
+            try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
+                segmentInfosFromSnapshot = segmentInfosGatedCloseable.get();
+                if (segmentInfosFromSnapshot == null) {
+                    throw new IllegalStateException("SegmentInfos is null during parameter preparation for shard " + shardId());
+                }
+
+                replicationCheckpoint = computeReplicationCheckpoint(segmentInfosFromSnapshot);
+                if (replicationCheckpoint.getPrimaryTerm() != getOperationPrimaryTerm()) {
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT, // Assuming Locale is imported or accessible
+                            "Primary term mismatch for shard %s. Checkpoint term: %d, Operation term: %d",
+                            shardId(),
+                            replicationCheckpoint.getPrimaryTerm(),
+                            getOperationPrimaryTerm()
+                        )
+                    );
+                }
+                localSegments = segmentInfosFromSnapshot.files(true);
+                // No need to update userData for LOCAL_CHECKPOINT_KEY/MAX_SEQ_NO here,
+                // as RemoteStoreRefreshListener.uploadMetadata will clone the passed SegmentInfos
+                // and set these userData fields itself.
+            } catch (Exception paramPrepException) {
+                // Re-throw to be caught by the outer catch block which handles ETag restoration.
+                throw paramPrepException;
+            }
+
+            // Call the RemoteStoreRefreshListener's uploadMetadata method.
+            // This method is synchronous in signature but internally initiates an async operation.
+            remoteListener.uploadMetadata(
+                localSegments,
+                segmentInfosFromSnapshot, // Pass the snapshot; listener will clone and modify userData
+                replicationCheckpoint
+            );
+            // If this call completes without IOException, the async operation was successfully initiated.
+            // IndexShard's ETag remains cleared. The listener's internal mechanism (its ActionListener
+            // for the remoteDirectory.uploadMetadata call) will update IndexShard's ETag upon success.
+
+        } catch (IOException ioeFromListenerUpload) {
+            // This catches IOExceptions from the synchronous part of remoteListener.uploadMetadata
+            // (e.g., null translog gen check inside it before the async call).
+            if (previousETag != null && getMetadataETag() == null) {
+                updateMetadataETag(previousETag);
+            }
+            // Policy: Do not re-throw; allow primary promotion to continue.
+            // The error is logged by the listener's internal mechanisms if necessary.
+        } catch (Exception generalException) {
+            // Catches exceptions from parameter preparation (if rethrown from inner try-catch)
+            // or other unexpected issues during the setup.
+            if (previousETag != null && getMetadataETag() == null) {
+                updateMetadataETag(previousETag);
+            }
+            // Policy: Do not re-throw; allow primary promotion to continue.
+        }
     }
 
     @Override
@@ -859,6 +956,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             engine.translogManager().rollTranslogGeneration();
                             engine.fillSeqNoGaps(newPrimaryTerm);
                             replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
+
+                            // CALL for Remote Metadata Upload
+                            if (indexSettings.isRemoteStoreEnabled() && newRouting.primary()) {
+                                initiateRemoteMetadataUpload();
+                            }
+
                             primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                 @Override
                                 public void onResponse(ResyncTask resyncTask) {
@@ -2863,6 +2966,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private boolean assertReplicationTarget() {
         assert replicationTracker.isPrimaryMode() == false : "shard " + shardRouting + " in primary mode cannot be a replication target";
         return true;
+    }
+
+    /**
+     * Gets the current ETag value for this shard's metadata.
+     * @return the current ETag, or null if not set
+     */
+    @Nullable
+    public String getMetadataETag() {
+        return metadataETagCache.getCurrentETag();
+    }
+
+    /**
+     * Updates the ETag value for this shard's metadata.
+     * @param newETag the new ETag value
+     * @throws IllegalArgumentException if newETag is null or empty
+     */
+    public void updateMetadataETag(String newETag) {
+        metadataETagCache.updateETag(newETag);
+    }
+
+    /**
+     * Clears the current ETag value for this shard's metadata.
+     * This should be called when the ETag becomes invalid, such as during failover.
+     */
+    public void clearMetadataETag() {
+        metadataETagCache.clearETag();
     }
 
     private void verifyNotClosed() throws IllegalIndexShardStateException {
@@ -5170,9 +5299,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded();
         logger.trace("Downloading segments from remote segment store");
         RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();
+        // Create a container to capture the ETag
+        AtomicReference<String> eTagReference = new AtomicReference<>();
+
         // We need to call RemoteSegmentStoreDirectory.init() in order to get latest metadata of the files that
         // are uploaded to the remote segment store.
         RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.init();
+
+        // Update our ETag field with the captured value (if any)
+        if (eTagReference.get() != null) {
+            this.updateMetadataETag(eTagReference.get());
+        }
 
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
             .getSegmentsUploadedToRemoteStore()
@@ -5578,5 +5715,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Visible for testing
     public AsyncShardRefreshTask getRefreshTask() {
         return refreshTask;
+    }
+
+    /**
+     * A cache for metadata ETags.
+     */
+    protected static final class MetadataETagCache {
+        private final AtomicReference<String> cachedETag = new AtomicReference<>(null);
+
+        public String getCurrentETag() {
+            return cachedETag.get();
+        }
+
+        public void updateETag(String newETag) {
+            if (newETag == null || newETag.isEmpty()) {
+                throw new IllegalArgumentException("ETag must not be null or empty");
+            } else {
+                cachedETag.set(newETag);
+            }
+        }
+
+        public void clearETag() {
+            cachedETag.set(null);
+        }
+
     }
 }
