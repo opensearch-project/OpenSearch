@@ -441,7 +441,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
         this.mapperService = mapperService;
         this.indexCache = indexCache;
-        this.internalIndexingStats = new InternalIndexingStats();
+        this.internalIndexingStats = new InternalIndexingStats(threadPool);
         final List<IndexingOperationListener> listenersList = new ArrayList<>(listeners);
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
