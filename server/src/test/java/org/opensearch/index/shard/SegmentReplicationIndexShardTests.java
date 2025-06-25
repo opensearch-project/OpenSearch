@@ -156,6 +156,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
     @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     public void testMergedSegmentReplication() throws Exception {
+        // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 1 replica shard.
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
@@ -185,6 +186,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
     @LockFeatureFlag(MERGED_SEGMENT_WARMER_EXPERIMENTAL_FLAG)
     public void testMergedSegmentReplicationWithZeroReplica() throws Exception {
+        // Test that the pre-copy merged segment logic does not block the merge process of the primary shard when there are 0 replica shard.
         try (ReplicationGroup shards = createGroup(0, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory());) {
             shards.startAll();
             final IndexShard primaryShard = shards.getPrimary();
