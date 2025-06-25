@@ -50,7 +50,8 @@ public class ExactMatchDimFilter implements DimensionFilter {
             starTreeValues.getStarTreeField().getDimensionsOrder()
         );
         this.dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-            searchContext.mapperService().fieldType(dimensionName)
+            searchContext.mapperService().fieldType(dimensionName),
+            searchContext
         );
 
         for (Object rawValue : rawValues) {

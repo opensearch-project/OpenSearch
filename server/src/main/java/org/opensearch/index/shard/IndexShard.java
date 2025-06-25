@@ -85,6 +85,7 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -383,6 +384,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ClusterApplierService clusterApplierService;
     private final MergedSegmentPublisher mergedSegmentPublisher;
 
+    @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,

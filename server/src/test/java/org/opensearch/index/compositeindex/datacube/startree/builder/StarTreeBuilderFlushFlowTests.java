@@ -17,8 +17,12 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.Rounding;
+import org.opensearch.common.time.DateUtils;
 import org.opensearch.index.codec.composite.LuceneDocValuesConsumerFactory;
 import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.DimensionDataType;
 import org.opensearch.index.compositeindex.datacube.IpDimension;
@@ -33,10 +37,15 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfig
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.DimensionConfig;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitAdapter;
+import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.search.aggregations.metrics.CompensatedSum;
 
 import java.io.IOException;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -45,6 +54,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.opensearch.index.compositeindex.datacube.startree.builder.BuilderTestsUtils.getSortedNumericMock;
 import static org.opensearch.index.compositeindex.datacube.startree.builder.BuilderTestsUtils.getSortedSetMock;
@@ -121,11 +132,12 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
                     starTreeDocument.dimensions[0] == null
                         ? starTreeDocument.dimensions[1] * 1 * 10.0
                         : starTreeDocument.dimensions[0] * 10,
-                    starTreeDocument.metrics[0]
+                    ((CompensatedSum) starTreeDocument.metrics[0]).value(),
+                    0
                 );
                 assertEquals(1L, starTreeDocument.metrics[1]);
             } else {
-                assertEquals(150D, starTreeDocument.metrics[0]);
+                assertEquals(150D, ((CompensatedSum) starTreeDocument.metrics[0]).value(), 0);
                 assertEquals(6L, starTreeDocument.metrics[1]);
             }
         }
@@ -161,7 +173,260 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
             starTreeMetadata,
             builder.getStarTreeDocuments()
         );
+    }
 
+    public void testFlushFlowAggregatedDocs() throws IOException {
+        // Create lists to hold the dimension and metric values from the log data
+        List<Long> statusDimList = List.of(
+            200L,
+            200L,
+            200L,
+            404L,
+            404L,
+            404L,
+            500L,
+            500L,
+            500L,
+            301L,
+            301L,
+            301L,
+            200L,
+            404L,
+            500L,
+            503L,
+            503L,
+            503L,
+            200L,
+            404L
+        );
+
+        List<Long> clientIpDimList = List.of(
+            36L,
+            36L,
+            32L,
+            39L,
+            39L,
+            36L,
+            38L,
+            38L,
+            32L,
+            34L,
+            34L,
+            33L,
+            36L,
+            39L,
+            38L,
+            32L,
+            32L,
+            35L,
+            36L,
+            39L
+        );
+
+        List<Long> sizeDimList = List.of(
+            getLongFromDouble(81.0),
+            getLongFromDouble(81.0),
+            getLongFromDouble(81.0),
+            getLongFromDouble(15.0),
+            getLongFromDouble(15.0),
+            getLongFromDouble(15.0),
+            getLongFromDouble(50.0),
+            getLongFromDouble(50.0),
+            getLongFromDouble(50.0),
+            getLongFromDouble(23.0),
+            getLongFromDouble(23.0),
+            getLongFromDouble(23.0),
+            getLongFromDouble(81.0),
+            getLongFromDouble(15.0),
+            getLongFromDouble(50.0),
+            getLongFromDouble(60.0),
+            getLongFromDouble(60.0),
+            getLongFromDouble(60.0),
+            getLongFromDouble(81.0),
+            getLongFromDouble(15.0)
+        );
+
+        List<Long> timestampList = List.of(
+            86400000000L,
+            86500000000L,
+            86600000000L,
+            86700000000L,
+            86800000000L,
+            86900000000L,
+            87000000000L,
+            87100000000L,
+            87200000000L,
+            87300000000L,
+            87400000000L,
+            87500000000L,
+            87600000000L,
+            87700000000L,
+            87800000000L,
+            87900000000L,
+            88000000000L,
+            88100000000L,
+            88200000000L,
+            88300000000L
+        );
+
+        List<Long> statusMetricsList = List.of(
+            getLongFromDouble(200L),
+            getLongFromDouble(200L),
+            getLongFromDouble(200L),
+            getLongFromDouble(404L),
+            getLongFromDouble(404L),
+            getLongFromDouble(404L),
+            getLongFromDouble(500L),
+            getLongFromDouble(500L),
+            getLongFromDouble(500L),
+            getLongFromDouble(301L),
+            getLongFromDouble(301L),
+            getLongFromDouble(301L),
+            getLongFromDouble(200L),
+            getLongFromDouble(404L),
+            getLongFromDouble(500L),
+            getLongFromDouble(503L),
+            getLongFromDouble(503L),
+            getLongFromDouble(503L),
+            getLongFromDouble(200L),
+            getLongFromDouble(404L)
+        );
+
+        List<Integer> docsWithField = IntStream.range(0, 20).boxed().collect(Collectors.toList());
+
+        List<DateTimeUnitRounding> intervals = new ArrayList<>();
+        intervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.DAY_OF_MONTH));
+        intervals.add(new DateTimeUnitAdapter(Rounding.DateTimeUnit.MONTH_OF_YEAR));
+
+        // Setup the star tree field with dimensions and metrics
+        compositeField = new StarTreeField(
+            "sf",
+            List.of(
+                new NumericDimension("field1"),
+                new NumericDimension("field3"),
+                new NumericDimension("field5"),
+                new DateDimension("field7", intervals, DateFieldMapper.Resolution.MILLISECONDS)
+            ),
+            List.of(new Metric("field2", List.of(MetricStat.SUM, MetricStat.VALUE_COUNT, MetricStat.AVG))),
+            new StarTreeFieldConfiguration(1, Set.of("field1"), getBuildMode())
+        );
+
+        // Create document value iterators
+        SortedNumericStarTreeValuesIterator statusIter = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(statusDimList, docsWithField)
+        );
+        SortedNumericStarTreeValuesIterator clientIpIter = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(clientIpDimList, docsWithField)
+        );
+        SortedNumericStarTreeValuesIterator sizeIter = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(sizeDimList, docsWithField)
+        );
+        SortedNumericStarTreeValuesIterator timestampIter = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(timestampList, docsWithField)
+        );
+
+        SortedNumericStarTreeValuesIterator statusMetricsList1 = new SortedNumericStarTreeValuesIterator(
+            getSortedNumericMock(statusMetricsList, docsWithField)
+        );
+
+        // Initialize builder
+        writeState = getWriteState(20, writeState.segmentInfo.getId());
+        builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
+
+        // Process documents
+        SequentialDocValuesIterator[] dimDvs = {
+            new SequentialDocValuesIterator(statusIter),
+            new SequentialDocValuesIterator(clientIpIter),
+            new SequentialDocValuesIterator(sizeIter),
+            new SequentialDocValuesIterator(timestampIter) };
+
+        Iterator<StarTreeDocument> starTreeDocumentIterator = builder.sortAndAggregateSegmentDocuments(
+            dimDvs,
+            List.of(new SequentialDocValuesIterator(statusMetricsList1))
+        );
+
+        // Build star tree
+        this.docValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
+            writeState,
+            4096,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
+            Composite912DocValuesFormat.META_DOC_VALUES_CODEC,
+            Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION
+        );
+
+        builder.build(starTreeDocumentIterator, new AtomicInteger(), docValuesConsumer);
+
+        // Validate results
+        List<StarTreeDocument> starTreeDocuments = builder.getStarTreeDocuments();
+
+        StarTreeDocument rootDoc = starTreeDocuments.getLast();
+        assertNull(rootDoc.dimensions[0]);
+        assertNull(rootDoc.dimensions[1]);
+        assertNull(rootDoc.dimensions[2]);
+        assertNull(rootDoc.dimensions[3]);
+        assertEquals(7432.0, ((CompensatedSum) rootDoc.metrics[0]).value(), 0);
+        assertEquals(59, starTreeDocuments.size());
+
+        // Assert all documents by formulating the matching docs based on the value of resultant documents
+        // For example : [200, null, 4635400285215260672, null, null] | [1000.0 0.0]
+        // We will filter documents that match status = 200 and size = 4635400285215260672 and perform sum in java
+        // and match against the resultant metric
+        for (StarTreeDocument doc : starTreeDocuments) {
+            List<Integer> matchingIndices = IntStream.range(0, statusDimList.size()).boxed().collect(Collectors.toList());
+
+            // Filter by status if not null
+            if (doc.dimensions[0] != null) {
+                matchingIndices.removeIf(i -> !statusDimList.get(i).equals(doc.dimensions[0]));
+            }
+
+            // Filter by clientip if not null
+            if (doc.dimensions[1] != null) {
+                matchingIndices.removeIf(i -> !clientIpDimList.get(i).equals(doc.dimensions[1]));
+            }
+
+            // Filter by size if not null
+            if (doc.dimensions[2] != null) {
+                matchingIndices.removeIf(i -> !sizeDimList.get(i).equals(doc.dimensions[2]));
+            }
+
+            // Filter by timestamp day if not null
+            if (doc.dimensions[3] != null) {
+                matchingIndices.removeIf(i -> {
+                    long timestamp = timestampList.get(i);
+                    long dayRoundedTimestamp = DateUtils.roundFloor(
+                        timestamp,
+                        ChronoField.DAY_OF_MONTH.getBaseUnit().getDuration().toMillis()
+                    );
+
+                    // Match if either day or month rounding matches
+                    return doc.dimensions[3] != dayRoundedTimestamp;
+                });
+            }
+
+            // Filter by timestamp month if not null
+            if (doc.dimensions[4] != null) {
+                matchingIndices.removeIf(i -> {
+                    long timestamp = timestampList.get(i);
+                    long monthRoundedTimestamp = DateUtils.roundMonthOfYear(timestamp);
+
+                    // Match if either day or month rounding matches
+                    return monthRoundedTimestamp != doc.dimensions[4];
+                });
+            }
+            double expectedSum = matchingIndices.stream()
+                .mapToDouble(i -> NumericUtils.sortableLongToDouble(statusMetricsList.get(i)))
+                .sum();
+            // Assert
+            assertEquals(expectedSum, ((CompensatedSum) (doc.metrics[0])).value(), 0);
+            assertEquals(matchingIndices.size(), (long) (doc.metrics[1]));
+        }
+
+        validateStarTree(builder.getRootNode(), 5, 1, builder.getStarTreeDocuments());
+
+        metaOut.close();
+        dataOut.close();
+        docValuesConsumer.close();
     }
 
     public void testFlushFlowDimsReverse() throws IOException {
@@ -226,7 +491,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
                 if (starTreeDocument.dimensions[0] != null) {
                     assertEquals(count, (long) starTreeDocument.dimensions[0]);
                 }
-                assertEquals(starTreeDocument.dimensions[1] * 10.0, starTreeDocument.metrics[0]);
+                assertEquals(starTreeDocument.dimensions[1] * 10.0, ((CompensatedSum) starTreeDocument.metrics[0]).value(), 0);
                 assertEquals(1L, starTreeDocument.metrics[1]);
             }
         }
@@ -333,7 +598,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         int count = 0;
         for (StarTreeDocument starTreeDocument : starTreeDocuments) {
             if (count < 6) {
-                assertEquals(expectedSumMetrics[count], starTreeDocument.metrics[0]);
+                assertEquals(expectedSumMetrics[count], ((CompensatedSum) starTreeDocument.metrics[0]).value(), 0);
                 assertEquals(expectedCountMetric, starTreeDocument.metrics[1]);
 
                 Long dim1 = starTreeDocument.dimensions[0];
@@ -446,7 +711,8 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         for (StarTreeDocument starTreeDocument : starTreeDocuments) {
             assertEquals(
                 starTreeDocument.dimensions[1] != null ? starTreeDocument.dimensions[1] * 10.0 : 49500.0,
-                starTreeDocument.metrics[0]
+                ((CompensatedSum) starTreeDocument.metrics[0]).value(),
+                0
             );
         }
         validateStarTree(builder.getRootNode(), 2, 1, builder.getStarTreeDocuments());
@@ -525,7 +791,7 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
         while (starTreeDocumentIterator.hasNext()) {
             count++;
             StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
-            assertEquals(starTreeDocument.dimensions[3] * 1 * 10.0, starTreeDocument.metrics[1]);
+            assertEquals(starTreeDocument.dimensions[3] * 1 * 10.0, ((CompensatedSum) starTreeDocument.metrics[1]).value(), 0);
             assertEquals(1L, starTreeDocument.metrics[0]);
         }
         assertEquals(6, count);
@@ -600,11 +866,12 @@ public class StarTreeBuilderFlushFlowTests extends StarTreeBuilderTestCase {
                     starTreeDocument.dimensions[0] == null
                         ? starTreeDocument.dimensions[1] * 1 * 10.0
                         : starTreeDocument.dimensions[0] * 10,
-                    starTreeDocument.metrics[0]
+                    ((CompensatedSum) starTreeDocument.metrics[0]).value(),
+                    0
                 );
                 assertEquals(1L, starTreeDocument.metrics[1]);
             } else {
-                assertEquals(150D, starTreeDocument.metrics[0]);
+                assertEquals(150D, ((CompensatedSum) starTreeDocument.metrics[0]).value(), 0);
                 assertEquals(6L, starTreeDocument.metrics[1]);
             }
         }

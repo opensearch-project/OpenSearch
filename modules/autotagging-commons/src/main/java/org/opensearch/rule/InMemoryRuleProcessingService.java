@@ -10,7 +10,6 @@ package org.opensearch.rule;
 
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
-import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.storage.AttributeValueStore;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
@@ -20,7 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 /**
  * This class is responsible for managing in-memory view of Rules and Find matching Rule for the request
@@ -29,18 +27,18 @@ import java.util.function.Supplier;
  */
 public class InMemoryRuleProcessingService {
 
+    /**
+     * Wildcard character which will be removed as we only support prefix based search rather than pattern match based
+     */
+    public static final String WILDCARD = "*";
     private final AttributeValueStoreFactory attributeValueStoreFactory;
 
     /**
-     *  Constrcutor
-     * @param featureType
-     * @param attributeValueStoreSupplier
+     *  Constructor
+     * @param attributeValueStoreFactory
      */
-    public InMemoryRuleProcessingService(
-        FeatureType featureType,
-        Supplier<AttributeValueStore<String, String>> attributeValueStoreSupplier
-    ) {
-        attributeValueStoreFactory = new AttributeValueStoreFactory(featureType, attributeValueStoreSupplier);
+    public InMemoryRuleProcessingService(AttributeValueStoreFactory attributeValueStoreFactory) {
+        this.attributeValueStoreFactory = attributeValueStoreFactory;
     }
 
     /**
@@ -75,7 +73,7 @@ public class InMemoryRuleProcessingService {
     private void addOperation(Map.Entry<Attribute, Set<String>> attributeEntry, Rule rule) {
         AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
         for (String value : attributeEntry.getValue()) {
-            valueStore.put(value, rule.getFeatureValue());
+            valueStore.put(value.replace(WILDCARD, ""), rule.getFeatureValue());
         }
     }
 
