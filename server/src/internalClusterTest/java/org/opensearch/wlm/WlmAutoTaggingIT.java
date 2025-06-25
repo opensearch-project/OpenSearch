@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rule;
+package org.opensearch.wlm;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -16,6 +16,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.rule.RuleFrameworkPlugin;
 import org.opensearch.rule.action.CreateRuleAction;
 import org.opensearch.rule.action.CreateRuleRequest;
 import org.opensearch.rule.action.CreateRuleResponse;
@@ -33,9 +34,9 @@ import java.util.Set;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 
-public class AutoTaggingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public AutoTaggingIT(Settings nodeSettings) {
+    public WlmAutoTaggingIT(Settings nodeSettings) {
         super(nodeSettings);
     }
 
@@ -49,7 +50,7 @@ public class AutoTaggingIT extends ParameterizedStaticSettingsOpenSearchIntegTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(RuleFrameworkPlugin.class, WorkloadManagementPlugin.class);
+        return List.of(WorkloadManagementPlugin.class, RuleFrameworkPlugin.class);
     }
 
     public void testAutoTaggingIntegration() throws Exception {
