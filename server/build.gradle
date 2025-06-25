@@ -39,6 +39,8 @@ plugins {
   id('me.champeau.gradle.japicmp') version '0.4.6'
 }
 
+apply from: "$rootDir/gradle/fips.gradle"
+
 publishing {
   publications {
     nebula(MavenPublication) {
@@ -122,6 +124,7 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
   }
+  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -341,7 +344,8 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
-            'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
+            'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
+            'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException'
     )
 }
 
@@ -391,7 +395,7 @@ tasks.named("sourcesJar").configure {
 tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     logger.info("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
     // See please https://github.com/siom79/japicmp/issues/201
-    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT" ]
+    compatibilityChangeExcludes = [ "METHOD_ABSTRACT_NOW_DEFAULT", "METHOD_ADDED_TO_INTERFACE" ]
     oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
     newClasspath.from(tasks.named('jar'))
     onlyModified = true
@@ -400,6 +404,21 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     failOnSourceIncompatibility = true
     annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
     annotationExcludes = ['@org.opensearch.common.annotation.InternalApi']
+    // Already broken APIs, excluding them for now
+    classExcludes = [
+        "org.opensearch.action.DocWriteRequest",
+        "org.opensearch.cluster.ClusterInfo",
+        "org.opensearch.cluster.service.PendingClusterTask",
+        "org.opensearch.index.IndexService",
+        "org.opensearch.indices.IndicesService",
+        "org.opensearch.index.IndexModule",
+        "org.opensearch.index.store.remote.filecache.FileCacheStats",
+        "org.opensearch.index.store.remote.filecache.FileCache",
+        "org.opensearch.index.store.remote.utils.cache.CacheUsage",
+        "org.opensearch.index.store.remote.utils.cache.stats.CacheStats",
+        "org.opensearch.index.query.QueryCoordinatorContext",
+        "org.opensearch.index.shard.IndexShard"
+    ]
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
     htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
     dependsOn downloadJapicmpCompareTarget

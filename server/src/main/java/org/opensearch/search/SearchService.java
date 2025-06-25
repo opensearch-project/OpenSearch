@@ -1557,9 +1557,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.setProfilers(new Profilers(context.searcher(), context.shouldUseConcurrentSearch()));
         }
 
-        if (this.indicesService.getCompositeIndexSettings() != null
-            && this.indicesService.getCompositeIndexSettings().isStarTreeIndexCreationEnabled()
-            && StarTreeQueryHelper.isStarTreeSupported(context)) {
+        if (context.getStarTreeIndexEnabled() && StarTreeQueryHelper.isStarTreeSupported(context)) {
             StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(context, source.query());
             boolean consolidated = starTreeQueryContext.consolidateAllFilters(context);
             if (consolidated) {
@@ -1783,17 +1781,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
+     * Returns a new {@link QueryCoordinatorContext} with the given {@code now} provider and {@link IndicesRequest searchRequest}
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest searchRequest) {
         return new QueryCoordinatorContext(indicesService.getRewriteContext(nowInMillis), searchRequest);
     }
 
     /**
-     * Returns a new {@link QueryRewriteContext} for query validation with the given {@code now} provider
+     * Returns a new {@link QueryCoordinatorContext} with the given {@code now} provider and {@link IndicesRequest searchRequest}
      */
-    public QueryRewriteContext getValidationRewriteContext(LongSupplier nowInMillis) {
-        return indicesService.getValidationRewriteContext(nowInMillis);
+    public QueryRewriteContext getValidationRewriteContext(LongSupplier nowInMillis, IndicesRequest searchRequest) {
+        return new QueryCoordinatorContext(indicesService.getValidationRewriteContext(nowInMillis), searchRequest);
     }
 
     public IndicesService getIndicesService() {

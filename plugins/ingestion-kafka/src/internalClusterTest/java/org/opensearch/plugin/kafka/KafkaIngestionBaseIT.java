@@ -15,6 +15,7 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
 import org.opensearch.action.pagination.PageParams;
@@ -176,6 +177,15 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
         return client().admin().indices().resumeIngestion(Requests.resumeIngestionRequest(indexName)).get();
     }
 
+    protected ResumeIngestionResponse resumeIngestion(
+        String index,
+        int shard,
+        ResumeIngestionRequest.ResetSettings.ResetMode mode,
+        String value
+    ) throws ExecutionException, InterruptedException {
+        return client().admin().indices().resumeIngestion(Requests.resumeIngestionRequest(index, shard, mode, value)).get();
+    }
+
     protected void createIndexWithDefaultSettings(int numShards, int numReplicas) {
         createIndexWithDefaultSettings(indexName, numShards, numReplicas, 1);
     }
@@ -203,5 +213,13 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
     protected void recreateKafkaTopics(int numKafkaPartitions) {
         cleanup();
         setupKafka(numKafkaPartitions);
+    }
+
+    protected void setWriteBlock(String indexName, boolean isWriteBlockEnabled) {
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.blocks.write", isWriteBlockEnabled))
+            .get();
     }
 }

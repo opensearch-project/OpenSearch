@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.shiro;
 
+import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.NamedPrincipal;
@@ -15,7 +16,6 @@ import org.opensearch.identity.PluginSubject;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.security.Principal;
-import java.util.concurrent.Callable;
 
 /**
  * Implementation of subject that is always authenticated
@@ -41,9 +41,9 @@ public class ShiroPluginSubject implements PluginSubject {
     }
 
     @Override
-    public <T> T runAs(Callable<T> callable) throws Exception {
+    public <E extends Exception> void runAs(CheckedRunnable<E> r) throws E {
         try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
-            return callable.call();
+            r.run();
         }
     }
 }

@@ -69,7 +69,10 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats.FileCacheStatsType;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.snapshots.InternalSnapshotsInfoService.SnapshotShard;
@@ -94,7 +97,6 @@ import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
-import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -301,10 +303,38 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
         shardSizes.put("[test][0][r]", 10L);
 
-        Map<String, FileCacheStats> fileCacheStatsMap = new HashMap<>();
-        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node3", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
+        Map<String, AggregateFileCacheStats> fileCacheStatsMap = new HashMap<>();
+        fileCacheStatsMap.put(
+            "node1",
+            new AggregateFileCacheStats(
+                0,
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                new FileCacheStats(0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
+            )
+        );
+        fileCacheStatsMap.put(
+            "node2",
+            new AggregateFileCacheStats(
+                0,
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                new FileCacheStats(0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
+            )
+        );
+        fileCacheStatsMap.put(
+            "node3",
+            new AggregateFileCacheStats(
+                0,
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.OVER_ALL_STATS),
+                new FileCacheStats(0, 0, 0, 0, 0, 0, 0, FileCacheStatsType.FULL_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.BLOCK_FILE_STATS),
+                new FileCacheStats(0, 0, 1000, 0, 0, 0, 0, FileCacheStatsType.PINNED_FILE_STATS)
+
+            )
+        );
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -374,100 +404,6 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(0));
-    }
-
-    public void testFileCacheRemoteShardsDecisions() {
-        Settings diskSettings = Settings.builder()
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
-            .put(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
-            .build();
-
-        // We have an index with 2 primary shards each taking 40 bytes. Each node has 100 bytes available
-        final Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 20)); // 80% used
-        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 100)); // 0% used
-
-        final Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 40L);
-        shardSizes.put("[test][1][p]", 40L);
-        shardSizes.put("[foo][0][p]", 10L);
-
-        // First node has filecache size as 0, second has 1000, greater than the shard sizes.
-        Map<String, FileCacheStats> fileCacheStatsMap = new HashMap<>();
-        fileCacheStatsMap.put("node1", new FileCacheStats(0, 0, 0, 0, 0, 0, 0));
-        fileCacheStatsMap.put("node2", new FileCacheStats(0, 0, 1000, 0, 0, 0, 0));
-
-        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, fileCacheStatsMap);
-
-        Set<DiscoveryNodeRole> defaultWithWarmRole = new HashSet<>(CLUSTER_MANAGER_DATA_ROLES);
-        defaultWithWarmRole.add(DiscoveryNodeRole.WARM_ROLE);
-
-        DiskThresholdDecider diskThresholdDecider = makeDecider(diskSettings);
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(remoteIndexSettings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
-            .build();
-
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
-
-        DiscoveryNode discoveryNode1 = new DiscoveryNode(
-            "node1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            defaultWithWarmRole,
-            Version.CURRENT
-        );
-        DiscoveryNode discoveryNode2 = new DiscoveryNode(
-            "node2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            defaultWithWarmRole,
-            Version.CURRENT
-        );
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build();
-
-        ClusterState baseClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(initialRoutingTable)
-            .nodes(discoveryNodes)
-            .build();
-
-        // Two shards consuming each 80% of disk space while 70% is allowed, so shard 0 isn't allowed here
-        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
-        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", null, true, ShardRoutingState.STARTED);
-        RoutingNode firstRoutingNode = new RoutingNode("node1", discoveryNode1, firstRouting, secondRouting);
-        RoutingNode secondRoutingNode = new RoutingNode("node2", discoveryNode2);
-
-        RoutingTable.Builder builder = RoutingTable.builder()
-            .add(
-                IndexRoutingTable.builder(firstRouting.index())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting).build())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting).build())
-            );
-        ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
-        RoutingAllocation routingAllocation = new RoutingAllocation(
-            null,
-            new RoutingNodes(clusterState),
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
-        routingAllocation.debugDecision(true);
-        Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
-        assertThat(decision.type(), equalTo(Decision.Type.YES));
-
-        decision = diskThresholdDecider.canAllocate(firstRouting, firstRoutingNode, routingAllocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-
-        assertThat(
-            ((Decision.Single) decision).getExplanation(),
-            containsString("file cache limit reached - remote shard size will exceed configured safeguard ratio")
-        );
-
-        decision = diskThresholdDecider.canAllocate(firstRouting, secondRoutingNode, routingAllocation);
-        assertThat(decision.type(), equalTo(Decision.Type.YES));
     }
 
     public void testDiskThresholdWithAbsoluteSizes() {
@@ -1037,6 +973,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
                 new DevNullClusterInfo(
                     usages,
                     usages,
+                    null,
                     shardSizes,
                     Map.of(
                         new ClusterInfo.NodeAndPath("node1", "/dev/null"),
@@ -1365,7 +1302,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
 
     public void testWatermarksEnabledForSingleDataNode() {
         Settings diskSettings = Settings.builder()
-            .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true)
+            .put(DiskThresholdSettings.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
@@ -1634,26 +1571,35 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
             final Map<String, Long> shardSizes
         ) {
-            this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of());
+            this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, null, shardSizes, Map.of(), Map.of());
         }
 
         DevNullClusterInfo(
             final Map<String, DiskUsage> leastAvailableSpaceUsage,
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
             final Map<String, Long> shardSizes,
-            final Map<String, FileCacheStats> nodeFileCacheStats
+            final Map<String, AggregateFileCacheStats> nodeFileCacheStats
         ) {
-            this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), nodeFileCacheStats);
+            this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, null, shardSizes, Map.of(), nodeFileCacheStats);
         }
 
         DevNullClusterInfo(
             final Map<String, DiskUsage> leastAvailableSpaceUsage,
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
+            final Map<String, NodeResourceUsageStats> nodeResourceUsages,
             final Map<String, Long> shardSizes,
             Map<NodeAndPath, ReservedSpace> reservedSpace,
-            final Map<String, FileCacheStats> nodeFileCacheStats
+            final Map<String, AggregateFileCacheStats> nodeFileCacheStats
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace, nodeFileCacheStats);
+            super(
+                leastAvailableSpaceUsage,
+                mostAvailableSpaceUsage,
+                shardSizes,
+                null,
+                reservedSpace,
+                nodeFileCacheStats,
+                nodeResourceUsages
+            );
         }
 
         @Override

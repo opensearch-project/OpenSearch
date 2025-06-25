@@ -518,25 +518,48 @@ Example:
 
 # Test coverage analysis
 
-The code coverage report can be generated through Gradle with [JaCoCo plugin](https://docs.gradle.org/current/userguide/jacoco_plugin.html).
+The code coverage report can be generated through Gradle with [JaCoCo plugin](https://docs.gradle.org/current/userguide/jacoco_plugin.html). Following are some of the ways to generate the code coverage reports locally.
 
 For unit test:
 
-    ./gradlew codeCoverageReportForUnitTest
+    ./gradlew test
+    ./gradlew jacocoTestReport
+
+For unit test inside a specific module:
+
+    ./gradlew :server:test
+    ./gradlew :server:jacocoTestReport
+
+For specific unit test inside a specific module:
+
+    ./gradlew :server:test --tests "org.opensearch.search.approximate.ApproximatePointRangeQueryTests.testNycTaxiDataDistribution"
+    ./gradlew :server:jacocoTestReport -Dtests.coverage.report.html=true
 
 For integration test:
 
-    ./gradlew codeCoverageReportForIntegrationTest
+    ./gradlew internalClusterTest
+    ./gradlew jacocoTestReport
 
-For the combined tests (unit and integration):
+For integration test inside a specific module:
 
-    ./gradlew codeCoverageReport
+    ./gradlew :server:internalClusterTest
+    ./gradlew :server:jacocoTestReport
+
+For specific integration test inside a specific module:
+
+    ./gradlew :server:internalClusterTest --tests "org.opensearch.action.admin.ClientTimeoutIT.testNodesInfoTimeout"
+    ./gradlew :server:jacocoTestReport
+
+For modules with javaRestTest:
+
+    ./gradlew :qa:die-with-dignity:javaRestTest
+    ./gradlew :qa:die-with-dignity:jacocoTestReport -Dtests.coverage.report.html=true
 
 To generate coverage report for the combined tests after `check` task:
 
     ./gradlew check -Dtests.coverage=true
 
-The code coverage report will be generated in `build/codeCoverageReport`, `build/codeCoverageReportForUnitTest` or `build/codeCoverageReportForIntegrationTest` correspondingly.
+The code coverage report will be generated in `$buildDir/build/reports/jacoco/test/html/`.
 
 The report will be in XML format only by default, but you can add the following parameter for HTML and CSV format.
 
@@ -546,7 +569,7 @@ The report will be in XML format only by default, but you can add the following 
 
 For example, to generate code coverage report in HTML format and not in XML format:
 
-    ./gradlew codeCoverageReport -Dtests.coverage.report.html=true -Dtests.coverage.report.xml=false
+    ./gradlew internalClusterTest -Dtests.coverage.report.html=true -Dtests.coverage.report.xml=false
 
 Apart from using Gradle, it is also possible to gain insight in code coverage using IntelliJ’s built-in coverage analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able to do the same using the EclEmma plugin.
 

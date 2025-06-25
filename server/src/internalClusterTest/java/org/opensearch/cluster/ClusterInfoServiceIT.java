@@ -51,9 +51,11 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndexDescriptor;
+import org.opensearch.node.NodeResourceUsageStats;
+import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
@@ -147,8 +149,12 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testClusterInfoServiceCollectsInformation() {
-        internalCluster().startNodes(2);
+    public void testClusterInfoServiceCollectsInformation() throws InterruptedException {
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+
+        internalCluster().startNodes(2, settingsBuilder.build());
 
         final String indexName = randomBoolean() ? randomAlphaOfLength(5).toLowerCase(Locale.ROOT) : TEST_SYSTEM_INDEX_NAME;
         assertAcked(
@@ -171,11 +177,14 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
             internalTestCluster.getClusterManagerName()
         );
         infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
+        Thread.sleep(1000);
         ClusterInfo info = infoService.refresh();
         assertNotNull("info should not be null", info);
         final Map<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
         final Map<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
+        final Map<String, NodeResourceUsageStats> nodeUsages = info.getNodeResourceUsageStats();
         final Map<String, Long> shardSizes = info.shardSizes;
+        assertNotNull(nodeUsages);
         assertNotNull(leastUsages);
         assertNotNull(shardSizes);
         assertThat("some usages are populated", leastUsages.values().size(), Matchers.equalTo(2));
@@ -188,12 +197,17 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
             logger.info("--> usage: {}", usage);
             assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
         }
+        for (NodeResourceUsageStats usage : nodeUsages.values()) {
+            logger.info("--> usage: {}", usage);
+            assertThat("memoryUtilization has retrieved", usage.getMemoryUtilizationPercent(), greaterThanOrEqualTo(0.0));
+            assertThat("cpuUtilization has retrieved", usage.getCpuUtilizationPercent(), greaterThan(0.0));
+        }
         for (Long size : shardSizes.values()) {
             logger.info("--> shard size: {}", size);
             assertThat("shard size is greater than 0", size, greaterThanOrEqualTo(0L));
         }
 
-        final Map<String, FileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
+        final Map<String, AggregateFileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
         assertNotNull(nodeFileCacheStats);
         assertThat("file cache is empty on non warm nodes", nodeFileCacheStats.size(), Matchers.equalTo(0));
 
@@ -227,20 +241,54 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
         ClusterInfo info = infoService.refresh();
         assertNotNull("info should not be null", info);
-        final Map<String, FileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
+        final Map<String, AggregateFileCacheStats> nodeFileCacheStats = info.nodeFileCacheStats;
         assertNotNull(nodeFileCacheStats);
         assertThat("file cache is enabled on both warm nodes", nodeFileCacheStats.size(), Matchers.equalTo(2));
 
-        for (FileCacheStats fileCacheStats : nodeFileCacheStats.values()) {
-            assertThat("file cache is non empty", fileCacheStats.getTotal().getBytes(), greaterThan(0L));
+        for (AggregateFileCacheStats aggregateFileCacheStats : nodeFileCacheStats.values()) {
+            assertThat("file cache is non empty", aggregateFileCacheStats.getTotal().getBytes(), greaterThan(0L));
         }
     }
 
-    public void testClusterInfoServiceInformationClearOnError() {
+    public void testClusterInfoServiceCollectsNodeResourceStatsInformation() throws InterruptedException {
+
+        // setting time window as ResourceUsageTracker needs atleast both of these to be ready to start collecting the
+        // moving average
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(5000))
+            .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+
+        internalCluster().startClusterManagerOnlyNode(settingsBuilder.build());
+        internalCluster().startWarmOnlyNodes(1, settingsBuilder.build());
+        internalCluster().startDataOnlyNodes(1, settingsBuilder.build());
+
+        InternalTestCluster internalTestCluster = internalCluster();
+        // Get the cluster info service on the cluster-manager node
+        final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
+            ClusterInfoService.class,
+            internalTestCluster.getClusterManagerName()
+        );
+        infoService.setUpdateFrequency(TimeValue.timeValueMillis(100));
+        // sleep for 6 seconds for ResourceUsageCollector to collect enough stats
+        Thread.sleep(6000);
+        ClusterInfo info = infoService.refresh();
+        assertNotNull("info should not be null", info);
+        final Map<String, NodeResourceUsageStats> nodeResourceUsageStats = info.getNodeResourceUsageStats();
+        assertNotNull(nodeResourceUsageStats);
+        assertEquals(2, nodeResourceUsageStats.size());
+    }
+
+    public void testClusterInfoServiceInformationClearOnError() throws InterruptedException {
         internalCluster().startNodes(
             2,
             // manually control publishing
-            Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build()
+            Settings.builder()
+                .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m")
+                .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
+                .put(ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(5000))
+                .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
+                .build()
         );
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
@@ -286,6 +334,8 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         setClusterInfoTimeout("1s");
         // timeouts shouldn't clear the info
         timeout.set(true);
+        // delay of 6 seconds as NodeResourceUsageTracker needs atleast 5 seconds to start populating stats
+        Thread.sleep(6000);
         info = infoService.refresh();
         assertNotNull("info should not be null", info);
         // node info will time out both on the request level on the count down latch. this means
@@ -293,6 +343,8 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         // node.
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), greaterThanOrEqualTo(1));
         assertThat(info.getNodeMostAvailableDiskUsages().size(), greaterThanOrEqualTo(1));
+
+        assertThat(info.getNodeResourceUsageStats().size(), greaterThanOrEqualTo(0));
         // indices is guaranteed to time out on the latch, not updating anything.
         assertThat(info.shardSizes.size(), greaterThan(1));
 
@@ -313,6 +365,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         assertNotNull("info should not be null", info);
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(0));
         assertThat(info.getNodeMostAvailableDiskUsages().size(), equalTo(0));
+        assertThat(info.getNodeResourceUsageStats().size(), equalTo(0));
         assertThat(info.shardSizes.size(), equalTo(0));
         assertThat(info.reservedSpace.size(), equalTo(0));
 
@@ -323,6 +376,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         assertNotNull("info should not be null", info);
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(2));
         assertThat(info.getNodeMostAvailableDiskUsages().size(), equalTo(2));
+        assertThat(info.getNodeResourceUsageStats().size(), equalTo(2));
         assertThat(info.shardSizes.size(), greaterThan(0));
 
         RoutingTable routingTable = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState().routingTable();

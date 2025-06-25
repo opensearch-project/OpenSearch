@@ -113,6 +113,7 @@ import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.fips.FipsMode;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -298,8 +299,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     public static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
-
-    public static final String FIPS_SYSPROP = "tests.fips.enabled";
 
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -1338,6 +1337,14 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return builder;
     }
 
+    public static Settings.Builder warmIndexSettings(Version version) {
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
+        return builder;
+    }
+
     /**
      * Returns size random values
      */
@@ -1804,7 +1811,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        return FipsMode.CHECK.isFipsEnabled();
     }
 
     /**

@@ -19,7 +19,7 @@ repositories {
 
 allprojects {
   plugins.withId('jacoco') {
-    jacoco.toolVersion = '0.8.12'
+    jacoco.toolVersion = '0.8.13'
   }
 }
 
@@ -34,17 +34,54 @@ tasks.withType(JacocoReport).configureEach {
   }
 }
 
+// Enhance jacocoTestReport task to include all test types
+allprojects {
+  plugins.withId('jacoco') {
+    tasks.matching { it.name == 'jacocoTestReport' }.configureEach {
+      def executionDataFiles = []
+      def sourceSetsList = []
+      if (tasks.findByName('test')) {
+        executionDataFiles.add("$buildDir/jacoco/test.exec")
+        sourceSetsList.add(sourceSets.test)
+      }
+      if (tasks.findByName('internalClusterTest')) {
+        executionDataFiles.add("$buildDir/jacoco/internalClusterTest.exec")
+        sourceSetsList.add(sourceSets.internalClusterTest)
+      }
+      if (tasks.findByName('javaRestTest')) {
+        executionDataFiles.add("$buildDir/jacoco/javaRestTest.exec")
+        sourceSetsList.add(sourceSets.javaRestTest)
+      }
+      if (!executionDataFiles.isEmpty()) {
+        executionData.setFrom(files(executionDataFiles).filter { it.exists() })
+        sourceSets(*sourceSetsList)
+      }
+      onlyIf {
+        file("$buildDir/jacoco/test.exec").exists() ||
+          file("$buildDir/jacoco/internalClusterTest.exec").exists() ||
+          file("$buildDir/jacoco/javaRestTest.exec").exists()
+      }
+    }
+  }
+}
+
 if (System.getProperty("tests.coverage")) {
   reporting {
     reports {
       testCodeCoverageReport(JacocoCoverageReport) {
         testSuiteName = "test"
       }
+      testCodeCoverageReportJavaRestTest(JacocoCoverageReport) {
+        testSuiteName = "javaRestTest"
+      }
     }
   }
 
   // Attach code coverage report task to Gradle check task
   project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure {
-    dependsOn tasks.named('testCodeCoverageReport', JacocoReport)
+    dependsOn(
+      tasks.named('testCodeCoverageReport', JacocoReport),
+      tasks.named('testCodeCoverageReportJavaRestTest', JacocoReport)
+    )
   }
 }

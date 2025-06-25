@@ -30,6 +30,14 @@ if not defined OPENSEARCH_PATH_CONF (
 rem now make OPENSEARCH_PATH_CONF absolute
 for %%I in ("%OPENSEARCH_PATH_CONF%..") do set OPENSEARCH_PATH_CONF=%%~dpfI
 
+rem Check if any bc-fips jar exists on classpath
+rem run in FIPS JVM if jar is found
+set "FOUND_BC_FIPS="
+if exist "%OPENSEARCH_HOME%\lib\bc-fips*.jar" (
+    echo BouncyCastle FIPS library found, setting FIPS JVM options.
+    set OPENSEARCH_JAVA_OPTS=-Dorg.bouncycastle.fips.approved_only=true -Djava.security.properties="%OPENSEARCH_PATH_CONF%\fips_java.security" %OPENSEARCH_JAVA_OPTS%
+)
+
 set OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}
 set OPENSEARCH_BUNDLED_JDK=${opensearch.bundled_jdk}
 
