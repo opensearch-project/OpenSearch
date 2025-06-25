@@ -126,7 +126,7 @@ public class SecureSettingsHelpers {
             }
 
             @Override
-            public Optional<SecureAuxTransportParameters> parameters() {
+            public Optional<SecureAuxTransportParameters> parameters(AuxTransport transport) {
                 return Optional.of(new SecureAuxTransportParameters() {
                     @Override
                     public Optional<String> clientAuth() {

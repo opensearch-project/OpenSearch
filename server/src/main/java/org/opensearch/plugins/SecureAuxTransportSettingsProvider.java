@@ -26,6 +26,8 @@ import java.util.Optional;
 public interface SecureAuxTransportSettingsProvider {
     /**
      * Fetch an SSLContext as managed by pluggable security provider.
+     * @param settings for providing additional configuration options when building the ssl context.
+     * @param transport the auxiliary transport for which an SSLContext is built.
      * @return an instance of SSLContext.
      */
     default Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, AuxTransport transport) throws SSLException {
@@ -34,6 +36,7 @@ public interface SecureAuxTransportSettingsProvider {
 
     /**
      * Additional params required for configuring ALPN.
+     * @param transport the auxiliary transport to be provided SecureAuxTransportParameters.
      * @return an instance of {@link SecureAuxTransportSettingsProvider.SecureAuxTransportParameters}
      */
     default Optional<SecureAuxTransportSettingsProvider.SecureAuxTransportParameters> parameters(AuxTransport transport) {
