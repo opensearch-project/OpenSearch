@@ -21,8 +21,8 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.checkpoint.ReplicationSegmentCheckpoint;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.transport.CapturingTransport;
@@ -136,7 +136,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
 
     public void testGetMergedSegmentFiles() {
         StoreFileMetadata testMetadata = new StoreFileMetadata("testFile", 1L, "checksum", Version.LATEST);
-        final ReplicationCheckpoint checkpoint = new ReplicationSegmentCheckpoint(
+        final ReplicationCheckpoint checkpoint = new MergeSegmentCheckpoint(
             indexShard.shardId(),
             PRIMARY_TERM,
             1,
@@ -195,7 +195,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
     public void testTransportTimeoutForGetMergedSegmentFilesAction() {
         long fileSize = (long) (Math.pow(10, 9));
         StoreFileMetadata testMetadata = new StoreFileMetadata("testFile", fileSize, "checksum", Version.LATEST);
-        final ReplicationCheckpoint checkpoint = new ReplicationSegmentCheckpoint(
+        final ReplicationCheckpoint checkpoint = new MergeSegmentCheckpoint(
             indexShard.shardId(),
             PRIMARY_TERM,
             1,

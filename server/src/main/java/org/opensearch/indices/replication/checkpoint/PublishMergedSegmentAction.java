@@ -110,7 +110,7 @@ public class PublishMergedSegmentAction extends TransportReplicationAction<
     /**
      * Publish merged segment request to shard
      */
-    final void publish(IndexShard indexShard, ReplicationSegmentCheckpoint checkpoint) {
+    final void publish(IndexShard indexShard, MergeSegmentCheckpoint checkpoint) {
         String primaryAllocationId = indexShard.routingEntry().allocationId().getId();
         long primaryTerm = indexShard.getPendingPrimaryTerm();
         final ThreadContext threadContext = threadPool.getThreadContext();

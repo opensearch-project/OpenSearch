@@ -201,9 +201,9 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.checkpoint.ReplicationSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.repositories.RepositoriesService;
@@ -1860,23 +1860,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void publishMergedSegment(SegmentCommitInfo segmentCommitInfo) throws IOException {
         assert mergedSegmentPublisher != null;
-        mergedSegmentPublisher.publish(this, computeReplicationSegmentCheckpoint(segmentCommitInfo));
+        mergedSegmentPublisher.publish(this, computeMergeSegmentCheckpoint(segmentCommitInfo));
     }
 
     /**
-     * Compute {@link ReplicationSegmentCheckpoint} from a SegmentCommitInfo.
+     * Compute {@link MergeSegmentCheckpoint} from a SegmentCommitInfo.
      * This function fetches a metadata snapshot from the store that comes with an IO cost.
      *
      * @param segmentCommitInfo {@link SegmentCommitInfo} segmentCommitInfo to use to compute.
-     * @return {@link ReplicationSegmentCheckpoint} Checkpoint computed from the segmentCommitInfo.
+     * @return {@link MergeSegmentCheckpoint} Checkpoint computed from the segmentCommitInfo.
      * @throws IOException When there is an error computing segment metadata from the store.
      */
-    public ReplicationSegmentCheckpoint computeReplicationSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
+    public MergeSegmentCheckpoint computeMergeSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
         // Only need to get the file metadata information in segmentCommitInfo and reuse Store#getSegmentMetadataMap.
         SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
         segmentInfos.add(segmentCommitInfo);
         Map<String, StoreFileMetadata> segmentMetadataMap = store.getSegmentMetadataMap(segmentInfos);
-        return new ReplicationSegmentCheckpoint(
+        return new MergeSegmentCheckpoint(
             shardId,
             getOperationPrimaryTerm(),
             segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),

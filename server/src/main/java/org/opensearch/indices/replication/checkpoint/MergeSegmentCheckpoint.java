@@ -50,10 +50,10 @@ import java.util.Objects;
  * @opensearch.internal
  */
 @ExperimentalApi
-public class ReplicationSegmentCheckpoint extends ReplicationCheckpoint {
+public class MergeSegmentCheckpoint extends ReplicationCheckpoint {
     private final String segmentName;
 
-    public ReplicationSegmentCheckpoint(
+    public MergeSegmentCheckpoint(
         ShardId shardId,
         long primaryTerm,
         long length,
@@ -65,7 +65,7 @@ public class ReplicationSegmentCheckpoint extends ReplicationCheckpoint {
         this.segmentName = segmentName;
     }
 
-    public ReplicationSegmentCheckpoint(StreamInput in) throws IOException {
+    public MergeSegmentCheckpoint(StreamInput in) throws IOException {
         super(in);
         segmentName = in.readString();
     }
@@ -89,7 +89,7 @@ public class ReplicationSegmentCheckpoint extends ReplicationCheckpoint {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ReplicationSegmentCheckpoint that = (ReplicationSegmentCheckpoint) o;
+        MergeSegmentCheckpoint that = (MergeSegmentCheckpoint) o;
         return getPrimaryTerm() == that.getPrimaryTerm()
             && segmentName.equals(that.segmentName)
             && Objects.equals(getShardId(), that.getShardId())

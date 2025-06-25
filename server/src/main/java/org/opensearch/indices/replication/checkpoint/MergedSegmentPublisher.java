@@ -8,8 +8,6 @@
 
 package org.opensearch.indices.replication.checkpoint;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.index.shard.IndexShard;
@@ -23,8 +21,6 @@ import java.util.Objects;
  */
 @ExperimentalApi
 public class MergedSegmentPublisher {
-    protected static Logger logger = LogManager.getLogger(MergedSegmentPublisher.class);
-
     private final PublishAction publishAction;
 
     // This Component is behind feature flag so we are manually binding this in IndicesModule.
@@ -37,7 +33,7 @@ public class MergedSegmentPublisher {
         this.publishAction = Objects.requireNonNull(publishAction);
     }
 
-    public void publish(IndexShard indexShard, ReplicationSegmentCheckpoint checkpoint) {
+    public void publish(IndexShard indexShard, MergeSegmentCheckpoint checkpoint) {
         publishAction.publish(indexShard, checkpoint);
     }
 
@@ -48,7 +44,7 @@ public class MergedSegmentPublisher {
      */
     @ExperimentalApi
     public interface PublishAction {
-        void publish(IndexShard indexShard, ReplicationSegmentCheckpoint checkpoint);
+        void publish(IndexShard indexShard, MergeSegmentCheckpoint checkpoint);
     }
 
     /**

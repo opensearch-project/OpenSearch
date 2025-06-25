@@ -32,8 +32,6 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -51,7 +49,6 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class LocalMergedSegmentWarmer implements IndexWriter.IndexReaderWarmer {
-    private static final Logger logger = LogManager.getLogger(LocalMergedSegmentWarmer.class);
     private final TransportService transportService;
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;

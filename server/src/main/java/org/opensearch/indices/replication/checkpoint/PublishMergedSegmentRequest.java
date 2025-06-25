@@ -21,16 +21,16 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class PublishMergedSegmentRequest extends ReplicationRequest<PublishMergedSegmentRequest> {
-    private final ReplicationSegmentCheckpoint mergedSegment;
+    private final MergeSegmentCheckpoint mergedSegment;
 
-    public PublishMergedSegmentRequest(ReplicationSegmentCheckpoint mergedSegment) {
+    public PublishMergedSegmentRequest(MergeSegmentCheckpoint mergedSegment) {
         super(mergedSegment.getShardId());
         this.mergedSegment = mergedSegment;
     }
 
     public PublishMergedSegmentRequest(StreamInput in) throws IOException {
         super(in);
-        this.mergedSegment = new ReplicationSegmentCheckpoint(in);
+        this.mergedSegment = new MergeSegmentCheckpoint(in);
     }
 
     @Override
@@ -56,7 +56,7 @@ public class PublishMergedSegmentRequest extends ReplicationRequest<PublishMerge
         return "PublishMergedSegmentRequest{" + "mergedSegment=" + mergedSegment + '}';
     }
 
-    public ReplicationSegmentCheckpoint getMergedSegment() {
+    public MergeSegmentCheckpoint getMergedSegment() {
         return mergedSegment;
     }
 }
