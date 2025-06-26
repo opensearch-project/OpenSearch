@@ -182,7 +182,7 @@ final class StoreRecovery {
                     final long maxSeqNo = shards.stream().mapToLong(LocalShardSnapshot::maxSeqNo).max().getAsLong();
                     final boolean isParentFieldEnabledVersion = indexShard.indexSettings()
                         .getIndexVersionCreated()
-                        .onOrAfter(Version.V_3_1_0);
+                        .onOrAfter(Version.V_3_2_0);
                     final long maxUnsafeAutoIdTimestamp = shards.stream()
                         .mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp)
                         .max()

@@ -2384,7 +2384,7 @@ public class InternalEngine extends Engine {
         iwc.setUseCompoundFile(engineConfig.useCompoundFile());
         if (config().getIndexSort() != null) {
             iwc.setIndexSort(config().getIndexSort());
-            if (config().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_3_1_0)) {
+            if (config().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_3_2_0)) {
                 iwc.setParentField(Lucene.PARENT_FIELD);
             }
         }

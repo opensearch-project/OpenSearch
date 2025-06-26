@@ -212,7 +212,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.onClose = onClose;
         this.shardPath = shardPath;
         this.isIndexSortEnabled = indexSettings.getIndexSortConfig().hasIndexSort();
-        this.isParentFieldEnabledVersion = indexSettings.getIndexVersionCreated().onOrAfter(org.opensearch.Version.V_3_1_0);
+        this.isParentFieldEnabledVersion = indexSettings.getIndexVersionCreated().onOrAfter(org.opensearch.Version.V_3_2_0);
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);

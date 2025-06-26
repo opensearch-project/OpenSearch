@@ -332,9 +332,9 @@ public class DocumentMapper implements ToXContentFragment {
             }
         }
 
-        // Indexing Sort with Nested Fields is only supported on & after Version 3.1.0
+        // Indexing Sort with Nested Fields is only supported on & after Version 3.2.0
         if (settings.getIndexSortConfig().hasIndexSort() && hasNestedObjects()) {
-            if (settings.getIndexVersionCreated().before(Version.V_3_1_0)) {
+            if (settings.getIndexVersionCreated().before(Version.V_3_2_0)) {
                 throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
             }
 
