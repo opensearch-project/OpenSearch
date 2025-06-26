@@ -17,7 +17,7 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.Version;
-import org.opensearch.arrow.flight.stream.ArrowStreamOutput;
+import org.opensearch.arrow.flight.stream.VectorStreamOutput;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.action.ActionListener;
@@ -123,7 +123,7 @@ public class FlightOutboundHandler extends ProtocolOutboundHandler {
                 headerBuffer = ByteBuffer.wrap(headerBytes.toBytesRef().bytes);
             }
 
-            try (ArrowStreamOutput out = new ArrowStreamOutput(flightChannel.getAllocator())) {
+            try (VectorStreamOutput out = new VectorStreamOutput(flightChannel.getAllocator())) {
                 response.writeTo(out);
                 flightChannel.sendBatch(headerBuffer, out, listener);
                 messageListener.onResponseSent(requestId, action, response);
