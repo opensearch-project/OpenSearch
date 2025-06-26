@@ -156,6 +156,7 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
@@ -1232,7 +1233,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final DiscoveryNode sourceNode,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         final DiscoveryNodes discoveryNodes,
-        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+        final MergedSegmentPublisher mergedSegmentPublisher
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
@@ -1249,7 +1251,8 @@ public class IndicesService extends AbstractLifecycleComponent
             targetNode,
             sourceNode,
             discoveryNodes,
-            mergedSegmentWarmerFactory
+            mergedSegmentWarmerFactory,
+            mergedSegmentPublisher
         );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
