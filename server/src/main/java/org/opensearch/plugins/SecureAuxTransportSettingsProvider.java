@@ -10,7 +10,6 @@ package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.transport.AuxTransport;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
@@ -27,19 +26,24 @@ public interface SecureAuxTransportSettingsProvider {
     /**
      * Fetch an SSLContext as managed by pluggable security provider.
      * @param settings for providing additional configuration options when building the ssl context.
-     * @param transport the auxiliary transport for which an SSLContext is built.
+     * @param auxTransportSettingKey key for enabling this transport with AUX_TRANSPORT_TYPES_SETTING.
      * @return an instance of SSLContext.
      */
-    default Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, AuxTransport transport) throws SSLException {
+    default Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, String auxTransportSettingKey)
+        throws SSLException {
         return Optional.empty();
     }
 
     /**
      * Additional params required for configuring ALPN.
-     * @param transport the auxiliary transport to be provided SecureAuxTransportParameters.
+     * @param settings for providing additional configuration options when building secure params.
+     * @param auxTransportSettingKey key for enabling this transport with AUX_TRANSPORT_TYPES_SETTING.
      * @return an instance of {@link SecureAuxTransportSettingsProvider.SecureAuxTransportParameters}
      */
-    default Optional<SecureAuxTransportSettingsProvider.SecureAuxTransportParameters> parameters(AuxTransport transport) {
+    default Optional<SecureAuxTransportSettingsProvider.SecureAuxTransportParameters> parameters(
+        Settings settings,
+        String auxTransportSettingKey
+    ) throws SSLException {
         return Optional.empty();
     }
 

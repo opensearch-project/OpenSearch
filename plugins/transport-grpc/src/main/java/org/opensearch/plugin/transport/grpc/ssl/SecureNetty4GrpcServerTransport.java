@@ -106,7 +106,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
      * @param provider for SSLContext and SecureAuxTransportParameters (ClientAuth and enabled ciphers).
      */
     private JdkSslContext getSslContext(Settings settings, SecureAuxTransportSettingsProvider provider) throws SSLException {
-        Optional<SSLContext> sslContext = provider.buildSecureAuxServerTransportContext(settings, this);
+        Optional<SSLContext> sslContext = provider.buildSecureAuxServerTransportContext(settings, this.settingKey());
         if (sslContext.isEmpty()) {
             try {
                 sslContext = Optional.of(SSLContext.getDefault());
@@ -114,7 +114,7 @@ public class SecureNetty4GrpcServerTransport extends Netty4GrpcServerTransport {
                 throw new SSLException("Failed to build default SSLContext for " + SecureNetty4GrpcServerTransport.class.getName(), e);
             }
         }
-        SecureAuxTransportSettingsProvider.SecureAuxTransportParameters params = provider.parameters(this)
+        SecureAuxTransportSettingsProvider.SecureAuxTransportParameters params = provider.parameters(settings, this.settingKey())
             .orElseGet(DefaultParameters::new);
         ClientAuth clientAuth = ClientAuth.valueOf(params.clientAuth().orElseThrow().toUpperCase(Locale.ROOT));
         return new JdkSslContext(
