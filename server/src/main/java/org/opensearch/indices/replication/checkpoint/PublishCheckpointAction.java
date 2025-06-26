@@ -90,7 +90,6 @@ public class PublishCheckpointAction extends AbstractPublishCheckpointAction<Pub
     }
 
     @Override
-    @Deprecated(forRemoval = true)
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
         return super.getReplicationMode(indexShard);
     }
