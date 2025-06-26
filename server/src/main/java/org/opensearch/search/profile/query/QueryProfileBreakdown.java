@@ -32,7 +32,6 @@
 
 package org.opensearch.search.profile.query;
 
-import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.profile.Timer;
