@@ -558,7 +558,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     public void visit(QueryBuilderVisitor visitor) {
         visitor.accept(this);
         if (query != null) {
-            visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(query);
+            query.visit(visitor.getChildVisitor(BooleanClause.Occur.MUST));
         }
     }
 }

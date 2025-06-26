@@ -294,7 +294,6 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     }
 
     public void testVisit() {
-
         HasParentQueryBuilder builder = doCreateTestQueryBuilder();
 
         List<QueryBuilder> visitedQueries = new ArrayList<>();
