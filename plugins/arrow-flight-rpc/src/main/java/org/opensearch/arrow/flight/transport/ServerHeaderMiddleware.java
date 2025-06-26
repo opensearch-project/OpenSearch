@@ -19,6 +19,11 @@ import java.util.Base64;
 
 public class ServerHeaderMiddleware implements FlightServerMiddleware {
     private ByteBuffer headerBuffer;
+    private final String reqId;
+
+    ServerHeaderMiddleware(String reqId) {
+        this.reqId = reqId;
+    }
 
     public void setHeader(ByteBuffer headerBuffer) {
         this.headerBuffer = headerBuffer;
@@ -31,7 +36,11 @@ public class ServerHeaderMiddleware implements FlightServerMiddleware {
             headerBuffer.get(headerBytes);
             String encodedHeader = Base64.getEncoder().encodeToString(headerBytes);
             outgoingHeaders.insert("raw-header", encodedHeader);
+            outgoingHeaders.insert("req-id", reqId);
             headerBuffer.rewind();
+        } else {
+            outgoingHeaders.insert("raw-header", "");
+            outgoingHeaders.insert("req-id", reqId);
         }
     }
 
@@ -44,7 +53,8 @@ public class ServerHeaderMiddleware implements FlightServerMiddleware {
     public static class Factory implements FlightServerMiddleware.Factory<ServerHeaderMiddleware> {
         @Override
         public ServerHeaderMiddleware onCallStarted(CallInfo callInfo, CallHeaders incomingHeaders, RequestContext context) {
-            return new ServerHeaderMiddleware();
+            String reqId = incomingHeaders.get("req-id");
+            return new ServerHeaderMiddleware(reqId);
         }
     }
 }

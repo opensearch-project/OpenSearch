@@ -38,6 +38,10 @@ public class ClientHeaderMiddleware implements FlightClientMiddleware {
     @Override
     public void onHeadersReceived(CallHeaders incomingHeaders) {
         String encodedHeader = incomingHeaders.get("raw-header");
+        String reqId = incomingHeaders.get("req-id");
+        if (encodedHeader == null || reqId == null) {
+            throw new TransportException("Missing header");
+        }
         byte[] headerBuffer =  Base64.getDecoder().decode(encodedHeader);
         BytesReference headerRef = new BytesArray(headerBuffer);
         Header header;
@@ -52,7 +56,7 @@ public class ClientHeaderMiddleware implements FlightClientMiddleware {
         if (TransportStatus.isError(header.getStatus())) {
             throw new TransportException("Received error response");
         }
-        context.setHeader(header);
+        context.setHeader(Long.parseLong(reqId), header);
     }
 
     @Override
