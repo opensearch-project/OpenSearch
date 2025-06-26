@@ -119,6 +119,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     public interface GlobalOrdLookupFunction {
         BytesRef apply(long ord) throws IOException;
     }
+
     protected CardinalityUpperBound cardinalityUpperBound;
 
     public GlobalOrdinalsStringTermsAggregator(
