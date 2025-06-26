@@ -85,13 +85,14 @@ public class PublishCheckpointAction extends AbstractPublishCheckpointAction<Pub
     }
 
     @Override
-    public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        return super.getReplicationMode(indexShard);
+    protected void doExecute(Task task, PublishCheckpointRequest request, ActionListener<ReplicationResponse> listener) {
+        assert false : "use PublishCheckpointAction#publish";
     }
 
     @Override
-    protected void doExecute(Task task, PublishCheckpointRequest request, ActionListener<ReplicationResponse> listener) {
-        assert false : "use PublishCheckpointAction#publish";
+    @Deprecated(forRemoval = true)
+    public ReplicationMode getReplicationMode(IndexShard indexShard) {
+        return super.getReplicationMode(indexShard);
     }
 
     /**
