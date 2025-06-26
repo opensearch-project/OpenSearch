@@ -81,7 +81,7 @@ public final class ConcurrentQueryProfiler extends QueryProfiler {
      */
     @Override
     public void startRewriteTime() {
-        Timer rewriteTimer = new Timer("rewrite_timer");
+        Timer rewriteTimer = new Timer();
         threadToRewriteTimers.computeIfAbsent(getCurrentThreadId(), k -> new LinkedList<>()).add(rewriteTimer);
         rewriteTimer.start();
     }

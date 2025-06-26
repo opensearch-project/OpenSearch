@@ -32,8 +32,6 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.common.annotation.PublicApi;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
@@ -47,7 +45,6 @@ import static java.util.Collections.emptyMap;
  *
  * @opensearch.internal
  */
-@PublicApi(since = "3.0.0")
 public abstract class AbstractProfileBreakdown {
 
     public static final String NODE_TIME_RAW = "time_in_nanos";

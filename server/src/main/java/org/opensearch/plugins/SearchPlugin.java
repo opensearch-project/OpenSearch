@@ -96,7 +96,6 @@ import static java.util.Collections.emptyMap;
  * @opensearch.api
  */
 public interface SearchPlugin {
-
     /**
      * The new {@link ScoreFunction}s defined by this plugin.
      */

@@ -72,7 +72,7 @@ public final class Profilers {
         QueryProfiler profiler = isConcurrentSegmentSearchEnabled
             ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
             : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setQueryProfiler(profiler);
+        searcher.setProfiler(profiler);
         queryProfilers.add(profiler);
         return profiler;
     }

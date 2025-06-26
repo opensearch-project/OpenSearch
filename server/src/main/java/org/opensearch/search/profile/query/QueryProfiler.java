@@ -104,8 +104,4 @@ public class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown, 
         return collector.getCollectorTree();
     }
 
-    public ContextualProfileBreakdown getTopBreakdown() {
-        return profileTree.getStackTop();
-    }
-
 }

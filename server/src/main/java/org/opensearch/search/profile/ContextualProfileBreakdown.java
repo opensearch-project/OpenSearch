@@ -10,26 +10,27 @@ package org.opensearch.search.profile;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
-import org.opensearch.common.annotation.PublicApi;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * A {@link AbstractProfileBreakdown} for query timings with contexts.
+ * Provide contextual profile breakdowns which are associated with freestyle context. Used when concurrent
+ * search over segments is activated and each collector needs own non-shareable profile breakdown instance.
+ *
+ * @opensearch.internal
  */
-@PublicApi(since = "3.0.0")
 public abstract class ContextualProfileBreakdown extends AbstractProfileBreakdown {
 
-    /**
-     * Sole constructor.
-     *
-     * @param metrics
-     */
     public ContextualProfileBreakdown(Map<String, Class<? extends ProfileMetric>> metrics) {
         super(metrics);
     }
 
+    /**
+     * Return (or create) contextual profile breakdown instance
+     * @param context freestyle context
+     * @return contextual profile breakdown instance
+     */
     public abstract ContextualProfileBreakdown context(Object context);
 
     public void associateCollectorToLeaves(Collector collector, LeafReaderContext leaf) {}

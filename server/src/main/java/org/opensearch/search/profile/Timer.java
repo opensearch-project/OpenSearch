@@ -32,8 +32,6 @@
 
 package org.opensearch.search.profile;
 
-import org.opensearch.common.annotation.PublicApi;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -53,7 +51,6 @@ import java.util.Map;
  *
  *  @opensearch.internal
  */
-@PublicApi(since = "3.0.0")
 public class Timer extends ProfileMetric {
     public static final String TIMING_TYPE_COUNT_SUFFIX = "_count";
     public static final String TIMING_TYPE_START_TIME_SUFFIX = "_start_time";
@@ -62,7 +59,7 @@ public class Timer extends ProfileMetric {
     private long timing, count, lastCount, start, earliestTimerStartTime;
 
     public Timer() {
-        super("");
+        this(0, 0, 0, 0, 0);
     }
 
     public Timer(long timing, long count, long lastCount, long start, long earliestTimerStartTime) {

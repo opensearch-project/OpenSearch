@@ -41,9 +41,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * A {@link AbstractProfileBreakdown} for query timings.
+ * A record of timings for the various operations that may happen during query execution.
+ * A node's time may be composed of several internal attributes (rewriting, weighting,
+ * scoring, etc).
+ *
+ * @opensearch.internal
  */
-public class QueryProfileBreakdown extends ContextualProfileBreakdown {
+public final class QueryProfileBreakdown extends ContextualProfileBreakdown {
 
     public QueryProfileBreakdown(Map<String, Class<? extends ProfileMetric>> metrics) {
         super(metrics);
