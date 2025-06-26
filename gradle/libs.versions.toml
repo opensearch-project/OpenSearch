@@ -1,6 +1,6 @@
 [versions]
-opensearch        = "3.1.0"
-lucene            = "10.2.1"
+opensearch        = "3.2.0"
+lucene            = "10.2.2"
 
 bundled_jdk_vendor = "adoptium"
 bundled_jdk = "24.0.1+9"
