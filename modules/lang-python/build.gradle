@@ -4,7 +4,7 @@ import org.opensearch.gradle.test.RestIntegTestTask
 buildscript {
 ext {
 	opensearch_group = "org.opensearch"
-	opensearch_version = System.getProperty("opensearch.version", "3.0.0-SNAPSHOT")
+	opensearch_version = System.getProperty("opensearch.version", "3.2.0-SNAPSHOT")
 }
 
 repositories {
@@ -24,7 +24,7 @@ id 'java'
 id 'idea'
 id 'eclipse'
 id 'org.graalvm.buildtools.native' version '0.10.6'
-id 'org.graalvm.python' version '24.2.0'
+id 'org.graalvm.python' version '24.2.1'
 }
 
 apply plugin: 'opensearch.yaml-rest-test'
@@ -37,7 +37,7 @@ version = opensearch_version - "-SNAPSHOT" + ".0"
 }
 
 ext {
-graalVersion = '24.2.0'
+graalVersion = '24.2.1'
 antlr4Version = '4.13.2'
 }
 
@@ -144,7 +144,7 @@ enabled = false
 }
 
 graalPy {
-packages = ["termcolor==2.2"]
+packages = []
 }
 
 // This task copies the dependencies to a 'libs' directory
