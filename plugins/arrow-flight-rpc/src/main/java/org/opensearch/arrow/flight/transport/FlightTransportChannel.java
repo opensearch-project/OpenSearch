@@ -17,6 +17,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TcpTransportChannel;
+import org.opensearch.transport.TransportException;
 
 import java.io.IOException;
 import java.util.Set;
@@ -59,7 +60,7 @@ public class FlightTransportChannel extends TcpTransportChannel {
     @Override
     public void sendResponseBatch(TransportResponse response) {
         if (!streamOpen.get()) {
-            throw new RuntimeException("Stream is closed for requestId [" + requestId + "]");
+            throw new TransportException("Stream is closed for requestId [" + requestId + "]");
         }
         if (response instanceof QuerySearchResult && ((QuerySearchResult) response).getShardSearchRequest() != null) {
             ((QuerySearchResult) response).getShardSearchRequest().setOutboundNetworkTime(System.currentTimeMillis());
@@ -107,7 +108,7 @@ public class FlightTransportChannel extends TcpTransportChannel {
                     getChannel(),
                     requestId,
                     action,
-                    new RuntimeException("FlightTransportChannel stream already closed.")
+                    new TransportException("FlightTransportChannel stream already closed.")
                 );
             } catch (IOException e) {
                 throw new RuntimeException(e);

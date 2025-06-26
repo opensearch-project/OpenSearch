@@ -10,14 +10,16 @@ package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.transport.Header;
 
-public class HeaderContext {
-    private Header header;
+import java.util.concurrent.ConcurrentHashMap;
 
-    public void setHeader(Header header) {
-        this.header = header;
+class HeaderContext {
+    private final ConcurrentHashMap<Long, Header> headerMap = new ConcurrentHashMap<>();
+
+    void setHeader(long reqId, Header header) {
+        headerMap.put(reqId, header);
     }
 
-    public Header getHeader() {
-        return header;
+    Header getHeader(long reqId) {
+        return headerMap.remove(reqId);
     }
 }
