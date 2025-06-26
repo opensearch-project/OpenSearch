@@ -50,11 +50,11 @@ public class ArrowStreamSerializationTests extends OpenSearchTestCase {
     public void testInternalAggregationSerializationDeserialization() throws IOException {
         StringTerms original = createTestStringTerms();
 
-        try (ArrowStreamOutput output = new ArrowStreamOutput(allocator)) {
+        try (VectorStreamOutput output = new VectorStreamOutput(allocator)) {
             output.writeNamedWriteable(original);
-            VectorSchemaRoot unifiedRoot = output.getUnifiedRoot();
+            VectorSchemaRoot unifiedRoot = output.getRoot();
 
-            try (ArrowStreamInput input = new ArrowStreamInput(unifiedRoot, registry)) {
+            try (VectorStreamInput input = new VectorStreamInput(unifiedRoot, registry)) {
                 StringTerms deserialized = input.readNamedWriteable(StringTerms.class);
                 assertEquals(String.valueOf(original), String.valueOf(deserialized));
             }

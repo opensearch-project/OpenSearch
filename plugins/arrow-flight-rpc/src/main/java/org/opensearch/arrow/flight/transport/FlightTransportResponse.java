@@ -8,11 +8,16 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import io.grpc.Metadata;
+import org.apache.arrow.flight.CallOptions;
+import org.apache.arrow.flight.FlightCallHeaders;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightStream;
+import org.apache.arrow.flight.HeaderCallOption;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.arrow.flight.stream.ArrowStreamInput;
+import org.opensearch.arrow.flight.stream.VectorStreamInput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.transport.TransportResponse;
@@ -21,7 +26,6 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 
@@ -38,24 +42,30 @@ public class FlightTransportResponse<T extends TransportResponse> implements Str
     private boolean isClosed;
     private Throwable pendingException;
     private VectorSchemaRoot pendingRoot;  // Holds the current batch's root for reuse
-
+    private final long reqId;
     /**
      * Constructs a new streaming response. The flight stream is initialized asynchronously
      * to avoid blocking during construction.
      *
+     * @param reqId                  the request ID
      * @param flightClient           the Arrow Flight client
-     * @param headerContext         the context containing header information
-     * @param ticket                the ticket for fetching the stream
+     * @param headerContext          the context containing header information
+     * @param ticket                 the ticket for fetching the stream
      * @param namedWriteableRegistry the registry for deserialization
      */
     public FlightTransportResponse(
+        long reqId,
         FlightClient flightClient,
         HeaderContext headerContext,
         Ticket ticket,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
+        this.reqId = reqId;
+        FlightCallHeaders callHeaders = new FlightCallHeaders();
+        callHeaders.insert("req-id", String.valueOf(reqId));
+        HeaderCallOption callOptions = new HeaderCallOption(callHeaders);
         this.flightStream = Objects.requireNonNull(flightClient, "flightClient must not be null")
-            .getStream(Objects.requireNonNull(ticket, "ticket must not be null"));
+            .getStream(Objects.requireNonNull(ticket, "ticket must not be null"), callOptions);
         this.headerContext = Objects.requireNonNull(headerContext, "headerContext must not be null");
         this.namedWriteableRegistry = Objects.requireNonNull(namedWriteableRegistry, "namedWriteableRegistry must not be null");
         this.isClosed = false;
@@ -128,18 +138,19 @@ public class FlightTransportResponse<T extends TransportResponse> implements Str
     public Header currentHeader() {
         ensureOpen();
         if (pendingRoot != null) {
-            return headerContext.getHeader();
+            return headerContext.getHeader(reqId);
         }
         try {
             if (flightStream.next()) {
                 pendingRoot = flightStream.getRoot();
-                return headerContext.getHeader();
+                return headerContext.getHeader(reqId);
             } else {
                 return null;  // No more data
             }
         } catch (Exception e) {
             pendingException = e;
-            return headerContext.getHeader();
+            System.out.println(e);
+            return headerContext.getHeader(reqId);
         }
     }
 
@@ -175,7 +186,7 @@ public class FlightTransportResponse<T extends TransportResponse> implements Str
         if (root.getRowCount() == 0) {
             throw new IllegalStateException("Empty response received");
         }
-        try (ArrowStreamInput input = new ArrowStreamInput(root, namedWriteableRegistry)) {
+        try (VectorStreamInput input = new VectorStreamInput(root, namedWriteableRegistry)) {
             return handler.read(input);
         } catch (IOException e) {
             throw new TransportException("Failed to deserialize response", e);
@@ -185,11 +196,11 @@ public class FlightTransportResponse<T extends TransportResponse> implements Str
     /**
      * Ensures the stream is not closed before performing operations.
      *
-     * @throws IllegalStateException if the stream is closed
+     * @throws TransportException if the stream is closed
      */
     private void ensureOpen() {
         if (isClosed) {
-            throw new IllegalStateException("Stream is closed");
+            throw new TransportException("Stream is closed");
         }
     }
 
@@ -200,7 +211,7 @@ public class FlightTransportResponse<T extends TransportResponse> implements Str
      */
     private void ensureHandlerSet() {
         if (handler == null) {
-            throw new IllegalStateException("Handler must be set before requesting responses");
+            throw new TransportException("Handler must be set before requesting responses");
         }
     }
 }
