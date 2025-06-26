@@ -1009,8 +1009,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             () -> new ParameterizedMessage(
                                 "failed to execute pipeline [{}] for document [{}/{}]",
                                 pipelineId,
-                                indexRequest.index(),
-                                indexRequest.id()
+                                indexRequest != null ? indexRequest.index() : null,
+                                indexRequest != null ? indexRequest.id() : null
                             ),
                             results.get(i).getException()
                         );
