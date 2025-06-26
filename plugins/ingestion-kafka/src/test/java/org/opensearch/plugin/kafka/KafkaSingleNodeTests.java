@@ -27,6 +27,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.transport.client.Requests;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -37,6 +38,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -55,6 +57,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     @Before
     public void setup() {
+        Assume.assumeTrue("Docker is not available", DockerClientFactory.instance().isDockerAvailable());
         setupKafka();
     }
 
