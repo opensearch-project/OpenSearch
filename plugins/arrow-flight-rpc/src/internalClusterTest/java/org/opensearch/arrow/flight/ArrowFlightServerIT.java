@@ -25,6 +25,7 @@ import org.opensearch.arrow.spi.StreamProducer;
 import org.opensearch.arrow.spi.StreamReader;
 import org.opensearch.arrow.spi.StreamTicket;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -36,10 +37,20 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.opensearch.arrow.flight.bootstrap.FlightService.ARROW_FLIGHT_TRANSPORT_SETTING_KEY;
 import static org.opensearch.common.util.FeatureFlags.ARROW_STREAMS;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 5)
 public class ArrowFlightServerIT extends OpenSearchIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(AUX_TRANSPORT_TYPES_KEY, ARROW_FLIGHT_TRANSPORT_SETTING_KEY)
+            .build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

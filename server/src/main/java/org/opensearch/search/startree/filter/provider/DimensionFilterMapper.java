@@ -21,9 +21,11 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.compositeindex.datacube.DimensionDataType;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.ExactMatchDimFilter;
 import org.opensearch.search.startree.filter.MatchNoneFilter;
@@ -63,19 +65,10 @@ public interface DimensionFilterMapper {
     /**
      * Generates @{@link RangeMatchDimFilter} from Range query input.
      * @param mappedFieldType:
-     * @param rawLow:
-     * @param rawHigh:
-     * @param includeLow:
-     * @param includeHigh:
+     * @param rangeQuery:
      * @return :
      */
-    DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    );
+    DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery);
 
     /**
      * Called during conversion from parsedUserInput to segmentOrdinal for every segment.
@@ -133,6 +126,18 @@ public interface DimensionFilterMapper {
         return DimensionDataType.LONG::compare;
     }
 
+    default boolean resolveUsingSubDimension() {
+        return false;
+    }
+
+    default String getSubDimensionFieldEffective(String subDimensionField1, String subDimensionField2) {
+        return null;
+    }
+
+    default List<DimensionFilter> getFinalDimensionFilters(List<DimensionFilter> filters) {
+        return filters;
+    }
+
     /**
      * Singleton Factory for @{@link DimensionFilterMapper}
      */
@@ -159,8 +164,11 @@ public interface DimensionFilterMapper {
             new UnsignedLongFieldMapperNumeric()
         );
 
-        public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType) {
+        public static DimensionFilterMapper fromMappedFieldType(MappedFieldType mappedFieldType, SearchContext searchContext) {
             if (mappedFieldType != null) {
+                if (DateFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName())) {
+                    return new StarDateFieldMapper(searchContext);
+                }
                 return DIMENSION_FILTER_MAPPINGS.get(mappedFieldType.typeName());
             }
             return null;
@@ -204,27 +212,27 @@ abstract class NumericNonDecimalMapper extends NumericMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    ) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
 
-        Long parsedLow = rawLow == null ? defaultMinimum() : numberFieldType.numberType().parse(rawLow, true).longValue();
-        Long parsedHigh = rawHigh == null ? defaultMaximum() : numberFieldType.numberType().parse(rawHigh, true).longValue();
+        Long parsedLow = rangeQuery.from() == null
+            ? defaultMinimum()
+            : numberFieldType.numberType().parse(rangeQuery.from(), true).longValue();
+        Long parsedHigh = rangeQuery.to() == null
+            ? defaultMaximum()
+            : numberFieldType.numberType().parse(rangeQuery.to(), true).longValue();
 
         boolean lowerTermHasDecimalPart = hasDecimalPart(parsedLow);
-        if ((lowerTermHasDecimalPart == false && includeLow == false) || (lowerTermHasDecimalPart && signum(parsedLow) > 0)) {
+        if ((lowerTermHasDecimalPart == false && rangeQuery.includeLower() == false)
+            || (lowerTermHasDecimalPart && signum(parsedLow) > 0)) {
             if (parsedLow.equals(defaultMaximum())) {
                 return new MatchNoneFilter();
             }
             ++parsedLow;
         }
         boolean upperTermHasDecimalPart = hasDecimalPart(parsedHigh);
-        if ((upperTermHasDecimalPart == false && includeHigh == false) || (upperTermHasDecimalPart && signum(parsedHigh) < 0)) {
+        if ((upperTermHasDecimalPart == false && rangeQuery.includeUpper() == false)
+            || (upperTermHasDecimalPart && signum(parsedHigh) < 0)) {
             if (parsedHigh.equals(defaultMinimum())) {
                 return new MatchNoneFilter();
             }
@@ -318,26 +326,20 @@ abstract class NumericDecimalFieldMapper extends NumericMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    ) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         NumberFieldType numberFieldType = (NumberFieldType) mappedFieldType;
         Number l = Long.MIN_VALUE;
         Number u = Long.MAX_VALUE;
-        if (rawLow != null) {
-            l = numberFieldType.numberType().parse(rawLow, false);
-            if (includeLow == false) {
+        if (rangeQuery.from() != null) {
+            l = numberFieldType.numberType().parse(rangeQuery.from(), false);
+            if (rangeQuery.includeLower() == false) {
                 l = getNextHigh(l);
             }
             l = convertToDocValues(l);
         }
-        if (rawHigh != null) {
-            u = numberFieldType.numberType().parse(rawHigh, false);
-            if (includeHigh == false) {
+        if (rangeQuery.to() != null) {
+            u = numberFieldType.numberType().parse(rangeQuery.to(), false);
+            if (rangeQuery.includeUpper() == false) {
                 u = getNextLow(u);
             }
             u = convertToDocValues(u);
@@ -417,20 +419,14 @@ class KeywordFieldMapper implements DimensionFilterMapper {
     }
 
     @Override
-    public DimensionFilter getRangeMatchFilter(
-        MappedFieldType mappedFieldType,
-        Object rawLow,
-        Object rawHigh,
-        boolean includeLow,
-        boolean includeHigh
-    ) {
+    public DimensionFilter getRangeMatchFilter(MappedFieldType mappedFieldType, StarTreeRangeQuery rangeQuery) {
         KeywordFieldType keywordFieldType = (KeywordFieldType) mappedFieldType;
         return new RangeMatchDimFilter(
             mappedFieldType.name(),
-            parseRawKeyword(mappedFieldType.name(), rawLow, keywordFieldType),
-            parseRawKeyword(mappedFieldType.name(), rawHigh, keywordFieldType),
-            includeLow,
-            includeHigh
+            parseRawKeyword(mappedFieldType.name(), rangeQuery.from(), keywordFieldType),
+            parseRawKeyword(mappedFieldType.name(), rangeQuery.to(), keywordFieldType),
+            rangeQuery.includeLower(),
+            rangeQuery.includeUpper()
         );
     }
 
@@ -511,5 +507,4 @@ class KeywordFieldMapper implements DimensionFilterMapper {
         }
         return ((BytesRef) v1).compareTo((BytesRef) v2);
     }
-
 }

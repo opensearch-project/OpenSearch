@@ -76,8 +76,8 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
-import org.opensearch.search.startree.StarTreeTraversalUtil;
 import org.opensearch.search.startree.filter.DimensionFilter;
+import org.opensearch.search.startree.filter.MatchAllFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -104,7 +104,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     private final long valueCount;
     protected final String fieldName;
     private Weight weight;
-    protected final CollectionStrategy collectionStrategy;
+    protected CollectionStrategy collectionStrategy;
     private final SetOnce<SortedSetDocValues> dvs = new SetOnce<>();
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
@@ -119,6 +119,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     public interface GlobalOrdLookupFunction {
         BytesRef apply(long ord) throws IOException;
     }
+    protected CardinalityUpperBound cardinalityUpperBound;
 
     public GlobalOrdinalsStringTermsAggregator(
         String name,
@@ -139,6 +140,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         ValuesSourceConfig config
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
+        this.cardinalityUpperBound = cardinality;
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         final IndexReader reader = context.searcher().getIndexReader();
@@ -259,7 +261,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected boolean tryStarTreePrecompute(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
-            globalOperator = valuesSource.globalOrdinalsMapping(ctx);
             StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
             StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
             return true;
@@ -271,7 +272,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         SortedSetDocValues globalOrds = this.getGlobalOrds(ctx);
         collectionStrategy.globalOrdsReady(globalOrds);
-
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
         if (singleValues != null) {
             segmentsWithSingleValuedOrds++;
@@ -343,29 +343,36 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         });
     }
 
+    @Override
+    public List<DimensionFilter> getDimensionFilters() {
+        return StarTreeQueryHelper.collectDimensionFilters(new MatchAllFilter(fieldName), subAggregators);
+    }
+
     public StarTreeBucketCollector getStarTreeBucketCollector(
         LeafReaderContext ctx,
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parent
     ) throws IOException {
-        assert parent == null;
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
         SortedSetStarTreeValuesIterator valuesIterator = (SortedSetStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
             fieldName
         );
         SortedNumericStarTreeValuesIterator docCountsIterator = StarTreeQueryHelper.getDocCountsIterator(starTreeValues, starTree);
 
+        /* For nested aggregations, we require the RemapGlobalOrdsStarTree strategy to properly
+        handle global ordinal remapping. This check ensures we don't reinitialize the
+        collectionStrategy again if it's already correctly set. */
+        if (parent != null && !(collectionStrategy instanceof RemapGlobalOrdsStarTree)) {
+            collectionStrategy.close();
+            collectionStrategy = new RemapGlobalOrdsStarTree(this.cardinalityUpperBound);
+            SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
+            collectionStrategy.globalOrdsReady(globalOrds);
+        }
+
+        LongUnaryOperator globalOperator = valuesSource.globalOrdinalsMapping(ctx);
         return new StarTreeBucketCollector(
             starTreeValues,
-            StarTreeTraversalUtil.getStarTreeResult(
-                starTreeValues,
-                StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
-                    context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
-                    fieldName,
-                    List.of(DimensionFilter.MATCH_ALL_DEFAULT)
-                ),
-                context
-            )
+            parent == null ? StarTreeQueryHelper.getStarTreeResult(starTreeValues, context, getDimensionFilters()) : null
         ) {
             @Override
             public void setSubCollectors() throws IOException {
@@ -382,11 +389,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 for (int i = 0, count = valuesIterator.docValueCount(); i < count; i++) {
                     long dimensionValue = valuesIterator.value();
                     long ord = globalOperator.applyAsLong(dimensionValue);
-
                     if (docCountsIterator.advanceExact(starTreeEntry)) {
                         long metricValue = docCountsIterator.nextValue();
-                        long bucketOrd = collectionStrategy.globalOrdToBucketOrd(0, ord);
-                        collectStarTreeBucket(this, metricValue, bucketOrd, starTreeEntry);
+                        if (collectionStrategy instanceof RemapGlobalOrdsStarTree rangeSTGlobalOrds) {
+                            rangeSTGlobalOrds.collectGlobalOrdsForStarTree(owningBucketOrd, starTreeEntry, ord, this, metricValue);
+                        } else {
+                            long bucketOrd = collectionStrategy.getOrAddBucketOrd(owningBucketOrd, ord);
+                            collectStarTreeBucket(this, metricValue, bucketOrd, starTreeEntry);
+                        }
                     }
                 }
             }
@@ -650,7 +660,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         abstract long globalOrdToBucketOrd(long owningBucketOrd, long globalOrd);
 
         /**
-         * Iterate all of the buckets. Implementations take into account
+         * Iterate all the buckets. Implementations take into account
          * the {@link BucketCountThresholds}. In particular,
          * if the {@link BucketCountThresholds#getMinDocCount()} is 0 then
          * they'll make sure to iterate a bucket even if it was never
@@ -659,6 +669,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * they'll skip all global ords that weren't collected.
          */
         abstract void forEach(long owningBucketOrd, BucketInfoConsumer consumer) throws IOException;
+
+        /**
+         * Add a global ordinal if it hasn't been seen before.
+         * Convert the global ordinal into a bucket ordinal.
+         */
+        abstract long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) throws IOException;
     }
 
     interface BucketInfoConsumer {
@@ -710,6 +726,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
+        long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) {
+            return globalOrdToBucketOrd(owningBucketOrd, globalOrd);
+        }
+
+        @Override
         public void close() {}
     }
 
@@ -720,7 +741,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * less when collecting only a few.
      */
     private class RemapGlobalOrds extends CollectionStrategy {
-        private final LongKeyedBucketOrds bucketOrds;
+        protected final LongKeyedBucketOrds bucketOrds;
 
         private RemapGlobalOrds(CardinalityUpperBound cardinality) {
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
@@ -791,8 +812,35 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
+        long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) {
+            return bucketOrds.add(owningBucketOrd, globalOrd);
+        }
+
+        @Override
         public void close() {
             bucketOrds.close();
+        }
+    }
+
+    private class RemapGlobalOrdsStarTree extends RemapGlobalOrds {
+        private RemapGlobalOrdsStarTree(CardinalityUpperBound cardinality) {
+            super(cardinality);
+        }
+
+        @Override
+        String describe() {
+            return "remapStarTree";
+        }
+
+        void collectGlobalOrdsForStarTree(
+            long owningBucketOrd,
+            int starTreeEntry,
+            long globalOrd,
+            StarTreeBucketCollector collector,
+            long docCount
+        ) throws IOException {
+            long bucketOrd = bucketOrds.add(owningBucketOrd, globalOrd);
+            collectStarTreeBucket(collector, docCount, bucketOrd, starTreeEntry);
         }
     }
 
@@ -817,6 +865,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             B[][] topBucketsPreOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCount = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                checkCancelled();
                 final int size;
                 if (localBucketCountThresholds.getMinDocCount() == 0) {
                     // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns

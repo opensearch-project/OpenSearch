@@ -32,7 +32,7 @@ import static org.opensearch.plugin.transport.grpc.ssl.SecureNetty4GrpcServerTra
 import static org.opensearch.plugin.transport.grpc.ssl.SecureSettingsHelpers.getServerClientAuthNone;
 import static org.opensearch.plugin.transport.grpc.ssl.SecureSettingsHelpers.getServerClientAuthOptional;
 import static org.opensearch.plugin.transport.grpc.ssl.SecureSettingsHelpers.getServerClientAuthRequired;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
 
 public abstract class SecureNetty4GrpcServerTransportIT extends OpenSearchIntegTestCase {
 

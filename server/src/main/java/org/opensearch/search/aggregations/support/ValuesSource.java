@@ -82,6 +82,7 @@ import static java.util.Collections.sort;
  */
 @PublicApi(since = "1.0.0")
 public abstract class ValuesSource {
+    private Runnable cancellationCheck;
 
     /**
      * Get the current {@link BytesValues}.
@@ -102,6 +103,10 @@ public abstract class ValuesSource {
      * need to call it many times over the course of running the aggregation.
      */
     public abstract Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException;
+
+    protected void setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
 
     /**
      * Check if this values source supports using global ordinals

@@ -61,6 +61,7 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.service.CacheService;
@@ -420,6 +421,7 @@ public class IndicesService extends AbstractLifecycleComponent
         threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
     }
 
+    @InternalApi
     public IndicesService(
         Settings settings,
         PluginsService pluginsService,
@@ -587,6 +589,7 @@ public class IndicesService extends AbstractLifecycleComponent
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING, this::onDefaultMaxMergeAtOnceUpdate);
     }
 
+    @InternalApi
     public IndicesService(
         Settings settings,
         PluginsService pluginsService,
