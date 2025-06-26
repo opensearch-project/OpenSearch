@@ -16,11 +16,13 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.flight.stream.ArrowStreamOutput;
+import org.opensearch.arrow.flight.stream.VectorStreamOutput;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.transport.TcpChannel;
+import org.opensearch.transport.TransportException;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -32,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 
 /**
- * TcpChannel implementation for Arrow Flight, optimized for streaming responses with proper batch management.
+ * TcpChannel implementation for Arrow Flight
  *
  * @opensearch.api
  */
@@ -50,7 +52,7 @@ public class FlightServerChannel implements TcpChannel {
     private final ServerHeaderMiddleware middleware;
     private final SetOnce<VectorSchemaRoot> root = new SetOnce<>();
 
-    public FlightServerChannel(ServerStreamListener serverStreamListener, BufferAllocator allocator, FlightProducer.CallContext context, ServerHeaderMiddleware middleware) {
+    public FlightServerChannel(ServerStreamListener serverStreamListener, BufferAllocator allocator, ServerHeaderMiddleware middleware) {
         this.serverStreamListener = serverStreamListener;
         this.allocator = allocator;
         this.middleware = middleware;
@@ -68,19 +70,16 @@ public class FlightServerChannel implements TcpChannel {
      * @param output StreamOutput for the response
      * @param completionListener callback for completion or failure
      */
-    public void sendBatch(ByteBuffer header, ArrowStreamOutput output, ActionListener<Void> completionListener) {
-        if (!open.compareAndSet(true, false)) {
+    public void sendBatch(ByteBuffer header, VectorStreamOutput output, ActionListener<Void> completionListener) {
+        if (!open.get()) {
             throw new IllegalStateException("FlightServerChannel already closed.");
         }
         try {
-            if (!serverStreamListener.isReady()) {
-                completionListener.onFailure(new IOException("Client is not ready for batch"));
-                return;
-            }
-            middleware.setHeader(header);
+
             // Only set for the first batch
             if (root.get() == null) {
-                root.trySet(output.getUnifiedRoot());
+                middleware.setHeader(header);
+                root.trySet(output.getRoot());
                 serverStreamListener.start(root.get());
             } else {
                 // placeholder to clear and fill the root with data for the next batch
@@ -91,7 +90,7 @@ public class FlightServerChannel implements TcpChannel {
             serverStreamListener.putNext();
             completionListener.onResponse(null);
         } catch (Exception e) {
-            completionListener.onFailure(new IOException("Failed to send batch", e));
+            completionListener.onFailure(new TransportException("Failed to send batch", e));
         }
     }
 
@@ -101,11 +100,14 @@ public class FlightServerChannel implements TcpChannel {
      * @param completionListener callback for completion or failure
      */
     public void completeStream(ActionListener<Void> completionListener) {
+        if (!open.get()) {
+            throw new IllegalStateException("FlightServerChannel already closed.");
+        }
         try {
             serverStreamListener.completed();
             completionListener.onResponse(null);
         } catch (Exception e) {
-            completionListener.onFailure(new IOException("Failed to complete stream", e));
+            completionListener.onFailure(new TransportException("Failed to complete stream", e));
         }
     }
 
@@ -116,7 +118,7 @@ public class FlightServerChannel implements TcpChannel {
      * @param completionListener callback for completion or failure
      */
     public void sendError(ByteBuffer header, Exception error, ActionListener<Void> completionListener) {
-        if (!open.compareAndSet(true, false)) {
+        if (!open.get()) {
             throw new IllegalStateException("FlightServerChannel already closed.");
         }
         try {
@@ -176,6 +178,9 @@ public class FlightServerChannel implements TcpChannel {
 
     @Override
     public void close() {
+        if (!open.get()) {
+            return;
+        }
         if (root.get() != null) {
             root.get().close();
         }

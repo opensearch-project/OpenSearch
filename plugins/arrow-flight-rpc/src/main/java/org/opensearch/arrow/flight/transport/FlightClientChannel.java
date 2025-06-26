@@ -33,8 +33,10 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * TcpChannel implementation for Apache Arrow Flight client with async response handling.
@@ -44,7 +46,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class FlightClientChannel implements TcpChannel {
     private static final Logger logger = LogManager.getLogger(FlightClientChannel.class);
     private static final long SLOW_LOG_THRESHOLD_MS = 5000; // Configurable threshold for slow operations
-
+    private final AtomicLong requestIdGenerator = new AtomicLong();
     private final FlightClient client;
     private final DiscoveryNode node;
     private final Location location;
@@ -209,6 +211,7 @@ public class FlightClientChannel implements TcpChannel {
     private FlightTransportResponse<?> createStreamResponse(Ticket ticket) {
         try {
             return new FlightTransportResponse<>(
+                requestIdGenerator.incrementAndGet(), // we can't use reqId directly since its already serialized; so generating a new one for correlation
                 client,
                 headerContext,
                 ticket,

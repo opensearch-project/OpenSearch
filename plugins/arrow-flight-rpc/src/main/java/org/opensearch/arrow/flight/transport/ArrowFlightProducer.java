@@ -27,22 +27,16 @@ import org.opensearch.transport.Transport;
  */
 public class ArrowFlightProducer extends NoOpFlightProducer {
     private final BufferAllocator allocator;
-    private final InboundPipeline pipeline;
+    private final FlightTransport flightTransport;
+    private final ThreadPool threadPool;
+    private final Transport.RequestHandlers requestHandlers;
     private static final Logger logger = LogManager.getLogger(ArrowFlightProducer.class);
     private final FlightServerMiddleware.Key<ServerHeaderMiddleware> middlewareKey;
 
     public ArrowFlightProducer(FlightTransport flightTransport, BufferAllocator allocator, FlightServerMiddleware.Key<ServerHeaderMiddleware> middlewareKey) {
-        final ThreadPool threadPool = flightTransport.getThreadPool();
-        final Transport.RequestHandlers requestHandlers = flightTransport.getRequestHandlers();
-        this.pipeline = new InboundPipeline(
-            flightTransport.getVersion(),
-            flightTransport.getStatsTracker(),
-            flightTransport.getPageCacheRecycler(),
-            threadPool::relativeTimeInMillis,
-            flightTransport.getInflightBreaker(),
-            requestHandlers::getHandler,
-            flightTransport::inboundMessage
-        );
+        this.threadPool = flightTransport.getThreadPool();
+        this.requestHandlers = flightTransport.getRequestHandlers();
+        this.flightTransport = flightTransport;
         this.middlewareKey = middlewareKey;
         this.allocator = allocator;
     }
@@ -50,19 +44,26 @@ public class ArrowFlightProducer extends NoOpFlightProducer {
     @Override
     public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener) {
         try {
-            FlightServerChannel channel = new FlightServerChannel(listener, allocator, context, context.getMiddleware(middlewareKey));
+            FlightServerChannel channel = new FlightServerChannel(listener, allocator, context.getMiddleware(middlewareKey));
             listener.setUseZeroCopy(true);
             BytesArray buf = new BytesArray(ticket.getBytes());
+            InboundPipeline pipeline = new InboundPipeline(
+                flightTransport.getVersion(),
+                flightTransport.getStatsTracker(),
+                flightTransport.getPageCacheRecycler(),
+                threadPool::relativeTimeInMillis,
+                flightTransport.getInflightBreaker(),
+                requestHandlers::getHandler,
+                flightTransport::inboundMessage
+            );
             // nothing changes in inbound logic, so reusing native transport inbound pipeline
             try (ReleasableBytesReference reference = ReleasableBytesReference.wrap(buf)) {
                 pipeline.handleBytes(channel, reference);
             }
         } catch (FlightRuntimeException ex) {
-            logger.error("Unexpected error during stream processing", ex);
             listener.error(ex);
             throw ex;
         } catch (Exception ex) {
-            logger.error("Unexpected error during stream processing", ex);
             FlightRuntimeException fre = CallStatus.INTERNAL.withCause(ex).withDescription("Unexpected server error").toRuntimeException();
             listener.error(fre);
             throw fre;
