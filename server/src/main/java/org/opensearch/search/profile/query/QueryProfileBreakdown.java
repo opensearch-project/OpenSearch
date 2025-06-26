@@ -34,23 +34,31 @@ package org.opensearch.search.profile.query;
 
 import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.opensearch.search.profile.ProfileMetric;
+import org.opensearch.search.profile.Timer;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * A record of timings for the various operations that may happen during query execution.
- * A node's time may be composed of several internal attributes (rewriting, weighting,
- * scoring, etc).
- *
- * @opensearch.internal
+ * A {@link AbstractProfileBreakdown} for query timings.
  */
-public final class QueryProfileBreakdown extends ContextualProfileBreakdown<QueryTimingType> {
+public class QueryProfileBreakdown extends ContextualProfileBreakdown {
 
-    /** Sole constructor. */
-    public QueryProfileBreakdown() {
-        super(QueryTimingType.class);
+    public QueryProfileBreakdown(Map<String, Class<? extends ProfileMetric>> metrics) {
+        super(metrics);
     }
 
     @Override
-    public AbstractProfileBreakdown<QueryTimingType> context(Object context) {
+    public ContextualProfileBreakdown context(Object context) {
         return this;
+    }
+
+    public static Map<String, Class<? extends ProfileMetric>> getQueryTimers() {
+        Map<String, Class<? extends ProfileMetric>> metrics = new HashMap<>();
+        for (QueryTimingType type : QueryTimingType.values()) {
+            metrics.put(type.toString(), Timer.class);
+        }
+        return metrics;
     }
 }

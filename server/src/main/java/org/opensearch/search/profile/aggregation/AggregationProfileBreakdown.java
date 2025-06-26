@@ -34,6 +34,7 @@ package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.ProfileMetric;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -43,14 +44,14 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * {@linkplain AbstractProfileBreakdown} customized to work with aggregations.
  *
- * @opensearch.api
+ *  @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class AggregationProfileBreakdown extends AbstractProfileBreakdown<AggregationTimingType> {
+public class AggregationProfileBreakdown extends AbstractProfileBreakdown {
     private final Map<String, Object> extra = new HashMap<>();
 
-    public AggregationProfileBreakdown() {
-        super(AggregationTimingType.class);
+    public AggregationProfileBreakdown(Map<String, Class<? extends ProfileMetric>> timers) {
+        super(timers);
     }
 
     /**

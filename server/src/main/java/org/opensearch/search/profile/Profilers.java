@@ -72,14 +72,14 @@ public final class Profilers {
         QueryProfiler profiler = isConcurrentSegmentSearchEnabled
             ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
             : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setProfiler(profiler);
+        searcher.setQueryProfiler(profiler);
         queryProfilers.add(profiler);
         return profiler;
     }
 
     /** Get the current profiler. */
     public QueryProfiler getCurrentQueryProfiler() {
-        return queryProfilers.get(queryProfilers.size() - 1);
+        return queryProfilers.getLast();
     }
 
     /** Return the list of all created {@link QueryProfiler}s so far. */

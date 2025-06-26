@@ -168,7 +168,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         QueryProfiler profiler = executor != null
             ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
             : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setProfiler(profiler);
+        searcher.setQueryProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
         List<ProfileResult> results = profiler.getTree();
@@ -237,7 +237,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         QueryProfiler profiler = executor != null
             ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
             : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setProfiler(profiler);
+        searcher.setQueryProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
         List<ProfileResult> results = profiler.getTree();
@@ -306,7 +306,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         QueryProfiler profiler = executor != null
             ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
             : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setProfiler(profiler);
+        searcher.setQueryProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats
         List<ProfileResult> results = profiler.getTree();
@@ -322,7 +322,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         QueryProfiler profiler = executor != null
             ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
             : new QueryProfiler(new InternalQueryProfileTree());
-        searcher.setProfiler(profiler);
+        searcher.setQueryProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);
         List<ProfileResult> results = profiler.getTree();
