@@ -48,8 +48,11 @@ import org.junit.Before;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManagerFactory;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -80,6 +83,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http2.Http2SecurityUtil;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
@@ -108,7 +112,45 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
+        var keyManagerFactory = KeyManagerFactory.getInstance("PKIX");
+        keyManagerFactory.init(KeyStoreUtils.createServerKeyStore(), KEYSTORE_PASSWORD);
+
         secureHttpTransportSettingsProvider = new SecureHttpTransportSettingsProvider() {
+            @Override
+            public Optional<SecureHttpTransportParameters> parameters(Settings settings) {
+                return Optional.of(new SecureHttpTransportParameters() {
+                    @Override
+                    public Optional<KeyManagerFactory> keyManagerFactory() {
+                        return Optional.of(keyManagerFactory);
+                    }
+
+                    @Override
+                    public Optional<String> sslProvider() {
+                        return Optional.empty();
+                    }
+
+                    @Override
+                    public Optional<String> clientAuth() {
+                        return Optional.empty();
+                    }
+
+                    @Override
+                    public Collection<String> protocols() {
+                        return Arrays.asList(SslUtils.DEFAULT_SSL_PROTOCOLS);
+                    }
+
+                    @Override
+                    public Collection<String> cipherSuites() {
+                        return Http2SecurityUtil.CIPHERS;
+                    }
+
+                    @Override
+                    public Optional<TrustManagerFactory> trustManagerFactory() {
+                        return Optional.of(InsecureTrustManagerFactory.INSTANCE);
+                    }
+                });
+            }
+
             @Override
             public Optional<TransportExceptionHandler> buildHttpServerExceptionHandler(Settings settings, HttpServerTransport transport) {
                 return Optional.empty();
@@ -117,8 +159,6 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             @Override
             public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
                 try {
-                    var keyManagerFactory = KeyManagerFactory.getInstance("PKIX");
-                    keyManagerFactory.init(KeyStoreUtils.createServerKeyStore(), KEYSTORE_PASSWORD);
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
                         .trustManager(InsecureTrustManagerFactory.INSTANCE)
                         .build()
