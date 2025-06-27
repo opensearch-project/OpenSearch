@@ -14,17 +14,21 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * QueryCollectorContextFactoryRegistery
+ * Registry class to load all collector context spec factories during cluster bootstrapping
  */
 public class QueryCollectorContextSpecRegistry {
 
     private static final List<QueryCollectorContextSpecFactory> registry = new CopyOnWriteArrayList<>();
 
-    public static QueryCollectorContextSpecFactory getFactory(Query query) {
+    static QueryCollectorContextSpecFactory getFactory(Query query) {
 
         return registry.stream().filter(entry -> entry.supports(query)).findFirst().orElse(null);
     }
 
+    /**
+     * Register factory
+     * @param factory collector context spec factory defined in plugin
+     */
     public static void registerFactory(QueryCollectorContextSpecFactory factory) {
         registry.add(factory);
     }

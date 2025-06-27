@@ -13,6 +13,9 @@ import org.apache.lucene.search.CollectorManager;
 
 import java.io.IOException;
 
+/**
+ * interface of QueryCollectorContextSpec
+ */
 public interface QueryCollectorContextSpec {
     String getProfileName();
 

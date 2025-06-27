@@ -322,8 +322,6 @@ public class SearchModule {
 
     private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
 
-    // private final QueryCollectorContextFactory queryCollectorContextFactory;
-
     /**
      * Constructs a new SearchModule object
      * <p>

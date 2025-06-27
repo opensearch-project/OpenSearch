@@ -451,7 +451,7 @@ public class QueryPhase {
             if (queryCollectorContextSpecFactory == null) {
                 queryCollectorContext = createTopDocsCollectorContext(searchContext, hasFilterCollector);
             } else {
-                QueryCollectorContextSpec queryCollectorContextSpec = queryCollectorContextSpecFactory.create(
+                QueryCollectorContextSpec queryCollectorContextSpec = queryCollectorContextSpecFactory.createQueryCollectorContextSpec(
                     searchContext,
                     hasFilterCollector
                 );
