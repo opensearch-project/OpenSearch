@@ -74,6 +74,7 @@ tasks.named('validateNebulaPom') {
 tasks.test {
   dependsOn prepareAgent
   jvmArgs += ["-javaagent:" + project.jar.archiveFile.get()]
+  forkEvery = 1
 }
 
 tasks.check {

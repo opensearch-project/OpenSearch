@@ -653,4 +653,159 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             }
         }
     }
+
+    // Following test replicates the http_logs dataset
+    public void testHttpLogTimestampDistribution() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                // Sparse range: 100-199 (100 docs, one per value)
+                for (int i = 100; i < 200; i++) {
+                    Document doc = new Document();
+                    doc.add(new LongPoint("timestamp", i));
+                    doc.add(new NumericDocValuesField("timestamp", i));
+                    iw.addDocument(doc);
+                }
+                // Dense range: 1000-1999 (5000 docs, 5 per value)
+                for (int i = 0; i < 5000; i++) {
+                    long value = 1000 + (i / 5); // Creates 5 docs per value from 1000-1999
+                    Document doc = new Document();
+                    doc.add(new LongPoint("timestamp", value));
+                    doc.add(new NumericDocValuesField("timestamp", value));
+                    iw.addDocument(doc);
+                }
+                // 0-99 (100 docs)
+                for (int i = 0; i < 100; i++) {
+                    Document doc = new Document();
+                    doc.add(new LongPoint("timestamp", i));
+                    doc.add(new NumericDocValuesField("timestamp", i));
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+                iw.forceMerge(1);
+                try (IndexReader reader = iw.getReader()) {
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    // Test sparse region
+                    testApproximateVsExactQuery(searcher, "timestamp", 100, 199, 50, dims);
+                    // Test dense region
+                    testApproximateVsExactQuery(searcher, "timestamp", 1000, 1500, 100, dims);
+                    // Test across regions
+                    testApproximateVsExactQuery(searcher, "timestamp", 0, 2000, 200, dims);
+                }
+            }
+        }
+    }
+
+    // Following test replicates the nyx_taxis dataset
+    public void testNycTaxiDataDistribution() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+                // Create NYC taxi fare distribution with different ranges
+                for (long fare = 250; fare <= 500; fare++) {
+                    iw.addDocument(asList(new LongPoint("fare_amount", fare), new NumericDocValuesField("fare_amount", fare)));
+                }
+                // Typical fares: 1000-3000 (dense, 5 docs per value)
+                for (long fare = 1000; fare <= 3000; fare++) {
+                    for (int dup = 0; dup < 5; dup++) {
+                        iw.addDocument(asList(new LongPoint("fare_amount", fare), new NumericDocValuesField("fare_amount", fare)));
+                    }
+                }
+                // High fares: 10000-20000 (sparse, 1 doc every 100)
+                for (long fare = 10000; fare <= 20000; fare += 100) {
+                    iw.addDocument(asList(new LongPoint("fare_amount", fare), new NumericDocValuesField("fare_amount", fare)));
+                }
+                iw.flush();
+                iw.forceMerge(1);
+                try (IndexReader reader = iw.getReader()) {
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    // Test 1: Query for typical fare range
+                    testApproximateVsExactQuery(searcher, "fare_amount", 1000, 3000, 100, dims);
+                    // Test 2: Query for high fare range
+                    testApproximateVsExactQuery(searcher, "fare_amount", 10000, 20000, 50, dims);
+                    // Test 3: Query for low fares
+                    testApproximateVsExactQuery(searcher, "fare_amount", 250, 500, 50, dims);
+                }
+            }
+        }
+    }
+
+    private void testApproximateVsExactQuery(IndexSearcher searcher, String field, long lower, long upper, int size, int dims)
+        throws IOException {
+        // Test with approximate query
+        ApproximatePointRangeQuery approxQuery = new ApproximatePointRangeQuery(
+            field,
+            pack(lower).bytes,
+            pack(upper).bytes,
+            dims,
+            size,
+            null,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
+        // Test with exact query
+        Query exactQuery = LongPoint.newRangeQuery(field, lower, upper);
+        TopDocs approxDocs = searcher.search(approxQuery, size);
+        TopDocs exactDocs = searcher.search(exactQuery, size);
+        // Verify approximate query returns correct number of results
+        assertTrue("Approximate query should return at most " + size + " docs", approxDocs.scoreDocs.length <= size);
+        // If exact query returns fewer docs than size, approximate should match
+        if (exactDocs.totalHits.value() <= size) {
+            assertEquals(
+                "When exact results fit in size, approximate should match exactly",
+                exactDocs.totalHits.value(),
+                approxDocs.totalHits.value()
+            );
+        }
+        // Test with sorting (ASC and DESC)
+        Sort ascSort = new Sort(new SortField(field, SortField.Type.LONG));
+        Sort descSort = new Sort(new SortField(field, SortField.Type.LONG, true));
+        // Test ASC sort
+        ApproximatePointRangeQuery approxQueryAsc = new ApproximatePointRangeQuery(
+            field,
+            pack(lower).bytes,
+            pack(upper).bytes,
+            dims,
+            size,
+            SortOrder.ASC,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
+        TopDocs approxDocsAsc = searcher.search(approxQueryAsc, size, ascSort);
+        TopDocs exactDocsAsc = searcher.search(exactQuery, size, ascSort);
+        // Verify results match
+        for (int i = 0; i < size; i++) {
+            assertEquals("ASC sorted results should match at position " + i, exactDocsAsc.scoreDocs[i].doc, approxDocsAsc.scoreDocs[i].doc);
+        }
+        assertEquals("Should return exactly size value documents", size, approxDocsAsc.scoreDocs.length);
+        assertEquals(
+            "Should return exactly size value documents as regular query",
+            exactDocsAsc.scoreDocs.length,
+            approxDocsAsc.scoreDocs.length
+        );
+        // Test DESC sort
+        ApproximatePointRangeQuery approxQueryDesc = new ApproximatePointRangeQuery(
+            field,
+            pack(lower).bytes,
+            pack(upper).bytes,
+            dims,
+            size,
+            SortOrder.DESC,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
+        TopDocs approxDocsDesc = searcher.search(approxQueryDesc, size, descSort);
+        TopDocs exactDocsDesc = searcher.search(exactQuery, size, descSort);
+        // Verify the results match
+        for (int i = 0; i < size; i++) {
+            assertEquals(
+                "DESC sorted results should match at position " + i,
+                exactDocsDesc.scoreDocs[i].doc,
+                approxDocsDesc.scoreDocs[i].doc
+            );
+        }
+        assertEquals("Should return exactly size value documents", size, approxDocsAsc.scoreDocs.length);
+        assertEquals(
+            "Should return exactly size value documents as regular query",
+            exactDocsAsc.scoreDocs.length,
+            approxDocsAsc.scoreDocs.length
+        );
+    }
 }

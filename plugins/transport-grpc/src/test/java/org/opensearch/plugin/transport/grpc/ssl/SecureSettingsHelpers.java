@@ -9,8 +9,8 @@
 package org.opensearch.plugin.transport.grpc.ssl;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
+import org.opensearch.transport.AuxTransport;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -110,7 +110,7 @@ public class SecureSettingsHelpers {
     ) {
         return new SecureAuxTransportSettingsProvider() {
             @Override
-            public Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, NetworkPlugin.AuxTransport transport)
+            public Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, AuxTransport transport)
                 throws SSLException {
                 // Choose a random protocol from among supported test defaults
                 String protocol = randomFrom(DEFAULT_SSL_PROTOCOLS);

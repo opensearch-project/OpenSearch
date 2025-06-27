@@ -19,7 +19,9 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
+import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCache.RestoredCachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
@@ -188,6 +190,54 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         assertFalse(existsInLocalDirectory(FILE_PRESENT_LOCALLY));
         // Asserting file is not present in FileCache
         assertNull(fileCache.get(getFilePath(FILE_PRESENT_LOCALLY)));
+    }
+
+    public void testOpenInputWithClosedCachedInput() throws Exception {
+        // Setup: Create a file and get it into cache
+        try (IndexOutput indexOutput = compositeDirectory.createOutput(NEW_FILE, IOContext.DEFAULT)) {
+            indexOutput.writeString("test data");
+        }
+
+        // Get the cached input and close it
+        Path key = getFilePath(NEW_FILE);
+        RestoredCachedIndexInput restoredCachedIndexInput = new RestoredCachedIndexInput(0);
+        CachedIndexInput cachedInput = fileCache.get(key);
+        cachedInput.close();
+        // replace the original index input with RestoredCachedIndexInput
+        fileCache.put(key, restoredCachedIndexInput);
+
+        // Verify that we can still open the file and get a valid input
+        IndexInput input = compositeDirectory.openInput(NEW_FILE, IOContext.DEFAULT);
+        assertNotNull(input);
+        assertTrue(input instanceof FileCachedIndexInput);
+        input.close();
+    }
+
+    public void testOpenInputAfterFileCacheEviction() throws IOException {
+        // First create and cache the file locally
+        try (IndexOutput indexOutput = compositeDirectory.createOutput(FILE_PRESENT_IN_REMOTE_ONLY, IOContext.DEFAULT)) {
+            indexOutput.writeString("test data");
+        }
+
+        // Clear the file cache
+        fileCache.clear();
+
+        // Should still be able to open input, now from remote
+        IndexInput input = compositeDirectory.openInput(FILE_PRESENT_IN_REMOTE_ONLY, IOContext.DEFAULT);
+        assertNotNull(input);
+        assertTrue(input instanceof OnDemandBlockSnapshotIndexInput);
+        input.close();
+    }
+
+    public void testOpenInputThrowsIOException() throws IOException {
+        // Use FILE_PRESENT_LOCALLY ("_1.cfe") which is already set up locally
+        // Corrupt the local file to cause IOException
+        Path filePath = getFilePath(NEW_FILE);
+        try (IndexOutput output = localDirectory.createOutput(NEW_FILE, IOContext.DEFAULT)) {
+            output.writeString("corrupted data");
+        }
+
+        assertThrows(IOException.class, () -> compositeDirectory.openInput(NEW_FILE, IOContext.DEFAULT));
     }
 
     private void addFilesToDirectory(String[] files) throws IOException {
