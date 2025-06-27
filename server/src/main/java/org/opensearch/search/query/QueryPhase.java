@@ -446,8 +446,35 @@ public class QueryPhase {
             boolean hasTimeout
         ) throws IOException {
             // create the top docs collector last when the other collectors are known
-            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
-            return searchWithCollector(searchContext, searcher, query, collectors, topDocsFactory, hasFilterCollector, hasTimeout);
+            QueryCollectorContext queryCollectorContext;
+            QueryCollectorContextSpecFactory queryCollectorContextSpecFactory = QueryCollectorContextSpecRegistry.getFactory(query);
+            if (queryCollectorContextSpecFactory == null) {
+                queryCollectorContext = createTopDocsCollectorContext(searchContext, hasFilterCollector);
+            } else {
+                QueryCollectorContextSpec queryCollectorContextSpec = queryCollectorContextSpecFactory.createQueryCollectorContextSpec(
+                    searchContext,
+                    hasFilterCollector
+                );
+                queryCollectorContext = new QueryCollectorContext(queryCollectorContextSpec.getProfileName()) {
+                    @Override
+                    Collector create(Collector in) throws IOException {
+                        return queryCollectorContextSpec.create(in);
+                    }
+
+                    @Override
+                    CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in)
+                        throws IOException {
+                        return queryCollectorContextSpec.createManager(in);
+                    }
+
+                    @Override
+                    void postProcess(QuerySearchResult result) throws IOException {
+                        queryCollectorContextSpec.postProcess(result);
+                    }
+                };
+            }
+
+            return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
         }
 
         protected boolean searchWithCollector(
