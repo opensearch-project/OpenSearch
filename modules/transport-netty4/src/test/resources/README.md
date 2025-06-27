@@ -24,3 +24,19 @@ keytool -importkeystore -noprompt \
     -deststoretype JKS \
     -deststorepass password
 ```
+
+# 4. Migrate from P12 to BCFIPS keystore
+
+```
+keytool -importkeystore -noprompt \
+    -srckeystore netty4-secure.p12 \
+    -srcstoretype PKCS12 \
+    -srcstorepass password \
+    -alias netty4-secure \
+    -destkeystore netty4-secure.bcfks \
+    -deststoretype BCFKS \
+    -deststorepass password \
+    -providername BCFIPS \
+    -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
+    -providerpath $LIB_PATH/bc-fips-2.0.0.jar
+```
