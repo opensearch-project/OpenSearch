@@ -61,7 +61,7 @@ public class MergedSegmentWarmerFactory {
         if (shard.indexSettings().isAssignedOnRemoteNode()) {
             return new RemoteStoreMergedSegmentWarmer(transportService, recoverySettings, clusterService);
         } else if (shard.indexSettings().isSegRepLocalEnabled()) {
-            return new LocalMergedSegmentWarmer(transportService, recoverySettings, clusterService);
+            return new LocalMergedSegmentWarmer(transportService, recoverySettings, clusterService, shard);
         } else if (shard.indexSettings().isDocumentReplication()) {
             // MergedSegmentWarmerFactory#get is called when IndexShard is initialized. In scenario document replication,
             // IndexWriter.IndexReaderWarmer should be null.
