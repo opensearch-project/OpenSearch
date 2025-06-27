@@ -474,6 +474,18 @@ public class QueryPhase {
                 };
             }
 
+            return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
+        }
+
+        protected boolean searchWithCollector(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            QueryCollectorContext queryCollectorContext,
+            boolean hasFilterCollector,
+            boolean hasTimeout
+        ) throws IOException {
             return QueryPhase.searchWithCollector(
                 searchContext,
                 searcher,
@@ -484,25 +496,5 @@ public class QueryPhase {
                 hasTimeout
             );
         }
-
-        // protected boolean searchWithCollector(
-        // SearchContext searchContext,
-        // ContextIndexSearcher searcher,
-        // Query query,
-        // LinkedList<QueryCollectorContext> collectors,
-        // QueryCollectorContext queryCollectorContext,
-        // boolean hasFilterCollector,
-        // boolean hasTimeout
-        // ) throws IOException {
-        // return QueryPhase.searchWithCollector(
-        // searchContext,
-        // searcher,
-        // query,
-        // collectors,
-        // queryCollectorContext,
-        // hasFilterCollector,
-        // hasTimeout
-        // );
-        // }
     }
 }
