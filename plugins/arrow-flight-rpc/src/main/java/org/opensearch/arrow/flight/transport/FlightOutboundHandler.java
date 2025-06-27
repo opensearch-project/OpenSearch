@@ -17,7 +17,6 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.Version;
-import org.opensearch.arrow.flight.stream.VectorStreamOutput;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.action.ActionListener;
@@ -42,7 +41,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public class FlightOutboundHandler extends ProtocolOutboundHandler {
+class FlightOutboundHandler extends ProtocolOutboundHandler {
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
     private final String nodeName;
     private final Version version;
