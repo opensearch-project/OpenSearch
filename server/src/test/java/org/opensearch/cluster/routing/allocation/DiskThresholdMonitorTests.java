@@ -908,7 +908,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
 
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[remote_index][0][p]", 172L);
-        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), fileCacheStats);
+        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), fileCacheStats, Map.of());
 
         monitor.onNewInfo(clusterInfo);
 
@@ -989,7 +989,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
 
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[remote_index][0][p]", 182L);
-        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), fileCacheStats);
+        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), fileCacheStats, Map.of());
 
         monitor.onNewInfo(clusterInfo);
 
@@ -1065,7 +1065,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
 
         final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[remote_index][0][p]", 192L);
-        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), fileCacheStats);
+        ClusterInfo clusterInfo = new ClusterInfo(diskUsages, null, shardSizes, null, Map.of(), fileCacheStats, Map.of());
 
         monitor.onNewInfo(clusterInfo);
 
@@ -1151,7 +1151,7 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         final Map<String, DiskUsage> diskUsages,
         final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
     ) {
-        return new ClusterInfo(diskUsages, null, null, null, reservedSpace, Map.of());
+        return new ClusterInfo(diskUsages, null, null, null, reservedSpace, Map.of(), null);
     }
 
     private static AggregateFileCacheStats createAggregateFileCacheStats(long totalCacheSize) {
