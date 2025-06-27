@@ -336,9 +336,6 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     @Override
     public void visit(QueryBuilderVisitor visitor) {
         visitor.accept(this);
-        if (query != null) {
-            query.visit(visitor.getChildVisitor(BooleanClause.Occur.MUST));
-        }
+        query.visit(visitor.getChildVisitor(BooleanClause.Occur.MUST));
     }
-
 }
