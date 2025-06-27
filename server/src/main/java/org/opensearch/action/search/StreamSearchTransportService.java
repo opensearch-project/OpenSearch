@@ -8,6 +8,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.StreamChannelActionListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -24,12 +25,16 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
 
+/**
+ * Search transport service for streaming search
+ */
 public class StreamSearchTransportService extends SearchTransportService {
     private final StreamTransportService transportService;
 
@@ -73,6 +78,14 @@ public class StreamSearchTransportService extends SearchTransportService {
                 );
             }
         );
+        transportService.registerRequestHandler(
+            QUERY_CAN_MATCH_NAME,
+            ThreadPool.Names.SAME,
+            ShardSearchRequest::new,
+            (request, channel, task) -> {
+                searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
+            }
+        );
     }
 
     @Override
@@ -85,7 +98,7 @@ public class StreamSearchTransportService extends SearchTransportService {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
-        TransportResponseHandler<SearchPhaseResult> transportHandler = new TransportResponseHandler<SearchPhaseResult>() {
+        TransportResponseHandler<SearchPhaseResult> transportHandler = new TransportResponseHandler<>() {
 
             @Override
             public void handleStreamResponse(StreamTransportResponse<SearchPhaseResult> response) {
@@ -109,20 +122,21 @@ public class StreamSearchTransportService extends SearchTransportService {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.SEARCH;
-            } // TODO: use a different thread pool for stream
+                return ThreadPool.Names.STREAM_SEARCH;
+            }
 
             @Override
             public SearchPhaseResult read(StreamInput in) throws IOException {
                 return reader.read(in);
             }
         };
+
         transportService.sendChildRequest(
             connection,
             QUERY_ACTION_NAME,
             request,
             task,
-            transportHandler // TODO: check feasibility of ConnectionCountingHandler
+            transportHandler // TODO: wrap with ConnectionCountingHandler
         );
     }
 
@@ -153,8 +167,8 @@ public class StreamSearchTransportService extends SearchTransportService {
 
             @Override
             public String executor() {
-                return ThreadPool.Names.SEARCH;
-            } // TODO: use a different thread pool for stream
+                return ThreadPool.Names.STREAM_SEARCH;
+            }
 
             @Override
             public FetchSearchResult read(StreamInput in) throws IOException {
@@ -162,5 +176,54 @@ public class StreamSearchTransportService extends SearchTransportService {
             }
         };
         transportService.sendChildRequest(connection, FETCH_ID_ACTION_NAME, request, task, transportHandler);
+    }
+
+    @Override
+    public void sendCanMatch(
+        Transport.Connection connection,
+        final ShardSearchRequest request,
+        SearchTask task,
+        final ActionListener<SearchService.CanMatchResponse> listener
+    ) {
+        TransportResponseHandler<SearchService.CanMatchResponse> transportHandler = new TransportResponseHandler<>() {
+
+            @Override
+            public void handleStreamResponse(StreamTransportResponse<SearchService.CanMatchResponse> response) {
+                SearchService.CanMatchResponse result = response.nextResponse();
+                if (response.nextResponse() != null) {
+                    throw new IllegalStateException("Only one response expected from SearchService.CanMatchResponse");
+                }
+                listener.onResponse(result);
+            }
+
+            @Override
+            public void handleResponse(SearchService.CanMatchResponse response) {
+                throw new IllegalStateException("handleResponse is not supported for Streams");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                listener.onFailure(exp);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public SearchService.CanMatchResponse read(StreamInput in) throws IOException {
+                return new SearchService.CanMatchResponse(in);
+            }
+        };
+
+        transportService.sendChildRequest(
+            connection,
+            QUERY_CAN_MATCH_NAME,
+            request,
+            task,
+            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+            transportHandler
+        );
     }
 }

@@ -52,9 +52,17 @@ import static org.opensearch.common.settings.Setting.listSetting;
 import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_PORT;
 import static org.opensearch.transport.Transport.resolveTransportPublishPort;
 
+/**
+ * Server components for Arrow Flight RPC integration with OpenSearch.
+ * Manages the lifecycle of Flight server instances and their configuration.
+ * @opensearch.internal
+ */
 @SuppressWarnings("removal")
 public final class ServerComponents implements AutoCloseable {
 
+    /**
+     * Setting for Arrow Flight host addresses.
+     */
     public static final Setting<List<String>> SETTING_FLIGHT_HOST = listSetting(
         "arrow.flight.host",
         emptyList(),
@@ -62,6 +70,9 @@ public final class ServerComponents implements AutoCloseable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting for Arrow Flight bind host addresses.
+     */
     public static final Setting<List<String>> SETTING_FLIGHT_BIND_HOST = listSetting(
         "arrow.flight.bind_host",
         SETTING_FLIGHT_HOST,
@@ -69,6 +80,9 @@ public final class ServerComponents implements AutoCloseable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting for Arrow Flight publish host addresses.
+     */
     public static final Setting<List<String>> SETTING_FLIGHT_PUBLISH_HOST = listSetting(
         "arrow.flight.publish_host",
         SETTING_FLIGHT_HOST,
@@ -76,6 +90,9 @@ public final class ServerComponents implements AutoCloseable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting for Arrow Flight publish port.
+     */
     public static final Setting<Integer> SETTING_FLIGHT_PUBLISH_PORT = intSetting(
         "arrow.flight.publish_port",
         -1,
@@ -89,7 +106,14 @@ public final class ServerComponents implements AutoCloseable {
     private static final String GRPC_BOSS_ELG = "os-grpc-boss-ELG";
     private static final int SHUTDOWN_TIMEOUT_SECONDS = 5;
 
+    /**
+     * The setting key for Flight transport configuration.
+     */
     public static final String FLIGHT_TRANSPORT_SETTING_KEY = "transport-flight";
+
+    /**
+     * Setting for Arrow Flight port range.
+     */
     public static final Setting<PortsRange> SETTING_FLIGHT_PORTS = AUX_TRANSPORT_PORT.getConcreteSettingForNamespace(
         FLIGHT_TRANSPORT_SETTING_KEY
     );

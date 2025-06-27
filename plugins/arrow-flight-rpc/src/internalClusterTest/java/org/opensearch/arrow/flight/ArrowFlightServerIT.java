@@ -19,7 +19,7 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.arrow.flight.bootstrap.FlightClientManager;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
-import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
+import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.arrow.spi.StreamProducer;
 import org.opensearch.arrow.spi.StreamReader;

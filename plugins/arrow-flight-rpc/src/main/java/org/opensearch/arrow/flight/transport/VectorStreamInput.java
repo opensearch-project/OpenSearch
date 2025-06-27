@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow.flight.stream;
+package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
@@ -19,7 +19,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public class VectorStreamInput extends StreamInput {
+class VectorStreamInput extends StreamInput {
 
     private final VarBinaryVector vector;
     private final NamedWriteableRegistry registry;
