@@ -1219,6 +1219,40 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
+    @Deprecated(forRemoval = true)
+    public IndexShard createShard(
+        final ShardRouting shardRouting,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        final PeerRecoveryTargetService recoveryTargetService,
+        final RecoveryListener recoveryListener,
+        final RepositoriesService repositoriesService,
+        final Consumer<IndexShard.ShardFailure> onShardFailure,
+        final Consumer<ShardId> globalCheckpointSyncer,
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final DiscoveryNode targetNode,
+        final DiscoveryNode sourceNode,
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        final DiscoveryNodes discoveryNodes,
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory
+    ) throws IOException {
+        return createShard(
+            shardRouting,
+            checkpointPublisher,
+            recoveryTargetService,
+            recoveryListener,
+            repositoriesService,
+            onShardFailure,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            targetNode,
+            sourceNode,
+            remoteStoreStatsTrackerFactory,
+            discoveryNodes,
+            mergedSegmentWarmerFactory,
+            null
+        );
+    }
+
     @Override
     public IndexShard createShard(
         final ShardRouting shardRouting,
