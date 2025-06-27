@@ -83,6 +83,7 @@ import static org.opensearch.search.query.QueryCollectorContext.createEarlyTermi
 import static org.opensearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createMultiCollectorContext;
+import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
 
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
@@ -445,27 +446,34 @@ public class QueryPhase {
             boolean hasTimeout
         ) throws IOException {
             // create the top docs collector last when the other collectors are known
-            QueryCollectorContextFactory queryCollectorContextFactory = QueryCollectorContextFactoryRegistery.getFactory(query);
-            CollectorContextParams collectorContextParams = new CollectorContextParams.Builder().withSearchContext(searchContext)
-                .withHasFilterCollector(hasFilterCollector)
-                .build();
-            if (queryCollectorContextFactory == null) {
-                queryCollectorContextFactory = new TopDocsCollectorContextFactory();
-            }
-            final QueryCollectorContext queryCollectorContext = queryCollectorContextFactory.createCollectorContext(collectorContextParams);
-            // final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
-            return searchWithCollector(searchContext, searcher, query, collectors, queryCollectorContext, hasFilterCollector, hasTimeout);
-        }
+            QueryCollectorContext queryCollectorContext;
+            QueryCollectorContextSpecFactory queryCollectorContextSpecFactory = QueryCollectorContextSpecRegistry.getFactory(query);
+            if (queryCollectorContextSpecFactory == null) {
+                queryCollectorContext = createTopDocsCollectorContext(searchContext, hasFilterCollector);
+            } else {
+                QueryCollectorContextSpec queryCollectorContextSpec = queryCollectorContextSpecFactory.create(
+                    searchContext,
+                    hasFilterCollector
+                );
+                queryCollectorContext = new QueryCollectorContext(queryCollectorContextSpec.getProfileName()) {
+                    @Override
+                    Collector create(Collector in) throws IOException {
+                        return queryCollectorContextSpec.create(in);
+                    }
 
-        protected boolean searchWithCollector(
-            SearchContext searchContext,
-            ContextIndexSearcher searcher,
-            Query query,
-            LinkedList<QueryCollectorContext> collectors,
-            QueryCollectorContext queryCollectorContext,
-            boolean hasFilterCollector,
-            boolean hasTimeout
-        ) throws IOException {
+                    @Override
+                    CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in)
+                        throws IOException {
+                        return queryCollectorContextSpec.createManager(in);
+                    }
+
+                    @Override
+                    void postProcess(QuerySearchResult result) throws IOException {
+                        queryCollectorContextSpec.postProcess(result);
+                    }
+                };
+            }
+
             return QueryPhase.searchWithCollector(
                 searchContext,
                 searcher,
@@ -476,5 +484,25 @@ public class QueryPhase {
                 hasTimeout
             );
         }
+
+        // protected boolean searchWithCollector(
+        // SearchContext searchContext,
+        // ContextIndexSearcher searcher,
+        // Query query,
+        // LinkedList<QueryCollectorContext> collectors,
+        // QueryCollectorContext queryCollectorContext,
+        // boolean hasFilterCollector,
+        // boolean hasTimeout
+        // ) throws IOException {
+        // return QueryPhase.searchWithCollector(
+        // searchContext,
+        // searcher,
+        // query,
+        // collectors,
+        // queryCollectorContext,
+        // hasFilterCollector,
+        // hasTimeout
+        // );
+        // }
     }
 }

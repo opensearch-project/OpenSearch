@@ -8,11 +8,16 @@
 
 package org.opensearch.search.query;
 
+import org.apache.lucene.search.Query;
+import org.opensearch.search.internal.SearchContext;
+
 import java.io.IOException;
 
 /**
  *  QueryCollectorContextFactory
  */
-public interface QueryCollectorContextFactory {
-    QueryCollectorContext createCollectorContext(CollectorContextParams params) throws IOException;
+public interface QueryCollectorContextSpecFactory {
+    boolean supports(Query query);
+
+    QueryCollectorContextSpec create(SearchContext searchContext, boolean hasFilterCollector) throws IOException;
 }

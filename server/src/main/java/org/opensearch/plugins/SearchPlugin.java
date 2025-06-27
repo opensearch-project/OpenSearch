@@ -68,7 +68,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
-import org.opensearch.search.query.QueryCollectorContextFactory;
+import org.opensearch.search.query.QueryCollectorContextSpecFactory;
 import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.rescore.Rescorer;
 import org.opensearch.search.rescore.RescorerBuilder;
@@ -228,7 +228,7 @@ public interface SearchPlugin {
         return Optional.empty();
     }
 
-    default List<FactorySpec<?>> getCollectorContextFactory() {
+    default List<FactorySpec<?>> getCollectorContextSpec() {
         return emptyList();
     }
 
@@ -417,22 +417,22 @@ public interface SearchPlugin {
       * @param <T>
      */
     class FactorySpec<T extends QueryBuilder> {
-        public String getName() {
-            return name;
+        // public String getName() {
+        // return name;
+        // }
+
+        public QueryCollectorContextSpecFactory getQueryCollectorContextSpec() {
+            return queryCollectorContextSpecFactory;
         }
 
-        public QueryCollectorContextFactory getQueryCollectorContextFactory() {
-            return queryCollectorContextFactory;
-        }
+        // private final String name;
+        //
+        // public Class<?> getClassType() {
+        // return classType;
+        // }
 
-        private final String name;
-
-        public Class<?> getClassType() {
-            return classType;
-        }
-
-        private final Class<?> classType;
-        private final QueryCollectorContextFactory queryCollectorContextFactory;
+        // private final Class<?> classType;
+        private final QueryCollectorContextSpecFactory queryCollectorContextSpecFactory;
 
         /**
          * Specification of custom {@link Query}.
@@ -440,12 +440,12 @@ public interface SearchPlugin {
          * @param name the name by which this query might be parsed or deserialized. Make sure that the query builder returns this name for
          *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
          *        names from other plugins.
-         * @param queryCollectorContextFactory Factory associated with the query builder
+         * @param queryCollectorContextSpecFactory Factory associated with the query builder
          */
-        public FactorySpec(String name, Class<?> classType, QueryCollectorContextFactory queryCollectorContextFactory) {
-            this.name = name;
-            this.classType = classType;
-            this.queryCollectorContextFactory = queryCollectorContextFactory;
+        public FactorySpec(String name, Class<?> classType, QueryCollectorContextSpecFactory queryCollectorContextSpecFactory) {
+            // this.name = name;
+            // this.classType = classType;
+            this.queryCollectorContextSpecFactory = queryCollectorContextSpecFactory;
         }
     }
 
