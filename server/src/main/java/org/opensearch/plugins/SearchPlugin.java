@@ -228,7 +228,7 @@ public interface SearchPlugin {
         return Optional.empty();
     }
 
-    default List<FactorySpec<?>> getCollectorContextSpec() {
+    default List<QueryCollectorContextSpecFactory> getCollectorContextSpec() {
         return emptyList();
     }
 
@@ -409,43 +409,6 @@ public interface SearchPlugin {
          */
         public QuerySpec(String name, Writeable.Reader<T> reader, QueryParser<T> parser) {
             super(name, reader, parser);
-        }
-    }
-
-    /**
-     * FactorSpect class
-      * @param <T>
-     */
-    class FactorySpec<T extends QueryBuilder> {
-        // public String getName() {
-        // return name;
-        // }
-
-        public QueryCollectorContextSpecFactory getQueryCollectorContextSpec() {
-            return queryCollectorContextSpecFactory;
-        }
-
-        // private final String name;
-        //
-        // public Class<?> getClassType() {
-        // return classType;
-        // }
-
-        // private final Class<?> classType;
-        private final QueryCollectorContextSpecFactory queryCollectorContextSpecFactory;
-
-        /**
-         * Specification of custom {@link Query}.
-         *
-         * @param name the name by which this query might be parsed or deserialized. Make sure that the query builder returns this name for
-         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
-         *        names from other plugins.
-         * @param queryCollectorContextSpecFactory Factory associated with the query builder
-         */
-        public FactorySpec(String name, Class<?> classType, QueryCollectorContextSpecFactory queryCollectorContextSpecFactory) {
-            // this.name = name;
-            // this.classType = classType;
-            this.queryCollectorContextSpecFactory = queryCollectorContextSpecFactory;
         }
     }
 

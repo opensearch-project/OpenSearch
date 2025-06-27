@@ -9,7 +9,6 @@
 package org.opensearch.search.query;
 
 import org.apache.lucene.search.Query;
-import org.opensearch.plugins.SearchPlugin;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -18,7 +17,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * QueryCollectorContextFactoryRegistery
  */
 public class QueryCollectorContextSpecRegistry {
-    // private static final Map<Class<?>, QueryCollectorContextSpec> registry = new ConcurrentHashMap<>();
 
     private static final List<QueryCollectorContextSpecFactory> registry = new CopyOnWriteArrayList<>();
 
@@ -27,7 +25,7 @@ public class QueryCollectorContextSpecRegistry {
         return registry.stream().filter(entry -> entry.supports(query)).findFirst().orElse(null);
     }
 
-    public static void registerFactory(SearchPlugin.FactorySpec<?> specs) {
-        registry.add(specs.getQueryCollectorContextSpec());
+    public static void registerFactory(QueryCollectorContextSpecFactory factory) {
+        registry.add(factory);
     }
 }
