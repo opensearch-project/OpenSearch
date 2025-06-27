@@ -109,7 +109,7 @@ public class SecureSettingsHelpers {
     ) {
         return new SecureAuxTransportSettingsProvider() {
             @Override
-            public Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, String auxEnableSettingKey)
+            public Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, String auxTransportType)
                 throws SSLException {
                 // Choose a random protocol from among supported test defaults
                 String protocol = randomFrom(DEFAULT_SSL_PROTOCOLS);
@@ -125,7 +125,7 @@ public class SecureSettingsHelpers {
             }
 
             @Override
-            public Optional<SecureAuxTransportParameters> parameters(Settings settings, String auxEnableSettingKey) {
+            public Optional<SecureAuxTransportParameters> parameters(Settings settings, String auxTransportType) {
                 return Optional.of(new SecureAuxTransportParameters() {
                     @Override
                     public Optional<String> clientAuth() {

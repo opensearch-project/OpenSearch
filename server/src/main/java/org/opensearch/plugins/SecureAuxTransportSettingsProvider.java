@@ -26,10 +26,10 @@ public interface SecureAuxTransportSettingsProvider {
     /**
      * Fetch an SSLContext as managed by pluggable security provider.
      * @param settings for providing additional configuration options when building the ssl context.
-     * @param auxTransportSettingKey key for enabling this transport with AUX_TRANSPORT_TYPES_SETTING.
+     * @param auxTransportType key for enabling this transport with AUX_TRANSPORT_TYPES_SETTING.
      * @return an instance of SSLContext.
      */
-    default Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, String auxTransportSettingKey)
+    default Optional<SSLContext> buildSecureAuxServerTransportContext(Settings settings, String auxTransportType)
         throws SSLException {
         return Optional.empty();
     }
@@ -37,12 +37,12 @@ public interface SecureAuxTransportSettingsProvider {
     /**
      * Additional params required for configuring ALPN.
      * @param settings for providing additional configuration options when building secure params.
-     * @param auxTransportSettingKey key for enabling this transport with AUX_TRANSPORT_TYPES_SETTING.
+     * @param auxTransportType key for enabling this transport with AUX_TRANSPORT_TYPES_SETTING.
      * @return an instance of {@link SecureAuxTransportSettingsProvider.SecureAuxTransportParameters}
      */
     default Optional<SecureAuxTransportSettingsProvider.SecureAuxTransportParameters> parameters(
         Settings settings,
-        String auxTransportSettingKey
+        String auxTransportType
     ) throws SSLException {
         return Optional.empty();
     }
