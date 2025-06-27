@@ -590,6 +590,34 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    @Deprecated(forRemoval = true)
+    public synchronized IndexShard createShard(
+        final ShardRouting routing,
+        final Consumer<ShardId> globalCheckpointSyncer,
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        final RepositoriesService repositoriesService,
+        final DiscoveryNode targetNode,
+        @Nullable DiscoveryNode sourceNode,
+        DiscoveryNodes discoveryNodes,
+        MergedSegmentWarmerFactory mergedSegmentWarmerFactory
+    ) throws IOException {
+        return createShard(
+            routing,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            checkpointPublisher,
+            remoteStoreStatsTrackerFactory,
+            repositoriesService,
+            targetNode,
+            sourceNode,
+            discoveryNodes,
+            mergedSegmentWarmerFactory,
+            null
+        );
+    }
+
     public synchronized IndexShard createShard(
         final ShardRouting routing,
         final Consumer<ShardId> globalCheckpointSyncer,
