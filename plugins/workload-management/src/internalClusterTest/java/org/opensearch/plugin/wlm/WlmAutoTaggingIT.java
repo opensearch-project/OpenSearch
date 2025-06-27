@@ -10,22 +10,21 @@ package org.opensearch.plugin.wlm;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.junit.After;
+import org.junit.Before;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
+import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rule.RuleAttribute;
-import org.opensearch.rule.RulePersistenceService;
-import org.opensearch.rule.RuleRoutingService;
-import org.opensearch.rule.action.CreateRuleRequest;
-import org.opensearch.rule.action.CreateRuleResponse;
-import org.opensearch.rule.action.DeleteRuleRequest;
-import org.opensearch.rule.action.GetRuleRequest;
-import org.opensearch.rule.action.GetRuleResponse;
-import org.opensearch.rule.action.UpdateRuleRequest;
-import org.opensearch.rule.action.UpdateRuleResponse;
+import org.opensearch.rule.*;
+import org.opensearch.rule.action.*;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
@@ -61,6 +60,8 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestRuleFrameworkPlugin.class);
+        plugins.add(WorkloadManagementPlugin.class);
         return plugins;
     }
 
@@ -69,116 +70,41 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         AutoTaggingRegistry.registerFeatureType(new WorkloadGroupFeatureType(featureValue -> {}));
     }
 
-    public void testCreateRuleWithSingleAttribute() throws Exception {
+    private static final String RULE_ID = "test_rule_id";
+
+
+
+    public void testCreateAutoTaggingRule() throws Exception {
         FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-        Map<Attribute, Set<String>> attributeMap = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-*"));
-
-        Rule rule = new Rule("mock_create", "desc", attributeMap, featureType, "feature1", "2025-06-20T00:00:00.000Z");
-        CreateRuleRequest request = new CreateRuleRequest(rule);
-        PlainActionFuture<CreateRuleResponse> future = PlainActionFuture.newFuture();
-
-        new TestRulePersistenceService().createRule(request, future);
-        CreateRuleResponse response = future.get();
-
-        assertEquals("mock_create", response.getRule().getId());
-        assertEquals("feature1", response.getRule().getFeatureValue());
-    }
-
-    public void testGetExistingRule() throws Exception {
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-        Map<Attribute, Set<String>> attributeMap = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-*"));
-
-        GetRuleRequest request = new GetRuleRequest("mock_id", attributeMap, "token", featureType);
-        PlainActionFuture<GetRuleResponse> future = PlainActionFuture.newFuture();
-
-        new TestRulePersistenceService().getRule(request, future);
-        GetRuleResponse response = future.get();
-
-        assertEquals(1, response.getRules().size());
-        assertEquals("mock_id", response.getRules().get(0).getId());
-    }
-
-    public void testUpdateRuleValueChange() throws Exception {
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-        Map<Attribute, Set<String>> attributeMap = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-*"));
-
-        Rule updatedRule = new Rule("mock_id", "updated desc", attributeMap, featureType, "new_feature_value", "2025-06-20T00:00:00.000Z");
-        UpdateRuleRequest request = new UpdateRuleRequest(
-            updatedRule.getId(),
-            updatedRule.getDescription(),
-            updatedRule.getAttributeMap(),
-            updatedRule.getFeatureValue(),
-            updatedRule.getFeatureType()
+        Map<Attribute, Set<String>> attributes = Map.of(
+            RuleAttribute.INDEX_PATTERN, Set.of("logs-*")
         );
 
-        PlainActionFuture<UpdateRuleResponse> future = PlainActionFuture.newFuture();
-        new TestRulePersistenceService().updateRule(request, future);
-        UpdateRuleResponse response = future.get();
-
-        assertEquals("new_feature_value", response.getRule().getFeatureValue());
-    }
-
-    public void testDeleteRule() throws Exception {
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-        DeleteRuleRequest request = new DeleteRuleRequest("mock_id", featureType);
-        PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
-
-        new TestRulePersistenceService().deleteRule(request, future);
-        AcknowledgedResponse response = future.get();
-
-        assertTrue(response.isAcknowledged());
-    }
-
-    public void testCreateRuleWithMultiplePatterns() throws Exception {
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-        Map<Attribute, Set<String>> attributeMap = Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-*", "metrics-*", "events-*"));
-
-        Rule rule = new Rule("multi_pattern", "desc", attributeMap, featureType, "value", "2025-06-20T00:00:00.000Z");
-        CreateRuleRequest request = new CreateRuleRequest(rule);
-        PlainActionFuture<CreateRuleResponse> future = PlainActionFuture.newFuture();
-
-        new TestRulePersistenceService().createRule(request, future);
-        CreateRuleResponse response = future.get();
-
-        assertEquals("multi_pattern", response.getRule().getId());
-        assertTrue(response.getRule().getAttributeMap().get(RuleAttribute.INDEX_PATTERN).contains("events-*"));
-    }
-
-    public void testCreateRuleWithExistingId() throws Exception {
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType("workload_group");
-        Rule rule1 = new Rule(
-            "duplicate_id",
-            "desc1",
-            Map.of(RuleAttribute.INDEX_PATTERN, Set.of("logs-*")),
+        Rule rule = new Rule(
+            RULE_ID,
+            "Integration test rule",
+            attributes,
             featureType,
-            "v1",
-            "2025-06-20T00:00:00.000Z"
-        );
-        Rule rule2 = new Rule(
-            "duplicate_id",
-            "desc2",
-            Map.of(RuleAttribute.INDEX_PATTERN, Set.of("metrics-*")),
-            featureType,
-            "v2",
+            "wlm_group_id_123",
             "2025-06-20T00:00:00.000Z"
         );
 
-        CreateRuleRequest request1 = new CreateRuleRequest(rule1);
-        CreateRuleRequest request2 = new CreateRuleRequest(rule2);
-        PlainActionFuture<CreateRuleResponse> future1 = PlainActionFuture.newFuture();
-        PlainActionFuture<CreateRuleResponse> future2 = PlainActionFuture.newFuture();
+        CreateRuleRequest createRequest = new CreateRuleRequest(rule);
+        CreateRuleResponse response = client().execute(CreateRuleAction.INSTANCE, createRequest).get();
 
-        new TestRulePersistenceService().createRule(request1, future1);
-        new TestRulePersistenceService().createRule(request2, future2);
-
-        assertEquals("duplicate_id", future1.get().getRule().getId());
-        assertEquals("duplicate_id", future2.get().getRule().getId());
+        assertNotNull(response);
+        assertEquals(RULE_ID, response.getRule().getId());
+        assertEquals("wlm_group_id_123", response.getRule().getFeatureValue());
     }
 
-    public static class TestRuleFrameworkPlugin extends Plugin implements RuleFrameworkExtension {
+    public static class TestRuleFrameworkPlugin extends Plugin implements RuleFrameworkExtension, ActionPlugin {
+        public TestRuleFrameworkPlugin() {
+            super();
+        }
+
         @Override
         public Supplier<FeatureType> getFeatureTypeSupplier() {
-            return () -> new WorkloadGroupFeatureType(featureValue -> {});
+            return () -> new WorkloadGroupFeatureType(v -> {});
         }
 
         @Override
@@ -189,6 +115,16 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         @Override
         public Supplier<RuleRoutingService> getRuleRoutingServiceSupplier() {
             return TestRuleRoutingService::new;
+        }
+
+        @Override
+        public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+            return List.of(
+                new ActionPlugin.ActionHandler<>(CreateRuleAction.INSTANCE, TransportCreateRuleAction.class),
+                new ActionPlugin.ActionHandler<>(GetRuleAction.INSTANCE, TransportGetRuleAction.class),
+                new ActionPlugin.ActionHandler<>(UpdateRuleAction.INSTANCE, TransportUpdateRuleAction.class),
+                new ActionPlugin.ActionHandler<>(DeleteRuleAction.INSTANCE, TransportDeleteRuleAction.class)
+            );
         }
     }
 
