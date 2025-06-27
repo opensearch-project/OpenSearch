@@ -36,41 +36,94 @@ public class SearchHitsProtoUtils {
      * @throws IOException if there's an error during conversion
      */
     protected static org.opensearch.protobufs.HitsMetadata toProto(SearchHits hits) throws IOException {
-
         org.opensearch.protobufs.HitsMetadata.Builder hitsMetaData = org.opensearch.protobufs.HitsMetadata.newBuilder();
+        toProto(hits, hitsMetaData);
+        return hitsMetaData.build();
+    }
 
+    /**
+     * Converts a SearchHits to its Protocol Buffer representation.
+     * This method is equivalent to {@link SearchHits#toXContent(XContentBuilder, ToXContent.Params)}
+     *
+     * @param hits The SearchHits to convert
+     * @param hitsMetaData The builder to populate with the SearchHits data
+     * @throws IOException if there's an error during conversion
+     */
+    protected static void toProto(SearchHits hits, org.opensearch.protobufs.HitsMetadata.Builder hitsMetaData) throws IOException {
+        // Process total hits information
+        processTotalHits(hits, hitsMetaData);
+
+        // Process max score information
+        processMaxScore(hits, hitsMetaData);
+
+        // Process individual hits
+        processHits(hits, hitsMetaData);
+    }
+
+    /**
+     * Helper method to process total hits information.
+     *
+     * @param hits The SearchHits to process
+     * @param hitsMetaData The builder to populate with the total hits data
+     */
+    private static void processTotalHits(SearchHits hits, org.opensearch.protobufs.HitsMetadata.Builder hitsMetaData) {
         org.opensearch.protobufs.HitsMetadata.Total.Builder totalBuilder = org.opensearch.protobufs.HitsMetadata.Total.newBuilder();
 
         // TODO need to pass parameters
         // boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
         boolean totalHitAsInt = false;
+
         if (totalHitAsInt) {
             long total = hits.getTotalHits() == null ? -1 : hits.getTotalHits().value();
             totalBuilder.setDoubleValue(total);
         } else if (hits.getTotalHits() != null) {
             org.opensearch.protobufs.TotalHits.Builder totalHitsBuilder = org.opensearch.protobufs.TotalHits.newBuilder();
             totalHitsBuilder.setValue(hits.getTotalHits().value());
-            totalHitsBuilder.setRelation(
-                hits.getTotalHits().relation() == TotalHits.Relation.EQUAL_TO
-                    ? org.opensearch.protobufs.TotalHits.TotalHitsRelation.TOTAL_HITS_RELATION_EQ
-                    : org.opensearch.protobufs.TotalHits.TotalHitsRelation.TOTAL_HITS_RELATION_GTE
-            );
+
+            // Set relation based on the TotalHits relation
+            org.opensearch.protobufs.TotalHits.TotalHitsRelation relation = hits.getTotalHits().relation() == TotalHits.Relation.EQUAL_TO
+                ? org.opensearch.protobufs.TotalHits.TotalHitsRelation.TOTAL_HITS_RELATION_EQ
+                : org.opensearch.protobufs.TotalHits.TotalHitsRelation.TOTAL_HITS_RELATION_GTE;
+            totalHitsBuilder.setRelation(relation);
+
             totalBuilder.setTotalHits(totalHitsBuilder.build());
         }
 
         hitsMetaData.setTotal(totalBuilder.build());
+    }
 
+    /**
+     * Helper method to process max score information.
+     *
+     * @param hits The SearchHits to process
+     * @param hitsMetaData The builder to populate with the max score data
+     */
+    private static void processMaxScore(SearchHits hits, org.opensearch.protobufs.HitsMetadata.Builder hitsMetaData) {
         org.opensearch.protobufs.HitsMetadata.MaxScore.Builder maxScoreBuilder = org.opensearch.protobufs.HitsMetadata.MaxScore
             .newBuilder();
+
         if (Float.isNaN(hits.getMaxScore())) {
-            hitsMetaData.setMaxScore(maxScoreBuilder.setNullValue(NullValue.NULL_VALUE_NULL).build()).build();
+            maxScoreBuilder.setNullValue(NullValue.NULL_VALUE_NULL);
         } else {
-            hitsMetaData.setMaxScore(maxScoreBuilder.setFloatValue(hits.getMaxScore()).build()).build();
-        }
-        for (SearchHit h : hits) {
-            hitsMetaData.addHits(SearchHitProtoUtils.toProto(h));
+            maxScoreBuilder.setFloatValue(hits.getMaxScore());
         }
 
-        return hitsMetaData.build();
+        hitsMetaData.setMaxScore(maxScoreBuilder.build());
+    }
+
+    /**
+     * Helper method to process individual hits.
+     *
+     * @param hits The SearchHits to process
+     * @param hitsMetaData The builder to populate with the hits data
+     * @throws IOException if there's an error during conversion
+     */
+    private static void processHits(SearchHits hits, org.opensearch.protobufs.HitsMetadata.Builder hitsMetaData) throws IOException {
+        // Process each hit
+        for (SearchHit hit : hits) {
+            org.opensearch.protobufs.Hit.Builder hitBuilder = org.opensearch.protobufs.Hit.newBuilder();
+            SearchHitProtoUtils.toProto(hit, hitBuilder);
+            hitsMetaData.addHits(hitBuilder.build());
+        }
     }
 }

@@ -41,6 +41,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -56,6 +57,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
+import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRunnable;
@@ -67,7 +69,6 @@ import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IngestionStatus;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -84,6 +85,7 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -191,6 +193,7 @@ import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
+import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
@@ -198,6 +201,8 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.checkpoint.MergeSegmentCheckpoint;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
@@ -377,7 +382,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Object refreshMutex;
     private volatile AsyncShardRefreshTask refreshTask;
     private final ClusterApplierService clusterApplierService;
+    private final MergedSegmentPublisher mergedSegmentPublisher;
 
+    @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -414,7 +421,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
         final Supplier<TimeValue> refreshInterval,
         final Object refreshMutex,
-        final ClusterApplierService clusterApplierService
+        final ClusterApplierService clusterApplierService,
+        @Nullable final MergedSegmentPublisher mergedSegmentPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -439,7 +447,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
         this.mapperService = mapperService;
         this.indexCache = indexCache;
-        this.internalIndexingStats = new InternalIndexingStats();
+        this.internalIndexingStats = new InternalIndexingStats(threadPool);
         final List<IndexingOperationListener> listenersList = new ArrayList<>(listeners);
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
@@ -522,6 +530,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshInterval = refreshInterval;
         this.refreshMutex = Objects.requireNonNull(refreshMutex);
         this.clusterApplierService = clusterApplierService;
+        this.mergedSegmentPublisher = mergedSegmentPublisher;
         synchronized (this.refreshMutex) {
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
@@ -1849,6 +1858,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return checkpoint;
     }
 
+    public void publishMergedSegment(SegmentCommitInfo segmentCommitInfo) throws IOException {
+        assert mergedSegmentPublisher != null;
+        mergedSegmentPublisher.publish(this, computeMergeSegmentCheckpoint(segmentCommitInfo));
+    }
+
+    /**
+     * Compute {@link MergeSegmentCheckpoint} from a SegmentCommitInfo.
+     * This function fetches a metadata snapshot from the store that comes with an IO cost.
+     *
+     * @param segmentCommitInfo {@link SegmentCommitInfo} segmentCommitInfo to use to compute.
+     * @return {@link MergeSegmentCheckpoint} Checkpoint computed from the segmentCommitInfo.
+     * @throws IOException When there is an error computing segment metadata from the store.
+     */
+    public MergeSegmentCheckpoint computeMergeSegmentCheckpoint(SegmentCommitInfo segmentCommitInfo) throws IOException {
+        // Only need to get the file metadata information in segmentCommitInfo and reuse Store#getSegmentMetadataMap.
+        SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
+        segmentInfos.add(segmentCommitInfo);
+        Map<String, StoreFileMetadata> segmentMetadataMap = store.getSegmentMetadataMap(segmentInfos);
+        return new MergeSegmentCheckpoint(
+            shardId,
+            getOperationPrimaryTerm(),
+            segmentMetadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
+            getEngine().config().getCodec().getName(),
+            segmentMetadataMap,
+            segmentCommitInfo.info.name
+        );
+    }
+
     /**
      * Checks if this target shard should start a round of segment replication.
      * @return - True if the shard is able to perform segment replication.
@@ -1911,6 +1948,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return false;
         }
         return true;
+    }
+
+    /**
+     * Checks if segment checkpoint should be processed
+     *
+     * @param requestCheckpoint       received segment checkpoint that is checked for processing
+     * @return true if segment checkpoint should be processed
+     */
+    public final boolean shouldProcessMergedSegmentCheckpoint(ReplicationCheckpoint requestCheckpoint) {
+        return isSegmentReplicationAllowed() && requestCheckpoint.getPrimaryTerm() >= getOperationPrimaryTerm();
     }
 
     /**
@@ -5290,7 +5337,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
                 assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
-                    : "There should not be any segments file in the dir";
+                    || indexSettings.isWarmIndex() : "There should not be any segments file in the dir";
                 store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
             } else if (segmentsNFile != null) {
                 try (
@@ -5486,24 +5533,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
 
-        updateShardIngestionState(indexMetadata.getIngestionStatus());
+        IngestionSettings ingestionSettings = IngestionSettings.builder()
+            .setIsPaused(indexMetadata.getIngestionStatus().isPaused())
+            .build();
+        updateShardIngestionState(ingestionSettings);
     }
 
     /**
      * Updates the ingestion state by delegating to the ingestion engine.
      */
-    public void updateShardIngestionState(IngestionStatus ingestionStatus) {
+    public void updateShardIngestionState(IngestionSettings ingestionSettings) {
         synchronized (engineMutex) {
             if (getEngineOrNull() instanceof IngestionEngine == false) {
                 return;
             }
 
             IngestionEngine ingestionEngine = (IngestionEngine) getEngineOrNull();
-            if (ingestionStatus.isPaused()) {
-                ingestionEngine.pauseIngestion();
-            } else {
-                ingestionEngine.resumeIngestion();
-            }
+            ingestionEngine.updateIngestionSettings(ingestionSettings);
         }
     }
 

@@ -10,13 +10,12 @@ package org.opensearch.rule.action;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.rule.DeleteRuleRequest;
 import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
-import static org.opensearch.rule.action.GetRuleRequestTests._ID_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 
 public class DeleteRuleRequestTests extends OpenSearchTestCase {
 

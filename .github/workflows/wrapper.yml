@@ -8,8 +8,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Retry Gradle Wrapper Validation
-        run: |
-          for i in {1..3}; do
-            gradle/wrapper-validation-action@v3 && break || sleep 10
-          done
+      - uses: gradle/actions/wrapper-validation@v4

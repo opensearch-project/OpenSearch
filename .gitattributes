@@ -11,3 +11,4 @@
 *.crt binary
 *.p12 binary
 *.txt text=auto
+CHANGELOG.md merge=union

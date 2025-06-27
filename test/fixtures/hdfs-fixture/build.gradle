@@ -61,7 +61,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api "io.netty:netty-all:${versions.netty}"
-  api 'com.google.code.gson:gson:2.13.0'
+  api 'com.google.code.gson:gson:2.13.1'
   api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
@@ -77,7 +77,7 @@ dependencies {
   api "ch.qos.logback:logback-core:1.5.18"
   api "ch.qos.logback:logback-classic:1.5.18"
   api "org.jboss.xnio:xnio-nio:3.8.16.Final"
-  api 'org.jline:jline:3.29.0'
+  api 'org.jline:jline:3.30.4'
   api 'org.apache.commons:commons-configuration2:2.12.0'
   api 'com.nimbusds:nimbus-jose-jwt:10.3'
   api ('org.apache.kerby:kerb-admin:2.1.0') {
@@ -88,6 +88,6 @@ dependencies {
   runtimeOnly("com.squareup.okhttp3:okhttp:4.12.0") {
     exclude group: "com.squareup.okio"
   }
-  runtimeOnly "com.squareup.okio:okio:3.10.2"
+  runtimeOnly "com.squareup.okio:okio:3.13.0"
   runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.7"
 }
