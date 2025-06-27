@@ -8,17 +8,14 @@
 
 package org.opensearch.arrow.flight.transport;
 
-import io.grpc.Metadata;
-import org.apache.arrow.flight.CallOptions;
 import org.apache.arrow.flight.FlightCallHeaders;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.HeaderCallOption;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.opensearch.arrow.flight.stream.ArrowStreamInput;
-import org.opensearch.arrow.flight.stream.VectorStreamInput;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.Header;
@@ -33,8 +30,8 @@ import java.util.Objects;
  * Handles streaming transport responses using Apache Arrow Flight.
  * Lazily fetches batches from the server when requested.
  */
-@ExperimentalApi
-public class FlightTransportResponse<T extends TransportResponse> implements StreamTransportResponse<T> {
+class FlightTransportResponse<T extends TransportResponse> implements StreamTransportResponse<T> {
+    private static final Logger logger = LogManager.getLogger(FlightTransportResponse.class);
     private final FlightStream flightStream;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final HeaderContext headerContext;
@@ -43,6 +40,7 @@ public class FlightTransportResponse<T extends TransportResponse> implements Str
     private Throwable pendingException;
     private VectorSchemaRoot pendingRoot;  // Holds the current batch's root for reuse
     private final long reqId;
+
     /**
      * Constructs a new streaming response. The flight stream is initialized asynchronously
      * to avoid blocking during construction.
@@ -149,7 +147,7 @@ public class FlightTransportResponse<T extends TransportResponse> implements Str
             }
         } catch (Exception e) {
             pendingException = e;
-            System.out.println(e);
+            logger.warn("Error fetching next batch", e);
             return headerContext.getHeader(reqId);
         }
     }

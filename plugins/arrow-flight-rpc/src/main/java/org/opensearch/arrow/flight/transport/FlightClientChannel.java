@@ -20,6 +20,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Header;
 import org.opensearch.transport.TcpChannel;
@@ -30,27 +31,26 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.stream.StreamTransportResponse;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * TcpChannel implementation for Apache Arrow Flight client with async response handling.
+ * TcpChannel implementation for Flight client with async response handling.
  *
- * @opensearch.internal
  */
-public class FlightClientChannel implements TcpChannel {
+class FlightClientChannel implements TcpChannel {
     private static final Logger logger = LogManager.getLogger(FlightClientChannel.class);
     private static final long SLOW_LOG_THRESHOLD_MS = 5000; // Configurable threshold for slow operations
     private final AtomicLong requestIdGenerator = new AtomicLong();
     private final FlightClient client;
     private final DiscoveryNode node;
+    private final BoundTransportAddress boundAddress;
     private final Location location;
-    private final boolean isServer;
     private final String profile;
     private final CompletableFuture<Void> connectFuture;
     private final CompletableFuture<Void> closeFuture;
@@ -71,7 +71,6 @@ public class FlightClientChannel implements TcpChannel {
      * @param node                  the discovery node for this channel
      * @param location              the flight server location
      * @param headerContext         the context for header management
-     * @param isServer              whether this is a server channel
      * @param profile               the channel profile
      * @param responseHandlers       the transport response handlers
      * @param threadPool            the thread pool for async operations
@@ -79,22 +78,22 @@ public class FlightClientChannel implements TcpChannel {
      * @param namedWriteableRegistry the registry for deserialization
      */
     public FlightClientChannel(
+        BoundTransportAddress boundTransportAddress,
         FlightClient client,
         DiscoveryNode node,
         Location location,
         HeaderContext headerContext,
-        boolean isServer,
         String profile,
         Transport.ResponseHandlers responseHandlers,
         ThreadPool threadPool,
         TransportMessageListener messageListener,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
+        this.boundAddress = boundTransportAddress;
         this.client = client;
         this.node = node;
         this.location = location;
         this.headerContext = headerContext;
-        this.isServer = isServer;
         this.profile = profile;
         this.responseHandlers = responseHandlers;
         this.threadPool = threadPool;
@@ -106,7 +105,6 @@ public class FlightClientChannel implements TcpChannel {
         this.closeListeners = new CopyOnWriteArrayList<>();
         this.stats = new ChannelStats();
         this.isClosed = false;
-
         initializeConnection();
     }
 
@@ -141,7 +139,7 @@ public class FlightClientChannel implements TcpChannel {
 
     @Override
     public boolean isServerChannel() {
-        return isServer;
+        return false;
     }
 
     @Override
@@ -177,12 +175,16 @@ public class FlightClientChannel implements TcpChannel {
 
     @Override
     public InetSocketAddress getLocalAddress() {
-        return null; // TODO: Derive from client if possible
+        return boundAddress.publishAddress().address();
     }
 
     @Override
     public InetSocketAddress getRemoteAddress() {
-        return new InetSocketAddress(location.getUri().getHost(), location.getUri().getPort());
+        try {
+            return new InetSocketAddress(InetAddress.getByName(location.getUri().getHost()), location.getUri().getPort());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to resolve remote address", e);
+        }
     }
 
     @Override
@@ -192,6 +194,7 @@ public class FlightClientChannel implements TcpChannel {
             return;
         }
         try {
+            // ticket will contain the serialized headers
             Ticket ticket = serializeToTicket(reference);
             FlightTransportResponse<?> streamResponse = createStreamResponse(ticket);
             processStreamResponseAsync(streamResponse);
@@ -211,14 +214,15 @@ public class FlightClientChannel implements TcpChannel {
     private FlightTransportResponse<?> createStreamResponse(Ticket ticket) {
         try {
             return new FlightTransportResponse<>(
-                requestIdGenerator.incrementAndGet(), // we can't use reqId directly since its already serialized; so generating a new one for correlation
+                requestIdGenerator.incrementAndGet(), // we can't use reqId directly since its already serialized; so generating a new on
+                // for correlation
                 client,
                 headerContext,
                 ticket,
                 namedWriteableRegistry
             );
         } catch (Exception e) {
-            logger.error("Failed to create stream for ticket at [{}]", location, e);
+            logger.error("Failed to create stream for ticket at [{}]: {}", location, e.getMessage());
             throw new RuntimeException("Failed to create stream", e);
         }
     }
@@ -245,7 +249,7 @@ public class FlightClientChannel implements TcpChannel {
      * @param streamResponse the stream response
      * @param startTime     the start time for logging slow operations
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private void handleStreamResponse(FlightTransportResponse<?> streamResponse, long startTime) {
         Header header = streamResponse.currentHeader();
         if (header == null) {
@@ -269,7 +273,7 @@ public class FlightClientChannel implements TcpChannel {
      * @param handler       the response handler
      * @param streamResponse the stream response
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private void executeWithThreadContext(Header header, TransportResponseHandler handler, StreamTransportResponse<?> streamResponse) {
         ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
@@ -315,7 +319,7 @@ public class FlightClientChannel implements TcpChannel {
             Header header = streamResponse.currentHeader();
             if (header != null) {
                 long requestId = header.getRequestId();
-                logger.error("Failed to handle stream for requestId [{}]", requestId, e);
+                logger.error("Failed to handle stream for requestId [{}]: {}", requestId, e.getMessage());
                 TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(requestId, messageListener);
                 if (handler != null) {
                     handler.handleException(new TransportException(e));
@@ -362,9 +366,6 @@ public class FlightClientChannel implements TcpChannel {
 
     @Override
     public String toString() {
-        return "FlightClientChannel{node=" + node.getId() +
-            ", remoteAddress=" + getRemoteAddress() +
-            ", profile=" + profile +
-            ", isServer=" + isServer + '}';
+        return "FlightClientChannel{node=" + node.getId() + ", remoteAddress=" + getRemoteAddress() + ", profile=" + profile + '}';
     }
 }

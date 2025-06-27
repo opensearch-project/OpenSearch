@@ -15,6 +15,11 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+/**
+ * A listener that sends the response back to the channel in streaming fashion
+ *
+ * @opensearch.internal
+ */
 public class StreamChannelActionListener<Response extends TransportResponse, Request extends TransportRequest>
     implements
         ActionListener<Response> {

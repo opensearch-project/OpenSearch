@@ -14,8 +14,6 @@ import org.apache.arrow.flight.FlightServerMiddleware;
 import org.apache.arrow.flight.NoOpFlightProducer;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.threadpool.ThreadPool;
@@ -25,15 +23,18 @@ import org.opensearch.transport.Transport;
 /**
  * FlightProducer implementation for handling Arrow Flight requests.
  */
-public class ArrowFlightProducer extends NoOpFlightProducer {
+class ArrowFlightProducer extends NoOpFlightProducer {
     private final BufferAllocator allocator;
     private final FlightTransport flightTransport;
     private final ThreadPool threadPool;
     private final Transport.RequestHandlers requestHandlers;
-    private static final Logger logger = LogManager.getLogger(ArrowFlightProducer.class);
     private final FlightServerMiddleware.Key<ServerHeaderMiddleware> middlewareKey;
 
-    public ArrowFlightProducer(FlightTransport flightTransport, BufferAllocator allocator, FlightServerMiddleware.Key<ServerHeaderMiddleware> middlewareKey) {
+    public ArrowFlightProducer(
+        FlightTransport flightTransport,
+        BufferAllocator allocator,
+        FlightServerMiddleware.Key<ServerHeaderMiddleware> middlewareKey
+    ) {
         this.threadPool = flightTransport.getThreadPool();
         this.requestHandlers = flightTransport.getRequestHandlers();
         this.flightTransport = flightTransport;
@@ -45,19 +46,21 @@ public class ArrowFlightProducer extends NoOpFlightProducer {
     public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener) {
         try {
             FlightServerChannel channel = new FlightServerChannel(listener, allocator, context.getMiddleware(middlewareKey));
-            listener.setUseZeroCopy(true);
             BytesArray buf = new BytesArray(ticket.getBytes());
-            InboundPipeline pipeline = new InboundPipeline(
-                flightTransport.getVersion(),
-                flightTransport.getStatsTracker(),
-                flightTransport.getPageCacheRecycler(),
-                threadPool::relativeTimeInMillis,
-                flightTransport.getInflightBreaker(),
-                requestHandlers::getHandler,
-                flightTransport::inboundMessage
-            );
-            // nothing changes in inbound logic, so reusing native transport inbound pipeline
-            try (ReleasableBytesReference reference = ReleasableBytesReference.wrap(buf)) {
+            // TODO: check the feasibility of create InboundPipeline once
+            try (
+                InboundPipeline pipeline = new InboundPipeline(
+                    flightTransport.getVersion(),
+                    flightTransport.getStatsTracker(),
+                    flightTransport.getPageCacheRecycler(),
+                    threadPool::relativeTimeInMillis,
+                    flightTransport.getInflightBreaker(),
+                    requestHandlers::getHandler,
+                    flightTransport::inboundMessage
+                );
+                ReleasableBytesReference reference = ReleasableBytesReference.wrap(buf)
+            ) {
+                // nothing changes in inbound logic, so reusing native transport inbound pipeline
                 pipeline.handleBytes(channel, reference);
             }
         } catch (FlightRuntimeException ex) {

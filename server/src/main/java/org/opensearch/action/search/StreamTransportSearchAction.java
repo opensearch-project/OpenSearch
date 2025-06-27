@@ -24,9 +24,13 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.client.node.NodeClient;
 
-public class TransportStreamSearchAction extends TransportSearchAction {
+/**
+ * Transport search action for streaming search
+ * @opensearch.internal
+ */
+public class StreamTransportSearchAction extends TransportSearchAction {
     @Inject
-    public TransportStreamSearchAction(
+    public StreamTransportSearchAction(
         NodeClient client,
         ThreadPool threadPool,
         CircuitBreakerService circuitBreakerService,

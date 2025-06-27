@@ -25,7 +25,7 @@ import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportHandshaker;
 import org.opensearch.transport.TransportKeepAlive;
 
-public class FlightMessageHandler extends NativeMessageHandler {
+class FlightMessageHandler extends NativeMessageHandler {
 
     public FlightMessageHandler(
         String nodeName,

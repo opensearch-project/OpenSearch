@@ -24,7 +24,7 @@ import org.opensearch.transport.TransportProtocol;
 
 import java.util.Map;
 
-public class FlightInboundHandler extends InboundHandler {
+class FlightInboundHandler extends InboundHandler {
 
     public FlightInboundHandler(
         String nodeName,

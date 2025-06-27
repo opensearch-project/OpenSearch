@@ -7,9 +7,7 @@
  */
 
 /**
- * Arrow based StreamInput and StreamOutput implementation
- *
- * @opensearch.experimental
- * @opensearch.api
+ * Streaming transport response interfaces and implementations.
+ * This package provides support for streaming responses in OpenSearch transport layer.
  */
-package org.opensearch.arrow.flight.stream;
+package org.opensearch.transport.stream;

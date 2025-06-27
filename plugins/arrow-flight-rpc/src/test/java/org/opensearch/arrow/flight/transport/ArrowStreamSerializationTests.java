@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow.flight.stream;
+package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
