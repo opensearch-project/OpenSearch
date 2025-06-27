@@ -34,11 +34,6 @@ package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.profile.AbstractInternalProfileTree;
-import org.opensearch.search.profile.ProfileMetric;
-import org.opensearch.search.profile.Timer;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * The profiling tree for different levels of agg profiling
