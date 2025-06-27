@@ -21,6 +21,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.time.DateUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.ReplicationStats;
@@ -38,6 +39,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -232,7 +234,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             1000,
             "",
             stringStoreFileMetadataMapOne,
-            System.nanoTime() - TimeUnit.MINUTES.toNanos(1)
+            DateUtils.toLong(Instant.now())
         );
 
         IndexShard replicaShard = mock(IndexShard.class);
@@ -260,7 +262,7 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
             200,
             "",
             stringStoreFileMetadataMapTwo,
-            System.nanoTime() - TimeUnit.MINUTES.toNanos(1)
+            DateUtils.toLong(Instant.now())
         );
 
         segmentReplicator.updateReplicationCheckpointStats(thirdReplicationCheckpoint, replicaShard);
@@ -276,6 +278,16 @@ public class SegmentReplicatorTests extends IndexShardTestCase {
         assertEquals(200, replicationStatsSecond.totalBytesBehind);
         assertEquals(200, replicationStatsSecond.maxBytesBehind);
         assertTrue(replicationStatsSecond.maxReplicationLag > 0);
+
+        // shard finished syncing to last checkpoint (sis 3)
+        when(replicaShard.getLatestReplicationCheckpoint()).thenReturn(thirdReplicationCheckpoint);
+        segmentReplicator.pruneCheckpointsUpToLastSync(replicaShard);
+        ReplicationStats finalStats = segmentReplicator.getSegmentReplicationStats(shardId);
+        assertEquals(0, finalStats.totalBytesBehind);
+        assertEquals(0, finalStats.maxBytesBehind);
+        assertEquals(0, finalStats.maxReplicationLag);
+        // shard is up to date, should not have any tracked stats
+        assertTrue(segmentReplicator.replicationCheckpointStats.get(shardId).isEmpty());
     }
 
     public void testGetSegmentReplicationStats_WhenCheckPointReceivedOutOfOrder() {

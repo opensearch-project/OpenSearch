@@ -15,6 +15,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -31,12 +32,13 @@ import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.TimeUnit;
 
 import reactor.util.annotation.NonNull;
 
@@ -54,7 +56,7 @@ public class SegmentReplicator {
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
     private final ReplicationCollection<MergedSegmentReplicationTarget> onGoingMergedSegmentReplications;
     private final Map<ShardId, SegmentReplicationState> completedReplications = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<ShardId, ConcurrentNavigableMap<Long, ReplicationCheckpointStats>> replicationCheckpointStats =
+    protected final ConcurrentMap<ShardId, ConcurrentNavigableMap<Long, ReplicationCheckpointStats>> replicationCheckpointStats =
         ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<ShardId, ReplicationCheckpoint> primaryCheckpoint = ConcurrentCollections.newConcurrentMap();
 
@@ -167,9 +169,8 @@ public class SegmentReplicator {
 
         long bytesBehind = highestEntry.getValue().getBytesBehind();
         long replicationLag = bytesBehind > 0L
-            ? TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lowestEntry.getValue().getTimestamp())
+            ? Duration.ofNanos(DateUtils.toLong(Instant.now()) - lowestEntry.getValue().getTimestamp()).toMillis()
             : 0;
-
         return new ReplicationStats(bytesBehind, bytesBehind, replicationLag);
     }
 
@@ -217,7 +218,7 @@ public class SegmentReplicator {
             );
 
             if (existingCheckpointStats != null && !existingCheckpointStats.isEmpty()) {
-                existingCheckpointStats.keySet().removeIf(key -> key < segmentInfoVersion);
+                existingCheckpointStats.keySet().removeIf(key -> key <= segmentInfoVersion);
                 Map.Entry<Long, ReplicationCheckpointStats> lastEntry = existingCheckpointStats.lastEntry();
                 if (lastEntry != null) {
                     lastEntry.getValue().setBytesBehind(calculateBytesBehind(latestCheckpoint, indexReplicationCheckPoint));
