@@ -46,20 +46,6 @@ import static org.mockito.Mockito.when;
 
 public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
-    /**
-     * Helper method to access private fields using reflection
-     */
-    @SuppressWarnings("unchecked")
-    private <T> T getFieldValue(Object object, String fieldName) {
-        try {
-            java.lang.reflect.Field field = object.getClass().getDeclaredField(fieldName);
-            field.setAccessible(true);
-            return (T) field.get(object);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to get field value: " + fieldName, e);
-        }
-    }
-
     private IndexShard mockIndexShard;
     private Directory mockStoreDirectory;
     private RemoteSegmentStoreDirectory mockRemoteDirectory;
@@ -74,18 +60,12 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
         ShardId shardId = new ShardId(new Index("test", "test"), 0);
         when(mockIndexShard.shardId()).thenReturn(shardId);
 
-        // Create a mock ShardRouting and set it as a field on the IndexShard mock
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            shardRoutingField.set(mockIndexShard, mockShardRouting);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to set shardRouting field", e);
-        }
+        // Mock IndexShard methods instead of setting private fields
+        when(mockIndexShard.state()).thenReturn(IndexShardState.STARTED);
         mockStoreDirectory = mock(FilterDirectory.class);
         // Use a real instance with mocked dependencies instead of mocking the final class
-        mockRemoteDirectory = createMockRemoteDirectory();
+        RemoteDirectory remoteDataDirectory = mock(RemoteDirectory.class);
+        mockRemoteDirectory = createMockRemoteDirectory(remoteDataDirectory);
         mockUploadListener = mock(UploadListener.class);
         mockUploadListenerFunction = mock(Function.class);
 
@@ -98,7 +78,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
      * Creates a real RemoteSegmentStoreDirectory instance with mocked dependencies
      * instead of trying to mock the final class directly.
      */
-    private RemoteSegmentStoreDirectory createMockRemoteDirectory() {
+    private RemoteSegmentStoreDirectory createMockRemoteDirectory(RemoteDirectory remoteDirectory) {
         try {
             RemoteDirectory remoteDataDirectory = mock(RemoteDirectory.class);
             RemoteDirectory remoteMetadataDirectory = mock(RemoteDirectory.class);
@@ -135,18 +115,9 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
         // Create a fresh mock IndexShard
         IndexShard freshMockShard = mock(IndexShard.class);
-        ShardId shardId = new ShardId(new Index("test", "test"), 0);
+        ShardId shardId = new ShardId(new Index("test", "test"), 1);
         when(freshMockShard.shardId()).thenReturn(shardId);
-
-        // Create a mock ShardRouting and set it as a field on the IndexShard mock
-        ShardRouting mockShardRouting = mock(ShardRouting.class);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            shardRoutingField.set(freshMockShard, mockShardRouting);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to set shardRouting field", e);
-        }
+        when(freshMockShard.state()).thenReturn(IndexShardState.STARTED);
 
         // Create a mock directory structure that matches what the code expects
         Directory innerMockDelegate = mock(Directory.class);
@@ -154,20 +125,28 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
         FilterDirectory outerFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(innerFilterDirectory));
 
+        // Setup the real RemoteSegmentStoreDirectory to handle copyFrom calls
+        RemoteDirectory remoteDirectory = mock(RemoteDirectory.class);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDirectory,
+            mock(RemoteDirectory.class),
+            mock(RemoteStoreLockManager.class),
+            freshMockShard.getThreadPool(),
+            freshMockShard.shardId()
+        );
+
         // Create a new uploader service with the fresh mocks
         RemoteStoreUploaderService testUploaderService = new RemoteStoreUploaderService(
             freshMockShard,
             outerFilterDirectory,
-            mockRemoteDirectory
+            remoteSegmentStoreDirectory
         );
 
-        // Setup the real RemoteSegmentStoreDirectory to handle copyFrom calls
-        RemoteDirectory remoteDataDirectory = getFieldValue(mockRemoteDirectory, "remoteDataDirectory");
         doAnswer(invocation -> {
             ActionListener<Void> callback = invocation.getArgument(5);
             callback.onResponse(null);
             return true;
-        }).when(remoteDataDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
+        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -196,32 +175,36 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
         // Create a mock ShardRouting and set it as a field on the IndexShard mock
         ShardRouting mockShardRouting = mock(ShardRouting.class);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            shardRoutingField.set(freshMockShard, mockShardRouting);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to set shardRouting field", e);
-        }
+        freshMockShard.shardRouting = mockShardRouting;
+        when(mockShardRouting.primary()).thenReturn(true);
 
         CompositeDirectory mockCompositeDirectory = mock(CompositeDirectory.class);
         FilterDirectory innerFilterDirectory = new TestFilterDirectory(mockCompositeDirectory);
         FilterDirectory outerFilterDirectory = new TestFilterDirectory(innerFilterDirectory);
 
+        // Setup the real RemoteSegmentStoreDirectory to handle copyFrom calls
+        RemoteDirectory remoteDirectory = mock(RemoteDirectory.class);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDirectory,
+            mock(RemoteDirectory.class),
+            mock(RemoteStoreLockManager.class),
+            freshMockShard.getThreadPool(),
+            freshMockShard.shardId()
+        );
+
         // Create a new uploader service with the fresh mocks
         RemoteStoreUploaderService testUploaderService = new RemoteStoreUploaderService(
             freshMockShard,
             outerFilterDirectory,
-            mockRemoteDirectory
+            remoteSegmentStoreDirectory
         );
 
         // Setup the real RemoteSegmentStoreDirectory to handle copyFrom calls
-        RemoteDirectory remoteDataDirectory = getFieldValue(mockRemoteDirectory, "remoteDataDirectory");
         doAnswer(invocation -> {
             ActionListener<Void> callback = invocation.getArgument(5);
             callback.onResponse(null);
             return true;
-        }).when(remoteDataDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
+        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -248,36 +231,41 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
         // Create a mock ShardRouting and set it as a field on the IndexShard mock
         ShardRouting mockShardRouting = mock(ShardRouting.class);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            shardRoutingField.set(freshMockShard, mockShardRouting);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to set shardRouting field", e);
-        }
+        freshMockShard.shardRouting = mockShardRouting;
+        when(mockShardRouting.primary()).thenReturn(true);
 
         Directory innerMockDelegate = mock(Directory.class);
         FilterDirectory innerFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(innerMockDelegate));
 
         FilterDirectory outerFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(innerFilterDirectory));
 
+        // Setup the real RemoteSegmentStoreDirectory to handle copyFrom calls
+        RemoteDirectory remoteDirectory = mock(RemoteDirectory.class);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDirectory,
+            mock(RemoteDirectory.class),
+            mock(RemoteStoreLockManager.class),
+            freshMockShard.getThreadPool(),
+            freshMockShard.shardId()
+        );
+
         // Create a new uploader service with the fresh mocks
         RemoteStoreUploaderService testUploaderService = new RemoteStoreUploaderService(
             freshMockShard,
             outerFilterDirectory,
-            mockRemoteDirectory
+            remoteSegmentStoreDirectory
         );
 
         CorruptIndexException corruptException = new CorruptIndexException("Index corrupted", "test");
         CountDownLatch latch = new CountDownLatch(1);
 
         // Setup the real RemoteSegmentStoreDirectory to handle copyFrom calls
-        RemoteDirectory remoteDataDirectory = getFieldValue(mockRemoteDirectory, "remoteDataDirectory");
+        RemoteDirectory remoteDataDirectory = mock(RemoteDirectory.class);
         doAnswer(invocation -> {
             ActionListener<Void> callback = invocation.getArgument(5);
             callback.onFailure(corruptException);
             return true;
-        }).when(remoteDataDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
+        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
 
         ActionListener<Void> listener = ActionListener.wrap(response -> fail("Should not succeed with corrupt index"), exception -> {
             assertEquals(corruptException, exception);
@@ -303,36 +291,40 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
         // Create a mock ShardRouting and set it as a field on the IndexShard mock
         ShardRouting mockShardRouting = mock(ShardRouting.class);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            shardRoutingField.set(freshMockShard, mockShardRouting);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to set shardRouting field", e);
-        }
+        freshMockShard.shardRouting = mockShardRouting;
+        when(mockShardRouting.primary()).thenReturn(true);
 
         Directory innerMockDelegate = mock(Directory.class);
         FilterDirectory innerFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(innerMockDelegate));
 
         FilterDirectory outerFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(innerFilterDirectory));
 
+        // Setup the real RemoteSegmentStoreDirectory to handle copyFrom calls
+        RemoteDirectory remoteDirectory = mock(RemoteDirectory.class);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDirectory,
+            mock(RemoteDirectory.class),
+            mock(RemoteStoreLockManager.class),
+            freshMockShard.getThreadPool(),
+            freshMockShard.shardId()
+        );
+
         // Create a new uploader service with the fresh mocks
         RemoteStoreUploaderService testUploaderService = new RemoteStoreUploaderService(
             freshMockShard,
             outerFilterDirectory,
-            mockRemoteDirectory
+            remoteSegmentStoreDirectory
         );
 
         RuntimeException genericException = new RuntimeException("Generic error");
         CountDownLatch latch = new CountDownLatch(1);
 
         // Setup the real RemoteSegmentStoreDirectory to handle copyFrom calls
-        RemoteDirectory remoteDataDirectory = getFieldValue(mockRemoteDirectory, "remoteDataDirectory");
         doAnswer(invocation -> {
             ActionListener<Void> callback = invocation.getArgument(5);
             callback.onFailure(genericException);
             return true;
-        }).when(remoteDataDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
+        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
 
         ActionListener<Void> listener = ActionListener.wrap(response -> fail("Should not succeed with generic exception"), exception -> {
             assertEquals(genericException, exception);
@@ -348,14 +340,10 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
     public void testIsLowPriorityUpload() {
         when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            ShardRouting mockShardRouting = (ShardRouting) shardRoutingField.get(mockIndexShard);
-            when(mockShardRouting.primary()).thenReturn(true);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to access shardRouting field", e);
-        }
+
+        ShardRouting mockShardRouting = mock(ShardRouting.class);
+        mockIndexShard.shardRouting = mockShardRouting;
+        when(mockShardRouting.primary()).thenReturn(true);
 
         RecoveryState mockRecoveryState = mock(RecoveryState.class);
         RecoverySource mockRecoverySource = mock(RecoverySource.class);
@@ -368,14 +356,9 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
     public void testIsLocalOrSnapshotRecoveryOrSeedingWithLocalShards() {
         when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            ShardRouting mockShardRouting = (ShardRouting) shardRoutingField.get(mockIndexShard);
-            when(mockShardRouting.primary()).thenReturn(true);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to access shardRouting field", e);
-        }
+        ShardRouting mockShardRouting = mock(ShardRouting.class);
+        mockIndexShard.shardRouting = mockShardRouting;
+        when(mockShardRouting.primary()).thenReturn(true);
 
         RecoveryState mockRecoveryState = mock(RecoveryState.class);
         RecoverySource mockRecoverySource = mock(RecoverySource.class);
@@ -388,14 +371,9 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
     public void testIsLocalOrSnapshotRecoveryOrSeedingWithSnapshot() {
         when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            ShardRouting mockShardRouting = (ShardRouting) shardRoutingField.get(mockIndexShard);
-            when(mockShardRouting.primary()).thenReturn(true);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to access shardRouting field", e);
-        }
+        ShardRouting mockShardRouting = mock(ShardRouting.class);
+        mockIndexShard.shardRouting = mockShardRouting;
+        when(mockShardRouting.primary()).thenReturn(true);
 
         RecoveryState mockRecoveryState = mock(RecoveryState.class);
         RecoverySource mockRecoverySource = mock(RecoverySource.class);
@@ -408,14 +386,9 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
     public void testIsLocalOrSnapshotRecoveryOrSeedingWithSeeding() {
         when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            ShardRouting mockShardRouting = (ShardRouting) shardRoutingField.get(mockIndexShard);
-            when(mockShardRouting.primary()).thenReturn(true);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to access shardRouting field", e);
-        }
+        ShardRouting mockShardRouting = mock(ShardRouting.class);
+        mockIndexShard.shardRouting = mockShardRouting;
+        when(mockShardRouting.primary()).thenReturn(true);
 
         RecoveryState mockRecoveryState = mock(RecoveryState.class);
         RecoverySource mockRecoverySource = mock(RecoverySource.class);
@@ -429,42 +402,27 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
 
     public void testIsLocalOrSnapshotRecoveryOrSeedingReturnsFalse() {
         when(mockIndexShard.state()).thenReturn(IndexShardState.STARTED);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            ShardRouting mockShardRouting = (ShardRouting) shardRoutingField.get(mockIndexShard);
-            when(mockShardRouting.primary()).thenReturn(true);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to access shardRouting field", e);
-        }
+        ShardRouting mockShardRouting = mock(ShardRouting.class);
+        mockIndexShard.shardRouting = mockShardRouting;
+        when(mockShardRouting.primary()).thenReturn(true);
 
         assertFalse(uploaderService.isLocalOrSnapshotRecoveryOrSeeding());
     }
 
     public void testIsLocalOrSnapshotRecoveryOrSeedingWithNonPrimary() {
         when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            ShardRouting mockShardRouting = (ShardRouting) shardRoutingField.get(mockIndexShard);
-            when(mockShardRouting.primary()).thenReturn(false);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to access shardRouting field", e);
-        }
+        ShardRouting mockShardRouting = mock(ShardRouting.class);
+        mockIndexShard.shardRouting = mockShardRouting;
+        when(mockShardRouting.primary()).thenReturn(true);
 
         assertFalse(uploaderService.isLocalOrSnapshotRecoveryOrSeeding());
     }
 
     public void testIsLocalOrSnapshotRecoveryOrSeedingWithNullRecoveryState() {
         when(mockIndexShard.state()).thenReturn(IndexShardState.RECOVERING);
-        try {
-            java.lang.reflect.Field shardRoutingField = IndexShard.class.getDeclaredField("shardRouting");
-            shardRoutingField.setAccessible(true);
-            ShardRouting mockShardRouting = (ShardRouting) shardRoutingField.get(mockIndexShard);
-            when(mockShardRouting.primary()).thenReturn(true);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to access shardRouting field", e);
-        }
+        ShardRouting mockShardRouting = mock(ShardRouting.class);
+        mockIndexShard.shardRouting = mockShardRouting;
+        when(mockShardRouting.primary()).thenReturn(true);
         when(mockIndexShard.recoveryState()).thenReturn(null);
 
         assertFalse(uploaderService.isLocalOrSnapshotRecoveryOrSeeding());
