@@ -14,7 +14,7 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
   description = 'Arrow flight based transport and stream implementation. It also provides Arrow vector and memory dependencies as' +
     'an extended-plugin at runtime; consumers should take a compile time dependency and not runtime on this project.\'\n'
-  classname = 'org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin'
+  classname = 'org.opensearch.arrow.flight.transport.FlightStreamPlugin'
 }
 
 dependencies {

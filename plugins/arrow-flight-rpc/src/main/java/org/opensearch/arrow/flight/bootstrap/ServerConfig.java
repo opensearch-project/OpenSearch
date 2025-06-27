@@ -35,6 +35,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
  * Configuration class for OpenSearch Flight server settings.
  * This class manages server-side configurations including port settings, Arrow memory settings,
  * thread pool configurations, and SSL/TLS settings.
+ * @opensearch.internal
  */
 public class ServerConfig {
     /**
@@ -182,10 +183,20 @@ public class ServerConfig {
             : new NioEventLoopGroup(eventLoopThreads, OpenSearchExecutors.daemonThreadFactory(name));
     }
 
+    /**
+     * Returns the appropriate server channel type based on platform availability.
+     *
+     * @return EpollServerSocketChannel if Epoll is available, otherwise NioServerSocketChannel
+     */
     public static Class<? extends Channel> serverChannelType() {
         return Epoll.isAvailable() ? EpollServerSocketChannel.class : NioServerSocketChannel.class;
     }
 
+    /**
+     * Returns the appropriate client channel type based on platform availability.
+     *
+     * @return EpollSocketChannel if Epoll is available, otherwise NioSocketChannel
+     */
     public static Class<? extends Channel> clientChannelType() {
         return Epoll.isAvailable() ? EpollSocketChannel.class : NioSocketChannel.class;
     }

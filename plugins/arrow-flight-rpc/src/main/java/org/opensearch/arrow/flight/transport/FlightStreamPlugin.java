@@ -6,15 +6,17 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow.flight.bootstrap;
+package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.Version;
 import org.opensearch.arrow.flight.api.flightinfo.FlightServerInfoAction;
 import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
 import org.opensearch.arrow.flight.api.flightinfo.TransportNodesFlightInfoAction;
+import org.opensearch.arrow.flight.bootstrap.FlightService;
+import org.opensearch.arrow.flight.bootstrap.ServerComponents;
+import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.bootstrap.tls.DefaultSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
-import org.opensearch.arrow.flight.transport.FlightTransport;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;

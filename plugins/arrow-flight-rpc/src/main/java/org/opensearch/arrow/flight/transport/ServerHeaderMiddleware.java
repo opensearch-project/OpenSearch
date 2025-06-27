@@ -17,7 +17,7 @@ import org.apache.arrow.flight.RequestContext;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 
-public class ServerHeaderMiddleware implements FlightServerMiddleware {
+class ServerHeaderMiddleware implements FlightServerMiddleware {
     private ByteBuffer headerBuffer;
     private final String reqId;
 

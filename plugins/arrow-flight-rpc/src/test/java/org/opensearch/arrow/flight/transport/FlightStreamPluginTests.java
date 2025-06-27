@@ -6,12 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow.flight;
+package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.arrow.flight.api.flightinfo.FlightServerInfoAction;
 import org.opensearch.arrow.flight.api.flightinfo.NodesFlightInfoAction;
 import org.opensearch.arrow.flight.bootstrap.FlightService;
-import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
 import org.opensearch.arrow.spi.StreamManager;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNodes;
