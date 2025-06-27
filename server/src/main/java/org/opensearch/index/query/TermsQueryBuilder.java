@@ -39,6 +39,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -57,6 +59,8 @@ import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.indices.TermsLookup;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
@@ -68,6 +72,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -429,6 +434,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         String fieldName = null;
         List<Object> values = null;
         TermsLookup termsLookup = null;
+        QueryBuilder nestedQuery = null;
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -529,6 +535,20 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (termsLookup != null && termsLookup.query() != null) {
+            QueryBuilder rewrittenQuery = termsLookup.query().rewrite(context);
+
+            SearchResponse response = context.getClient()
+                .search(new SearchRequest(termsLookup.index()).source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true)))
+                .actionGet();
+
+            List<Object> terms = new ArrayList<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                terms.addAll(XContentMapValues.extractRawValues(termsLookup.path(), hit.getSourceAsMap()));
+            }
+            return context.fieldMapper(fieldName).termsQuery(terms, context);
+        }
+
         if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
@@ -550,6 +570,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
+
         if (valueType == ValueType.BITMAP) {
             if (values.size() == 1 && values.get(0) instanceof BytesArray) {
                 if (fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
@@ -601,7 +622,44 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (termsLookup != null && termsLookup.query() != null) {
+            QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
+            if (shardContext == null) {
+                return this;
+            }
+            // Rewrite the subquery using the shard context
+            QueryBuilder rewrittenQuery = termsLookup.query().rewrite(shardContext);
+
+            SearchResponse response;
+            try {
+                response = shardContext.getClient()
+                    .search(
+                        new SearchRequest(termsLookup.index()).source(new SearchSourceBuilder().query(rewrittenQuery).fetchSource(true))
+                    )
+                    .actionGet();
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to execute subquery: " + e.getMessage(), e);
+            }
+            // Extract terms from search hits
+            List<Object> terms = new ArrayList<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                Map<String, Object> source = hit.getSourceAsMap();
+                if (source != null) {
+                    try {
+                        List<Object> extracted = XContentMapValues.extractRawValues(termsLookup.path(), source);
+                        terms.addAll(extracted);
+                    } catch (Exception ex) {
+                        throw new IllegalStateException("Failed to execute subquery: " + ex.getMessage(), ex);
+                    }
+                } else {
+                    throw new IllegalStateException("Source is null for hit: " + hit);
+                }
+            }
+            // Return a new TermsQueryBuilder with the fetched terms
+            return new TermsQueryBuilder(fieldName, terms);
+        }
+
         if (supplier != null) {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get(), valueType);
         } else if (this.termsLookup != null) {
