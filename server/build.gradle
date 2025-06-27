@@ -404,21 +404,6 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     failOnSourceIncompatibility = true
     annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
     annotationExcludes = ['@org.opensearch.common.annotation.InternalApi']
-    // Already broken APIs, excluding them for now
-    classExcludes = [
-        "org.opensearch.action.DocWriteRequest",
-        "org.opensearch.cluster.ClusterInfo",
-        "org.opensearch.cluster.service.PendingClusterTask",
-        "org.opensearch.index.IndexService",
-        "org.opensearch.indices.IndicesService",
-        "org.opensearch.index.IndexModule",
-        "org.opensearch.index.store.remote.filecache.FileCacheStats",
-        "org.opensearch.index.store.remote.filecache.FileCache",
-        "org.opensearch.index.store.remote.utils.cache.CacheUsage",
-        "org.opensearch.index.store.remote.utils.cache.stats.CacheStats",
-        "org.opensearch.index.query.QueryCoordinatorContext",
-        "org.opensearch.index.shard.IndexShard"
-    ]
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
     htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
     dependsOn downloadJapicmpCompareTarget
