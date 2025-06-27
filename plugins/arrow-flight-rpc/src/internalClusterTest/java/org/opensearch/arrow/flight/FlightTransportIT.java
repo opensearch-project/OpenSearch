@@ -14,9 +14,8 @@ import org.opensearch.action.admin.indices.refresh.RefreshRequest;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.arrow.flight.bootstrap.FlightStreamPlugin;
+import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -24,7 +23,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.junit.BeforeClass;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -37,14 +35,6 @@ public class FlightTransportIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(FlightStreamPlugin.class);
-    }
-
-    @BeforeClass
-    public static void setupSysProperties() {
-        System.setProperty("io.netty.allocator.numDirectArenas", "1");
-        System.setProperty("io.netty.noUnsafe", "false");
-        System.setProperty("io.netty.tryUnsafe", "true");
-        System.setProperty("io.netty.tryReflectionSetAccessible", "true");
     }
 
     @Override

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.arrow.flight.stream;
+package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VarBinaryVector;
@@ -19,7 +19,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.List;
 
-public class VectorStreamOutput extends StreamOutput {
+class VectorStreamOutput extends StreamOutput {
 
     private int row = 0;
     private final VarBinaryVector vector;
@@ -33,7 +33,7 @@ public class VectorStreamOutput extends StreamOutput {
     @Override
     public void writeByte(byte b) throws IOException {
         vector.setInitialCapacity(row + 1);
-        vector.setSafe(row++, new byte[]{b});
+        vector.setSafe(row++, new byte[] { b });
     }
 
     @Override

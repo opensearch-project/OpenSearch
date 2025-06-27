@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @opensearch.internal
  */
-public class FlightTransportChannel extends TcpTransportChannel {
+class FlightTransportChannel extends TcpTransportChannel {
     private static final Logger logger = LogManager.getLogger(FlightTransportChannel.class);
 
     private final AtomicBoolean streamOpen = new AtomicBoolean(true);
@@ -76,7 +76,12 @@ public class FlightTransportChannel extends TcpTransportChannel {
             isHandshake,
             ActionListener.wrap(
                 (resp) -> logger.debug("Response batch sent for action [{}] with requestId [{}]", action, requestId),
-                e -> logger.error("Failed to send response batch for action [{}] with requestId [{}]", action, requestId, e)
+                e -> logger.error(
+                    "Failed to send response batch for action [{}] with requestId [{}]: {}",
+                    action,
+                    requestId,
+                    e.getMessage()
+                )
             )
         );
     }
@@ -90,20 +95,18 @@ public class FlightTransportChannel extends TcpTransportChannel {
                 getChannel(),
                 requestId,
                 action,
-                ActionListener.wrap(
-                    (resp) -> {
-                        logger.debug("Stream completed for action [{}] with requestId [{}]", action, requestId);
-                        release(false);
-                    },
-                    e -> {
-                        logger.error("Failed to complete stream for action [{}] with requestId [{}]", action, requestId, e);
-                        release(true);
-                    }
-                )
+                ActionListener.wrap((resp) -> {
+                    logger.debug("Stream completed for action [{}] with requestId [{}]", action, requestId);
+                    release(false);
+                }, e -> {
+                    logger.error("Failed to complete stream for action [{}] with requestId [{}]: {}", action, requestId, e.getMessage());
+                    release(true);
+                })
             );
         } else {
             try {
-                outboundHandler.sendErrorResponse(version,
+                outboundHandler.sendErrorResponse(
+                    version,
                     features,
                     getChannel(),
                     requestId,

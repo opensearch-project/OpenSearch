@@ -74,7 +74,7 @@ import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLI
 import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLIGHT_PUBLISH_PORT;
 
 @SuppressWarnings("removal")
-public class FlightTransport extends TcpTransport {
+class FlightTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(FlightTransport.class);
     private static final String DEFAULT_PROFILE = "default";
 
@@ -92,7 +92,11 @@ public class FlightTransport extends TcpTransport {
     private final ThreadPool threadPool;
     private BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    public final FlightServerMiddleware.Key<ServerHeaderMiddleware> SERVER_HEADER_KEY = FlightServerMiddleware.Key.of("opensearch-header-middleware");
+
+    final FlightServerMiddleware.Key<ServerHeaderMiddleware> SERVER_HEADER_KEY = FlightServerMiddleware.Key.of(
+        "flight-server-header-middleware"
+    );
+
     private record ClientHolder(Location location, FlightClient flightClient, HeaderContext context) {
     }
 
@@ -126,7 +130,6 @@ public class FlightTransport extends TcpTransport {
             allocator = AccessController.doPrivileged((PrivilegedAction<BufferAllocator>) () -> new RootAllocator(Integer.MAX_VALUE));
             flightProducer = new ArrowFlightProducer(this, allocator, SERVER_HEADER_KEY);
             bindServer();
-            super.doStart();
             success = true;
         } finally {
             if (!success) {
@@ -183,8 +186,8 @@ public class FlightTransport extends TcpTransport {
             try {
                 InetSocketAddress socketAddress = new InetSocketAddress(hostAddress, portNumber);
                 Location location = sslContextProvider != null
-                    ? Location.forGrpcTls(hostAddress.getHostAddress(), portNumber)
-                    : Location.forGrpcInsecure(hostAddress.getHostAddress(), portNumber);
+                    ? Location.forGrpcTls(NetworkAddress.format(hostAddress), portNumber)
+                    : Location.forGrpcInsecure(NetworkAddress.format(hostAddress), portNumber);
                 ServerHeaderMiddleware.Factory factory = new ServerHeaderMiddleware.Factory();
                 FlightServer server = OSFlightServer.builder()
                     .allocator(allocator)
@@ -272,11 +275,11 @@ public class FlightTransport extends TcpTransport {
         });
 
         return new FlightClientChannel(
+            boundAddress,
             holder.flightClient(),
             node,
             holder.location(),
             holder.context(),
-            false,
             DEFAULT_PROFILE,
             getResponseHandlers(),
             threadPool,
