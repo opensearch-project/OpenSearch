@@ -32,9 +32,9 @@ import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.List;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentNavigableMap;
