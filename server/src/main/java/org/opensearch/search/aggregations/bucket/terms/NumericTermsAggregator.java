@@ -256,14 +256,14 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 checkCancelled();
                 collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
-
                 int size = (int) Math.min(bucketsInOrd, localBucketCountThresholds.getRequiredSize());
                 B spare = null;
                 BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
 
-                if ((bucketsInOrd > (size * 2L)) || isKeyOrder(order)) {
-                    // use heap sort
+                // Use priority queue approach when request size is smaller than 10% of total buckets,
+                // or when key ordering is required
+                if ((size < 0.1 * bucketsInOrd) || isKeyOrder(order)) {
                     PriorityQueue<B> ordered = buildPriorityQueue(size);
                     while (ordsEnum.next()) {
                         long docCount = bucketDocCount(ordsEnum.ord());
@@ -295,8 +295,10 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                         }
                     }
                 } else {
-                    B[] bucketsForOrd = buildBuckets((int) bucketOrds.size());
-                    int tot = 0;
+                    B[] bucketsForOrd = buildBuckets((int) bucketsInOrd);
+                    int validBucketCount = 0;
+
+                    // Collect all valid buckets
                     while (ordsEnum.next()) {
                         long docCount = bucketDocCount(ordsEnum.ord());
                         otherDocCounts[ordIdx] += docCount;
@@ -305,22 +307,27 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                         }
                         spare = emptyBucketBuilder.get();
                         updateBucket(spare, ordsEnum, docCount);
-                        bucketsForOrd[tot++] = spare;
+                        bucketsForOrd[validBucketCount++] = spare;
                     }
-                    if (tot > size & partiallyBuiltBucketComparator != null) {
-                        // quick select topN
-                        // TODO do we need to handle case for SignificantTerm Agg separately
+
+                    if (validBucketCount > size && partiallyBuiltBucketComparator != null) {
+                        // Use quick select to find top N buckets
                         ArrayUtil.select(
                             bucketsForOrd,
                             0,
-                            tot,
+                            validBucketCount,
                             size,
                             ((b1, b2) -> partiallyBuiltBucketComparator.compare((InternalTerms.Bucket<?>) b1, (InternalTerms.Bucket<?>) b2))
                         );
-                    }
-                    topBucketsPerOrd[ordIdx] = Arrays.copyOf(bucketsForOrd, size);
-                    for (int b = 0; b < size; b++) {
-                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                        topBucketsPerOrd[ordIdx] = Arrays.copyOf(bucketsForOrd, size);
+                        // Adjust other doc counts by subtracting the doc counts of selected top buckets
+                        for (int b = 0; b < size; b++) {
+                            otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                        }
+                    } else {
+                        // All buckets fit within the required size, no selection needed
+                        topBucketsPerOrd[ordIdx] = Arrays.copyOf(bucketsForOrd, validBucketCount);
+                        otherDocCounts[ordIdx] = 0L;
                     }
                 }
             }
