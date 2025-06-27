@@ -40,7 +40,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    private final Semaphore semaphore = new Semaphore(TOTAL_PERMITS);
+    protected final Semaphore semaphore = new Semaphore(TOTAL_PERMITS);
 
     private final ThreadPool threadPool;
 
@@ -59,7 +59,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
     }
 
     @Override
-    public final void afterRefresh(boolean didRefresh) throws IOException {
+    public void afterRefresh(boolean didRefresh) throws IOException {
         if (closed.get()) {
             return;
         }
@@ -157,7 +157,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
      * The synchronised block ensures that if there is a retry or afterRefresh waiting, then it waits until the previous
      * execution finishes.
      */
-    private synchronized void runAfterRefreshWithPermit(boolean didRefresh, Runnable runFinally) {
+    protected synchronized void runAfterRefreshWithPermit(boolean didRefresh, Runnable runFinally) {
         if (closed.get()) {
             return;
         }
@@ -180,7 +180,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
      * @param afterRefreshSuccessful is sent true if the performAfterRefresh(..) is successful.
      * @param didRefresh             if the refresh did open a new reference then didRefresh will be true
      */
-    private void scheduleRetry(boolean afterRefreshSuccessful, boolean didRefresh) {
+    protected void scheduleRetry(boolean afterRefreshSuccessful, boolean didRefresh) {
         if (afterRefreshSuccessful == false) {
             scheduleRetry(getNextRetryInterval(), getRetryThreadPoolName(), didRefresh);
         }
@@ -194,6 +194,18 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
      */
     protected abstract boolean performAfterRefreshWithPermit(boolean didRefresh);
 
+    /**
+     * Hook method that allows subclasses to wait for any outstanding asynchronous operations
+     * to complete during shutdown. Default implementation does nothing.
+     *
+     * @param timeout The maximum time to wait
+     * @param unit The time unit of the timeout
+     * @return true if all operations completed, false if the timeout was reached
+     */
+    protected boolean waitForAsyncOperations(long timeout, TimeUnit unit) {
+        return true; // Default implementation assumes no async operations
+    }
+
     public final Releasable drainRefreshes() {
         try {
             TimeValue timeout = getDrainTimeout();
@@ -201,6 +213,13 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
                 boolean result = closed.compareAndSet(false, true);
                 assert result && semaphore.availablePermits() == 0;
                 getLogger().info("All permits are acquired and refresh listener is closed");
+
+                // Wait for any async operations to complete
+                boolean asyncOpsDone = waitForAsyncOperations(timeout.seconds(), TimeUnit.SECONDS);
+                if (!asyncOpsDone) {
+                    getLogger().warn("Timeout waiting for async operations to complete during drain");
+                }
+
                 return Releasables.releaseOnce(() -> {
                     semaphore.release(TOTAL_PERMITS);
                     boolean wasClosed = closed.getAndSet(false);
