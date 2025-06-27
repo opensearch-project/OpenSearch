@@ -228,7 +228,7 @@ public interface SearchPlugin {
         return Optional.empty();
     }
 
-    default List<QueryCollectorContextSpecFactory> getCollectorContextSpec() {
+    default List<QueryCollectorContextSpecFactory> getCollectorContextSpecFactories() {
         return emptyList();
     }
 

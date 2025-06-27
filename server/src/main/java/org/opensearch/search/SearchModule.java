@@ -1302,7 +1302,7 @@ public class SearchModule {
     }
 
     private void registerQueryCollectorContextSpec(List<SearchPlugin> plugins) {
-        registerFromPlugin(plugins, SearchPlugin::getCollectorContextSpec, QueryCollectorContextSpecRegistry::registerFactory);
+        registerFromPlugin(plugins, SearchPlugin::getCollectorContextSpecFactories, QueryCollectorContextSpecRegistry::registerFactory);
     }
 
     public FetchPhase getFetchPhase() {
