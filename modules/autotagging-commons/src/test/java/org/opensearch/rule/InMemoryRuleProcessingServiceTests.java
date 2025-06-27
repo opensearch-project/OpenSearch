@@ -53,6 +53,16 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         assertFalse(label.isPresent());
     }
 
+    public void testAddThenRemoveWithWildcard() {
+        Rule rule = getRule(Set.of("test-*"), "test_id");
+        sut.add(rule);
+        sut.remove(rule);
+
+        List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of("test-index"));
+        Optional<String> label = sut.evaluateLabel(extractors);
+        assertFalse(label.isPresent());
+    }
+
     public void testEvaluateLabelForExactMatch() {
         sut.add(getRule(Set.of("test1", "change"), "test_id"));
         sut.add(getRule(Set.of("test", "double"), "test_id1"));
