@@ -112,6 +112,8 @@ public final class ConnectionProfile {
         // if we are not a data-node we don't need any dedicated channels for recovery
         builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
         builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
+        // TODO use different setting for connectionsPerNodeReg for stream request
+        builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.STREAM);
         return builder.build();
     }
 
